@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Admin — PAP/CSE{% endblock %}
+{% block content %}
+<h1>Administration — Imports</h1>
+<form method="post" action="/api/ingest/pv" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
+  <label for="pvfile"><strong>Importer PV (Excel, initial) :</strong></label>
+  <input type="file" name="file" id="pvfile" required />
+  <button type="submit">Envoyer</button>
+</form>
+<form method="post" action="/api/ingest/invit" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
+  <label for="invitfile"><strong>Importer invitations PAP (cycle 5) :</strong></label>
+  <input type="file" name="file" id="invitfile" required />
+  <button type="submit">Envoyer</button>
+</form>
+<form method="post" action="/ciblage/import" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
+  <label for="ciblagefile"><strong>Importer un fichier de ciblage :</strong></label>
+  <input type="file" name="file" id="ciblagefile" required />
+  <button type="submit">Envoyer</button>
+</form>
+<form method="post" action="/api/build/summary" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
+  <button type="submit"><strong>Mettre à jour le tableau</strong></button>
+</form>
+{% endblock %}

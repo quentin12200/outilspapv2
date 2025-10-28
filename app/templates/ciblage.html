@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Ciblage — PAP/CSE{% endblock %}
+{% block content %}
+<h1>Ciblage (CAC40/SBF120...)</h1>
+<form method="post" action="/ciblage/import" enctype="multipart/form-data" style="margin:2rem 0;display:flex;gap:.5rem;align-items:center">
+  <label for="ciblagefile"><strong>Importer un fichier de ciblage :</strong></label>
+  <input type="file" name="file" id="ciblagefile" required />
+  <button type="submit">Envoyer</button>
+</form>
+{% if columns %}
+  <h2>Colonnes détectées :</h2>
+  <ul>
+    {% for col in columns %}<li>{{ col }}</li>{% endfor %}
+  </ul>
+{% endif %}
+{% if preview_rows %}
+  <h2>Aperçu des premières lignes :</h2>
+  <table>
+    <thead>
+      <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for row in preview_rows %}
+      <tr>{% for col in columns %}<td>{{ row[col] }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% if col_siren and match_rows %}
+  <h2>Correspondances avec invitations PAP ({{ match_count }})</h2>
+  <div style="overflow-x:auto">
+    <table style="min-width:700px;border-collapse:collapse;">
+      <thead style="background:#d5001c;color:#fff;">
+        <tr>
+          {% if 'siren' in columns %}<th>SIREN</th>{% endif %}
+          {% if 'raison sociale' in columns %}<th>Raison sociale</th>{% endif %}
+          {% for col in columns %}{% if col not in ['siren','raison sociale'] %}<th>{{ col }}</th>{% endif %}{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in match_rows %}
+        <tr>
+          {% if 'siren' in columns %}<td>{{ row['siren'] }}</td>{% endif %}
+          {% if 'raison sociale' in columns %}<td>{{ row['raison sociale'] }}</td>{% endif %}
+          {% for col in columns %}{% if col not in ['siren','raison sociale'] %}<td>{{ row[col] }}</td>{% endif %}{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% elif col_siren %}
+  <div style="margin-top:2em;color:#b91c1c;font-weight:bold">Aucune correspondance trouvée avec les invitations PAP.</div>
+{% endif %}
+{% endblock %}
