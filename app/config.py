@@ -299,22 +299,12 @@ if IS_SQLITE:
         filesystems in production deployments).
         """
 
-        candidate = path
-        parent = candidate.parent
-        if parent.exists():
-            if os.access(parent, os.W_OK):
-                return candidate, True
-            return candidate, False
-        try:
-            parent.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            logger.warning(
-                "Impossible de créer le dossier %s, utilisation du répertoire local",
-                parent,
-            )
+        def fallback_path(original: Path) -> tuple[Path, bool]:
+            """Return a writable fallback within the project when possible."""
+
             fallback = (BASE_DIR / search_name).resolve()
-            if fallback == candidate:
-                return candidate, False
+            if fallback == original:
+                return original, False
             fallback_parent = fallback.parent
             if not fallback_parent.exists():
                 try:
@@ -325,13 +315,37 @@ if IS_SQLITE:
                         fallback_parent,
                         exc,
                     )
-                    return candidate, False
+                    return original, False
             if not os.access(fallback_parent, os.W_OK):
-                return candidate, False
+                return original, False
+            logger.info(
+                "Répertoire %s en lecture seule, repli sur %s",
+                original.parent,
+                fallback,
+            )
             return fallback, True
+
+        candidate = path
+        parent = candidate.parent
+        if parent.exists():
+            if os.access(parent, os.W_OK):
+                return candidate, True
+            logger.warning(
+                "Le répertoire %s n'est pas inscriptible pour la base SQLite",
+                parent,
+            )
+            return fallback_path(candidate)
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            logger.warning(
+                "Impossible de créer le dossier %s, utilisation du répertoire local",
+                parent,
+            )
+            return fallback_path(candidate)
         except OSError as exc:
             logger.warning("Erreur en créant le dossier %s: %s", parent, exc)
-            return candidate, False
+            return fallback_path(candidate)
         else:
             return candidate, True
 
