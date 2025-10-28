@@ -9,14 +9,17 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-# --- Imports projet de bas niveau (engine/Base) d'abord ---
+# --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine
 from .models import SiretSummary
 
-# --------- Bootstrap DB (avant d'importer les routers !) ---------
+# =========================================================
+# Bootstrap DB (AVANT d'importer les routers)
+# =========================================================
 
-DB_URL = os.getenv("DB_URL", "").strip()               # URL Release GitHub
-DB_SHA256 = os.getenv("DB_SHA256", "").lower().strip() # optionnel
+DB_URL = os.getenv("DB_URL", "").strip()                # URL de l'asset Release GitHub
+DB_SHA256 = os.getenv("DB_SHA256", "").lower().strip()  # Empreinte optionnelle
+DB_GH_TOKEN = os.getenv("DB_GH_TOKEN", "").strip() or None  # Token si repo privé
 
 def _sha256_file(path: str) -> str:
     h = hashlib.sha256()
@@ -35,7 +38,7 @@ def _sqlite_path_from_engine() -> str | None:
         pass
     return None
 
-def _download(url, dest, token=None):
+def _download(url: str, dest: str, token: str | None = None) -> None:
     headers = {"Accept": "application/octet-stream"}
     if token:
         headers["Authorization"] = f"token {token}"
@@ -43,10 +46,12 @@ def _download(url, dest, token=None):
     with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
         f.write(resp.read())
 
-def ensure_sqlite_asset():
+def ensure_sqlite_asset() -> None:
     """
-    Crée le dossier parent, télécharge la DB si absente,
-    vérifie le SHA256 si fourni.
+    Garantit que le fichier SQLite existe au chemin visé par l'engine:
+    - crée le dossier parent
+    - télécharge depuis DB_URL si absent
+    - vérifie SHA256 si fourni
     """
     db_path = _sqlite_path_from_engine()
     if not db_path:
@@ -56,8 +61,7 @@ def ensure_sqlite_asset():
     os.makedirs(parent, exist_ok=True)
 
     if DB_URL and not os.path.exists(db_path):
-        token = os.getenv("DB_GH_TOKEN", "").strip() or None
-        _download(DB_URL, db_path, token=token)
+        _download(DB_URL, db_path, token=DB_GH_TOKEN)
 
     if DB_SHA256 and os.path.exists(db_path):
         digest = _sha256_file(db_path).lower()
@@ -69,10 +73,12 @@ def ensure_sqlite_asset():
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()
 
-# --- Maintenant on peut importer les routers qui utilisent la DB ---
-from .routers import api  # noqa: E402
+# =========================================================
+# App & Routers
+# =========================================================
 
-# --------- App FastAPI ---------
+# ⚠️ Import des routers APRÈS ensure_sqlite_asset()
+from .routers import api  # noqa: E402
 
 app = FastAPI(title="PAP/CSE Dashboard")
 app.include_router(api.router)
@@ -107,47 +113,64 @@ def ciblage_get(request: Request, db: Session = Depends(get_session)):
     from .models import Invitation
     path = "app/static/last_ciblage.csv"
     if not os.path.exists(path):
-        return templates.TemplateResponse("ciblage.html", {"request": request, "columns": None, "preview_rows": None})
+        return templates.TemplateResponse(
+            "ciblage.html",
+            {"request": request, "columns": None, "preview_rows": None}
+        )
     df = pd.read_csv(path, dtype=str)
     columns = list(df.columns)
     preview = df.head(10).to_dict(orient="records")
+
     invit_rows = db.query(Invitation.siret).all()
     siret_list = [r[0] for r in invit_rows]
     siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
+
     col_siren = next((c for c in df.columns if c.lower().startswith("siren")), None)
     match_rows = []
     if col_siren:
         match_rows = df[df[col_siren].astype(str).isin(siren_list)].to_dict(orient="records")
-    return templates.TemplateResponse("ciblage.html", {
-        "request": request,
-        "columns": columns,
-        "preview_rows": preview,
-        "col_siren": col_siren,
-        "match_rows": match_rows,
-        "match_count": len(match_rows)
-    })
+
+    return templates.TemplateResponse(
+        "ciblage.html",
+        {
+            "request": request,
+            "columns": columns,
+            "preview_rows": preview,
+            "col_siren": col_siren,
+            "match_rows": match_rows,
+            "match_count": len(match_rows),
+        }
+    )
 
 @app.post("/ciblage/import", response_class=HTMLResponse)
 def ciblage_import(request: Request, file: UploadFile = File(...), db: Session = Depends(get_session)):
     import pandas as pd
     from .models import Invitation
-    df = pd.read_excel(file.file)  # nécessite openpyxl et python-multipart
+
+    df = pd.read_excel(file.file)  # nécessite openpyxl + python-multipart
     os.makedirs("app/static", exist_ok=True)
     df.to_csv("app/static/last_ciblage.csv", index=False)
+
     columns = list(df.columns)
     preview = df.head(10).to_dict(orient="records")
+
     invit_rows = db.query(Invitation.siret).all()
     siret_list = [r[0] for r in invit_rows]
     siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
+
     col_siren = next((c for c in df.columns if c.lower().startswith("siren")), None)
     match_rows = []
     if col_siren:
         match_rows = df[df[col_siren].astype(str).isin(siren_list)].head(20).to_dict(orient="records")
-    return templates.TemplateResponse("ciblage.html", {
-        "request": request,
-        "columns": columns,
-        "preview_rows": preview,
-        "col_siren": col_siren,
-        "match_rows": match_rows,
-        "match_count": len(match_rows)
-    })
+
+    return templates.TemplateResponse(
+        "ciblage.html",
+        {
+            "request": request,
+            "columns": columns,
+            "preview_rows": preview,
+            "col_siren": col_siren,
+            "match_rows": match_rows,
+            "match_count": len(match_rows),
+        }
+    )
