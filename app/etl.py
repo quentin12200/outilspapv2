@@ -146,63 +146,167 @@ def ingest_invit_excel(session: Session, file_like) -> int:
 
 # -------- Construire le résumé 1-ligne/SIRET --------
 def build_siret_summary(session: Session) -> int:
-    # Récup PV en pandas
+    # Récupération des données en pandas (retourne DataFrame vide si aucune ligne)
     pvs = pd.read_sql(session.query(PVEvent).statement, session.bind)
     inv = pd.read_sql(session.query(Invitation).statement, session.bind)
 
-    if pvs.empty:
+    if pvs.empty and inv.empty:
         session.query(SiretSummary).delete()
         session.commit()
         return 0
 
-    def pick_last(df_cycle):
-        # garde la ligne la plus récente du cycle
-        df_cycle = df_cycle.sort_values("date_pv", ascending=False)
-        return df_cycle.head(1)
+    sirets = set()
+    if not pvs.empty:
+        sirets.update(pvs["siret"].dropna().astype(str))
+    if not inv.empty:
+        sirets.update(inv["siret"].dropna().astype(str))
 
-    # Normaliser
-    pvs["carence"] = pvs["type"].fillna("").str.lower().str.contains("carence")
-    # Filtrage bornes cycles
+    if not sirets:
+        session.query(SiretSummary).delete()
+        session.commit()
+        return 0
+
+    base = pd.DataFrame({"siret": sorted(sirets)})
+
+    # Préparation des bornes temporelles
     C3_START, C3_END = pd.to_datetime("2017-01-01"), pd.to_datetime("2020-12-31")
     C4_START, C4_END = pd.to_datetime("2021-01-01"), pd.to_datetime("2024-12-31")
     C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
-    pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce")
-    mask_c3 = (pvs["cycle"]=="C3") & (pvs["date_pv"] >= C3_START) & (pvs["date_pv"] <= C3_END)
-    mask_c4 = (pvs["cycle"]=="C4") & (pvs["date_pv"] >= C4_START) & (pvs["date_pv"] <= C4_END)
-    last_c3 = (pvs[mask_c3].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
-    last_c4 = (pvs[mask_c4].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
 
-    # Invitations: dernière date par SIRET (filtrées C5)
+    if not pvs.empty:
+        pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce")
+        pvs["carence"] = pvs["type"].fillna("").str.lower().str.contains("carence")
+
+        def pick_last(df_cycle: pd.DataFrame) -> pd.DataFrame:
+            df_cycle = df_cycle.sort_values("date_pv", ascending=False)
+            return df_cycle.drop_duplicates("siret", keep="first")
+
+        def extract_cycle(cycle_label: str, start, end, suffix: str) -> pd.DataFrame:
+            mask = (
+                (pvs["cycle"] == cycle_label)
+                & (pvs["date_pv"] >= start)
+                & (pvs["date_pv"] <= end)
+            )
+            df_cycle = pvs.loc[mask]
+            if df_cycle.empty:
+                columns = [
+                    "siret",
+                    f"raison_sociale_{suffix}",
+                    f"idcc_{suffix}",
+                    f"departement_{suffix}",
+                    f"cp_{suffix}",
+                    f"ville_{suffix}",
+                    f"date_pv_{suffix}",
+                    f"carence_{suffix}",
+                    f"inscrits_{suffix}",
+                    f"votants_{suffix}",
+                    f"cgt_voix_{suffix}",
+                    f"fd_{suffix}",
+                    f"ud_{suffix}",
+                ]
+                return pd.DataFrame(columns=columns)
+
+            latest = pick_last(df_cycle)
+            selected = latest[
+                [
+                    "siret",
+                    "raison_sociale",
+                    "idcc",
+                    "departement",
+                    "cp",
+                    "ville",
+                    "date_pv",
+                    "carence",
+                    "inscrits",
+                    "votants",
+                    "cgt_voix",
+                    "fd",
+                    "ud",
+                ]
+            ].copy()
+            return selected.rename(
+                columns={
+                    "raison_sociale": f"raison_sociale_{suffix}",
+                    "idcc": f"idcc_{suffix}",
+                    "departement": f"departement_{suffix}",
+                    "cp": f"cp_{suffix}",
+                    "ville": f"ville_{suffix}",
+                    "date_pv": f"date_pv_{suffix}",
+                    "carence": f"carence_{suffix}",
+                    "inscrits": f"inscrits_{suffix}",
+                    "votants": f"votants_{suffix}",
+                    "cgt_voix": f"cgt_voix_{suffix}",
+                    "fd": f"fd_{suffix}",
+                    "ud": f"ud_{suffix}",
+                }
+            )
+
+        last_c3 = extract_cycle("C3", C3_START, C3_END, "c3")
+        last_c4 = extract_cycle("C4", C4_START, C4_END, "c4")
+
+        base = (
+            base.merge(last_c3, on="siret", how="left")
+                .merge(last_c4, on="siret", how="left")
+        )
+    else:
+        for suffix in ("c3", "c4"):
+            for col in [
+                "raison_sociale",
+                "idcc",
+                "departement",
+                "cp",
+                "ville",
+                "date_pv",
+                "carence",
+                "inscrits",
+                "votants",
+                "cgt_voix",
+                "fd",
+                "ud",
+            ]:
+                base[f"{col}_{suffix}"] = None
+
+    base["raison_sociale"] = base.get("raison_sociale_c4")
+    base["raison_sociale"] = base["raison_sociale"].fillna(base.get("raison_sociale_c3"))
+    base["idcc"] = base.get("idcc_c4")
+    base["idcc"] = base["idcc"].fillna(base.get("idcc_c3"))
+    base["dep"] = base.get("departement_c4")
+    base["dep"] = base["dep"].fillna(base.get("departement_c3"))
+    base["cp"] = base.get("cp_c4")
+    base["cp"] = base["cp"].fillna(base.get("cp_c3"))
+    base["ville"] = base.get("ville_c4")
+    base["ville"] = base["ville"].fillna(base.get("ville_c3"))
+
+    base["date_pv_c3"] = pd.to_datetime(base.get("date_pv_c3"), errors="coerce")
+    base["date_pv_c4"] = pd.to_datetime(base.get("date_pv_c4"), errors="coerce")
+
+    base["statut_pap"] = np.where(
+        base["date_pv_c3"].notna() & base["date_pv_c4"].notna(),
+        "C3+C4",
+        np.where(
+            base["date_pv_c4"].notna(),
+            "C4",
+            np.where(base["date_pv_c3"].notna(), "C3", "Aucun"),
+        ),
+    )
+    base["date_pv_max"] = base[["date_pv_c3", "date_pv_c4"]].max(axis=1)
+
+    base["cgt_implantee"] = (
+        (base.get("cgt_voix_c3").fillna(0) > 0)
+        | (base.get("cgt_voix_c4").fillna(0) > 0)
+    )
+
     if not inv.empty:
-        C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
         inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
         inv_c5 = inv[(inv["date_invit"] >= C5_START) & (inv["date_invit"] <= C5_END)]
-        inv_latest = inv_c5.groupby("siret", as_index=False)["date_invit"].max().rename(columns={"date_invit":"date_pap_c5"})
+        inv_latest = (
+            inv_c5.groupby("siret", as_index=False)["date_invit"]
+            .max()
+            .rename(columns={"date_invit": "date_pap_c5"})
+        )
     else:
-        inv_latest = pd.DataFrame(columns=["siret","date_pap_c5"])
+        inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
 
-    # Fusion C3/C4
-    base = last_c3.merge(last_c4, on="siret", how="outer", suffixes=("_c3","_c4"))
-
-    # Colonnes consolidées
-    base["raison_sociale"] = base["raison_sociale_c4"].fillna(base["raison_sociale_c3"])
-    base["idcc"] = base["idcc_c4"].fillna(base["idcc_c3"])
-    base["dep"] = base["departement_c4"].fillna(base["departement_c3"])
-    base["cp"] = base["cp_c4"].fillna(base["cp_c3"])
-    base["ville"] = base["ville_c4"].fillna(base["ville_c3"])
-
-    base["statut_pap"] = np.where(base["date_pv_c3"].notna() & base["date_pv_c4"].notna(), "C3+C4",
-                           np.where(base["date_pv_c4"].notna(), "C4",
-                             np.where(base["date_pv_c3"].notna(), "C3", "Aucun")))
-    # Correction : conversion explicite en datetime64
-    base["date_pv_c3"] = pd.to_datetime(base["date_pv_c3"], errors="coerce")
-    base["date_pv_c4"] = pd.to_datetime(base["date_pv_c4"], errors="coerce")
-    base["date_pv_max"] = base[["date_pv_c3","date_pv_c4"]].max(axis=1)
-
-    # Implantation CGT si voix > 0
-    base["cgt_implantee"] = ((base["cgt_voix_c3"].fillna(0) > 0) | (base["cgt_voix_c4"].fillna(0) > 0))
-
-    # Joindre invitations
     base = base.merge(inv_latest, on="siret", how="left")
 
     # Sélection finale / renommage
