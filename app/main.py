@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from .db import get_session, Base, engine
 from .models import SiretSummary, PVEvent, Invitation
+from . import etl
 from .normalization import normalize_fd_label
 from .routers import api
 
@@ -35,6 +36,12 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
     }
     order_clause = ordering_map.get(sort_key, ordering_map["date_pap_c5"])
     rows = qs.order_by(order_clause).all()
+    if not rows:
+        pv_total = db.query(func.count(PVEvent.id)).scalar() or 0
+        invit_total = db.query(func.count(Invitation.id)).scalar() or 0
+        if pv_total or invit_total:
+            etl.build_siret_summary(db)
+            rows = qs.order_by(order_clause).all()
     sirets = [r.siret for r in rows]
     summary_rows = []
     summary_totals = {

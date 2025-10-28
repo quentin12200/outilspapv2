@@ -15,12 +15,16 @@ from fastapi.responses import RedirectResponse
 
 @router.post("/ingest/pv")
 async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_session)):
-    n = etl.ingest_pv_excel(db, file.file)
+    inserted = etl.ingest_pv_excel(db, file.file)
+    if inserted:
+        etl.build_siret_summary(db)
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/ingest/invit")
 async def ingest_invit(file: UploadFile = File(...), db: Session = Depends(get_session)):
-    n = etl.ingest_invit_excel(db, file.file)
+    inserted = etl.ingest_invit_excel(db, file.file)
+    if inserted:
+        etl.build_siret_summary(db)
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/build/summary")
