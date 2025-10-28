@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from .db import get_session, Base, engine
 from .models import SiretSummary, PVEvent, Invitation
+from .normalization import normalize_fd_label
 from .routers import api
 
 app = FastAPI(title="PAP/CSE Dashboard")
@@ -74,7 +75,7 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             .all()
         )
         def register_org(siret: str, label: str):
-            label = (label or "").strip()
+            label = normalize_fd_label(label) or (label or "").strip()
             if not label:
                 return
             orga_map.setdefault(siret, set()).add(label)
@@ -123,9 +124,9 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
         for row in rows:
             orgas = set(orga_map.get(row.siret, set()))
             if row.fd_c3:
-                orgas.add(str(row.fd_c3).strip())
+                orgas.add(normalize_fd_label(row.fd_c3) or str(row.fd_c3).strip())
             if row.fd_c4:
-                orgas.add(str(row.fd_c4).strip())
+                orgas.add(normalize_fd_label(row.fd_c4) or str(row.fd_c4).strip())
             if getattr(row, "ud_c3", None):
                 orgas.add(str(row.ud_c3).strip())
             if getattr(row, "ud_c4", None):

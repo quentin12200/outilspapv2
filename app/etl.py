@@ -3,6 +3,7 @@ from dateutil.parser import parse as dtparse
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .models import PVEvent, Invitation, SiretSummary
+from .normalization import normalize_fd_label
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
@@ -85,7 +86,7 @@ def ingest_pv_excel(session: Session, file_like) -> int:
             blancs_nuls=bn,
             cgt_voix=cgt_voix,
             idcc=(r.get(c_idcc) if c_idcc else None),
-            fd=(r.get(c_fd) if c_fd else None),
+            fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
             ud=(r.get(c_ud) if c_ud else None),
             departement=(r.get(c_dep) if c_dep else None),
             raison_sociale=(r.get(c_rs) if c_rs else None),
@@ -259,6 +260,11 @@ def build_siret_summary(session: Session) -> int:
         "date_pap_c5": base.get("date_pap_c5"),
         "cgt_implantee": base["cgt_implantee"]
     })
+
+    if "fd_c3" in out:
+        out["fd_c3"] = out["fd_c3"].apply(normalize_fd_label)
+    if "fd_c4" in out:
+        out["fd_c4"] = out["fd_c4"].apply(normalize_fd_label)
 
     # Reset table (simple & robuste)
     session.query(SiretSummary).delete()
