@@ -6,8 +6,6 @@ from .. import etl
 from ..models import SiretSummary, PVEvent
 from ..schemas import SiretSummaryOut
 
-# Crée les tables au premier run
-Base.metadata.create_all(bind=engine)
 
 router = APIRouter(prefix="/api", tags=["api"])
 
