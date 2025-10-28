@@ -2,11 +2,7 @@
 {% block title %}Ciblage — PAP/CSE{% endblock %}
 {% block content %}
 <h1>Ciblage (CAC40/SBF120...)</h1>
-<form method="post" action="/ciblage/import" enctype="multipart/form-data" style="margin:2rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="ciblagefile"><strong>Importer un fichier de ciblage :</strong></label>
-  <input type="file" name="file" id="ciblagefile" required />
-  <button type="submit">Envoyer</button>
-</form>
+<p style="margin:1.5rem 0;color:#555;">Les imports de fichiers de ciblage sont désormais centralisés dans l’espace <a href="/admin">administration</a>. Vous pouvez y déposer vos nouveaux fichiers avant d’explorer les correspondances ci-dessous.</p>
 {% if columns %}
   <h2>Colonnes détectées :</h2>
   <ul>

@@ -4,8 +4,8 @@ Ce dépôt contient les fichiers liés au suivi de l’audience interprofessionn
 notamment les bases de données issues des PV retenus.
 
 ## 🗄️ Contenu
-- **`papcse.db`** : base de données SQLite utilisée pour l’analyse des PV CSE et SVE.  
-  Ce fichier n’est pas versionné dans Git pour des raisons de taille,  
+- **`papcse.db`** : base de données SQLite utilisée pour l’analyse des PV CSE et SVE.
+  Ce fichier n’est pas versionné dans Git pour des raisons de taille,
   mais il est disponible en téléchargement via les *Releases*.
 
 📦 **Téléchargement direct :**
@@ -13,4 +13,34 @@ notamment les bases de données issues des PV retenus.
 
 ## 🔐 Vérification d’intégrité
 Pour vérifier que le fichier téléchargé n’a pas été altéré, comparez le SHA-256 :
+
+## 🌐 Accéder à l'application en ligne
+
+L'application est hébergée et accessible directement à l'adresse suivante :
+
+[👉 outilspap.up.railway.app](https://outilspap.up.railway.app/)
+
+## 🚀 Afficher l'application en local
+
+1. **Installer les dépendances** :
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip
+   pip install -r requirements.txt
+   ```
+2. **Configurer l'environnement** :
+   Dupliquez le fichier `.env.example` sous le nom `.env` pour définir les variables nécessaires.
+3. **Lancer le serveur FastAPI** :
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
+4. **Ouvrir l'application** :
+   Rendez-vous sur [http://localhost:8000](http://localhost:8000) dans votre navigateur pour consulter l'interface.
+
+💡 Vous pouvez également exécuter le script `run.sh` qui automatise ces étapes :
+
+```bash
+./run.sh
+```
 
