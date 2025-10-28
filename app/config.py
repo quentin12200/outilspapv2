@@ -1,10 +1,20 @@
 from dotenv import load_dotenv
+import json
+import logging
 import os
 from pathlib import Path
+import shutil
+import tempfile
+from typing import Iterable, Optional
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from sqlalchemy.engine.url import make_url
 
 load_dotenv()
+
+logger = logging.getLogger("papcse.config")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -17,6 +27,129 @@ else:
 
 url = make_url(DATABASE_URL)
 IS_SQLITE = url.get_backend_name() == "sqlite"
+
+
+def _iter_release_urls(
+    asset_hint: Optional[str],
+    alt_names: Iterable[str],
+) -> Iterable[tuple[str, str]]:
+    """Yield pairs of (download_url, asset_name) for SQLite releases."""
+
+    direct_url = os.getenv("DATABASE_RELEASE_URL")
+    if direct_url:
+        parsed_name = Path(urllib.parse.urlparse(direct_url).path).name
+        yield direct_url, parsed_name or (asset_hint or "")
+
+    release_repo = os.getenv("DATABASE_RELEASE_REPO", "quentin12200/PV-retenus-branche-interpro-Audience-et-SVE")
+    release_api = os.getenv(
+        "DATABASE_RELEASE_API",
+        f"https://api.github.com/repos/{release_repo}/releases/latest",
+    )
+
+    try:
+        request = urllib.request.Request(
+            release_api,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "papcse-sqlite-loader",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.load(response)
+    except Exception as exc:  # pragma: no cover - réseau
+        logger.warning("Impossible de récupérer la release GitHub %s: %s", release_api, exc)
+        return
+
+    assets = payload.get("assets") or []
+    normalized_hint = asset_hint.lower() if asset_hint else None
+    normalized_alt = {str(name).lower() for name in alt_names if name}
+
+    for asset in assets:
+        name = asset.get("name") or ""
+        download_url = asset.get("browser_download_url")
+        if not download_url:
+            continue
+        lower_name = name.lower()
+        if normalized_hint and lower_name != normalized_hint:
+            continue
+        if not normalized_hint:
+            if lower_name not in normalized_alt and not lower_name.endswith((".db", ".sqlite", ".sqlite3", ".zip")):
+                continue
+        yield download_url, name
+
+
+def _download_sqlite_from_release(target: Path, alt_names: Iterable[str]) -> bool:
+    if os.getenv("DATABASE_RELEASE_SKIP"):
+        return False
+
+    asset_hint = os.getenv("DATABASE_RELEASE_ASSET")
+    alt_list = [str(name) for name in alt_names if name]
+    alt_lower = {name.lower() for name in alt_list}
+
+    for url_candidate, asset_name in _iter_release_urls(asset_hint, alt_list):
+        tmp_name: Optional[Path] = None
+        try:
+            request = urllib.request.Request(
+                url_candidate,
+                headers={"User-Agent": "papcse-sqlite-loader", "Accept": "application/octet-stream"},
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                with tempfile.NamedTemporaryFile("wb", delete=False) as tmp_file:
+                    shutil.copyfileobj(response, tmp_file)
+                    tmp_name = Path(tmp_file.name)
+        except urllib.error.HTTPError as exc:  # pragma: no cover - réseau
+            logger.warning("Téléchargement impossible depuis %s: %s", url_candidate, exc)
+            if tmp_name and tmp_name.exists():
+                tmp_name.unlink()
+            continue
+        except Exception as exc:  # pragma: no cover - réseau
+            logger.warning("Erreur réseau en téléchargeant %s: %s", url_candidate, exc)
+            if tmp_name and tmp_name.exists():
+                tmp_name.unlink()
+            continue
+
+        try:
+            suffix = (asset_name or "").lower()
+            if suffix.endswith(".zip"):
+                import zipfile
+
+                with zipfile.ZipFile(tmp_name) as archive:
+                    members = archive.namelist()
+                    chosen = None
+                    normalized_hint = asset_hint.lower() if asset_hint else None
+                    for member in members:
+                        short = Path(member).name
+                        lower_short = short.lower()
+                        if normalized_hint and lower_short != normalized_hint:
+                            continue
+                        if (not normalized_hint) and (
+                            lower_short not in alt_lower
+                            and not lower_short.endswith((".db", ".sqlite", ".sqlite3"))
+                        ):
+                            continue
+                        chosen = member
+                        break
+                    if not chosen:
+                        raise ValueError("Aucun fichier SQLite trouvé dans l'archive de release")
+                    with archive.open(chosen) as source, open(target, "wb") as dest:
+                        shutil.copyfileobj(source, dest)
+            else:
+                with tmp_name.open("rb") as source, open(target, "wb") as dest:
+                    shutil.copyfileobj(source, dest)
+            logger.info("Base SQLite téléchargée depuis la release (%s)", asset_name or url_candidate)
+            return True
+        except Exception as exc:  # pragma: no cover - réseau
+            logger.warning("Impossible d'utiliser l'asset de release %s: %s", asset_name, exc)
+        finally:
+            if tmp_name:
+                try:
+                    tmp_name.unlink(missing_ok=True)  # type: ignore[attr-defined]
+                except TypeError:
+                    if tmp_name.exists():
+                        tmp_name.unlink()
+
+    return False
+
 
 if IS_SQLITE:
     raw_path = url.database or ""
@@ -158,5 +291,7 @@ if IS_SQLITE:
         resolved_path = (BASE_DIR / resolved_path).resolve()
 
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    if not resolved_path.exists():
+        _download_sqlite_from_release(resolved_path, alt_names)
     url = url.set(database=str(resolved_path))
     DATABASE_URL = str(url)

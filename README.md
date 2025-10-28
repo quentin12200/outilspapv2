@@ -11,6 +11,12 @@ notamment les bases de données issues des PV retenus.
 📦 **Téléchargement direct :**
 [👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/PV-retenus-branche-interpro-Audience-et-SVE/releases/latest)
 
+> ℹ️ Depuis la plateforme ou en local, l'application télécharge automatiquement
+> l'asset `papcse.db` de la dernière *Release* publique lorsqu'aucun fichier
+> SQLite valide n'est trouvé sur le disque. Vous pouvez surcharger ce
+> comportement via les variables `DATABASE_RELEASE_URL`, `DATABASE_RELEASE_ASSET`
+> ou désactiver la récupération avec `DATABASE_RELEASE_SKIP=1`.
+
 ## 🔐 Vérification d’intégrité
 Pour vérifier que le fichier téléchargé n’a pas été altéré, comparez le SHA-256 :
 
@@ -44,7 +50,8 @@ variable d'environnement `DATABASE_SEARCH_PATHS` (séparateur `:`) afin que l'ap
 la base lors du démarrage. Vous pouvez aussi pointer directement vers un fichier précis via `DATABASE_PATH` ou
 `DATABASE_FILE`, ou fournir un répertoire d'attache grâce à `DATABASE_DIR` (par exemple le volume persistant Railway
 exposé dans `RAILWAY_VOLUME_PATH`). L'application sonde également les variantes `papcse.sqlite`/`papcse.sqlite3`
-présentes dans ces emplacements avant de créer une nouvelle base.
+présentes dans ces emplacements avant de créer une nouvelle base et, en dernier recours, retélécharge la base
+depuis la dernière release si aucune copie locale n'est disponible.
 
 💡 Vous pouvez également exécuter le script `run.sh` qui automatise ces étapes :
 
