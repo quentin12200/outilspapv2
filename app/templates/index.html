@@ -11,21 +11,75 @@
   <button type="submit" class="secondary">Rechercher</button>
 </form>
 
-<form method="post" action="/api/ingest/invit" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="invitfile"><strong>Importer invitations PAP (cycle 5) :</strong></label>
-  <input type="file" name="file" id="invitfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-
-<form method="post" action="/api/ingest/pv" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="pvfile"><strong>Importer PV (Excel, initial) :</strong></label>
-  <input type="file" name="file" id="pvfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-
-<form method="post" action="/api/build/summary" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <button type="submit"><strong>Mettre à jour le tableau</strong></button>
-</form>
+{% if summary_rows %}
+<section style="margin:1.5rem 0;">
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+    <h2 style="margin:0;">Synthèse invitations &amp; PV</h2>
+    <a href="/admin" style="display:inline-block;font-size:0.95em;padding:.4rem .9rem;border-radius:.4rem;background:#181818;color:#fff;">⚙️ Gestion des imports</a>
+  </header>
+  <p style="margin:.4rem 0 1rem 0;color:#555;">Vue rapide sur les structures listées ci-dessous : nombre d'invitations PAP reçues, présence de PV C3/C4 et organisations syndicales identifiées.</p>
+  {% if summary_totals %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.2rem;">
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.structures }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">Structures listées</div>
+    </div>
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.pap_total }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">Invitations PAP (C5)</div>
+    </div>
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.pv_c3_total }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">PV C3 recensés</div>
+    </div>
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.pv_c4_total }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">PV C4 recensés</div>
+    </div>
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.match_c3 }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">Correspondances PAP ↔ PV C3</div>
+    </div>
+    <div style="border:1px solid #e0e0e0;border-radius:.6rem;padding:.9rem;background:#fafafa;">
+      <div style="font-size:2rem;font-weight:700;line-height:1;">{{ summary_totals.match_c4 }}</div>
+      <div style="color:#555;margin-top:.3rem;font-size:0.9rem;">Correspondances PAP ↔ PV C4</div>
+    </div>
+  </div>
+  {% endif %}
+  <div style="overflow-x:auto;">
+    <table role="grid" style="min-width:700px;">
+      <thead>
+        <tr>
+          <th>SIRET</th>
+          <th>Raison sociale</th>
+          <th>Département</th>
+          <th>PAP reçus</th>
+          <th>PV C3</th>
+          <th>PV C4</th>
+          <th>PAP ↔ PV C3</th>
+          <th>PAP ↔ PV C4</th>
+          <th>Organisations syndicales présentes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for info in summary_rows %}
+        <tr>
+          <td><a href="/siret/{{ info.siret }}">{{ info.siret }}</a></td>
+          <td>{{ info.raison_sociale or '' }}</td>
+          <td>{{ info.departement or '' }}</td>
+          <td style="text-align:center;">{{ info.pap_count }}</td>
+          <td style="text-align:center;">{{ info.pv_c3_count }}</td>
+          <td style="text-align:center;">{{ info.pv_c4_count }}</td>
+          <td style="text-align:center;">{% if info.match_c3 %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
+          <td style="text-align:center;">{% if info.match_c4 %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
+          <td>{{ info.organisations|join(', ') if info.organisations else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 
 <article>
   <header style="display:flex;align-items:center;justify-content:space-between;gap:1rem;"><strong>Dernières invitations reçues (C5)</strong>
