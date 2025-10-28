@@ -38,6 +38,11 @@ L'application est hébergée et accessible directement à l'adresse suivante :
 4. **Ouvrir l'application** :
    Rendez-vous sur [http://localhost:8000](http://localhost:8000) dans votre navigateur pour consulter l'interface.
 
+ℹ️ **Base SQLite existante** :
+Si vous disposez déjà d'un fichier `papcse.db`, placez-le à la racine du projet ou indiquez son répertoire via la
+variable d'environnement `DATABASE_SEARCH_PATHS` (séparateur `:`) afin que l'application détecte automatiquement
+la base lors du démarrage.
+
 💡 Vous pouvez également exécuter le script `run.sh` qui automatise ces étapes :
 
 ```bash

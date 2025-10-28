@@ -28,8 +28,11 @@ if IS_SQLITE:
         path_obj = Path(path_like).expanduser()
         candidates.append(path_obj)
 
+    search_name = "papcse.db"
     if raw_path:
         raw_candidate = Path(raw_path)
+        if raw_candidate.name:
+            search_name = raw_candidate.name
         if raw_candidate.is_absolute():
             add_candidate(raw_candidate)
         else:
@@ -41,7 +44,34 @@ if IS_SQLITE:
             add_candidate((cwd / raw_candidate).resolve())
             add_candidate((cwd / raw_candidate.name).resolve())
     else:
-        add_candidate(BASE_DIR / "papcse.db")
+        add_candidate(BASE_DIR / search_name)
+
+    hint_dirs = []
+    hints_env = os.getenv("DATABASE_SEARCH_PATHS")
+    if hints_env:
+        hint_dirs.extend(Path(p.strip()) for p in hints_env.split(os.pathsep) if p.strip())
+
+    # Ajouter quelques emplacements communs rencontrés sur les déploiements existants
+    common_roots = [
+        BASE_DIR,
+        BASE_DIR / "app",
+        BASE_DIR / "data",
+        BASE_DIR.parent,
+        BASE_DIR.parent / "data",
+        Path.cwd(),
+        Path.cwd() / "app",
+        Path.cwd() / "data",
+        Path("/app"),
+        Path("/app/data"),
+        Path("/data"),
+    ]
+    hint_dirs.extend(common_roots)
+
+    for root in hint_dirs:
+        if not root:
+            continue
+        candidate = (root / search_name).expanduser()
+        add_candidate(candidate)
 
     # Éliminer les doublons tout en conservant l'ordre d'évaluation
     seen = set()
