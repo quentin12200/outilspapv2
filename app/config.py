@@ -290,8 +290,53 @@ if IS_SQLITE:
     if not resolved_path.is_absolute():
         resolved_path = (BASE_DIR / resolved_path).resolve()
 
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    if not resolved_path.exists():
+    def ensure_parent(path: Path) -> tuple[Path, bool]:
+        """Ensure the directory for *path* exists and is writable.
+
+        Returns a tuple ``(final_path, writable)`` where ``final_path`` may be
+        updated to fall back to the project directory when the requested
+        location cannot be created because of permissions (e.g. read-only
+        filesystems in production deployments).
+        """
+
+        candidate = path
+        parent = candidate.parent
+        if parent.exists():
+            if os.access(parent, os.W_OK):
+                return candidate, True
+            return candidate, False
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            logger.warning(
+                "Impossible de créer le dossier %s, utilisation du répertoire local",
+                parent,
+            )
+            fallback = (BASE_DIR / search_name).resolve()
+            if fallback == candidate:
+                return candidate, False
+            fallback_parent = fallback.parent
+            if not fallback_parent.exists():
+                try:
+                    fallback_parent.mkdir(parents=True, exist_ok=True)
+                except Exception as exc:  # pragma: no cover - dépend du FS
+                    logger.warning(
+                        "Impossible de préparer le dossier de secours %s: %s",
+                        fallback_parent,
+                        exc,
+                    )
+                    return candidate, False
+            if not os.access(fallback_parent, os.W_OK):
+                return candidate, False
+            return fallback, True
+        except OSError as exc:
+            logger.warning("Erreur en créant le dossier %s: %s", parent, exc)
+            return candidate, False
+        else:
+            return candidate, True
+
+    resolved_path, can_write = ensure_parent(resolved_path)
+    if not resolved_path.exists() and can_write:
         _download_sqlite_from_release(resolved_path, alt_names)
     url = url.set(database=str(resolved_path))
     DATABASE_URL = str(url)
