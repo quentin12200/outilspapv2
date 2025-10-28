@@ -41,7 +41,10 @@ L'application est hébergée et accessible directement à l'adresse suivante :
 ℹ️ **Base SQLite existante** :
 Si vous disposez déjà d'un fichier `papcse.db`, placez-le à la racine du projet ou indiquez son répertoire via la
 variable d'environnement `DATABASE_SEARCH_PATHS` (séparateur `:`) afin que l'application détecte automatiquement
-la base lors du démarrage.
+la base lors du démarrage. Vous pouvez aussi pointer directement vers un fichier précis via `DATABASE_PATH` ou
+`DATABASE_FILE`, ou fournir un répertoire d'attache grâce à `DATABASE_DIR` (par exemple le volume persistant Railway
+exposé dans `RAILWAY_VOLUME_PATH`). L'application sonde également les variantes `papcse.sqlite`/`papcse.sqlite3`
+présentes dans ces emplacements avant de créer une nouvelle base.
 
 💡 Vous pouvez également exécuter le script `run.sh` qui automatise ces étapes :
 
