@@ -1,17 +1,90 @@
+import hashlib
 import json
+import os
 import re
+import urllib.request
+from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, Request, Depends
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from .db import get_session, Base, engine
-from .models import SiretSummary, PVEvent, Invitation
+from sqlalchemy.orm import Session
+
 from . import etl
+from .config import IS_SQLITE
+from .db import Base, engine, get_session
+from .models import Invitation, PVEvent, SiretSummary
 from .normalization import normalize_fd_label
-from .routers import api
+
+DB_ASSET_URL = (
+    os.getenv("DB_URL")
+    or os.getenv("DATABASE_RELEASE_URL")
+    or ""
+).strip()
+DB_ASSET_TOKEN = (os.getenv("DB_GH_TOKEN") or "").strip() or None
+DB_ASSET_SHA = (
+    os.getenv("DB_SHA256")
+    or os.getenv("DB_CHECKSUM")
+    or os.getenv("DATABASE_RELEASE_SHA256")
+    or os.getenv("DATABASE_RELEASE_CHECKSUM")
+    or ""
+).strip().lower()
+if DB_ASSET_SHA.startswith("sha256:"):
+    DB_ASSET_SHA = DB_ASSET_SHA.split(":", 1)[1]
+if DB_ASSET_SHA and not re.fullmatch(r"[0-9a-f]{64}", DB_ASSET_SHA):
+    DB_ASSET_SHA = ""
+
+
+def _sqlite_path_from_engine() -> Optional[Path]:
+    if not IS_SQLITE:
+        return None
+    db_path = engine.url.database
+    if not db_path or db_path == ":memory:":
+        return None
+    return Path(db_path)
+
+
+def _sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _download(url: str, dest: Path, token: Optional[str] = None) -> None:
+    headers = {"Accept": "application/octet-stream"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as resp, dest.open("wb") as handle:
+        handle.write(resp.read())
+
+
+def ensure_sqlite_asset() -> None:
+    db_path = _sqlite_path_from_engine()
+    if not db_path:
+        return
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if DB_ASSET_URL and not db_path.exists():
+        _download(DB_ASSET_URL, db_path, token=DB_ASSET_TOKEN)
+    if DB_ASSET_SHA and db_path.exists():
+        digest = _sha256_file(db_path).lower()
+        if digest != DB_ASSET_SHA:
+            raise RuntimeError(
+                "SHA256 mismatch for DB file:\n"
+                f"  got:  {digest}\n"
+                f"  want: {DB_ASSET_SHA}\n"
+                f"  path: {db_path}"
+            )
+
+
+ensure_sqlite_asset()
+
+from .routers import api  # noqa: E402
 
 app = FastAPI(title="PAP/CSE Dashboard")
 app.include_router(api.router)
@@ -19,8 +92,8 @@ app.include_router(api.router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
-# Assure la création des tables au boot (simple pour démarrer)
 Base.metadata.create_all(bind=engine)
+
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, q: str = "", db: Session = Depends(get_session)):
@@ -75,12 +148,12 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             pv_counts[siret][cycle] = count
 
         orga_map = {s: set() for s in sirets}
-        # Prélever les organisations syndicales connues à partir des PV enregistrés
         pv_org_rows = (
             db.query(PVEvent.siret, PVEvent.autres_indics, PVEvent.fd, PVEvent.ud)
             .filter(PVEvent.siret.in_(sirets))
             .all()
         )
+
         def register_org(siret: str, label: str):
             label = normalize_fd_label(label) or (label or "").strip()
             if not label:
@@ -186,77 +259,66 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
         },
     )
 
+
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
-    import os
     import pandas as pd
+
     from .models import Invitation
+
     path = "app/static/last_ciblage.csv"
     if not os.path.exists(path):
         return templates.TemplateResponse("ciblage.html", {"request": request, "columns": None, "preview_rows": None})
     df = pd.read_csv(path, dtype=str)
     columns = list(df.columns)
     preview = df.head(10).to_dict(orient="records")
-    # Lire les invitations PAP (SIRET)
     invit_rows = db.query(Invitation.siret).all()
     siret_list = [r[0] for r in invit_rows]
     siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
-    col_siren = None
-    for c in df.columns:
-        if c.lower().startswith("siren"):
-            col_siren = c
-            break
+    col_siren = next((c for c in df.columns if c.lower().startswith("siren")), None)
     match_rows = []
     if col_siren:
         match_rows = df[df[col_siren].astype(str).isin(siren_list)].to_dict(orient="records")
-    return templates.TemplateResponse("ciblage.html", {
-        "request": request,
-        "columns": columns,
-        "preview_rows": preview,
-        "col_siren": col_siren,
-        "match_rows": match_rows,
-        "match_count": len(match_rows)
-    })
+    return templates.TemplateResponse(
+        "ciblage.html",
+        {
+            "request": request,
+            "columns": columns,
+            "preview_rows": preview,
+            "col_siren": col_siren,
+            "match_rows": match_rows,
+            "match_count": len(match_rows),
+        },
+    )
 
-from fastapi import UploadFile, File
-
-@app.post("/ciblage/import", response_class=HTMLResponse)
-def ciblage_import(request: Request, file: UploadFile = File(...), db: Session = Depends(get_session)):
-    import pandas as pd
-    from .models import Invitation
-    # Lire le fichier ciblage
-    df = pd.read_excel(file.file)
-    # Persistance : sauvegarder le fichier importé en CSV
-    df.to_csv("app/static/last_ciblage.csv", index=False)
-    columns = list(df.columns)
-    preview = df.head(10).to_dict(orient="records")
-    # Lire les invitations PAP (SIRET)
-    invit_rows = db.query(Invitation.siret).all()
-    siret_list = [r[0] for r in invit_rows]
-    siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
-    # Croisement sur la colonne SIREN du ciblage
-    col_siren = None
-    for c in df.columns:
-        if c.lower().startswith("siren"):
-            col_siren = c
-            break
-    match_rows = []
-    if col_siren:
-        match_rows = df[df[col_siren].astype(str).isin(siren_list)].head(20).to_dict(orient="records")
-    return templates.TemplateResponse("ciblage.html", {
-        "request": request,
-        "columns": columns,
-        "preview_rows": preview,
-        "col_siren": col_siren,
-        "match_rows": match_rows,
-        "match_count": len(match_rows)
-    })
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
 
 @app.get("/siret/{siret}", response_class=HTMLResponse)
-def siret_page(siret: str, request: Request, db: Session = Depends(get_session)):
-    row = db.query(SiretSummary).get(siret)
-    return templates.TemplateResponse("siret.html", {"request": request, "row": row})
+def siret_detail(siret: str, request: Request, db: Session = Depends(get_session)):
+    pv_rows = (
+        db.query(PVEvent)
+        .filter(PVEvent.siret == siret)
+        .order_by(PVEvent.date_pv.desc().nullslast())
+        .all()
+    )
+    invit_rows = (
+        db.query(Invitation)
+        .filter(Invitation.siret == siret)
+        .order_by(Invitation.date_pap.desc().nullslast())
+        .all()
+    )
+    summary = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+    return templates.TemplateResponse(
+        "siret_detail.html",
+        {
+            "request": request,
+            "siret": siret,
+            "pv_rows": pv_rows,
+            "invit_rows": invit_rows,
+            "summary": summary,
+        },
+    )
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
