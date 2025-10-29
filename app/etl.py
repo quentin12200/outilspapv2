@@ -107,6 +107,14 @@ def ensure_schema(engine) -> None:
                     text("ALTER TABLE pv_events ADD COLUMN autres_indics JSON")
                 )
 
+    if "siret_summary" in existing_tables:
+        existing_cols = {col["name"] for col in inspector.get_columns("siret_summary")}
+        expected_cols = {column.name for column in SiretSummary.__table__.columns}
+        if not expected_cols.issubset(existing_cols):
+            with engine.begin() as conn:
+                SiretSummary.__table__.drop(bind=conn, checkfirst=True)
+                SiretSummary.__table__.create(bind=conn, checkfirst=True)
+
 
 # -------- Ingestion PV --------
 def _row_payload(row: pd.Series) -> dict:
@@ -319,7 +327,9 @@ def build_siret_summary(session: Session) -> int:
         target = latest_c3 if cycle == "C3" else latest_c4
         stored = target.get(siret)
         current_date = _safe_date(date_pv) or date.min
-        stored_date = _safe_date(stored["date_pv"]) if stored else date.min
+        stored_date = date.min
+        if stored:
+            stored_date = _safe_date(stored.get("date_pv")) or date.min
         if stored is None or current_date >= stored_date:
             target[siret] = {
                 "date_pv": _safe_date(date_pv),
@@ -338,7 +348,9 @@ def build_siret_summary(session: Session) -> int:
         invit_counts[siret] += 1
         stored = invit_latest.get(siret)
         current_date = _safe_date(date_invit) or date.min
-        stored_date = _safe_date(stored["date_pap_c5"]) if stored else date.min
+        stored_date = date.min
+        if stored:
+            stored_date = _safe_date(stored.get("date_pap_c5")) or date.min
         if stored is None or current_date >= stored_date:
             invit_latest[siret] = {
                 "date_pap_c5": _safe_date(date_invit),
