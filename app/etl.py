@@ -1,42 +1,104 @@
-import pandas as pd, numpy as np, re
+import json
+import logging
+import pandas as pd
+import numpy as np
+import re
+from collections import defaultdict
+from datetime import date
 from dateutil.parser import parse as dtparse
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
-from datetime import datetime
+
 from .models import PVEvent, Invitation, SiretSummary
+from .normalization import normalize_fd_label, normalize_os_label, format_os_scores
+
+logger = logging.getLogger(__name__)
+
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
     df.columns = [c.lower() for c in df.columns]
     return df
 
+
 def _to14(x):
-    if pd.isna(x): return None
-    s = re.sub(r"\D","", str(x))
+    if pd.isna(x):
+        return None
+    s = re.sub(r"\D", "", str(x))
     return s.zfill(14) if s else None
 
+
 def _todate(x):
-    if x is None or (isinstance(x, float) and np.isnan(x)): return None
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return None
     try:
         d = pd.to_datetime(x, dayfirst=True, errors="coerce")
-        if pd.isna(d): 
+        if pd.isna(d):
             d = pd.to_datetime(dtparse(str(x), dayfirst=True))
         return d.date()
-    except: 
+    except Exception:
         return None
+
 
 def _col_detect(df, tokens):
     for t in tokens:
-        if t in df.columns: return t
+        if t in df.columns:
+            return t
     for c in df.columns:
         for t in tokens:
-            if t in c: return c
+            if t in c:
+                return c
     return None
 
+
 def _norm_cycle(x: str) -> str:
-    s = str(x).upper()
-    if "C3" in s or re.search(r"\b3\b", s): return "C3"
-    if "C4" in s or re.search(r"\b4\b", s): return "C4"
-    return s
+    s = str(x or "").upper()
+    if "C3" in s or re.search(r"\b3\b", s):
+        return "C3"
+    if "C4" in s or re.search(r"\b4\b", s):
+        return "C4"
+    return s or None
+
+
+def _to_int(x):
+    try:
+        return int(float(str(x).replace(",", ".").strip()))
+    except Exception:
+        return None
+
+
+def _sum_int(vals):
+    s = 0
+    has = False
+    for v in vals:
+        try:
+            s += int(float(str(v).replace(",", ".").strip()))
+            has = True
+        except Exception:
+            pass
+    return s if has else None
+
+
+# -------- Schema helpers --------
+def ensure_schema(engine) -> None:
+    """Ensure optional columns exist after historic deployments."""
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "invitations" in existing_tables:
+        cols = {col["name"] for col in inspector.get_columns("invitations")}
+        alters = []
+        if "raison_sociale" not in cols:
+            alters.append("ALTER TABLE invitations ADD COLUMN raison_sociale TEXT")
+        if "departement" not in cols:
+            alters.append("ALTER TABLE invitations ADD COLUMN departement VARCHAR(5)")
+        if "fd" not in cols:
+            alters.append("ALTER TABLE invitations ADD COLUMN fd VARCHAR(80)")
+        if alters:
+            with engine.begin() as conn:
+                for stmt in alters:
+                    conn.execute(text(stmt))
+
 
 # -------- Ingestion PV --------
 def ingest_pv_excel(session: Session, file_like) -> int:
@@ -45,29 +107,32 @@ def ingest_pv_excel(session: Session, file_like) -> int:
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
     df = _normalize_cols(df)
 
-    c_siret   = _col_detect(df, ["siret"])
-    c_cycle   = _col_detect(df, ["cycle"])
-    # date PV: utiliser STRICTEMENT la colonne "date" si elle existe
-    c_datepv = "date" if "date" in df.columns else (_col_detect(df, ["date pv","date pap","date_pv","date du pv","date du pap"]) or df.columns[min(15, len(df.columns)-1)])
-    c_type    = _col_detect(df, ["type"])
-    c_ins     = _col_detect(df, ["inscrit","inscrits"])
-    c_vot     = _col_detect(df, ["votant","votants"])
-    c_bn      = _col_detect(df, ["blanc","nul"])
-    c_cgt     = [c for c in df.columns if "cgt" in c] or []
-    c_idcc    = _col_detect(df, ["idcc"])
-    c_fd      = _col_detect(df, ["fd"])
-    c_ud      = _col_detect(df, ["ud"])
-    c_dep     = _col_detect(df, ["départ","depart","département","departement","dep"])
-    c_rs      = _col_detect(df, ["raison sociale","raison","dénomination","denomination","entreprise"])
-    c_cp      = _col_detect(df, ["cp","code postal"])
-    c_ville   = _col_detect(df, ["ville"])
+    c_siret = _col_detect(df, ["siret"])
+    c_cycle = _col_detect(df, ["cycle"])
+    c_datepv = "date" if "date" in df.columns else (
+        _col_detect(df, ["date pv", "date pap", "date_pv", "date du pv", "date du pap"]) or df.columns[min(15, len(df.columns) - 1)]
+    )
+    c_type = _col_detect(df, ["type"])
+    c_ins = _col_detect(df, ["inscrit", "inscrits"])
+    c_vot = _col_detect(df, ["votant", "votants"])
+    c_bn = _col_detect(df, ["blanc", "nul"])
+    c_cgt = [c for c in df.columns if "cgt" in c] or []
+    c_idcc = _col_detect(df, ["idcc"])
+    c_fd = _col_detect(df, ["fd"])
+    c_ud = _col_detect(df, ["ud"])
+    c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
+    c_rs = _col_detect(df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"])
+    c_cp = _col_detect(df, ["cp", "code postal"])
+    c_ville = _col_detect(df, ["ville"])
 
     inserted = 0
     for _, r in df.iterrows():
         siret = _to14(r.get(c_siret))
-        if not siret: 
+        if not siret:
             continue
         cycle = _norm_cycle(r.get(c_cycle))
+        if cycle not in {"C3", "C4"}:
+            continue
         date_pv = _todate(r.get(c_datepv))
         type_ = str(r.get(c_type) or "")
         inscrits = _to_int(r.get(c_ins))
@@ -85,7 +150,7 @@ def ingest_pv_excel(session: Session, file_like) -> int:
             blancs_nuls=bn,
             cgt_voix=cgt_voix,
             idcc=(r.get(c_idcc) if c_idcc else None),
-            fd=(r.get(c_fd) if c_fd else None),
+            fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
             ud=(r.get(c_ud) if c_ud else None),
             departement=(r.get(c_dep) if c_dep else None),
             raison_sociale=(r.get(c_rs) if c_rs else None),
@@ -98,22 +163,6 @@ def ingest_pv_excel(session: Session, file_like) -> int:
     session.commit()
     return inserted
 
-def _to_int(x):
-    try:
-        return int(float(str(x).replace(",", ".").strip()))
-    except:
-        return None
-
-def _sum_int(vals):
-    s = 0
-    has = False
-    for v in vals:
-        try:
-            s += int(float(str(v).replace(",", ".").strip()))
-            has = True
-        except:
-            pass
-    return s if has else None
 
 # -------- Ingestion Invitations --------
 def ingest_invit_excel(session: Session, file_like) -> int:
@@ -123,158 +172,292 @@ def ingest_invit_excel(session: Session, file_like) -> int:
     df = _normalize_cols(df)
 
     c_siret = _col_detect(df, ["siret"])
-    c_date  = _col_detect(df, ["date pap","date_pap","date","date invitation"])
+    c_date = _col_detect(df, ["date pap", "date_pap", "date", "date invitation"])
+    c_rs = _col_detect(df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"])
+    c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
+    c_fd = _col_detect(df, ["fd", "fédération", "federation"])
+
     inserted = 0
     for _, r in df.iterrows():
         siret = _to14(r.get(c_siret))
-        if not siret: 
+        if not siret:
             continue
         date_invit = _todate(r.get(c_date))
-        if not date_invit: 
+        if not date_invit:
             continue
         inv = Invitation(
             siret=siret,
             date_invit=date_invit,
+            raison_sociale=r.get(c_rs) if c_rs else None,
+            departement=r.get(c_dep) if c_dep else None,
+            fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
             source="import_excel",
-            raw=None
+            raw=None,
         )
         session.add(inv)
         inserted += 1
     session.commit()
     return inserted
 
+
+# -------- Helpers for aggregation --------
+def _ensure_summary_table(session: Session) -> None:
+    """Drop & recreate the derived summary table to match the ORM schema."""
+    SiretSummary.__table__.drop(bind=session.bind, checkfirst=True)
+    SiretSummary.__table__.create(bind=session.bind, checkfirst=True)
+
+
+def _safe_date(value) -> date | None:
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _extract_os_scores(payload) -> dict[str, float]:
+    scores: dict[str, float] = defaultdict(float)
+
+    def add(label, raw_value) -> None:
+        canonical = normalize_os_label(label)
+        if not canonical:
+            return
+        try:
+            numeric = float(str(raw_value).replace("%", "").replace(",", "."))
+        except Exception:
+            return
+        scores[canonical] += numeric
+
+    def walk(value) -> None:
+        if value is None:
+            return
+        if isinstance(value, dict):
+            for key, sub in value.items():
+                if isinstance(sub, (dict, list)):
+                    walk(sub)
+                else:
+                    add(key, sub)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+        elif isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return
+            try:
+                parsed = json.loads(stripped)
+            except Exception:
+                for token in re.split(r"[;\n]+", stripped):
+                    token = token.strip()
+                    if not token:
+                        continue
+                    match = re.match(r"(.+?)[=:]\\s*([-+]?[0-9]+(?:[\.,][0-9]+)?)", token)
+                    if match:
+                        add(match.group(1), match.group(2))
+            else:
+                walk(parsed)
+        else:
+            try:
+                key, val = value
+            except Exception:
+                return
+            add(key, val)
+
+    walk(payload)
+    return {k: round(v, 4) for k, v in scores.items()}
+
+
 # -------- Construire le résumé 1-ligne/SIRET --------
 def build_siret_summary(session: Session) -> int:
-    # Récup PV en pandas
-    pvs = pd.read_sql(session.query(PVEvent).statement, session.bind)
-    inv = pd.read_sql(session.query(Invitation).statement, session.bind)
+    pv_rows = session.query(
+        PVEvent.siret,
+        PVEvent.cycle,
+        PVEvent.date_pv,
+        PVEvent.autres_indics,
+        PVEvent.fd,
+        PVEvent.departement,
+        PVEvent.raison_sociale,
+    ).filter(PVEvent.cycle.in_(["C3", "C4"]))
 
-    if pvs.empty:
-        session.query(SiretSummary).delete()
+    inv_rows = session.query(
+        Invitation.siret,
+        Invitation.date_invit,
+        Invitation.raison_sociale,
+        Invitation.departement,
+        Invitation.fd,
+    )
+
+    pv_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"C3": 0, "C4": 0})
+    latest_c3: dict[str, dict] = {}
+    latest_c4: dict[str, dict] = {}
+
+    for siret, cycle, date_pv, autres, fd, dep, rs in pv_rows:
+        if not siret or cycle not in {"C3", "C4"}:
+            continue
+        pv_counts[siret][cycle] += 1
+        target = latest_c3 if cycle == "C3" else latest_c4
+        stored = target.get(siret)
+        current_date = _safe_date(date_pv) or date.min
+        stored_date = _safe_date(stored["date_pv"]) if stored else date.min
+        if stored is None or current_date >= stored_date:
+            target[siret] = {
+                "date_pv": _safe_date(date_pv),
+                "fd": normalize_fd_label(fd),
+                "departement": dep,
+                "raison_sociale": rs,
+                "scores": _extract_os_scores(autres),
+            }
+
+    invit_counts: dict[str, int] = defaultdict(int)
+    invit_latest: dict[str, dict] = {}
+
+    for siret, date_invit, rs, dep, fd in inv_rows:
+        if not siret:
+            continue
+        invit_counts[siret] += 1
+        stored = invit_latest.get(siret)
+        current_date = _safe_date(date_invit) or date.min
+        stored_date = _safe_date(stored["date_pap_c5"]) if stored else date.min
+        if stored is None or current_date >= stored_date:
+            invit_latest[siret] = {
+                "date_pap_c5": _safe_date(date_invit),
+                "raison_sociale": rs,
+                "departement": dep,
+                "fd": normalize_fd_label(fd),
+            }
+
+    if not pv_counts and not invit_counts:
+        _ensure_summary_table(session)
+        return 0
+
+    all_sirets = set(pv_counts.keys()) | set(invit_counts.keys()) | set(latest_c3.keys()) | set(latest_c4.keys())
+
+    rows = []
+    for siret in sorted(all_sirets):
+        inv_info = invit_latest.get(siret, {})
+        c3_info = latest_c3.get(siret)
+        c4_info = latest_c4.get(siret)
+
+        counts = pv_counts.get(siret, {"C3": 0, "C4": 0})
+        has_c3 = bool(c3_info and counts.get("C3", 0))
+        has_c4 = bool(c4_info and counts.get("C4", 0))
+        presence = "Aucune"
+        if has_c3 and has_c4:
+            presence = "C3+C4"
+        elif has_c3:
+            presence = "C3"
+        elif has_c4:
+            presence = "C4"
+
+        fd_value = c4_info.get("fd") if c4_info else None
+        if not fd_value and c3_info:
+            fd_value = c3_info.get("fd")
+        if not fd_value:
+            fd_value = inv_info.get("fd")
+
+        departement = c4_info.get("departement") if c4_info else None
+        if not departement and c3_info:
+            departement = c3_info.get("departement")
+        if not departement:
+            departement = inv_info.get("departement")
+
+        raison_sociale = c4_info.get("raison_sociale") if c4_info else None
+        if not raison_sociale and c3_info:
+            raison_sociale = c3_info.get("raison_sociale")
+        if not raison_sociale:
+            raison_sociale = inv_info.get("raison_sociale")
+
+        date_pv_c3 = c3_info.get("date_pv") if c3_info else None
+        date_pv_c4 = c4_info.get("date_pv") if c4_info else None
+        pv_dates = [d for d in [date_pv_c3, date_pv_c4] if d]
+        date_pv_last = max(pv_dates) if pv_dates else None
+
+        os_c3 = format_os_scores(c3_info.get("scores", {})) if c3_info else ""
+        os_c4 = format_os_scores(c4_info.get("scores", {})) if c4_info else ""
+
+        date_pap_c5 = inv_info.get("date_pap_c5")
+        has_match = bool(date_pap_c5 and (has_c3 or has_c4))
+
+        rows.append(
+            {
+                "siret": siret,
+                "raison_sociale": raison_sociale,
+                "departement": departement,
+                "fd": fd_value,
+                "has_c3": has_c3,
+                "has_c4": has_c4,
+                "presence": presence,
+                "os_c3": os_c3 or None,
+                "os_c4": os_c4 or None,
+                "date_pv_c3": date_pv_c3,
+                "date_pv_c4": date_pv_c4,
+                "date_pv_last": date_pv_last,
+                "date_pap_c5": date_pap_c5,
+                "invitation_count": invit_counts.get(siret, 0) or None,
+                "pv_c3_count": counts.get("C3", 0) or None,
+                "pv_c4_count": counts.get("C4", 0) or None,
+                "has_match_c5_pv": has_match,
+            }
+        )
+
+    _ensure_summary_table(session)
+    if not rows:
         session.commit()
         return 0
 
-    def pick_last(df_cycle):
-        # garde la ligne la plus récente du cycle
-        df_cycle = df_cycle.sort_values("date_pv", ascending=False)
-        return df_cycle.head(1)
-
-    # Normaliser
-    pvs["carence"] = pvs["type"].fillna("").str.lower().str.contains("carence")
-    # Filtrage bornes cycles
-    C3_START, C3_END = pd.to_datetime("2017-01-01"), pd.to_datetime("2020-12-31")
-    C4_START, C4_END = pd.to_datetime("2021-01-01"), pd.to_datetime("2024-12-31")
-    C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
-    pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce")
-    mask_c3 = (pvs["cycle"]=="C3") & (pvs["date_pv"] >= C3_START) & (pvs["date_pv"] <= C3_END)
-    mask_c4 = (pvs["cycle"]=="C4") & (pvs["date_pv"] >= C4_START) & (pvs["date_pv"] <= C4_END)
-    last_c3 = (pvs[mask_c3].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
-    last_c4 = (pvs[mask_c4].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
-
-    # Invitations: dernière date par SIRET (filtrées C5)
-    if not inv.empty:
-        C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
-        inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
-        inv_c5 = inv[(inv["date_invit"] >= C5_START) & (inv["date_invit"] <= C5_END)]
-        inv_latest = inv_c5.groupby("siret", as_index=False)["date_invit"].max().rename(columns={"date_invit":"date_pap_c5"})
-    else:
-        inv_latest = pd.DataFrame(columns=["siret","date_pap_c5"])
-
-    # Fusion C3/C4
-    base = last_c3.merge(last_c4, on="siret", how="outer", suffixes=("_c3","_c4"))
-
-    # Colonnes consolidées
-    base["raison_sociale"] = base["raison_sociale_c4"].fillna(base["raison_sociale_c3"])
-    base["idcc"] = base["idcc_c4"].fillna(base["idcc_c3"])
-    base["dep"] = base["departement_c4"].fillna(base["departement_c3"])
-    base["cp"] = base["cp_c4"].fillna(base["cp_c3"])
-    base["ville"] = base["ville_c4"].fillna(base["ville_c3"])
-
-    base["statut_pap"] = np.where(base["date_pv_c3"].notna() & base["date_pv_c4"].notna(), "C3+C4",
-                           np.where(base["date_pv_c4"].notna(), "C4",
-                             np.where(base["date_pv_c3"].notna(), "C3", "Aucun")))
-    # Correction : conversion explicite en datetime64
-    base["date_pv_c3"] = pd.to_datetime(base["date_pv_c3"], errors="coerce")
-    base["date_pv_c4"] = pd.to_datetime(base["date_pv_c4"], errors="coerce")
-    base["date_pv_max"] = base[["date_pv_c3","date_pv_c4"]].max(axis=1)
-
-    # Implantation CGT si voix > 0
-    base["cgt_implantee"] = ((base["cgt_voix_c3"].fillna(0) > 0) | (base["cgt_voix_c4"].fillna(0) > 0))
-
-    # Joindre invitations
-    base = base.merge(inv_latest, on="siret", how="left")
-
-    # Sélection finale / renommage
-    outcols = dict(
-        siret="siret",
-        raison_sociale="raison_sociale",
-        idcc="idcc",
-        fd_c3="fd_c3",
-        fd_c4="fd_c4",
-        ud_c3="ud_c3",
-        ud_c4="ud_c4",
-        dep="dep", cp="cp", ville="ville",
-        date_pv_c3="date_pv_c3", carence_c3="carence_c3", inscrits_c3="inscrits_c3",
-        votants_c3="votants_c3", cgt_voix_c3="cgt_voix_c3",
-        date_pv_c4="date_pv_c4", carence_c4="carence_c4", inscrits_c4="inscrits_c4",
-        votants_c4="votants_c4", cgt_voix_c4="cgt_voix_c4",
-        statut_pap="statut_pap", date_pv_max="date_pv_max", date_pap_c5="date_pap_c5",
-        cgt_implantee="cgt_implantee"
-    )
-
-    # Construire DataFrame propre
-    # Protection : ne jamais remplir les dates PV avec la date PAP
-    safe_pv_c3 = base["date_pv_c3"]
-    safe_pv_c4 = base["date_pv_c4"]
-    safe_pv_max = base["date_pv_max"]
-    if "date_pap_c5" in base:
-        pap_dates = base["date_pap_c5"]
-        # Exclure toute date de PV qui serait identique à une date PAP (même valeur)
-        safe_pv_c3 = safe_pv_c3.where(~safe_pv_c3.isin(pap_dates.unique()), None)
-        safe_pv_c4 = safe_pv_c4.where(~safe_pv_c4.isin(pap_dates.unique()), None)
-        safe_pv_max = safe_pv_max.where(~safe_pv_max.isin(pap_dates.unique()), None)
-    out = pd.DataFrame({
-        "siret": base["siret"],
-        "raison_sociale": base["raison_sociale"],
-        "idcc": base["idcc"],
-        "fd_c3": base.get("fd_c3"),
-        "fd_c4": base.get("fd_c4"),
-        "ud_c3": base.get("ud_c3"),
-        "ud_c4": base.get("ud_c4"),
-        "dep": base["dep"],
-        "cp": base["cp"],
-        "ville": base["ville"],
-        "date_pv_c3": safe_pv_c3,
-        "carence_c3": base.get("carence_c3"),
-        "inscrits_c3": base.get("inscrits_c3"),
-        "votants_c3": base.get("votants_c3"),
-        "cgt_voix_c3": base.get("cgt_voix_c3"),
-        "date_pv_c4": safe_pv_c4,
-        "carence_c4": base.get("carence_c4"),
-        "inscrits_c4": base.get("inscrits_c4"),
-        "votants_c4": base.get("votants_c4"),
-        "cgt_voix_c4": base.get("cgt_voix_c4"),
-        "statut_pap": base["statut_pap"],
-        "date_pv_max": safe_pv_max,
-        "date_pap_c5": base.get("date_pap_c5"),
-        "cgt_implantee": base["cgt_implantee"]
-    })
-
-    # Reset table (simple & robuste)
-    session.query(SiretSummary).delete()
-    session.commit()
-
-    # Bulk-insert
-    out = out.where(pd.notna(out), None)
-    # Conversion ultime : tout NaN/NaT/None
-    def nan_to_none(val):
-        try:
-            if pd.isna(val):
-                return None
-        except Exception:
-            pass
-        return val
-    rows = [{k: nan_to_none(v) for k, v in row.items()} for row in out.to_dict(orient="records")]
     session.bulk_insert_mappings(SiretSummary, rows)
     session.commit()
     return len(rows)
+
+
+# -------- Global statistics --------
+def compute_global_stats(session: Session) -> dict:
+    from sqlalchemy import select, func, union_all
+
+    pap_c5_rows = session.execute(select(func.count(Invitation.id))).scalar_one() or 0
+    pap_c5_sirets = session.execute(select(func.count(func.distinct(Invitation.siret)))).scalar_one() or 0
+
+    pv_c3_rows = session.execute(
+        select(func.count()).select_from(PVEvent).where(PVEvent.cycle == "C3")
+    ).scalar_one() or 0
+    pv_c4_rows = session.execute(
+        select(func.count()).select_from(PVEvent).where(PVEvent.cycle == "C4")
+    ).scalar_one() or 0
+
+    pv_c3_sirets = session.execute(select(func.count(func.distinct(PVEvent.siret))).where(PVEvent.cycle == "C3")).scalar_one() or 0
+    pv_c4_sirets = session.execute(select(func.count(func.distinct(PVEvent.siret))).where(PVEvent.cycle == "C4")).scalar_one() or 0
+
+    inv_sirets = select(Invitation.siret.label("siret")).where(Invitation.siret.isnot(None))
+    pv_c3_sirets_q = select(PVEvent.siret.label("siret")).where(PVEvent.cycle == "C3", PVEvent.siret.isnot(None))
+    pv_c4_sirets_q = select(PVEvent.siret.label("siret")).where(PVEvent.cycle == "C4", PVEvent.siret.isnot(None))
+
+    union_sirets = union_all(inv_sirets, pv_c3_sirets_q, pv_c4_sirets_q).subquery()
+    structures_distinct = session.execute(
+        select(func.count(func.distinct(union_sirets.c.siret)))
+    ).scalar_one() or 0
+
+    inv_distinct_sub = select(Invitation.siret.label("siret")).where(Invitation.siret.isnot(None)).distinct().subquery()
+    pv_c3_distinct_sub = select(PVEvent.siret.label("siret")).where(PVEvent.cycle == "C3", PVEvent.siret.isnot(None)).distinct().subquery()
+    pv_c4_distinct_sub = select(PVEvent.siret.label("siret")).where(PVEvent.cycle == "C4", PVEvent.siret.isnot(None)).distinct().subquery()
+
+    match_c5_c3_sirets = session.execute(
+        select(func.count()).select_from(
+            inv_distinct_sub.join(pv_c3_distinct_sub, inv_distinct_sub.c.siret == pv_c3_distinct_sub.c.siret)
+        )
+    ).scalar_one() or 0
+
+    match_c5_c4_sirets = session.execute(
+        select(func.count()).select_from(
+            inv_distinct_sub.join(pv_c4_distinct_sub, inv_distinct_sub.c.siret == pv_c4_distinct_sub.c.siret)
+        )
+    ).scalar_one() or 0
+
+    return {
+        "structures_distinct": structures_distinct,
+        "pap_c5_rows": pap_c5_rows,
+        "pap_c5_sirets": pap_c5_sirets,
+        "pv_c3_rows": pv_c3_rows,
+        "pv_c3_sirets": pv_c3_sirets,
+        "pv_c4_rows": pv_c4_rows,
+        "pv_c4_sirets": pv_c4_sirets,
+        "match_c5_c3_sirets": match_c5_c3_sirets,
+        "match_c5_c4_sirets": match_c5_c4_sirets,
+    }
