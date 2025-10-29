@@ -20,6 +20,28 @@ notamment les bases de données issues des PV retenus.
 ## 🔐 Vérification d’intégrité
 Pour vérifier que le fichier téléchargé n’a pas été altéré, comparez le SHA-256 :
 
+```bash
+shasum -a 256 papcse.db
+# ou
+python - <<'PY'
+from pathlib import Path
+import hashlib
+
+path = Path('papcse.db')
+hasher = hashlib.sha256()
+with path.open('rb') as fd:
+    for chunk in iter(lambda: fd.read(1_048_576), b''):
+        hasher.update(chunk)
+print(hasher.hexdigest())
+PY
+```
+
+Définissez la valeur attendue dans la variable d'environnement `DATABASE_RELEASE_SHA256` (ou `DATABASE_RELEASE_CHECKSUM`) pour que l'application refuse automatiquement tout fichier qui ne correspond pas. Les formats `36f5a9...` et `sha256:36f5a9...` sont acceptés.
+
+> Exemple : `DATABASE_RELEASE_SHA256="sha256:36f5a979939849c7429d2ea3f06d376de3485dc645b59daf26b2be2eb866d6b8"`
+
+Lorsqu'un checksum est fourni, une base existante est validée au démarrage ; si elle ne correspond pas, l'application retélécharge l'asset de release jusqu'à trouver une copie conforme (dans la mesure du possible) avant de poursuivre.
+
 ## 🌐 Accéder à l'application en ligne
 
 L'application est hébergée et accessible directement à l'adresse suivante :

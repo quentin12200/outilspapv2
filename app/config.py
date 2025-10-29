@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import hashlib
 import json
 import logging
 import os
@@ -78,7 +79,70 @@ def _iter_release_urls(
         yield download_url, name
 
 
-def _download_sqlite_from_release(target: Path, alt_names: Iterable[str]) -> bool:
+def _normalise_checksum(raw: Optional[str]) -> Optional[str]:
+    """Return a normalized hexadecimal SHA-256 digest."""
+
+    if not raw:
+        return None
+
+    value = raw.strip()
+    if not value:
+        return None
+
+    lower_value = value.lower()
+    if ":" in lower_value:
+        prefix, digest = lower_value.split(":", 1)
+        if prefix and prefix != "sha256":
+            logger.warning(
+                "Type de checksum %s non géré, seule sha256 est supportée", prefix
+            )
+            return None
+        value = digest.strip()
+    else:
+        value = lower_value
+
+    if len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
+        logger.warning("Checksum SHA-256 invalide: %s", raw)
+        return None
+
+    return value
+
+
+def _compute_sha256(path: Path) -> Optional[str]:
+    try:
+        hasher = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except OSError as exc:
+        logger.warning("Impossible de calculer le SHA-256 de %s: %s", path, exc)
+        return None
+
+
+def _check_sqlite_checksum(path: Path, expected: str) -> bool:
+    digest = _compute_sha256(path)
+    if not digest:
+        return False
+    if digest.lower() != expected:
+        logger.error(
+            "La base %s ne correspond pas au SHA-256 attendu (%s ≠ %s)",
+            path,
+            digest,
+            expected,
+        )
+        return False
+    return True
+
+
+EXPECTED_SQLITE_SHA256 = _normalise_checksum(
+    os.getenv("DATABASE_RELEASE_SHA256") or os.getenv("DATABASE_RELEASE_CHECKSUM")
+)
+
+
+def _download_sqlite_from_release(
+    target: Path, alt_names: Iterable[str], expected_checksum: Optional[str]
+) -> bool:
     if os.getenv("DATABASE_RELEASE_SKIP"):
         return False
 
@@ -136,7 +200,23 @@ def _download_sqlite_from_release(target: Path, alt_names: Iterable[str]) -> boo
             else:
                 with tmp_name.open("rb") as source, open(target, "wb") as dest:
                     shutil.copyfileobj(source, dest)
-            logger.info("Base SQLite téléchargée depuis la release (%s)", asset_name or url_candidate)
+
+            if expected_checksum and not _check_sqlite_checksum(target, expected_checksum):
+                try:
+                    target.unlink(missing_ok=True)  # type: ignore[attr-defined]
+                except TypeError:
+                    if target.exists():
+                        target.unlink()
+                logger.warning(
+                    "Checksum incorrect pour l'asset de release %s, tentative suivante",
+                    asset_name or url_candidate,
+                )
+                continue
+
+            logger.info(
+                "Base SQLite téléchargée depuis la release (%s)",
+                asset_name or url_candidate,
+            )
             return True
         except Exception as exc:  # pragma: no cover - réseau
             logger.warning("Impossible d'utiliser l'asset de release %s: %s", asset_name, exc)
@@ -350,7 +430,36 @@ if IS_SQLITE:
             return candidate, True
 
     resolved_path, can_write = ensure_parent(resolved_path)
-    if not resolved_path.exists() and can_write:
-        _download_sqlite_from_release(resolved_path, alt_names)
+
+    if resolved_path.exists() and EXPECTED_SQLITE_SHA256:
+        if not _check_sqlite_checksum(resolved_path, EXPECTED_SQLITE_SHA256):
+            if can_write:
+                logger.warning(
+                    "Téléchargement de la base depuis la release pour rétablir le checksum attendu"
+                )
+                if not _download_sqlite_from_release(
+                    resolved_path, alt_names, EXPECTED_SQLITE_SHA256
+                ):
+                    logger.error(
+                        "Impossible de récupérer une base SQLite correspondant au SHA-256 attendu"
+                    )
+            else:
+                logger.error(
+                    "Base SQLite invalide et répertoire non inscriptible: %s", resolved_path
+                )
+    elif not resolved_path.exists():
+        if can_write:
+            if not _download_sqlite_from_release(
+                resolved_path, alt_names, EXPECTED_SQLITE_SHA256
+            ) and EXPECTED_SQLITE_SHA256:
+                logger.error(
+                    "Aucun téléchargement de base SQLite ne correspond au SHA-256 attendu"
+                )
+        else:
+            logger.error(
+                "Impossible de créer la base SQLite dans un répertoire non inscriptible: %s",
+                resolved_path.parent,
+            )
+
     url = url.set(database=str(resolved_path))
     DATABASE_URL = str(url)
