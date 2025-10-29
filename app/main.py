@@ -3,6 +3,7 @@ import json
 import os
 import re
 import urllib.request
+from math import ceil
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +11,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import exists, func, or_
 from sqlalchemy.orm import Session
 
 from . import etl
@@ -98,26 +99,77 @@ Base.metadata.create_all(bind=engine)
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, q: str = "", db: Session = Depends(get_session)):
     sort_key = request.query_params.get("sort") or "date_pap_c5"
-    qs = db.query(SiretSummary)
+    base_query = db.query(SiretSummary)
+    filter_condition = None
     if q:
         like = f"%{q}%"
-        qs = qs.filter((SiretSummary.siret.like(like)) | (SiretSummary.raison_sociale.ilike(like)))
+        filter_condition = (SiretSummary.siret.like(like)) | (
+            SiretSummary.raison_sociale.ilike(like)
+        )
+        base_query = base_query.filter(filter_condition)
+
     ordering_map = {
         "date_pap_c5": SiretSummary.date_pap_c5.desc().nullslast(),
         "inscrits_c3": SiretSummary.inscrits_c3.desc().nullslast(),
         "inscrits_c4": SiretSummary.inscrits_c4.desc().nullslast(),
     }
     order_clause = ordering_map.get(sort_key, ordering_map["date_pap_c5"])
-    rows = qs.order_by(order_clause).all()
-    if not rows:
+
+    total_rows = base_query.count()
+
+    page_size_choices = [50, 100, 200, 500, 1000]
+    raw_page_size = request.query_params.get("page_size") or request.query_params.get(
+        "per_page"
+    )
+    default_page_size = 200
+    try:
+        requested_page_size = (
+            int(raw_page_size) if raw_page_size is not None else default_page_size
+        )
+    except ValueError:
+        requested_page_size = default_page_size
+    requested_page_size = max(
+        page_size_choices[0], min(page_size_choices[-1], requested_page_size)
+    )
+    if requested_page_size not in page_size_choices:
+        for choice in page_size_choices:
+            if requested_page_size <= choice:
+                requested_page_size = choice
+                break
+        else:
+            requested_page_size = page_size_choices[-1]
+    page_size = requested_page_size
+
+    raw_page = request.query_params.get("page")
+    try:
+        requested_page = int(raw_page) if raw_page is not None else 1
+    except ValueError:
+        requested_page = 1
+    requested_page = max(1, requested_page)
+
+    rows_query = base_query.order_by(order_clause)
+    if total_rows == 0:
         pv_total = db.query(func.count(PVEvent.id)).scalar() or 0
         invit_total = db.query(func.count(Invitation.id)).scalar() or 0
         if pv_total or invit_total:
             etl.build_siret_summary(db)
-            rows = qs.order_by(order_clause).all()
-    sirets = [r.siret for r in rows]
+            base_query = db.query(SiretSummary)
+            if filter_condition is not None:
+                base_query = base_query.filter(filter_condition)
+            total_rows = base_query.count()
+            rows_query = base_query.order_by(order_clause)
+
+    total_pages = max(1, ceil(total_rows / page_size)) if total_rows else 1
+    page = min(requested_page, total_pages)
+    offset = (page - 1) * page_size if total_rows else 0
+    rows = (
+        rows_query.offset(offset).limit(page_size).all()
+        if total_rows
+        else []
+    )
+
     summary_rows = []
-    summary_totals = {
+    page_totals = {
         "structures": 0,
         "pap_total": 0,
         "pv_c3_total": 0,
@@ -125,6 +177,8 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
         "match_c3": 0,
         "match_c4": 0,
     }
+
+    sirets = [r.siret for r in rows if r.siret]
     if sirets:
         pap_counts = {
             siret: count
@@ -229,22 +283,94 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
                     "organisations": sorted(o for o in orgas if o),
                 }
             )
-            summary_totals["structures"] += 1
-            summary_totals["pap_total"] += pap_count
-            summary_totals["pv_c3_total"] += pv_c3_count
-            summary_totals["pv_c4_total"] += pv_c4_count
+            page_totals["structures"] += 1
+            page_totals["pap_total"] += pap_count
+            page_totals["pv_c3_total"] += pv_c3_count
+            page_totals["pv_c4_total"] += pv_c4_count
             if match_c3:
-                summary_totals["match_c3"] += 1
+                page_totals["match_c3"] += 1
             if match_c4:
-                summary_totals["match_c4"] += 1
+                page_totals["match_c4"] += 1
 
-    highlight_candidates = [row for row in rows if row.date_pap_c5]
-    highlight_candidates.sort(key=lambda row: row.date_pap_c5, reverse=True)
-    highlight_rows = [
-        row
-        for row in highlight_candidates
-        if (row.inscrits_c3 or 0) > 100 or (row.inscrits_c4 or 0) > 100
-    ]
+    if not summary_rows:
+        page_totals = None
+
+    global_totals = {
+        "structures": total_rows,
+        "pap_total": 0,
+        "pv_c3_total": 0,
+        "pv_c4_total": 0,
+        "match_c3": 0,
+        "match_c4": 0,
+    }
+    if total_rows:
+        pap_total_query = db.query(func.count(Invitation.id)).join(
+            SiretSummary, SiretSummary.siret == Invitation.siret
+        )
+        pv_c3_total_query = (
+            db.query(func.count(PVEvent.id))
+            .join(SiretSummary, SiretSummary.siret == PVEvent.siret)
+            .filter(PVEvent.cycle == "C3")
+        )
+        pv_c4_total_query = (
+            db.query(func.count(PVEvent.id))
+            .join(SiretSummary, SiretSummary.siret == PVEvent.siret)
+            .filter(PVEvent.cycle == "C4")
+        )
+        if filter_condition is not None:
+            pap_total_query = pap_total_query.filter(filter_condition)
+            pv_c3_total_query = pv_c3_total_query.filter(filter_condition)
+            pv_c4_total_query = pv_c4_total_query.filter(filter_condition)
+        global_totals["pap_total"] = pap_total_query.scalar() or 0
+        global_totals["pv_c3_total"] = pv_c3_total_query.scalar() or 0
+        global_totals["pv_c4_total"] = pv_c4_total_query.scalar() or 0
+
+        match_c3_query = db.query(func.count()).select_from(SiretSummary).filter(
+            exists().where(Invitation.siret == SiretSummary.siret),
+            exists().where(
+                (PVEvent.siret == SiretSummary.siret) & (PVEvent.cycle == "C3")
+            ),
+        )
+        match_c4_query = db.query(func.count()).select_from(SiretSummary).filter(
+            exists().where(Invitation.siret == SiretSummary.siret),
+            exists().where(
+                (PVEvent.siret == SiretSummary.siret) & (PVEvent.cycle == "C4")
+            ),
+        )
+        if filter_condition is not None:
+            match_c3_query = match_c3_query.filter(filter_condition)
+            match_c4_query = match_c4_query.filter(filter_condition)
+        global_totals["match_c3"] = match_c3_query.scalar() or 0
+        global_totals["match_c4"] = match_c4_query.scalar() or 0
+
+    highlight_query = db.query(SiretSummary)
+    if filter_condition is not None:
+        highlight_query = highlight_query.filter(filter_condition)
+    highlight_rows = (
+        highlight_query
+        .filter(SiretSummary.date_pap_c5.isnot(None))
+        .filter(
+            or_(
+                func.coalesce(SiretSummary.inscrits_c3, 0) > 100,
+                func.coalesce(SiretSummary.inscrits_c4, 0) > 100,
+            )
+        )
+        .order_by(SiretSummary.date_pap_c5.desc().nullslast())
+        .limit(50)
+        .all()
+    )
+
+    pagination = {
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "total_rows": total_rows,
+        "start": offset + 1 if rows else 0,
+        "end": offset + len(rows) if rows else 0,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "sizes": page_size_choices,
+    }
 
     return templates.TemplateResponse(
         "index.html",
@@ -253,9 +379,11 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             "rows": rows,
             "q": q,
             "summary_rows": summary_rows,
-            "summary_totals": summary_totals if summary_rows else None,
+            "page_totals": page_totals,
+            "global_totals": global_totals,
             "sort": sort_key,
             "highlight_rows": highlight_rows,
+            "pagination": pagination,
         },
     )
 
