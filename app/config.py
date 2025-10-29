@@ -19,19 +19,48 @@ logger = logging.getLogger("papcse.config")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Prise en compte de plusieurs conventions d'environnement rencontrées
-# sur Railway / déploiements précédents.
-raw_database_url = (
-    os.getenv("DATABASE_URL")
-    or os.getenv("DB_URL")
-    or os.getenv("SQLALCHEMY_DATABASE_URL")
-    or os.getenv("RAILWAY_DATABASE_URL")
-)
-if raw_database_url:
-    DATABASE_URL = raw_database_url
-else:
+
+def _extract_release_url(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    lowered = candidate.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return candidate
+    return None
+
+
+db_url_env = os.getenv("DB_URL")
+release_url_override = _extract_release_url(db_url_env)
+if release_url_override and not os.getenv("DATABASE_RELEASE_URL"):
+    os.environ.setdefault("DATABASE_RELEASE_URL", release_url_override)
+
+
+def _coalesce_database_url() -> str:
+    candidates = [os.getenv("DATABASE_URL")]
+    if db_url_env and not release_url_override:
+        candidates.append(db_url_env)
+    candidates.extend(
+        [
+            os.getenv("SQLALCHEMY_DATABASE_URL"),
+            os.getenv("RAILWAY_DATABASE_URL"),
+        ]
+    )
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        stripped = candidate.strip()
+        if stripped:
+            return stripped
+
     default_sqlite_path = BASE_DIR / "papcse.db"
-    DATABASE_URL = f"sqlite:///{default_sqlite_path}"
+    return f"sqlite:///{default_sqlite_path}"
+
+
+DATABASE_URL = _coalesce_database_url()
 
 url = make_url(DATABASE_URL)
 IS_SQLITE = url.get_backend_name() == "sqlite"
@@ -143,7 +172,10 @@ def _check_sqlite_checksum(path: Path, expected: str) -> bool:
 
 
 EXPECTED_SQLITE_SHA256 = _normalise_checksum(
-    os.getenv("DATABASE_RELEASE_SHA256") or os.getenv("DATABASE_RELEASE_CHECKSUM")
+    os.getenv("DATABASE_RELEASE_SHA256")
+    or os.getenv("DATABASE_RELEASE_CHECKSUM")
+    or os.getenv("DB_SHA256")
+    or os.getenv("DB_CHECKSUM")
 )
 
 
