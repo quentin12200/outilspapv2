@@ -64,10 +64,30 @@ class AuditLogger:
     def __init__(self) -> None:
         log_file = os.getenv("AUDIT_LOG_FILE", "logs/audit.log")
         self._logger = logging.getLogger("audit")
-        if not self._logger.handlers:
-            handler = logging.FileHandler(log_file, encoding="utf-8")
-            handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
-            self._logger.setLevel(logging.INFO)
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+
+        if self._logger.handlers:
+            return
+
+        formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
+        log_path = Path(log_file)
+
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            handler = logging.FileHandler(log_path, encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - environment dependent
+            fallback = logging.StreamHandler()
+            fallback.setFormatter(formatter)
+            self._logger.addHandler(fallback)
+            logging.getLogger(__name__).warning(
+                "Impossible d'ouvrir le fichier de logs d'audit %s (%s). "
+                "Bascule sur la sortie standard.",
+                log_path,
+                exc,
+            )
+        else:
+            handler.setFormatter(formatter)
             self._logger.addHandler(handler)
 
     def log_import(self, user: str, file_type: str, rows: int, success: bool) -> None:
