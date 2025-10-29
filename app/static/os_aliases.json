@@ -1,0 +1,39 @@
+{
+  "CGT": [
+    "C.G.T",
+    "Confédération générale du travail",
+    "CGT - Confédération générale du travail"
+  ],
+  "CFDT": [
+    "C.F.D.T",
+    "Confédération française démocratique du travail"
+  ],
+  "CGT-FO": [
+    "FO",
+    "C.G.T-FO",
+    "Force ouvriere",
+    "Force ouvrière",
+    "CGT FO"
+  ],
+  "CFTC": [
+    "C.F.T.C",
+    "Confédération française des travailleurs chrétiens"
+  ],
+  "UNSA": [
+    "U.N.S.A",
+    "Union nationale des syndicats autonomes"
+  ],
+  "Solidaires": [
+    "SUD",
+    "Union syndicale Solidaires",
+    "Solidaires / SUD",
+    "Solidaires Sud"
+  ],
+  "CFE-CGC": [
+    "CFE",
+    "C.G.C",
+    "CFE CGC",
+    "Confédération française de l'encadrement",
+    "Confédération française de l'encadrement - CGC"
+  ]
+}

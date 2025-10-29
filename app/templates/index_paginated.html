@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Accueil — PAP/CSE{% endblock %}
+{% block content %}
+<section style="margin-bottom:2rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;">
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">Structures recensées</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;">{{ global_stats.structures_distinct or 0 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">Invitations PAP (C5)</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;" title="{{ global_stats.pap_c5_sirets or 0 }} SIRET distincts">{{ global_stats.pap_c5_rows or 0 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">PV C3 recensés</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;" title="{{ global_stats.pv_c3_sirets or 0 }} SIRET distincts">{{ global_stats.pv_c3_rows or 0 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">PV C4 recensés</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;" title="{{ global_stats.pv_c4_sirets or 0 }} SIRET distincts">{{ global_stats.pv_c4_rows or 0 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">Correspondances PAP ↔ PV C3</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;">{{ global_stats.match_c5_c3_sirets or 0 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem 0;color:#d5001c;font-size:1.1rem;">Correspondances PAP ↔ PV C4</h3>
+    <p style="margin:0;font-size:1.8rem;font-weight:700;">{{ global_stats.match_c5_c4_sirets or 0 }}</p>
+  </article>
+</section>
+
+<form method="get" style="margin-bottom:1.5rem;">
+  <input type="hidden" name="sort" value="{{ sort }}" />
+  <input type="hidden" name="direction" value="{{ direction }}" />
+  <label for="q">Recherche</label>
+  <input type="search" id="q" name="q" placeholder="SIRET ou raison sociale" value="{{ q }}" />
+
+  <label for="fd">Fédération</label>
+  <select id="fd" name="fd" multiple size="4" style="min-width:200px;">
+    {% for value in fd_options %}
+      <option value="{{ value }}" {% if value in selected_fd %}selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="dep">Département</label>
+  <select id="dep" name="dep" multiple size="4" style="min-width:160px;">
+    {% for value in dep_options %}
+      <option value="{{ value }}" {% if value in selected_dep %}selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="presence">Présence C3/C4</label>
+  <select id="presence" name="presence" multiple size="4" style="min-width:160px;">
+    {% for value in presence_options %}
+      <option value="{{ value }}" {% if value in selected_presence %}selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="os">Organisation syndicale</label>
+  <input type="text" id="os" name="os" placeholder="CGT, CFDT…" value="{{ selected_os }}" />
+
+  <label for="date_pap_from">Date PAP C5 (de)</label>
+  <input type="date" id="date_pap_from" name="date_pap_from" value="{{ date_pap_from|default('', true) }}" />
+
+  <label for="date_pap_to">Date PAP C5 (à)</label>
+  <input type="date" id="date_pap_to" name="date_pap_to" value="{{ date_pap_to|default('', true) }}" />
+
+  <label for="date_pv_from">Date PV (de)</label>
+  <input type="date" id="date_pv_from" name="date_pv_from" value="{{ date_pv_from|default('', true) }}" />
+
+  <label for="date_pv_to">Date PV (à)</label>
+  <input type="date" id="date_pv_to" name="date_pv_to" value="{{ date_pv_to|default('', true) }}" />
+
+  <label for="per_page">Résultats/page</label>
+  <select id="per_page" name="per_page" style="max-width:140px;">
+    {% for value in per_page_options %}
+      <option value="{{ value }}" {% if value == per_page %}selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="sort_select">Tri</label>
+  <select id="sort_select" name="sort" style="max-width:180px;">
+    <option value="date_pap_c5" {% if sort == 'date_pap_c5' %}selected{% endif %}>Date PAP C5</option>
+    <option value="date_pv_last" {% if sort == 'date_pv_last' %}selected{% endif %}>Date PV</option>
+    <option value="raison_sociale" {% if sort == 'raison_sociale' %}selected{% endif %}>Raison sociale</option>
+    <option value="departement" {% if sort == 'departement' %}selected{% endif %}>Département</option>
+    <option value="fd" {% if sort == 'fd' %}selected{% endif %}>Fédération</option>
+  </select>
+
+  <label for="direction_select">Ordre</label>
+  <select id="direction_select" name="direction" style="max-width:140px;">
+    <option value="desc" {% if direction == 'desc' %}selected{% endif %}>Décroissant</option>
+    <option value="asc" {% if direction == 'asc' %}selected{% endif %}>Croissant</option>
+  </select>
+
+  <label style="flex:0 0 auto;display:flex;align-items:center;gap:.4rem;margin-top:.4rem;">
+    <input type="checkbox" name="all" value="1" {% if show_all %}checked{% endif %} />
+    Afficher toutes les structures (y compris sans PV)
+  </label>
+
+  <div style="width:100%;display:flex;gap:.8rem;flex-wrap:wrap;">
+    <button type="submit">Filtrer</button>
+    <a href="/" class="secondary btn-pagination" style="padding:.5rem 1rem;">Réinitialiser</a>
+  </div>
+</form>
+
+<table>
+  <thead>
+    <tr>
+      <th>SIRET</th>
+      <th>Raison sociale</th>
+      <th>Département</th>
+      <th>FD</th>
+      <th>Présence</th>
+      <th>OS / scores C3</th>
+      <th>OS / scores C4</th>
+      <th>Dernier PV</th>
+      <th>Date PAP C5</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <td><a href="/siret/{{ row.siret }}">{{ row.siret }}</a></td>
+        <td>{{ row.raison_sociale or "—" }}</td>
+        <td>{{ row.departement or "—" }}</td>
+        <td>{{ row.fd or "—" }}</td>
+        <td>{{ row.presence or "—" }}</td>
+        <td>{{ row.os_c3 or "—" }}</td>
+        <td>{{ row.os_c4 or "—" }}</td>
+        <td>
+          {% if row.date_pv_last %}
+            {{ row.date_pv_last.strftime('%d/%m/%Y') }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>
+          {% if row.date_pap_c5 %}
+            {{ row.date_pap_c5.strftime('%d/%m/%Y') }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="9" style="text-align:center;padding:1.5rem;">Aucune structure ne correspond aux filtres choisis.</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+  <div>
+    {% if page_data.total %}
+      Affichage de {{ page_data.page }} / {{ page_data.total_pages }} — {{ page_data.total }} lignes
+    {% else %}
+      Aucun résultat
+    {% endif %}
+  </div>
+  {{ pagination_html | safe }}
+</div>
+{% endblock %}

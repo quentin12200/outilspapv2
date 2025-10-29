@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — PAP/CSE{% endblock %}
+{% block content %}
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin-bottom:2rem;">
+  <article style="background:#fff;border-radius:.6rem;padding:1.2rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem;color:#d5001c;font-size:1.1rem;">Structures recensées</h3>
+    <p style="margin:0;font-size:2rem;font-weight:700;">{{ total_sirets }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1.2rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem;color:#d5001c;font-size:1.1rem;">Implantations C3</h3>
+    <p style="margin:0;font-size:2rem;font-weight:700;">{{ sirets_c3 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1.2rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem;color:#d5001c;font-size:1.1rem;">Implantations C4</h3>
+    <p style="margin:0;font-size:2rem;font-weight:700;">{{ sirets_c4 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1.2rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem;color:#d5001c;font-size:1.1rem;">Invitations PAP (C5)</h3>
+    <p style="margin:0;font-size:2rem;font-weight:700;">{{ invitations_c5 }}</p>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1.2rem;box-shadow:0 2px 10px #0001;">
+    <h3 style="margin:0 0 .4rem;color:#d5001c;font-size:1.1rem;">Correspondances PAP ↔ PV</h3>
+    <p style="margin:0;font-size:2rem;font-weight:700;">{{ matches }}</p>
+  </article>
+</section>
+
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:2rem;">
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 12px #0001;">
+    <h3 style="margin:0 0 .6rem;color:#d5001c;">Répartition par présence</h3>
+    <div id="chart-presence" style="height:320px;"></div>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 12px #0001;">
+    <h3 style="margin:0 0 .6rem;color:#d5001c;">Top 10 départements</h3>
+    <div id="chart-dept" style="height:320px;"></div>
+  </article>
+  <article style="background:#fff;border-radius:.6rem;padding:1rem;box-shadow:0 2px 12px #0001;">
+    <h3 style="margin:0 0 .6rem;color:#d5001c;">Répartition par fédération</h3>
+    <div id="chart-fd" style="height:320px;"></div>
+  </article>
+</section>
+
+<script>
+  const presenceLabels = {{ presence_labels | safe }};
+  const presenceValues = {{ presence_values | safe }};
+  const deptLabels = {{ dept_labels | safe }};
+  const deptValues = {{ dept_values | safe }};
+  const fdLabels = {{ fd_labels | safe }};
+  const fdValues = {{ fd_values | safe }};
+
+  Plotly.newPlot('chart-presence', [{
+    values: presenceValues,
+    labels: presenceLabels,
+    type: 'pie',
+    hole: .4,
+    marker: {colors: ['#d5001c', '#ff8a80', '#ffe082', '#c8e6c9']}
+  }], {
+    margin: {t: 20, b: 20, l: 20, r: 20},
+    legend: {orientation: 'h', x: 0, y: -0.1}
+  });
+
+  Plotly.newPlot('chart-dept', [{
+    x: deptValues.reverse(),
+    y: deptLabels.reverse(),
+    type: 'bar',
+    orientation: 'h',
+    marker: {color: '#d5001c'}
+  }], {
+    margin: {t: 20, b: 40, l: 80, r: 20}
+  });
+
+  Plotly.newPlot('chart-fd', [{
+    x: fdLabels,
+    y: fdValues,
+    type: 'bar',
+    marker: {color: '#ff7043'}
+  }], {
+    margin: {t: 20, b: 80, l: 40, r: 20}
+  });
+</script>
+{% endblock %}

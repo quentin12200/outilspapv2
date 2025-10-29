@@ -33,6 +33,25 @@
     a:hover {
       text-decoration: underline;
     }
+    nav.primary-nav {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    nav.primary-nav a {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 0.4rem 0.9rem;
+      border-radius: 0.4rem;
+      font-weight: 600;
+      transition: background 0.2s, transform 0.2s;
+    }
+    nav.primary-nav a:hover {
+      background: rgba(0, 0, 0, 0.35);
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
     button, input[type=submit] {
       background: #d5001c;
       color: #fff;
@@ -176,6 +195,38 @@
       color: #181818;
       border: 1.5px solid #181818;
     }
+    .pagination {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 1.5rem 0;
+    }
+    .btn-pagination {
+      padding: 0.4rem 0.9rem;
+      border-radius: 0.4rem;
+      border: 1px solid #d5001c;
+      color: #d5001c;
+      background: #fff;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-pagination:hover {
+      background: #d5001c;
+      color: #fff;
+      text-decoration: none;
+    }
+    .btn-pagination.active {
+      background: #d5001c;
+      color: #fff;
+      box-shadow: 0 2px 8px #0001;
+    }
+    .btn-pagination.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
     label {
       min-width: 200px;
       color: #888;
@@ -195,10 +246,15 @@
 <main class="container">
   <header class="cgt-header" style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem;margin-bottom:2rem;max-width:1100px;width:100vw;box-sizing:border-box;margin-left:auto;margin-right:auto;padding:2rem 2.5rem;">
     <div style="display:flex;align-items:center;gap:1rem">
-      <img src="/static/logo.png" alt="Logo CGT local" style="height:54px;width:auto;vertical-align:middle;border-radius:.4rem;background:#fff;padding:.2rem 0.5rem;box-shadow:0 2px 8px #0001;">
+      <img src="{{ url_for('static', path='img/logo.png') }}" alt="Logo CGT local" style="height:54px;width:auto;vertical-align:middle;border-radius:.4rem;background:#fff;padding:.2rem 0.5rem;box-shadow:0 2px 8px #0001;">
       <h2 style="margin:0;font-size:2.2rem;letter-spacing:-1px;color:#fff;text-shadow:1px 1px 2px #9009;">PAP/CSE Tableau de bord</h2>
     </div>
-    <nav style="display:flex;gap:1.2em;align-items:center"><a href="/" style="color:#fff;font-size:1.1em">Accueil</a><a href="/ciblage" style="color:#fff;font-size:1.1em">Ciblage</a><a href="/admin" style="color:#fff;font-size:1.1em">Admin</a></nav>
+    <nav class="primary-nav">
+      <a href="/">Accueil</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/ciblage">Ciblage</a>
+      <a href="/admin">Administration</a>
+    </nav>
   </header>
   {% block content %}{% endblock %}
 </main>
