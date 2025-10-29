@@ -101,6 +101,18 @@ def ensure_schema(engine) -> None:
 
 
 # -------- Ingestion PV --------
+def _row_payload(row: pd.Series) -> dict:
+    payload: dict[str, str] = {}
+    for key, value in row.items():
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            continue
+        text_value = str(value).strip()
+        if not text_value:
+            continue
+        payload[str(key)] = text_value
+    return payload
+
+
 def ingest_pv_excel(session: Session, file_like) -> int:
     xls = pd.ExcelFile(file_like)
     sheet = xls.sheet_names[0]
@@ -140,6 +152,8 @@ def ingest_pv_excel(session: Session, file_like) -> int:
         bn = _to_int(r.get(c_bn))
         cgt_voix = _sum_int([r.get(c) for c in c_cgt]) if c_cgt else None
 
+        autres = _row_payload(r)
+
         ev = PVEvent(
             siret=siret,
             cycle=cycle,
@@ -156,6 +170,7 @@ def ingest_pv_excel(session: Session, file_like) -> int:
             raison_sociale=(r.get(c_rs) if c_rs else None),
             cp=(r.get(c_cp) if c_cp else None),
             ville=(r.get(c_ville) if c_ville else None),
+            autres_indics=autres or None,
         )
         session.add(ev)
         inserted += 1
