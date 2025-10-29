@@ -9,7 +9,7 @@ notamment les bases de données issues des PV retenus.
   mais il est disponible en téléchargement via les *Releases*.
 
 📦 **Téléchargement direct :**
-[👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/PV-retenus-branche-interpro-Audience-et-SVE/releases/latest)
+[👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/outilspapv2/releases/latest)
 
 > ℹ️ Depuis la plateforme ou en local, l'application télécharge automatiquement
 > l'asset `papcse.db` de la dernière *Release* publique lorsqu'aucun fichier

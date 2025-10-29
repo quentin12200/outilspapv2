@@ -77,7 +77,7 @@ def _iter_release_urls(
         parsed_name = Path(urllib.parse.urlparse(direct_url).path).name
         yield direct_url, parsed_name or (asset_hint or "")
 
-    release_repo = os.getenv("DATABASE_RELEASE_REPO", "quentin12200/PV-retenus-branche-interpro-Audience-et-SVE")
+    release_repo = os.getenv("DATABASE_RELEASE_REPO", "quentin12200/outilspapv2")
     release_api = os.getenv(
         "DATABASE_RELEASE_API",
         f"https://api.github.com/repos/{release_repo}/releases/latest",
