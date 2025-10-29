@@ -165,6 +165,14 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             if match_c4:
                 summary_totals["match_c4"] += 1
 
+    highlight_candidates = [row for row in rows if row.date_pap_c5]
+    highlight_candidates.sort(key=lambda row: row.date_pap_c5, reverse=True)
+    highlight_rows = [
+        row
+        for row in highlight_candidates
+        if (row.inscrits_c3 or 0) > 100 or (row.inscrits_c4 or 0) > 100
+    ]
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -174,6 +182,7 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             "summary_rows": summary_rows,
             "summary_totals": summary_totals if summary_rows else None,
             "sort": sort_key,
+            "highlight_rows": highlight_rows,
         },
     )
 

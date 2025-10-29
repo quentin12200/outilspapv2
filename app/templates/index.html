@@ -108,8 +108,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for r in rows|sort(attribute='date_pap_c5', reverse=True) if r.date_pap_c5 %}
-      {% if (r.inscrits_c3 or 0) > 100 or (r.inscrits_c4 or 0) > 100 %}
+      {% for r in highlight_rows %}
       <tr>
         <td><a href="/siret/{{ r.siret }}">{{ r.siret }}</a></td>
         <td>{{ r.raison_sociale or '' }}</td>
@@ -121,7 +120,6 @@
         <td>{{ r.inscrits_c4 or '' }}</td>
         <td>{% if r.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
       </tr>
-      {% endif %}
       {% endfor %}
     </tbody>
   </table>
