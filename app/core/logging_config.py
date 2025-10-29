@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,23 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{message}{reset}"
 
 
+def _resolve_log_path(raw_path: str) -> Path:
+    """Return a writable log path, falling back to a temp directory if needed."""
+
+    candidate = Path(raw_path)
+
+    try:
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        if os.access(candidate.parent, os.W_OK):
+            return candidate
+    except OSError:
+        pass
+
+    tmp_root = Path(os.getenv("TMPDIR", tempfile.gettempdir())) / "papcse_logs"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    return tmp_root / candidate.name
+
+
 def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> None:
     """Initialise les handlers de logging de l'application."""
     root_logger = logging.getLogger()
@@ -43,8 +61,7 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> No
     root_logger.addHandler(console_handler)
 
     if log_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path = _resolve_log_path(log_file)
         file_handler = logging.FileHandler(log_path, encoding="utf-8")
         file_handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
         root_logger.addHandler(file_handler)
@@ -62,7 +79,7 @@ class AuditLogger:
     """Logger dédié aux événements sensibles (imports, exports, etc.)."""
 
     def __init__(self) -> None:
-        log_file = os.getenv("AUDIT_LOG_FILE", "logs/audit.log")
+        raw_log_file = os.getenv("AUDIT_LOG_FILE", "logs/audit.log")
         self._logger = logging.getLogger("audit")
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
@@ -71,12 +88,11 @@ class AuditLogger:
             return
 
         formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
-        log_path = Path(log_file)
+        log_path = _resolve_log_path(raw_log_file)
 
         try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
             handler = logging.FileHandler(log_path, encoding="utf-8")
-        except OSError as exc:  # pragma: no cover - environment dependent
+        except Exception as exc:  # pragma: no cover - environment dependent
             fallback = logging.StreamHandler()
             fallback.setFormatter(formatter)
             self._logger.addHandler(fallback)
