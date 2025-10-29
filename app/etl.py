@@ -99,6 +99,14 @@ def ensure_schema(engine) -> None:
                 for stmt in alters:
                     conn.execute(text(stmt))
 
+    if "pv_events" in existing_tables:
+        cols = {col["name"] for col in inspector.get_columns("pv_events")}
+        if "autres_indics" not in cols:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE pv_events ADD COLUMN autres_indics JSON")
+                )
+
 
 # -------- Ingestion PV --------
 def _row_payload(row: pd.Series) -> dict:
