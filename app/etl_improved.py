@@ -1,18 +1,55 @@
+from __future__ import annotations
+
 import json
+
 import logging
-import pandas as pd
-import numpy as np
 import re
 from collections import defaultdict
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from typing import Any, Dict, List
+
+import numpy as np
+import pandas as pd
 from dateutil.parser import parse as dtparse
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-from .models import PVEvent, Invitation, SiretSummary
-from .normalization import normalize_fd_label, normalize_os_label, format_os_scores
+from .core.logging_config import get_logger
+from .core.validation import ValidationError, validate_invitation_file, validate_pv_file
+from .models import Invitation, PVEvent, SiretSummary
+from .normalization import format_os_scores, normalize_fd_label, normalize_os_label
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+
+@dataclass
+class ETLResult:
+    success: bool = False
+    inserted: int = 0
+    updated: int = 0
+    skipped: int = 0
+    errors: List[ValidationError | str] = field(default_factory=list)
+    warnings: List[ValidationError | str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        def _serialize(items: List[ValidationError | str]) -> List[Dict[str, str] | str]:
+            payload: List[Dict[str, str] | str] = []
+            for entry in items:
+                if isinstance(entry, ValidationError):
+                    payload.append(entry.to_dict())
+                else:
+                    payload.append(str(entry))
+            return payload
+
+        return {
+            "success": self.success,
+            "inserted": self.inserted,
+            "updated": self.updated,
+            "skipped": self.skipped,
+            "errors": _serialize(self.errors),
+            "warnings": _serialize(self.warnings),
+        }
 
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -32,6 +69,10 @@ def _todate(x):
     if x is None or (isinstance(x, float) and np.isnan(x)):
         return None
     try:
+        if isinstance(x, str):
+            text = x.strip()
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+                return datetime.strptime(text, "%Y-%m-%d").date()
         d = pd.to_datetime(x, dayfirst=True, errors="coerce")
         if pd.isna(d):
             d = pd.to_datetime(dtparse(str(x), dayfirst=True))
@@ -129,106 +170,237 @@ def _row_payload(row: pd.Series) -> dict:
     return payload
 
 
-def ingest_pv_excel(session: Session, file_like) -> int:
-    xls = pd.ExcelFile(file_like)
-    sheet = xls.sheet_names[0]
-    df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
-    df = _normalize_cols(df)
+def ingest_pv_excel(session: Session, file_like) -> ETLResult:
+    result = ETLResult()
+    try:
+        xls = pd.ExcelFile(file_like)
+        sheet = xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
+        df = _normalize_cols(df)
 
-    c_siret = _col_detect(df, ["siret"])
-    c_cycle = _col_detect(df, ["cycle"])
-    c_datepv = "date" if "date" in df.columns else (
-        _col_detect(df, ["date pv", "date pap", "date_pv", "date du pv", "date du pap"]) or df.columns[min(15, len(df.columns) - 1)]
-    )
-    c_type = _col_detect(df, ["type"])
-    c_ins = _col_detect(df, ["inscrit", "inscrits"])
-    c_vot = _col_detect(df, ["votant", "votants"])
-    c_bn = _col_detect(df, ["blanc", "nul"])
-    c_cgt = [c for c in df.columns if "cgt" in c] or []
-    c_idcc = _col_detect(df, ["idcc"])
-    c_fd = _col_detect(df, ["fd"])
-    c_ud = _col_detect(df, ["ud"])
-    c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
-    c_rs = _col_detect(df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"])
-    c_cp = _col_detect(df, ["cp", "code postal"])
-    c_ville = _col_detect(df, ["ville"])
+        is_valid, validation_errors = validate_pv_file(df)
+        for err in validation_errors:
+            if err.severity == "warning":
+                result.warnings.append(err)
+            else:
+                result.errors.append(err)
 
-    inserted = 0
-    for _, r in df.iterrows():
-        siret = _to14(r.get(c_siret))
-        if not siret:
-            continue
-        cycle = _norm_cycle(r.get(c_cycle))
-        if cycle not in {"C3", "C4"}:
-            continue
-        date_pv = _todate(r.get(c_datepv))
-        type_ = str(r.get(c_type) or "")
-        inscrits = _to_int(r.get(c_ins))
-        votants = _to_int(r.get(c_vot))
-        bn = _to_int(r.get(c_bn))
-        cgt_voix = _sum_int([r.get(c) for c in c_cgt]) if c_cgt else None
+        if not is_valid:
+            logger.error("Validation PV échouée: %s", len(result.errors))
+            return result
 
-        autres = _row_payload(r)
-
-        ev = PVEvent(
-            siret=siret,
-            cycle=cycle,
-            date_pv=date_pv,
-            type=type_,
-            inscrits=inscrits,
-            votants=votants,
-            blancs_nuls=bn,
-            cgt_voix=cgt_voix,
-            idcc=(r.get(c_idcc) if c_idcc else None),
-            fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
-            ud=(r.get(c_ud) if c_ud else None),
-            departement=(r.get(c_dep) if c_dep else None),
-            raison_sociale=(r.get(c_rs) if c_rs else None),
-            cp=(r.get(c_cp) if c_cp else None),
-            ville=(r.get(c_ville) if c_ville else None),
-            autres_indics=autres or None,
+        c_siret = _col_detect(df, ["siret"])
+        c_cycle = _col_detect(df, ["cycle"])
+        c_datepv = "date" if "date" in df.columns else (
+            _col_detect(
+                df,
+                ["date pv", "date pap", "date_pv", "date du pv", "date du pap"],
+            )
+            or df.columns[min(15, len(df.columns) - 1)]
         )
-        session.add(ev)
-        inserted += 1
+        c_type = _col_detect(df, ["type"])
+        c_ins = _col_detect(df, ["inscrit", "inscrits"])
+        c_vot = _col_detect(df, ["votant", "votants"])
+        c_bn = _col_detect(df, ["blanc", "nul"])
+        c_cgt = [c for c in df.columns if "cgt" in c] or []
+        c_idcc = _col_detect(df, ["idcc"])
+        c_fd = _col_detect(df, ["fd"])
+        c_ud = _col_detect(df, ["ud"])
+        c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
+        c_rs = _col_detect(
+            df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"]
+        )
+        c_cp = _col_detect(df, ["cp", "code postal"])
+        c_ville = _col_detect(df, ["ville"])
 
-    session.commit()
-    return inserted
+        for _, r in df.iterrows():
+            siret = _to14(r.get(c_siret))
+            if not siret:
+                result.skipped += 1
+                continue
+            cycle = _norm_cycle(r.get(c_cycle))
+            if cycle not in {"C3", "C4"}:
+                result.skipped += 1
+                continue
+            date_pv = _todate(r.get(c_datepv))
+            raw_type = r.get(c_type) if c_type else None
+            type_ = str(raw_type).strip() if raw_type is not None else ""
+            inscrits = _to_int(r.get(c_ins))
+            votants = _to_int(r.get(c_vot))
+            bn = _to_int(r.get(c_bn))
+            cgt_voix = _sum_int([r.get(c) for c in c_cgt]) if c_cgt else None
+
+            autres = _row_payload(r)
+
+            existing = (
+                session.query(PVEvent)
+                .filter_by(siret=siret, cycle=cycle, date_pv=date_pv)
+                .one_or_none()
+            )
+
+            if existing:
+                if type_:
+                    existing.type = type_
+                if inscrits is not None:
+                    existing.inscrits = inscrits
+                if votants is not None:
+                    existing.votants = votants
+                if bn is not None:
+                    existing.blancs_nuls = bn
+                if cgt_voix is not None:
+                    existing.cgt_voix = cgt_voix
+                if c_idcc:
+                    new_idcc = r.get(c_idcc)
+                    if new_idcc:
+                        existing.idcc = new_idcc
+                if c_fd:
+                    new_fd = normalize_fd_label(r.get(c_fd))
+                    if new_fd:
+                        existing.fd = new_fd
+                if c_ud:
+                    new_ud = r.get(c_ud)
+                    if new_ud:
+                        existing.ud = new_ud
+                if c_dep:
+                    new_dep = r.get(c_dep)
+                    if new_dep:
+                        existing.departement = new_dep
+                if c_rs:
+                    new_rs = r.get(c_rs)
+                    if new_rs:
+                        existing.raison_sociale = new_rs
+                if c_cp:
+                    new_cp = r.get(c_cp)
+                    if new_cp:
+                        existing.cp = new_cp
+                if c_ville:
+                    new_ville = r.get(c_ville)
+                    if new_ville:
+                        existing.ville = new_ville
+                if autres:
+                    existing.autres_indics = autres
+                result.updated += 1
+            else:
+                ev = PVEvent(
+                    siret=siret,
+                    cycle=cycle,
+                    date_pv=date_pv,
+                    type=type_,
+                    inscrits=inscrits,
+                    votants=votants,
+                    blancs_nuls=bn,
+                    cgt_voix=cgt_voix,
+                    idcc=(r.get(c_idcc) if c_idcc else None),
+                    fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
+                    ud=(r.get(c_ud) if c_ud else None),
+                    departement=(r.get(c_dep) if c_dep else None),
+                    raison_sociale=(r.get(c_rs) if c_rs else None),
+                    cp=(r.get(c_cp) if c_cp else None),
+                    ville=(r.get(c_ville) if c_ville else None),
+                    autres_indics=autres or None,
+                )
+                session.add(ev)
+                result.inserted += 1
+
+        session.commit()
+        result.success = True
+        logger.info(
+            "Import PV terminé: inserted=%s updated=%s skipped=%s",
+            result.inserted,
+            result.updated,
+            result.skipped,
+        )
+    except Exception as exc:  # pragma: no cover - sécurité
+        session.rollback()
+        logger.exception("Erreur critique lors de l'import PV")
+        result.errors.append(str(exc))
+    return result
 
 
 # -------- Ingestion Invitations --------
-def ingest_invit_excel(session: Session, file_like) -> int:
-    xls = pd.ExcelFile(file_like)
-    sheet = xls.sheet_names[0]
-    df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
-    df = _normalize_cols(df)
+def ingest_invit_excel(session: Session, file_like) -> ETLResult:
+    result = ETLResult()
+    try:
+        xls = pd.ExcelFile(file_like)
+        sheet = xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
+        df = _normalize_cols(df)
 
-    c_siret = _col_detect(df, ["siret"])
-    c_date = _col_detect(df, ["date pap", "date_pap", "date", "date invitation"])
-    c_rs = _col_detect(df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"])
-    c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
-    c_fd = _col_detect(df, ["fd", "fédération", "federation"])
+        is_valid, validation_errors = validate_invitation_file(df)
+        for err in validation_errors:
+            if err.severity == "warning":
+                result.warnings.append(err)
+            else:
+                result.errors.append(err)
 
-    inserted = 0
-    for _, r in df.iterrows():
-        siret = _to14(r.get(c_siret))
-        if not siret:
-            continue
-        date_invit = _todate(r.get(c_date))
-        if not date_invit:
-            continue
-        inv = Invitation(
-            siret=siret,
-            date_invit=date_invit,
-            raison_sociale=r.get(c_rs) if c_rs else None,
-            departement=r.get(c_dep) if c_dep else None,
-            fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
-            source="import_excel",
-            raw=None,
+        if not is_valid:
+            logger.error("Validation invitations échouée: %s", len(result.errors))
+            return result
+
+        c_siret = _col_detect(df, ["siret"])
+        c_date = _col_detect(df, ["date pap", "date_pap", "date", "date invitation"])
+        c_rs = _col_detect(
+            df, ["raison sociale", "raison", "dénomination", "denomination", "entreprise"]
         )
-        session.add(inv)
-        inserted += 1
-    session.commit()
-    return inserted
+        c_dep = _col_detect(df, ["départ", "depart", "département", "departement", "dep"])
+        c_fd = _col_detect(df, ["fd", "fédération", "federation"])
+
+        for _, r in df.iterrows():
+            siret = _to14(r.get(c_siret))
+            if not siret:
+                result.skipped += 1
+                continue
+            date_invit = _todate(r.get(c_date))
+            if not date_invit:
+                result.skipped += 1
+                continue
+
+            existing = (
+                session.query(Invitation)
+                .filter_by(siret=siret, date_invit=date_invit)
+                .one_or_none()
+            )
+
+            if existing:
+                if c_rs:
+                    new_rs = r.get(c_rs)
+                    if new_rs:
+                        existing.raison_sociale = new_rs
+                if c_dep:
+                    new_dep = r.get(c_dep)
+                    if new_dep:
+                        existing.departement = new_dep
+                if c_fd:
+                    new_fd = normalize_fd_label(r.get(c_fd))
+                    if new_fd:
+                        existing.fd = new_fd
+                result.updated += 1
+            else:
+                inv = Invitation(
+                    siret=siret,
+                    date_invit=date_invit,
+                    raison_sociale=r.get(c_rs) if c_rs else None,
+                    departement=r.get(c_dep) if c_dep else None,
+                    fd=normalize_fd_label(r.get(c_fd) if c_fd else None),
+                    source="import_excel",
+                    raw=None,
+                )
+                session.add(inv)
+                result.inserted += 1
+
+        session.commit()
+        result.success = True
+        logger.info(
+            "Import invitations terminé: inserted=%s updated=%s skipped=%s",
+            result.inserted,
+            result.updated,
+            result.skipped,
+        )
+    except Exception as exc:  # pragma: no cover - sécurité
+        session.rollback()
+        logger.exception("Erreur critique lors de l'import invitations")
+        result.errors.append(str(exc))
+    return result
 
 
 # -------- Helpers for aggregation --------

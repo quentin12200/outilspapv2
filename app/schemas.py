@@ -1,32 +1,27 @@
-from pydantic import BaseModel
 from datetime import date
-from typing import Optional, List
+from typing import Optional
+
+from pydantic import BaseModel
+
 
 class SiretSummaryOut(BaseModel):
     siret: str
     raison_sociale: Optional[str]
-    idcc: Optional[str]
-    fd_c3: Optional[str]
-    fd_c4: Optional[str]
-    ud_c3: Optional[str]
-    ud_c4: Optional[str]
-    dep: Optional[str]
-    cp: Optional[str]
-    ville: Optional[str]
+    departement: Optional[str]
+    fd: Optional[str]
+    has_c3: Optional[bool]
+    has_c4: Optional[bool]
+    presence: Optional[str]
+    os_c3: Optional[str]
+    os_c4: Optional[str]
     date_pv_c3: Optional[date]
-    carence_c3: Optional[bool]
-    inscrits_c3: Optional[int]
-    votants_c3: Optional[int]
-    cgt_voix_c3: Optional[int]
     date_pv_c4: Optional[date]
-    carence_c4: Optional[bool]
-    inscrits_c4: Optional[int]
-    votants_c4: Optional[int]
-    cgt_voix_c4: Optional[int]
-    statut_pap: Optional[str]
-    date_pv_max: Optional[date]
+    date_pv_last: Optional[date]
     date_pap_c5: Optional[date]
-    cgt_implantee: Optional[bool]
+    invitation_count: Optional[int]
+    pv_c3_count: Optional[int]
+    pv_c4_count: Optional[int]
+    has_match_c5_pv: Optional[bool]
 
     class Config:
         from_attributes = True

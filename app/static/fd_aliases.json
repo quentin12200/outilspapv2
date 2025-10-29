@@ -1,0 +1,60 @@
+{
+  "FD (NON RENSEIGNER)": [],
+  "FSFPA": [],
+  "FD GET GUADELOUPE": [],
+  "FD GET MARTINIQUE": [
+    "FD GET"
+  ],
+  "FD GET GUYANE": [],
+  "FD GET MAYOTTE": [],
+  "FD GET BANQUES ET ASSURANCES": [
+    "FD GET BRES",
+    "FD GET BDES",
+    "FD GET AMEU",
+    "FD GET BRES, BDES, AMEU"
+  ],
+  "FD GET FINANCES": [
+    "FD GET BANQUES",
+    "FD GET FINANCES PUBLIQUES",
+    "FD GET FINANCES PUBLICS"
+  ],
+  "FD GET FERC": [
+    "FD FERC",
+    "FD GET FERC"
+  ],
+  "FPGTP": [],
+  "FSMSC": [],
+  "GESTHN": [],
+  "FEDERATION NATIONALE DES JOURNALISTES": [],
+  "FNICT": [
+    "FNIC"
+  ],
+  "FNME": [],
+  "FNTE": [],
+  "FD DU COMMERCE": [
+    "SYNACOM"
+  ],
+  "FNCB": [],
+  "CNTSV": [],
+  "FD SERVICE PUBLIC": [
+    "FD SP SERVICE PUBLIC",
+    "FD SERVICE PUBLICS",
+    "FD GET SERVICE PUBLIC",
+    "FD GET SERVICES PUBLICS"
+  ],
+  "FD SANTE SOCIALE": [
+    "FD SP SANTE SOCIALE"
+  ],
+  "FD SANTE ACTION SOCIALE": [
+    "FD SANTE, AS",
+    "FD SP SANTE, AS",
+    "FD SP SANTE ACTION SOCIALE",
+    "FD GET SANTE, AS",
+    "FD GET SANTE ACTION SOCIALE"
+  ],
+  "FD GET VERRE & CERAMIQUE": [
+    "FSECERAM",
+    "FSE CERAM",
+    "FD VERRE ET CERAMIQUE"
+  ]
+}

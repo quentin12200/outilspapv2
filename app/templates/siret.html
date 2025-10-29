@@ -4,51 +4,107 @@
 {% if not row %}
   <p>SIRET introuvable.</p>
 {% else %}
-<article>
-  <header>
-    <h3 style="margin:0">{{ row.raison_sociale or '(raison manquante)' }}</h3>
-    <small>SIRET {{ row.siret }} — IDCC {{ row.idcc or '–' }} — {{ row.ville or '' }} ({{ row.cp or '' }})</small>
+<article style="margin-bottom:1.5rem;">
+  <header style="margin-bottom:1rem;">
+    <h2 style="margin:0;">{{ row.raison_sociale or '(raison sociale manquante)' }}</h2>
+    <p style="margin:.2rem 0;color:#555;">
+      SIRET <strong>{{ row.siret }}</strong>
+      {% if row.departement %}— Département {{ row.departement }}{% endif %}
+      {% if row.fd %}— FD {{ row.fd }}{% endif %}
+    </p>
   </header>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-    <div>
-      <h5>Cycle 3</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c3 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c3 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c3 or '–' }}, Votants: {{ row.votants_c3 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c3 or '–' }}</li>
-        <li>UD: {{ row.ud_c3 or '–' }}, FD: {{ row.fd_c3 or '–' }}</li>
-      </ul>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
+    <div style="border:1px solid #eee;border-radius:.6rem;padding:1rem;background:#fafafa;">
+      <h4 style="margin-top:0;">Présence électorale</h4>
+      <p style="margin:.3rem 0;">Présence détectée : <strong>{{ row.presence or 'Aucune' }}</strong></p>
+      <p style="margin:.3rem 0;">Dernier PV connu : <strong>{{ row.date_pv_last or '—' }}</strong></p>
+      <p style="margin:.3rem 0;">Invitation PAP C5 : <strong>{{ row.date_pap_c5 or '—' }}</strong></p>
     </div>
-    <div>
-      <h5>Cycle 4</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c4 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c5 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c4 or '–' }}, Votants: {{ row.votants_c4 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c4 or '–' }}</li>
-        <li>UD: {{ row.ud_c4 or '–' }}, FD: {{ row.fd_c4 or '–' }}</li>
-      </ul>
+    <div style="border:1px solid #eee;border-radius:.6rem;padding:1rem;background:#fafafa;">
+      <h4 style="margin-top:0;">Organisations / scores</h4>
+      <p style="margin:.3rem 0;">Cycle C3 : {{ row.os_c3 or '—' }}</p>
+      <p style="margin:.3rem 0;">Cycle C4 : {{ row.os_c4 or '—' }}</p>
+    </div>
+    <div style="border:1px solid #eee;border-radius:.6rem;padding:1rem;background:#fafafa;">
+      <h4 style="margin-top:0;">Correspondances</h4>
+      <p style="margin:.3rem 0;">Invitations recensées : <strong>{{ row.invitation_count or 0 }}</strong></p>
+      <p style="margin:.3rem 0;">PV C3 recensés : <strong>{{ row.pv_c3_count or 0 }}</strong></p>
+      <p style="margin:.3rem 0;">PV C4 recensés : <strong>{{ row.pv_c4_count or 0 }}</strong></p>
     </div>
   </div>
-
-  <p>Statut: <strong>{{ row.statut_pap }}</strong> — Dernier PV: <strong>{{ row.date_pv_max or '–' }}</strong> — Dernier PAP (C5): <strong>{{ row.date_pap_c5 or '–' }}</strong></p>
-  <p>Implantation CGT: {% if row.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</p>
 </article>
 
-<article>
-  <header><strong>Évolution inscrits / votants / voix CGT</strong></header>
-  <div id="ts" style="height:360px"></div>
+<section style="margin-bottom:2rem;">
+  <h3>Invitations PAP C5</h3>
+  {% if invit_rows %}
+  <table style="min-width:420px;">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Département</th>
+        <th>FD</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for invit in invit_rows %}
+      <tr>
+        <td>{{ invit.date_invit or '—' }}</td>
+        <td>{{ invit.departement or '—' }}</td>
+        <td>{{ invit.fd or '—' }}</td>
+        <td>{{ invit.source or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#666;">Aucune invitation enregistrée pour ce SIRET.</p>
+  {% endif %}
+</section>
+
+<section style="margin-bottom:2rem;">
+  <h3>Historique des PV</h3>
+  {% if pv_rows %}
+  <table style="min-width:640px;">
+    <thead>
+      <tr>
+        <th>Cycle</th>
+        <th>Date PV</th>
+        <th>Type</th>
+        <th>Département</th>
+        <th>FD</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pv in pv_rows %}
+      <tr>
+        <td>{{ pv.cycle }}</td>
+        <td>{{ pv.date_pv or '—' }}</td>
+        <td>{{ pv.type or '—' }}</td>
+        <td>{{ pv.departement or '—' }}</td>
+        <td>{{ pv.fd or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#666;">Aucun PV enregistré pour ce SIRET.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h3>Évolution inscrits / votants / voix CGT</h3>
+  <div id="ts" style="height:360px;border:1px solid #eee;border-radius:.6rem;background:#fff;padding:.4rem;"></div>
   <script>
-  fetch(`/api/siret/{{ row.siret }}/timeseries`).then(r=>r.json()).then(data=>{
-    const fig = [
-      {x:data.dates, y:data.inscrits, type:'scatter', mode:'lines+markers', name:'Inscrits'},
-      {x:data.dates, y:data.votants,  type:'scatter', mode:'lines+markers', name:'Votants'},
-      {x:data.dates, y:data.cgt_voix, type:'scatter', mode:'lines+markers', name:'Voix CGT'}
-    ];
-    Plotly.newPlot('ts', fig, {margin:{l:30,r:10,t:10,b:30}});
-  });
+    fetch(`/api/siret/{{ row.siret }}/timeseries`).then(r=>r.json()).then(data=>{
+      const fig = [
+        {x:data.dates, y:data.inscrits, type:'scatter', mode:'lines+markers', name:'Inscrits'},
+        {x:data.dates, y:data.votants,  type:'scatter', mode:'lines+markers', name:'Votants'},
+        {x:data.dates, y:data.cgt_voix, type:'scatter', mode:'lines+markers', name:'Voix CGT'}
+      ];
+      Plotly.newPlot('ts', fig, {margin:{l:40,r:10,t:10,b:30}});
+    });
   </script>
-</article>
+</section>
 {% endif %}
 {% endblock %}

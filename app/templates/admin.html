@@ -2,6 +2,9 @@
 {% block title %}Admin — PAP/CSE{% endblock %}
 {% block content %}
 <h1>Administration — Imports</h1>
+{% if message %}
+<p style="margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem;background:#e6ffed;color:#065f46;">{{ message }}</p>
+{% endif %}
 <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
   <label for="pvfile"><strong>Importer PV (Excel, initial) :</strong></label>
   <input type="file" name="file" id="pvfile" required />
