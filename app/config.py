@@ -19,7 +19,14 @@ logger = logging.getLogger("papcse.config")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-raw_database_url = os.getenv("DATABASE_URL")
+# Prise en compte de plusieurs conventions d'environnement rencontrées
+# sur Railway / déploiements précédents.
+raw_database_url = (
+    os.getenv("DATABASE_URL")
+    or os.getenv("DB_URL")
+    or os.getenv("SQLALCHEMY_DATABASE_URL")
+    or os.getenv("RAILWAY_DATABASE_URL")
+)
 if raw_database_url:
     DATABASE_URL = raw_database_url
 else:
