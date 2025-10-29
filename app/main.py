@@ -78,6 +78,21 @@ def ensure_sqlite_asset() -> None:
     if DB_ASSET_SHA and db_path.exists():
         digest = _sha256_file(db_path).lower()
         if digest != DB_ASSET_SHA:
+            if DB_ASSET_URL:
+                logger.warning(
+                    "Empreinte SHA256 inattendue pour %s (obtenu %s, attendu %s). Téléchargement d'une copie propre…",
+                    db_path,
+                    digest,
+                    DB_ASSET_SHA,
+                )
+                tmp_path = db_path.with_suffix(db_path.suffix + ".download")
+                _download(DB_ASSET_URL, tmp_path, token=DB_ASSET_TOKEN)
+                new_digest = _sha256_file(tmp_path).lower()
+                if new_digest == DB_ASSET_SHA:
+                    tmp_path.replace(db_path)
+                    logger.info("Fichier SQLite remplacé après vérification de l'empreinte SHA256.")
+                    return
+                tmp_path.unlink(missing_ok=True)
             raise RuntimeError(
                 "SHA256 mismatch for DB file:\n"
                 f"  got:  {digest}\n"
