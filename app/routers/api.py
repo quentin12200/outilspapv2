@@ -68,6 +68,33 @@ def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
         qs = qs.filter((SiretSummary.siret.like(like)) | (SiretSummary.raison_sociale.ilike(like)))
     return qs.limit(200).all()
 
+
+@router.get("/search/autocomplete")
+def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends(get_session)):
+    """
+    Endpoint d'autocomplete pour la recherche
+    Retourne les 10 premiers résultats correspondants
+    """
+    if len(q) < 2:
+        return []
+
+    like = f"%{q}%"
+    results = db.query(SiretSummary).filter(
+        (SiretSummary.siret.like(like)) |
+        (SiretSummary.raison_sociale.ilike(like))
+    ).limit(10).all()
+
+    return [
+        {
+            "siret": r.siret,
+            "raison_sociale": r.raison_sociale or "Sans nom",
+            "dep": r.dep,
+            "ville": r.ville,
+            "date_pap_c5": str(r.date_pap_c5) if r.date_pap_c5 else None,
+        }
+        for r in results
+    ]
+
 @router.get("/siret/{siret}", response_model=SiretSummaryOut)
 def get_siret(siret: str, db: Session = Depends(get_session)):
     row = db.query(SiretSummary).get(siret)

@@ -151,12 +151,69 @@
   </div>
 
   <!-- Search and Filter Form -->
-  <form method="get" action="/" x-data="{ showFilters: {{ 'true' if (fd or dep or statut or cgt_implantee) else 'false' }} }">
+  <form method="get" action="/"
+        x-data="{
+          showFilters: {{ 'true' if (fd or dep or statut or cgt_implantee) else 'false' }},
+          searchQuery: '{{ q or '' }}',
+          searchResults: [],
+          showResults: false,
+          async searchAutocomplete() {
+            if (this.searchQuery.length < 2) {
+              this.searchResults = [];
+              this.showResults = false;
+              return;
+            }
+            try {
+              const response = await fetch(`/api/search/autocomplete?q=${encodeURIComponent(this.searchQuery)}`);
+              this.searchResults = await response.json();
+              this.showResults = this.searchResults.length > 0;
+            } catch (error) {
+              console.error('Erreur autocomplete:', error);
+            }
+          },
+          selectResult(result) {
+            window.location.href = `/siret/${result.siret}`;
+          }
+        }">
     <!-- Search Bar -->
     <div class="flex flex-col md:flex-row gap-3 mb-4">
-      <input name="q" value="{{ q or '' }}"
-             placeholder="Rechercher SIRET / Raison sociale..."
-             class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+      <div class="flex-1 relative">
+        <input name="q"
+               x-model="searchQuery"
+               @input.debounce.300ms="searchAutocomplete"
+               @focus="if (searchQuery.length >= 2) searchAutocomplete()"
+               @click.away="showResults = false"
+               placeholder="Rechercher SIRET / Raison sociale..."
+               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+
+        <!-- Autocomplete Results -->
+        <div x-show="showResults"
+             x-transition
+             class="absolute z-50 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+          <template x-for="result in searchResults" :key="result.siret">
+            <div @click="selectResult(result)"
+                 class="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <p class="font-semibold text-gray-800" x-text="result.raison_sociale"></p>
+                  <p class="text-sm text-gray-600 mt-1">
+                    <span class="font-mono text-blue-600" x-text="result.siret"></span>
+                    <span x-show="result.ville" class="ml-2">
+                      • <span x-text="result.ville"></span>
+                    </span>
+                    <span x-show="result.dep" class="ml-2 px-2 py-0.5 bg-gray-200 rounded text-xs" x-text="result.dep"></span>
+                  </p>
+                </div>
+                <div x-show="result.date_pap_c5" class="ml-4 text-xs text-gray-500">
+                  <i class="fas fa-envelope mr-1"></i>
+                  <span x-text="result.date_pap_c5"></span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <button type="submit" class="px-6 py-3 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center justify-center space-x-2">
         <i class="fas fa-search"></i>
         <span>Rechercher</span>
