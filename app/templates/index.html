@@ -1,116 +1,508 @@
 {% extends "base.html" %}
 {% block title %}Accueil — PAP/CSE{% endblock %}
+
+{% block head %}
+<style>
+  .stat-card {
+    transition: all 0.3s ease;
+  }
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
+
+<!-- Bouton retour si paramètre retour=1 -->
 {% if request.query_params.get('retour') == '1' %}
-  <div style="text-align:center;margin:2rem 0;">
-    <a href="/" class="button secondary" style="font-size:1.2em;padding:.7em 2em;">⬅ Retour à l’accueil</a>
-  </div>
-{% endif %}
-<form method="get" action="/" style="display:flex;gap:.5rem;align-items:center">
-  <input name="q" value="{{ q or '' }}" placeholder="Rechercher SIRET / Raison sociale" />
-  <button type="submit" class="secondary">Rechercher</button>
-</form>
-
-<form method="post" action="/api/ingest/invit" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="invitfile"><strong>Importer invitations PAP (cycle 5) :</strong></label>
-  <input type="file" name="file" id="invitfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-
-<form method="post" action="/api/ingest/pv" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="pvfile"><strong>Importer PV (Excel, initial) :</strong></label>
-  <input type="file" name="file" id="pvfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-
-<form method="post" action="/api/build/summary" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <button type="submit"><strong>Mettre à jour le tableau</strong></button>
-</form>
-
-<article>
-  <header style="display:flex;align-items:center;justify-content:space-between;gap:1rem;"><strong>Dernières invitations reçues (C5)</strong>
-  <button type="button" class="secondary" onclick="toggleFullscreenTable()" style="font-size:1em;padding:.4em 1.2em;">🖵 Voir tableau plein écran</button>
-</header>
-<div style="margin-bottom:1rem;display:flex;gap:.5rem;align-items:center">
-  <form method="get" action="/">
-    <input type="hidden" name="sort" value="date_pap_c5" />
-    <button type="submit" class="secondary">Trier par date PAP la plus récente</button>
-  </form>
-  <form method="get" action="/">
-    <input type="hidden" name="sort" value="inscrits_c3" />
-    <button type="submit" class="secondary">Trier par inscrits C3</button>
-  </form>
-  <form method="get" action="/">
-    <input type="hidden" name="sort" value="inscrits_c4" />
-    <button type="submit" class="secondary">Trier par inscrits C4</button>
-  </form>
+<div class="mb-6 text-center">
+  <a href="/" class="inline-flex items-center px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition shadow-md">
+    <i class="fas fa-arrow-left mr-2"></i> Retour à l'accueil
+  </a>
 </div>
-<section style="margin-bottom:1rem">
-  <strong>Tableau de synthèse : PAP les plus récents avec beaucoup d'inscrits</strong>
-  <table role="grid" style="font-size:0.95em">
-    <thead>
-      <tr>
-        <th>SIRET</th><th>Raison sociale</th><th>Département</th><th>FD C3</th><th>FD C4</th><th>Date PAP C5</th><th>Inscrits C3</th><th>Inscrits C4</th><th>Présence CGT</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows|sort(attribute='date_pap_c5', reverse=True) if r.date_pap_c5 %}
-      {% if (r.inscrits_c3 or 0) > 100 or (r.inscrits_c4 or 0) > 100 %}
-      <tr>
-        <td><a href="/siret/{{ r.siret }}">{{ r.siret }}</a></td>
-        <td>{{ r.raison_sociale or '' }}</td>
-        <td>{{ r.dep or '' }}</td>
-        <td>{{ r.fd_c3 or '' }}</td>
-        <td>{{ r.fd_c4 or '' }}</td>
-        <td>{{ r.date_pap_c5 or '' }}</td>
-        <td>{{ r.inscrits_c3 or '' }}</td>
-        <td>{{ r.inscrits_c4 or '' }}</td>
-        <td>{% if r.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
-      </tr>
-      {% endif %}
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
-  <table role="grid">
-    <thead>
-      <tr>
-        <th>SIRET</th><th>Raison sociale</th><th>IDCC</th>
-        <th>Date PV C3</th><th>Inscrits C3</th><th>Date PV C4</th><th>Inscrits C4</th>
-        <th>Statut</th><th>Date PV max</th><th>Date PAP C5</th>
-        <th>Implantation CGT</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-      <tr>
-        <td><a href="/siret/{{ r.siret }}">{{ r.siret }}</a></td>
-        <td>{{ r.raison_sociale or '' }}</td>
-        <td>{{ r.idcc or '' }}</td>
-        <td>{{ r.date_pv_c3 or '' }}</td>
-        <td>{{ r.inscrits_c3 or '' }}</td>
-        <td>{{ r.date_pv_c4 or '' }}</td>
-        <td>{{ r.inscrits_c4 or '' }}</td>
-        <td>{{ r.statut_pap or '' }}</td>
-        <td>{{ r.date_pv_max or '' }}</td>
-        <td>{{ r.date_pap_c5 or '' }}</td>
-        <td>{% if r.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</article>
+{% endif %}
 
-<section>
+<!-- Dashboard Stats Section -->
+<section class="mb-8" x-data="dashboardData()" x-init="loadStats()">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-3xl font-bold text-gray-800">
+      <i class="fas fa-chart-line text-cgt-red mr-2"></i>
+      Tableau de bord
+    </h2>
+    <button @click="loadStats()" class="px-4 py-2 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center space-x-2">
+      <i class="fas fa-sync-alt"></i>
+      <span>Actualiser</span>
+    </button>
+  </div>
+
+  <!-- Stats Cards Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Card 1: Total SIRET -->
+    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-500 uppercase font-semibold">Total SIRET</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.total_siret || '0'">0</p>
+        </div>
+        <div class="bg-blue-100 rounded-full p-4">
+          <i class="fas fa-building text-blue-500 text-2xl"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Invitations PAP -->
+    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-500 uppercase font-semibold">Invitations PAP C5</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.total_invitations || '0'">0</p>
+        </div>
+        <div class="bg-green-100 rounded-full p-4">
+          <i class="fas fa-envelope text-green-500 text-2xl"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: CGT Implantée -->
+    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-500 uppercase font-semibold">CGT Implantée</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2">
+            <span x-text="stats.cgt_implantee || '0'">0</span>
+            <span class="text-sm text-gray-500 ml-2" x-text="'(' + (stats.cgt_implantee_percent || '0') + '%)'"></span>
+          </p>
+        </div>
+        <div class="bg-red-100 rounded-full p-4">
+          <i class="fas fa-flag text-cgt-red text-2xl"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: Voix CGT C4 -->
+    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-500 uppercase font-semibold">% Voix CGT C4</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="(stats.percent_voix_c4 || '0') + '%'">0%</p>
+        </div>
+        <div class="bg-purple-100 rounded-full p-4">
+          <i class="fas fa-chart-pie text-purple-500 text-2xl"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Departments Chart -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-bold text-gray-800 mb-4">
+        <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
+        Top 10 Départements
+      </h3>
+      <canvas id="departmentsChart" height="250"></canvas>
+    </div>
+
+    <!-- Monthly Invitations Chart -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-bold text-gray-800 mb-4">
+        <i class="fas fa-calendar-alt text-cgt-red mr-2"></i>
+        Invitations Mensuelles (6 mois)
+      </h3>
+      <canvas id="monthlyChart" height="250"></canvas>
+    </div>
+  </div>
+
+  <!-- Statut PAP Stats -->
+  <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+    <h3 class="text-xl font-bold text-gray-800 mb-4">
+      <i class="fas fa-info-circle text-cgt-red mr-2"></i>
+      Répartition par Statut PAP
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <template x-for="stat in stats.statut_stats || []" :key="stat.statut">
+        <div class="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <p class="text-2xl font-bold text-cgt-red" x-text="stat.count">0</p>
+          <p class="text-sm text-gray-600 mt-1" x-text="stat.statut">-</p>
+        </div>
+      </template>
+    </div>
+  </div>
+</section>
+
+<!-- Search and Import Forms -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h3 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-search text-cgt-red mr-2"></i>
+    Recherche et Import
+  </h3>
+
+  <!-- Search Form -->
+  <form method="get" action="/" class="mb-6">
+    <div class="flex flex-col md:flex-row gap-3">
+      <input name="q" value="{{ q or '' }}"
+             placeholder="Rechercher SIRET / Raison sociale..."
+             class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+      <button type="submit" class="px-6 py-3 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center justify-center space-x-2">
+        <i class="fas fa-search"></i>
+        <span>Rechercher</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Import Forms Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Import Invitations -->
+    <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="border border-gray-200 rounded-lg p-4">
+      <label class="block text-sm font-semibold text-gray-700 mb-3">
+        <i class="fas fa-file-upload text-green-500 mr-2"></i>
+        Importer invitations PAP (C5)
+      </label>
+      <input type="file" name="file" required
+             class="block w-full text-sm text-gray-500 mb-3
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-green-50 file:text-green-700
+                    hover:file:bg-green-100" />
+      <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+        <i class="fas fa-upload mr-2"></i>Envoyer
+      </button>
+    </form>
+
+    <!-- Import PV -->
+    <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" class="border border-gray-200 rounded-lg p-4">
+      <label class="block text-sm font-semibold text-gray-700 mb-3">
+        <i class="fas fa-file-excel text-blue-500 mr-2"></i>
+        Importer PV (Excel initial)
+      </label>
+      <input type="file" name="file" required
+             class="block w-full text-sm text-gray-500 mb-3
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100" />
+      <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+        <i class="fas fa-upload mr-2"></i>Envoyer
+      </button>
+    </form>
+
+    <!-- Update Summary -->
+    <form method="post" action="/api/build/summary" class="border border-gray-200 rounded-lg p-4 flex flex-col justify-center items-center">
+      <p class="text-sm font-semibold text-gray-700 mb-3 text-center">
+        <i class="fas fa-sync text-purple-500 mr-2"></i>
+        Mettre à jour le tableau
+      </p>
+      <button type="submit" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+        <i class="fas fa-refresh mr-2"></i>Actualiser
+      </button>
+    </form>
+  </div>
+</section>
+
+<!-- PAP Table with Filters and Sorting -->
+<section class="bg-white rounded-xl shadow-md p-6" x-data="{ sortBy: 'date_pap_c5', showHighInscritsOnly: false }">
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+    <h3 class="text-2xl font-bold text-gray-800">
+      <i class="fas fa-table text-cgt-red mr-2"></i>
+      Invitations PAP - Cycle 5
+    </h3>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3">
+      <button @click="showHighInscritsOnly = !showHighInscritsOnly"
+              :class="showHighInscritsOnly ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+              class="px-4 py-2 rounded-lg transition">
+        <i class="fas fa-filter mr-2"></i>
+        Inscrits > 100
+      </button>
+
+      <button onclick="toggleFullscreenTable()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+        <i class="fas fa-expand mr-2"></i>
+        Plein écran
+      </button>
+    </div>
+  </div>
+
+  <!-- Sort Buttons -->
+  <div class="flex flex-wrap gap-3 mb-6">
+    <button @click="sortBy = 'date_pap_c5'"
+            :class="sortBy === 'date_pap_c5' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+            class="px-4 py-2 rounded-lg transition">
+      <i class="fas fa-calendar mr-2"></i>Trier par Date PAP
+    </button>
+    <button @click="sortBy = 'inscrits_c3'"
+            :class="sortBy === 'inscrits_c3' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+            class="px-4 py-2 rounded-lg transition">
+      <i class="fas fa-sort-numeric-down mr-2"></i>Trier par Inscrits C3
+    </button>
+    <button @click="sortBy = 'inscrits_c4'"
+            :class="sortBy === 'inscrits_c4' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+            class="px-4 py-2 rounded-lg transition">
+      <i class="fas fa-sort-numeric-down mr-2"></i>Trier par Inscrits C4
+    </button>
+  </div>
+
+  <!-- Summary Table for High Inscrits -->
+  <div x-show="showHighInscritsOnly" class="mb-8">
+    <h4 class="text-lg font-bold text-gray-700 mb-4">PAP récents avec nombreux inscrits (&gt; 100)</h4>
+    <div class="overflow-x-auto rounded-lg border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Dép.</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PAP C5</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">CGT</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for r in rows|sort(attribute='date_pap_c5', reverse=True) if r.date_pap_c5 %}
+          {% if (r.inscrits_c3 or 0) > 100 or (r.inscrits_c4 or 0) > 100 %}
+          <tr class="table-row-hover hover:bg-cgt-lightred">
+            <td class="px-4 py-3 whitespace-nowrap">
+              <a href="/siret/{{ r.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ r.siret }}</a>
+            </td>
+            <td class="px-4 py-3">{{ r.raison_sociale or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.dep or '' }}</td>
+            <td class="px-4 py-3">{{ r.fd_c3 or '' }}</td>
+            <td class="px-4 py-3">{{ r.fd_c4 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pap_c5 or '' }}</td>
+            <td class="px-4 py-3 text-center">
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
+                {{ r.inscrits_c3 or '' }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                {{ r.inscrits_c4 or '' }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              {% if r.cgt_implantee %}
+              <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
+              {% else %}
+              <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Full Table -->
+  <div x-show="!showHighInscritsOnly">
+    <h4 class="text-lg font-bold text-gray-700 mb-4">Toutes les invitations (100 premières)</h4>
+    <div class="overflow-x-auto rounded-lg border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">IDCC</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Statut</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV Max</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PAP C5</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase">CGT</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for r in rows %}
+          <tr class="table-row-hover hover:bg-cgt-lightred">
+            <td class="px-4 py-3 whitespace-nowrap">
+              <a href="/siret/{{ r.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ r.siret }}</a>
+            </td>
+            <td class="px-4 py-3">{{ r.raison_sociale or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.idcc or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_c3 or '' }}</td>
+            <td class="px-4 py-3 text-center">{{ r.inscrits_c3 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_c4 or '' }}</td>
+            <td class="px-4 py-3 text-center">{{ r.inscrits_c4 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_max or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pap_c5 or '' }}</td>
+            <td class="px-4 py-3 text-center">
+              {% if r.cgt_implantee %}
+              <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
+              {% else %}
+              <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- API Quick Reference -->
+<section class="bg-gray-100 rounded-xl p-6 mt-8">
   <details>
-    <summary>API rapide</summary>
-    <ul>
-      <li>POST <code>/api/ingest/pv</code> (upload Excel PV)</li>
-      <li>POST <code>/api/ingest/invit</code> (upload Excel invit PAP)</li>
-      <li>POST <code>/api/build/summary</code></li>
-      <li>GET <code>/api/siret?q=...</code></li>
-      <li>GET <code>/api/siret/{siret}</code></li>
-    </ul>
+    <summary class="cursor-pointer text-lg font-bold text-gray-800 hover:text-cgt-red transition">
+      <i class="fas fa-code mr-2"></i>API Rapide - Documentation
+    </summary>
+    <div class="mt-4 space-y-2 text-sm">
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
+        <code class="flex-1 text-gray-700">/api/ingest/pv</code>
+        <span class="text-gray-500">Upload Excel PV</span>
+      </div>
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
+        <code class="flex-1 text-gray-700">/api/ingest/invit</code>
+        <span class="text-gray-500">Upload Excel invitations PAP</span>
+      </div>
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
+        <code class="flex-1 text-gray-700">/api/build/summary</code>
+        <span class="text-gray-500">Recalculer le tableau de synthèse</span>
+      </div>
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
+        <code class="flex-1 text-gray-700">/api/siret?q=...</code>
+        <span class="text-gray-500">Rechercher SIRET</span>
+      </div>
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
+        <code class="flex-1 text-gray-700">/api/siret/{siret}</code>
+        <span class="text-gray-500">Détails d'un SIRET</span>
+      </div>
+      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
+        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
+        <code class="flex-1 text-gray-700">/api/stats/dashboard</code>
+        <span class="text-gray-500">Statistiques du tableau de bord</span>
+      </div>
+    </div>
   </details>
 </section>
+
+<!-- Alpine.js Dashboard Data -->
+<script>
+  function dashboardData() {
+    return {
+      stats: {},
+      loading: false,
+
+      async loadStats() {
+        this.loading = true;
+        try {
+          const response = await fetch('/api/stats/dashboard');
+          this.stats = await response.json();
+
+          // Render charts after stats are loaded
+          this.$nextTick(() => {
+            this.renderDepartmentsChart();
+            this.renderMonthlyChart();
+          });
+        } catch (error) {
+          console.error('Error loading stats:', error);
+          showToast('Erreur lors du chargement des statistiques', 'error');
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      renderDepartmentsChart() {
+        const ctx = document.getElementById('departmentsChart');
+        if (!ctx || !this.stats.departments) return;
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: this.stats.departments.map(d => d.dep),
+            datasets: [{
+              label: 'Nombre de SIRET',
+              data: this.stats.departments.map(d => d.count),
+              backgroundColor: '#d5001c',
+              borderColor: '#ab0015',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              }
+            }
+          }
+        });
+      },
+
+      renderMonthlyChart() {
+        const ctx = document.getElementById('monthlyChart');
+        if (!ctx || !this.stats.monthly_invitations) return;
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: this.stats.monthly_invitations.map(m => m.month),
+            datasets: [{
+              label: 'Invitations',
+              data: this.stats.monthly_invitations.map(m => m.count),
+              borderColor: '#d5001c',
+              backgroundColor: 'rgba(213, 0, 28, 0.1)',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+  }
+
+  // Fullscreen table toggle
+  function toggleFullscreenTable() {
+    const table = event.target.closest('section').querySelector('table');
+    if (table.requestFullscreen) {
+      table.requestFullscreen();
+    } else if (table.webkitRequestFullscreen) {
+      table.webkitRequestFullscreen();
+    }
+  }
+</script>
+
 {% endblock %}

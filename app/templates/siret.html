@@ -1,54 +1,461 @@
 {% extends "base.html" %}
 {% block title %}{{ row.siret if row else 'SIRET inconnu' }} — PAP/CSE{% endblock %}
+
 {% block content %}
+
 {% if not row %}
-  <p>SIRET introuvable.</p>
+<!-- Not Found Message -->
+<div class="flex items-center justify-center min-h-[400px]">
+  <div class="text-center">
+    <i class="fas fa-exclamation-triangle text-6xl text-gray-300 mb-4"></i>
+    <h2 class="text-2xl font-bold text-gray-700 mb-2">SIRET introuvable</h2>
+    <p class="text-gray-500 mb-6">Le SIRET recherché n'existe pas dans la base de données</p>
+    <a href="/" class="inline-flex items-center px-6 py-3 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition">
+      <i class="fas fa-arrow-left mr-2"></i>
+      Retour à l'accueil
+    </a>
+  </div>
+</div>
+
 {% else %}
-<article>
-  <header>
-    <h3 style="margin:0">{{ row.raison_sociale or '(raison manquante)' }}</h3>
-    <small>SIRET {{ row.siret }} — IDCC {{ row.idcc or '–' }} — {{ row.ville or '' }} ({{ row.cp or '' }})</small>
-  </header>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-    <div>
-      <h5>Cycle 3</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c3 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c3 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c3 or '–' }}, Votants: {{ row.votants_c3 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c3 or '–' }}</li>
-        <li>UD: {{ row.ud_c3 or '–' }}, FD: {{ row.fd_c3 or '–' }}</li>
-      </ul>
+
+<!-- Back Button -->
+<div class="mb-6">
+  <a href="/" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+    <i class="fas fa-arrow-left mr-2"></i>
+    Retour à la liste
+  </a>
+</div>
+
+<!-- Company Header -->
+<section class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white rounded-xl shadow-lg p-8 mb-8">
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="flex-1">
+      <div class="flex items-center space-x-3 mb-3">
+        <i class="fas fa-building text-4xl"></i>
+        <div>
+          <h1 class="text-3xl font-bold">{{ row.raison_sociale or '(raison manquante)' }}</h1>
+          <p class="text-red-100 text-sm mt-1">
+            <i class="fas fa-hashtag mr-1"></i>SIRET {{ row.siret }}
+            {% if row.idcc %} • IDCC {{ row.idcc }}{% endif %}
+          </p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-4 text-sm">
+        {% if row.ville or row.cp %}
+        <div class="flex items-center space-x-2">
+          <i class="fas fa-map-marker-alt"></i>
+          <span>{{ row.ville or '' }}{% if row.cp %} ({{ row.cp }}){% endif %}</span>
+        </div>
+        {% endif %}
+      </div>
     </div>
-    <div>
-      <h5>Cycle 4</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c4 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c5 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c4 or '–' }}, Votants: {{ row.votants_c4 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c4 or '–' }}</li>
-        <li>UD: {{ row.ud_c4 or '–' }}, FD: {{ row.fd_c4 or '–' }}</li>
-      </ul>
+    <div class="flex flex-col items-end space-y-2">
+      {% if row.cgt_implantee %}
+      <div class="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center space-x-2">
+        <i class="fas fa-check-circle text-xl"></i>
+        <span class="font-bold">CGT Implantée</span>
+      </div>
+      {% else %}
+      <div class="px-4 py-2 bg-gray-500 text-white rounded-lg flex items-center space-x-2">
+        <i class="fas fa-times-circle text-xl"></i>
+        <span class="font-bold">CGT Non Implantée</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Quick Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <!-- Statut PAP -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-500 uppercase">Statut PAP</h3>
+      <i class="fas fa-info-circle text-blue-500 text-xl"></i>
+    </div>
+    <p class="text-2xl font-bold text-gray-800">{{ row.statut_pap or 'N/A' }}</p>
+  </div>
+
+  <!-- Date PAP C5 -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-500 uppercase">Date PAP C5</h3>
+      <i class="fas fa-calendar-check text-green-500 text-xl"></i>
+    </div>
+    <p class="text-2xl font-bold text-gray-800">{{ row.date_pap_c5 or 'N/A' }}</p>
+  </div>
+
+  <!-- Dernier PV -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-500 uppercase">Dernier PV</h3>
+      <i class="fas fa-file-alt text-purple-500 text-xl"></i>
+    </div>
+    <p class="text-2xl font-bold text-gray-800">{{ row.date_pv_max or 'N/A' }}</p>
+  </div>
+</div>
+
+<!-- Cycle Information -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+  <!-- Cycle 3 -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-gray-800">
+        <i class="fas fa-calendar text-blue-500 mr-2"></i>
+        Cycle 3
+      </h2>
+      {% if row.carence_c3 %}
+      <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">
+        <i class="fas fa-exclamation-triangle mr-1"></i>CARENCE
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="space-y-4">
+      <!-- Date PV -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-calendar-day w-5 mr-2"></i>
+          Date PV
+        </span>
+        <span class="font-bold text-gray-800">{{ row.date_pv_c3 or '–' }}</span>
+      </div>
+
+      <!-- FD / UD -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-sitemap w-5 mr-2"></i>
+          FD / UD
+        </span>
+        <span class="font-bold text-gray-800">{{ row.fd_c3 or '–' }} / {{ row.ud_c3 or '–' }}</span>
+      </div>
+
+      <!-- Inscrits / Votants -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-users w-5 mr-2"></i>
+          Inscrits / Votants
+        </span>
+        <span class="font-bold text-gray-800">
+          <span class="text-blue-600">{{ row.inscrits_c3 or '–' }}</span>
+          /
+          <span class="text-green-600">{{ row.votants_c3 or '–' }}</span>
+        </span>
+      </div>
+
+      <!-- Voix CGT -->
+      <div class="flex items-center justify-between pb-3">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-vote-yea w-5 mr-2"></i>
+          Voix CGT
+        </span>
+        <span class="text-2xl font-bold text-cgt-red">{{ row.cgt_voix_c3 or '–' }}</span>
+      </div>
+
+      <!-- Pourcentage -->
+      {% if row.inscrits_c3 and row.cgt_voix_c3 %}
+      <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-600">Taux CGT</span>
+          <span class="text-lg font-bold text-cgt-red">
+            {{ "%.1f"|format((row.cgt_voix_c3 / row.inscrits_c3 * 100)) }}%
+          </span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div class="bg-cgt-red h-3 rounded-full transition-all"
+               style="width: {{ (row.cgt_voix_c3 / row.inscrits_c3 * 100)|round|int }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Cycle 4 -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-gray-800">
+        <i class="fas fa-calendar text-green-500 mr-2"></i>
+        Cycle 4
+      </h2>
+      {% if row.carence_c4 %}
+      <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">
+        <i class="fas fa-exclamation-triangle mr-1"></i>CARENCE
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="space-y-4">
+      <!-- Date PV -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-calendar-day w-5 mr-2"></i>
+          Date PV
+        </span>
+        <span class="font-bold text-gray-800">{{ row.date_pv_c4 or '–' }}</span>
+      </div>
+
+      <!-- FD / UD -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-sitemap w-5 mr-2"></i>
+          FD / UD
+        </span>
+        <span class="font-bold text-gray-800">{{ row.fd_c4 or '–' }} / {{ row.ud_c4 or '–' }}</span>
+      </div>
+
+      <!-- Inscrits / Votants -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-users w-5 mr-2"></i>
+          Inscrits / Votants
+        </span>
+        <span class="font-bold text-gray-800">
+          <span class="text-blue-600">{{ row.inscrits_c4 or '–' }}</span>
+          /
+          <span class="text-green-600">{{ row.votants_c4 or '–' }}</span>
+        </span>
+      </div>
+
+      <!-- Voix CGT -->
+      <div class="flex items-center justify-between pb-3">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-vote-yea w-5 mr-2"></i>
+          Voix CGT
+        </span>
+        <span class="text-2xl font-bold text-cgt-red">{{ row.cgt_voix_c4 or '–' }}</span>
+      </div>
+
+      <!-- Pourcentage -->
+      {% if row.inscrits_c4 and row.cgt_voix_c4 %}
+      <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-600">Taux CGT</span>
+          <span class="text-lg font-bold text-cgt-red">
+            {{ "%.1f"|format((row.cgt_voix_c4 / row.inscrits_c4 * 100)) }}%
+          </span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div class="bg-cgt-red h-3 rounded-full transition-all"
+               style="width: {{ (row.cgt_voix_c4 / row.inscrits_c4 * 100)|round|int }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<!-- Evolution Charts -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">
+      <i class="fas fa-chart-line text-cgt-red mr-2"></i>
+      Évolution Historique
+    </h2>
+    <div class="flex space-x-2">
+      <button onclick="switchChart('inscrits')" id="btn-inscrits"
+              class="px-4 py-2 bg-cgt-red text-white rounded-lg text-sm transition">
+        Inscrits
+      </button>
+      <button onclick="switchChart('votants')" id="btn-votants"
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+        Votants
+      </button>
+      <button onclick="switchChart('cgt')" id="btn-cgt"
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+        Voix CGT
+      </button>
     </div>
   </div>
 
-  <p>Statut: <strong>{{ row.statut_pap }}</strong> — Dernier PV: <strong>{{ row.date_pv_max or '–' }}</strong> — Dernier PAP (C5): <strong>{{ row.date_pap_c5 or '–' }}</strong></p>
-  <p>Implantation CGT: {% if row.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</p>
-</article>
+  <!-- Plotly Chart -->
+  <div id="evolutionChart" class="w-full" style="height: 400px;"></div>
 
-<article>
-  <header><strong>Évolution inscrits / votants / voix CGT</strong></header>
-  <div id="ts" style="height:360px"></div>
-  <script>
-  fetch(`/api/siret/{{ row.siret }}/timeseries`).then(r=>r.json()).then(data=>{
-    const fig = [
-      {x:data.dates, y:data.inscrits, type:'scatter', mode:'lines+markers', name:'Inscrits'},
-      {x:data.dates, y:data.votants,  type:'scatter', mode:'lines+markers', name:'Votants'},
-      {x:data.dates, y:data.cgt_voix, type:'scatter', mode:'lines+markers', name:'Voix CGT'}
-    ];
-    Plotly.newPlot('ts', fig, {margin:{l:30,r:10,t:10,b:30}});
-  });
-  </script>
-</article>
+  <!-- Chart.js Alternative (hidden by default) -->
+  <canvas id="evolutionChartCanvas" class="hidden" height="400"></canvas>
+</section>
+
+<!-- Comparison C3 vs C4 -->
+{% if row.inscrits_c3 and row.inscrits_c4 %}
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-balance-scale text-purple-500 mr-2"></i>
+    Comparaison C3 vs C4
+  </h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Inscrits Comparison -->
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Inscrits</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.inscrits_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.inscrits_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_inscrits = row.inscrits_c4 - row.inscrits_c3 %}
+      <p class="mt-2 text-sm {% if diff_inscrits > 0 %}text-green-600{% elif diff_inscrits < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_inscrits > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_inscrits }}
+        {% elif diff_inscrits < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_inscrits }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+
+    <!-- Votants Comparison -->
+    {% if row.votants_c3 and row.votants_c4 %}
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Votants</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.votants_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.votants_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_votants = row.votants_c4 - row.votants_c3 %}
+      <p class="mt-2 text-sm {% if diff_votants > 0 %}text-green-600{% elif diff_votants < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_votants > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_votants }}
+        {% elif diff_votants < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_votants }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- CGT Voix Comparison -->
+    {% if row.cgt_voix_c3 and row.cgt_voix_c4 %}
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Voix CGT</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.cgt_voix_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.cgt_voix_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_cgt = row.cgt_voix_c4 - row.cgt_voix_c3 %}
+      <p class="mt-2 text-sm {% if diff_cgt > 0 %}text-green-600{% elif diff_cgt < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_cgt > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_cgt }}
+        {% elif diff_cgt < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_cgt }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</section>
 {% endif %}
+
+<!-- Scripts for Charts -->
+<script>
+  let chartData = null;
+  let currentChart = 'inscrits';
+
+  // Fetch timeseries data
+  fetch('/api/siret/{{ row.siret }}/timeseries')
+    .then(response => response.json())
+    .then(data => {
+      chartData = data;
+      renderPlotlyChart('inscrits');
+    })
+    .catch(error => {
+      console.error('Error loading timeseries:', error);
+      document.getElementById('evolutionChart').innerHTML =
+        '<div class="text-center text-gray-500 py-8"><i class="fas fa-exclamation-triangle text-4xl mb-2"></i><p>Erreur lors du chargement des données</p></div>';
+    });
+
+  function switchChart(type) {
+    currentChart = type;
+
+    // Update button styles
+    ['inscrits', 'votants', 'cgt'].forEach(t => {
+      const btn = document.getElementById('btn-' + t);
+      if (t === type) {
+        btn.className = 'px-4 py-2 bg-cgt-red text-white rounded-lg text-sm transition';
+      } else {
+        btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition hover:bg-gray-300';
+      }
+    });
+
+    renderPlotlyChart(type);
+  }
+
+  function renderPlotlyChart(type) {
+    if (!chartData) return;
+
+    let yData, yLabel, color;
+
+    switch(type) {
+      case 'inscrits':
+        yData = chartData.inscrits;
+        yLabel = 'Inscrits';
+        color = '#3b82f6';
+        break;
+      case 'votants':
+        yData = chartData.votants;
+        yLabel = 'Votants';
+        color = '#10b981';
+        break;
+      case 'cgt':
+        yData = chartData.cgt_voix;
+        yLabel = 'Voix CGT';
+        color = '#d5001c';
+        break;
+    }
+
+    const trace = {
+      x: chartData.dates,
+      y: yData,
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: yLabel,
+      line: { color: color, width: 3 },
+      marker: { size: 8, color: color }
+    };
+
+    const layout = {
+      margin: { l: 50, r: 30, t: 30, b: 50 },
+      xaxis: {
+        title: 'Date PV',
+        gridcolor: '#e5e7eb'
+      },
+      yaxis: {
+        title: yLabel,
+        gridcolor: '#e5e7eb'
+      },
+      plot_bgcolor: '#f9fafb',
+      paper_bgcolor: 'white',
+      font: { family: 'inherit' }
+    };
+
+    Plotly.newPlot('evolutionChart', [trace], layout, { responsive: true });
+  }
+</script>
+
+{% endif %}
+
 {% endblock %}

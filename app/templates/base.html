@@ -1,207 +1,216 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" class="scroll-smooth">
 <head>
   <meta charset="utf-8" />
   <title>{% block title %}PAP/CSE Tableau de bord{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- HTMX -->
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12"></script>
+
+  <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"> -->
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Alpine.js for interactivity -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cgt: {
+              red: '#d5001c',
+              darkred: '#ab0015',
+              lightred: '#ffe4ea',
+              green: '#009846',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
-    body {
-      background: #fff;
-      color: #222;
-      font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-    header, nav, .cgt-header {
+    .slide-in {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
       background: #d5001c;
-      color: #fff;
-      padding: 1rem 1.5rem;
-      border-radius: .5rem;
-      margin-bottom: 1.5rem;
+      border-radius: 5px;
     }
-    h1, h2, h3, h4, h5, h6 {
-      font-weight: bold;
-      color: #d5001c;
-      margin-bottom: .5rem;
-    }
-    a, a:visited {
-      color: #d5001c;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
-    button, input[type=submit] {
-      background: #d5001c;
-      color: #fff;
-      border: none;
-      border-radius: .4rem;
-      padding: .4rem 1.1rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    button:hover, input[type=submit]:hover {
+    ::-webkit-scrollbar-thumb:hover {
       background: #ab0015;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 1.5rem;
-      background: #fff;
-      font-size: 15px;
+
+    /* Smooth transitions */
+    * {
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
     }
-    th {
-      background: #d5001c;
-      color: #fff;
-      font-weight: bold;
-      padding: .45rem;
-      border-bottom: 2px solid #ab0015;
-      text-align: center;
-      vertical-align: middle;
-      white-space: nowrap;
-    }
-    td {
-      padding: .35rem .5rem;
-      border-bottom: 1px solid #eee;
-      text-align: left;
-      vertical-align: middle;
-      max-width: 180px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    tr:hover {
-      background: #ffe4ea;
-    }
-    .badge {
-      padding: .2rem .7rem;
-      border-radius: .7rem;
-      font-weight: bold;
-      color: #fff;
-      background: #d5001c;
-      font-size: 0.95em;
-      margin-left: 0.2em;
-    }
-    .badge.ok {
-      background: #009846;
-    }
-    .badge.warn {
-      background: #fde68a;
-      color: #b45309;
-    }
-    .badge.err {
-      background: #fecaca;
-      color: #b91c1c;
-    }
-    .container {
-      max-width: 1100px;
-      margin: auto;
-      padding: 2rem 1rem;
-      width: 100%;
-      box-sizing: border-box;
-      overflow-x: hidden;
-    }
-    .cgt-header {
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-      overflow-x: auto;
-      padding-left: 1.2rem;
-      padding-right: 1.2rem;
-    }
-    form {
-      width: 100%;
-      max-width: 1000px;
-      margin-left: auto;
-      margin-right: auto;
-      box-sizing: border-box;
-      overflow-x: visible;
-    }
-    table {
-      width: auto;
-      min-width: 100%;
-      max-width: none;
-      box-sizing: border-box;
-      overflow-x: auto;
-      display: block;
-    }
-    form {
-      margin-bottom: .8rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: .8rem;
-      align-items: center;
-      width: 100%;
-      max-width: 1100px;
-    }
-    input[type="text"], input[type="search"], input[type="file"], select {
-      flex: 1 1 240px;
-      min-width: 180px;
-      max-width: 100%;
-      font-size: 1.1em;
-      padding: .35rem .7rem;
-      border-radius: .4rem;
-      border: 1px solid #ccc;
-      background: #f7f7f7;
-      margin-right: .5rem;
-    }
-    button, input[type=submit] {
-      min-width: 160px;
-      font-size: 1.1em;
-      padding: .5rem 1.3rem;
-      margin-right: .5rem;
-      background: #d5001c;
-      color: #fff;
-      border: none;
-      border-radius: .4rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background .2s;
-      box-shadow: 0 2px 8px #0001;
-    }
-    button.secondary, input[type=submit].secondary {
-      background: #181818;
-      color: #fff;
-      border: 1.5px solid #444;
-    }
-    button:hover, input[type=submit]:hover {
-      background: #ab0015;
-      color: #fff;
-    }
-    button.secondary:hover, input[type=submit].secondary:hover {
-      background: #fff;
-      color: #181818;
-      border: 1.5px solid #181818;
-    }
-    label {
-      min-width: 200px;
-      color: #888;
-      font-weight: 500;
-      font-size: 1em;
-    }
-    details {
-      margin-top: 1.5rem;
-      background: #f5f5f5;
-      border-radius: .5rem;
-      padding: .7rem 1rem;
+
+    /* Table hover effect */
+    .table-row-hover:hover {
+      transform: scale(1.01);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
   </style>
+
   {% block head %}{% endblock %}
 </head>
-<body>
-<main class="container">
-  <header class="cgt-header" style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem;margin-bottom:2rem;max-width:1100px;width:100vw;box-sizing:border-box;margin-left:auto;margin-right:auto;padding:2rem 2.5rem;">
-    <div style="display:flex;align-items:center;gap:1rem">
-      <img src="/static/logo.png" alt="Logo CGT local" style="height:54px;width:auto;vertical-align:middle;border-radius:.4rem;background:#fff;padding:.2rem 0.5rem;box-shadow:0 2px 8px #0001;">
-      <h2 style="margin:0;font-size:2.2rem;letter-spacing:-1px;color:#fff;text-shadow:1px 1px 2px #9009;">PAP/CSE Tableau de bord</h2>
+<body class="bg-gray-50 min-h-screen" x-data="{ mobileMenuOpen: false }">
+
+  <!-- Navigation Header -->
+  <nav class="bg-gradient-to-r from-cgt-red to-cgt-darkred shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-20">
+
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-4">
+          <img src="/static/logo.png" alt="Logo CGT" class="h-14 w-auto bg-white rounded-lg p-2 shadow-md">
+          <div class="hidden md:block">
+            <h1 class="text-2xl font-bold text-white tracking-tight">PAP/CSE Dashboard</h1>
+            <p class="text-sm text-red-100">Suivi Audience Interpro CGT</p>
+          </div>
+        </div>
+
+        <!-- Desktop Navigation -->
+        <div class="hidden md:flex items-center space-x-1">
+          <a href="/" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-home"></i>
+            <span>Accueil</span>
+          </a>
+          <a href="/ciblage" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-crosshairs"></i>
+            <span>Ciblage</span>
+          </a>
+          <a href="/admin" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-cog"></i>
+            <span>Admin</span>
+          </a>
+        </div>
+
+        <!-- Mobile menu button -->
+        <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden text-white p-2">
+          <i class="fas fa-bars text-2xl"></i>
+        </button>
+      </div>
     </div>
-    <nav style="display:flex;gap:1.2em;align-items:center"><a href="/" style="color:#fff;font-size:1.1em">Accueil</a><a href="/ciblage" style="color:#fff;font-size:1.1em">Ciblage</a><a href="/admin" style="color:#fff;font-size:1.1em">Admin</a></nav>
-  </header>
-  {% block content %}{% endblock %}
-</main>
-<script src="/static/app.js"></script>
+
+    <!-- Mobile Navigation -->
+    <div x-show="mobileMenuOpen"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 transform -translate-y-4"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         class="md:hidden bg-cgt-darkred border-t border-white/20">
+      <div class="px-2 pt-2 pb-3 space-y-1">
+        <a href="/" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
+          <i class="fas fa-home mr-2"></i> Accueil
+        </a>
+        <a href="/ciblage" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
+          <i class="fas fa-crosshairs mr-2"></i> Ciblage
+        </a>
+        <a href="/admin" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
+          <i class="fas fa-cog mr-2"></i> Admin
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-white mt-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div>
+          <h3 class="text-lg font-bold mb-3">PAP/CSE Dashboard</h3>
+          <p class="text-gray-400 text-sm">Suivi de l'audience interprofessionnelle de la CGT</p>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold mb-3">Navigation</h3>
+          <ul class="space-y-2 text-sm">
+            <li><a href="/" class="text-gray-400 hover:text-white">Accueil</a></li>
+            <li><a href="/ciblage" class="text-gray-400 hover:text-white">Ciblage</a></li>
+            <li><a href="/admin" class="text-gray-400 hover:text-white">Admin</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold mb-3">API</h3>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li><i class="fas fa-check-circle text-green-500"></i> REST API disponible</li>
+            <li><i class="fas fa-database text-blue-500"></i> Base SQLite</li>
+            <li><i class="fas fa-shield-alt text-yellow-500"></i> Données sécurisées</li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-gray-700 mt-8 pt-6 text-center text-sm text-gray-400">
+        <p>&copy; 2025 CGT - Tous droits réservés</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+
+  <!-- Global utilities -->
+  <script>
+    // Toast notification system
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        warning: 'bg-yellow-500',
+        info: 'bg-blue-500'
+      };
+
+      toast.className = `fixed top-20 right-4 ${colors[type]} text-white px-6 py-4 rounded-lg shadow-lg z-50 slide-in`;
+      toast.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${message}`;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Loading spinner
+    function showLoading() {
+      const loader = document.createElement('div');
+      loader.id = 'global-loader';
+      loader.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+      loader.innerHTML = '<div class="bg-white rounded-lg p-8"><i class="fas fa-spinner fa-spin text-4xl text-cgt-red"></i></div>';
+      document.body.appendChild(loader);
+    }
+
+    function hideLoading() {
+      const loader = document.getElementById('global-loader');
+      if (loader) loader.remove();
+    }
+  </script>
 </body>
 </html>
