@@ -1,23 +1,223 @@
 {% extends "base.html" %}
-{% block title %}Admin — PAP/CSE{% endblock %}
+{% block title %}Administration — PAP/CSE{% endblock %}
+
 {% block content %}
-<h1>Administration — Imports</h1>
-<form method="post" action="/api/ingest/pv" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="pvfile"><strong>Importer PV (Excel, initial) :</strong></label>
-  <input type="file" name="file" id="pvfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-<form method="post" action="/api/ingest/invit" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="invitfile"><strong>Importer invitations PAP (cycle 5) :</strong></label>
-  <input type="file" name="file" id="invitfile" required />
-  <button type="submit">Envoyer</button>
-</form>
-<form method="post" action="/ciblage/import" enctype="multipart/form-data" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <label for="ciblagefile"><strong>Importer un fichier de ciblage :</strong></label>
-  <input type="file" name="file" id="ciblagefile" required />
-  <button type="submit">Envoyer</button>
-</form>
-<form method="post" action="/api/build/summary" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center">
-  <button type="submit"><strong>Mettre à jour le tableau</strong></button>
-</form>
+
+<!-- Page Header -->
+<div class="mb-8">
+  <h1 class="text-4xl font-bold text-gray-800 mb-2">
+    <i class="fas fa-cog text-cgt-red mr-3"></i>
+    Administration
+  </h1>
+  <p class="text-gray-600">Gestion des imports et mise à jour des données</p>
+</div>
+
+<!-- Import Forms -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+  <!-- Import PV -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-file-excel text-blue-500 mr-2"></i>
+      Importer PV (Excel initial)
+    </h2>
+    <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label for="pvfile" class="block text-sm font-semibold text-gray-700 mb-2">
+          Sélectionnez le fichier Excel des PV
+        </label>
+        <input type="file" name="file" id="pvfile" required
+               accept=".xlsx,.xls"
+               class="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-3 file:px-6
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100
+                      border border-gray-300 rounded-lg cursor-pointer" />
+      </div>
+      <button type="submit" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md flex items-center justify-center space-x-2">
+        <i class="fas fa-upload"></i>
+        <span>Importer les PV</span>
+      </button>
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-info-circle mr-1"></i>
+        Import des Procès-Verbaux des élections professionnelles
+      </p>
+    </form>
+  </section>
+
+  <!-- Import Invitations PAP -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-envelope text-green-500 mr-2"></i>
+      Importer Invitations PAP (Cycle 5)
+    </h2>
+    <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">
+          Sélectionnez le fichier Excel des invitations
+        </label>
+        <input type="file" name="file" id="invitfile" required
+               accept=".xlsx,.xls"
+               class="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-3 file:px-6
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-green-50 file:text-green-700
+                      hover:file:bg-green-100
+                      border border-gray-300 rounded-lg cursor-pointer" />
+      </div>
+      <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
+        <i class="fas fa-upload"></i>
+        <span>Importer les invitations</span>
+      </button>
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-info-circle mr-1"></i>
+        Import des invitations PAP du cycle 5
+      </p>
+    </form>
+  </section>
+
+  <!-- Import Ciblage -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-crosshairs text-purple-500 mr-2"></i>
+      Importer Fichier de Ciblage
+    </h2>
+    <form method="post" action="/ciblage/import" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label for="ciblagefile" class="block text-sm font-semibold text-gray-700 mb-2">
+          Sélectionnez le fichier de ciblage
+        </label>
+        <input type="file" name="file" id="ciblagefile" required
+               accept=".xlsx,.xls"
+               class="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-3 file:px-6
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-purple-50 file:text-purple-700
+                      hover:file:bg-purple-100
+                      border border-gray-300 rounded-lg cursor-pointer" />
+      </div>
+      <button type="submit" class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-md flex items-center justify-center space-x-2">
+        <i class="fas fa-upload"></i>
+        <span>Importer le ciblage</span>
+      </button>
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-info-circle mr-1"></i>
+        Fichiers de ciblage (CAC40, SBF120, etc.)
+      </p>
+    </form>
+  </section>
+
+  <!-- Update Summary -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-sync text-orange-500 mr-2"></i>
+      Mettre à jour le Tableau
+    </h2>
+    <div class="space-y-4">
+      <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
+        <p class="text-sm text-orange-800">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          Cette action recalcule le tableau de synthèse à partir des données PV et invitations.
+        </p>
+      </div>
+      <form method="post" action="/api/build/summary">
+        <button type="submit" class="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-sync-alt"></i>
+          <span>Recalculer le tableau</span>
+        </button>
+      </form>
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-info-circle mr-1"></i>
+        Utilisez cette fonction après chaque import de données
+      </p>
+    </div>
+  </section>
+
+</div>
+
+<!-- Instructions -->
+<section class="bg-blue-50 rounded-xl p-8 border-l-4 border-blue-500 mb-8">
+  <div class="flex items-start space-x-4">
+    <i class="fas fa-lightbulb text-blue-600 text-3xl"></i>
+    <div>
+      <h3 class="text-xl font-bold text-blue-900 mb-3">Processus d'import recommandé</h3>
+      <ol class="space-y-3 text-blue-800">
+        <li class="flex items-start space-x-3">
+          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">1</span>
+          <div>
+            <strong>Importer les PV</strong>
+            <p class="text-sm text-blue-700 mt-1">Importez d'abord le fichier Excel contenant les procès-verbaux des élections.</p>
+          </div>
+        </li>
+        <li class="flex items-start space-x-3">
+          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">2</span>
+          <div>
+            <strong>Importer les invitations PAP</strong>
+            <p class="text-sm text-blue-700 mt-1">Ensuite, importez le fichier des invitations PAP du cycle 5.</p>
+          </div>
+        </li>
+        <li class="flex items-start space-x-3">
+          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">3</span>
+          <div>
+            <strong>Mettre à jour le tableau</strong>
+            <p class="text-sm text-blue-700 mt-1">Cliquez sur "Recalculer le tableau" pour générer le tableau de synthèse.</p>
+          </div>
+        </li>
+        <li class="flex items-start space-x-3">
+          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">4</span>
+          <div>
+            <strong>(Optionnel) Importer un fichier de ciblage</strong>
+            <p class="text-sm text-blue-700 mt-1">Pour croiser avec des listes CAC40/SBF120, importez un fichier de ciblage.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Database Info -->
+<section class="bg-white rounded-xl shadow-md p-6">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4">
+    <i class="fas fa-database text-gray-600 mr-2"></i>
+    Informations Base de Données
+  </h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="flex items-center space-x-3 mb-2">
+        <i class="fas fa-table text-gray-500 text-xl"></i>
+        <span class="text-sm font-semibold text-gray-700">Tables principales</span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>• pv_events</li>
+        <li>• invitations</li>
+        <li>• siret_summary</li>
+      </ul>
+    </div>
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="flex items-center space-x-3 mb-2">
+        <i class="fas fa-file-excel text-green-500 text-xl"></i>
+        <span class="text-sm font-semibold text-gray-700">Formats acceptés</span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>• Excel (.xlsx)</li>
+        <li>• Excel 97-2003 (.xls)</li>
+      </ul>
+    </div>
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="flex items-center space-x-3 mb-2">
+        <i class="fas fa-shield-alt text-yellow-500 text-xl"></i>
+        <span class="text-sm font-semibold text-gray-700">Sécurité</span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>• Validation SHA256</li>
+        <li>• Données locales SQLite</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
 {% endblock %}

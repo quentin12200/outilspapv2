@@ -96,7 +96,7 @@ def health():
     return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, q: str = "", db: Session = Depends(get_session)):
+def index(request: Request, q: str = "", sort: str = "date_pap_c5", db: Session = Depends(get_session)):
     qs = db.query(SiretSummary)
     if q:
         like = f"%{q}%"
@@ -104,8 +104,17 @@ def index(request: Request, q: str = "", db: Session = Depends(get_session)):
             (SiretSummary.siret.like(like)) |
             (SiretSummary.raison_sociale.ilike(like))
         )
-    rows = qs.order_by(SiretSummary.date_pap_c5.desc().nullslast()).limit(100).all()
-    return templates.TemplateResponse("index.html", {"request": request, "rows": rows, "q": q})
+
+    # Apply sorting
+    if sort == "inscrits_c3":
+        qs = qs.order_by(SiretSummary.inscrits_c3.desc().nullslast())
+    elif sort == "inscrits_c4":
+        qs = qs.order_by(SiretSummary.inscrits_c4.desc().nullslast())
+    else:  # default: date_pap_c5
+        qs = qs.order_by(SiretSummary.date_pap_c5.desc().nullslast())
+
+    rows = qs.limit(100).all()
+    return templates.TemplateResponse("index.html", {"request": request, "rows": rows, "q": q, "sort": sort})
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
@@ -174,3 +183,7 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
             "match_count": len(match_rows),
         }
     )
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
