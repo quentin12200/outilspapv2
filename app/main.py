@@ -252,3 +252,49 @@ def admin_page(request: Request):
 @app.get("/recherche-siret", response_class=HTMLResponse)
 def recherche_siret_page(request: Request):
     return templates.TemplateResponse("recherche-siret.html", {"request": request})
+
+@app.get("/siret/{siret}", response_class=HTMLResponse)
+def siret_detail(siret: str, request: Request, db: Session = Depends(get_session)):
+    from .models import PVEvent, Invitation
+
+    # Récupère le résumé SIRET
+    row = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+
+    if not row:
+        return templates.TemplateResponse("siret.html", {"request": request, "row": None})
+
+    # Récupère l'historique complet des PV
+    pv_history = db.query(PVEvent).filter(PVEvent.siret == siret).order_by(PVEvent.date_pv.desc()).all()
+
+    # Récupère les invitations
+    invitations = db.query(Invitation).filter(Invitation.siret == siret).order_by(Invitation.date_invit.desc()).all()
+
+    # Récupère les informations enrichies Sirene (si disponible)
+    sirene_data = None
+    if invitations:
+        # Prend la première invitation enrichie
+        enriched_inv = next((inv for inv in invitations if inv.date_enrichissement is not None), None)
+        if enriched_inv:
+            sirene_data = {
+                "denomination": enriched_inv.denomination,
+                "enseigne": enriched_inv.enseigne,
+                "adresse": enriched_inv.adresse,
+                "code_postal": enriched_inv.code_postal,
+                "commune": enriched_inv.commune,
+                "activite_principale": enriched_inv.activite_principale,
+                "libelle_activite": enriched_inv.libelle_activite,
+                "tranche_effectifs": enriched_inv.tranche_effectifs,
+                "effectifs_label": enriched_inv.effectifs_label,
+                "est_siege": enriched_inv.est_siege,
+                "est_actif": enriched_inv.est_actif,
+                "categorie_entreprise": enriched_inv.categorie_entreprise,
+                "date_enrichissement": enriched_inv.date_enrichissement,
+            }
+
+    return templates.TemplateResponse("siret.html", {
+        "request": request,
+        "row": row,
+        "pv_history": pv_history,
+        "invitations": invitations,
+        "sirene_data": sirene_data,
+    })
