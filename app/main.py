@@ -91,6 +91,10 @@ def on_startup():
     # Création des tables après que le fichier .db soit prêt
     Base.metadata.create_all(bind=engine)
 
+    # Exécute les migrations pour ajouter les colonnes Sirene si nécessaire
+    from .migrations import run_migrations
+    run_migrations()
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
