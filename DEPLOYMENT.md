@@ -24,7 +24,7 @@ https://github.com/VOTRE_USERNAME/VOTRE_REPO/releases/download/TAG/FICHIER.db
 
 **Exemple** :
 ```
-https://github.com/quentin12200/outilspapv2/releases/download/v2.0.0/pap.db
+https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/pap.db
 ```
 
 #### `DB_SHA256` (recommandé)
@@ -45,7 +45,7 @@ shasum -a 256 pap.db
 
 **Exemple** :
 ```
-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+40ffd2d5576c673e78f6f5816d90619c5e5674e01d81359e976bf81729f5b769
 ```
 
 #### `DB_GH_TOKEN` (optionnel)
@@ -136,8 +136,8 @@ Pour mettre à jour la base en production :
 
 ```env
 # Variables Railway
-DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v2.0.0/pap.db
-DB_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/pap.db
+DB_SHA256=40ffd2d5576c673e78f6f5816d90619c5e5674e01d81359e976bf81729f5b769
 # DB_GH_TOKEN=ghp_xxxxxxxxxxxxx (seulement si repo privé)
 ```
 
