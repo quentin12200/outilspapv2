@@ -101,11 +101,19 @@ class SireneAPI:
         url = f"{SIRENE_API_BASE}/siret"
 
         def _sanitize(value: str) -> str:
-            return value.replace('"', ' ').strip()
+            cleaned = value.replace('"', ' ')
+            # L'API supporte mal les doubles espaces : on compacte et on passe en majuscules
+            # (l'API effectue des comparaisons insensibles à la casse mais cela évite les
+            # incohérences d'encodage).
+            return " ".join(cleaned.split()).upper()
 
+        # On interroge les champs utilisés par l'API officielle.
+        # "libelleCommuneEtablissement" cible bien la commune de l'établissement
+        # (et non celle du siège) et donne de meilleurs résultats que le champ
+        # générique "commune".
         query_parts = [
             f'denominationUniteLegale:"{_sanitize(denomination)}"',
-            f'commune:"{_sanitize(commune)}"',
+            f'libelleCommuneEtablissement:"{_sanitize(commune)}"',
         ]
 
         params = {
