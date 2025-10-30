@@ -150,9 +150,10 @@
     </a>
   </div>
 
-  <!-- Search Form -->
-  <form method="get" action="/">
-    <div class="flex flex-col md:flex-row gap-3">
+  <!-- Search and Filter Form -->
+  <form method="get" action="/" x-data="{ showFilters: {{ 'true' if (fd or dep or statut or cgt_implantee) else 'false' }} }">
+    <!-- Search Bar -->
+    <div class="flex flex-col md:flex-row gap-3 mb-4">
       <input name="q" value="{{ q or '' }}"
              placeholder="Rechercher SIRET / Raison sociale..."
              class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
@@ -160,6 +161,92 @@
         <i class="fas fa-search"></i>
         <span>Rechercher</span>
       </button>
+    </div>
+
+    <!-- Toggle Filters Button -->
+    <div class="mb-4">
+      <button type="button" @click="showFilters = !showFilters"
+              class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex items-center space-x-2">
+        <i class="fas" :class="showFilters ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <span>Filtres avancés</span>
+        {% if fd or dep or statut or cgt_implantee %}
+        <span class="ml-2 px-2 py-1 bg-cgt-red text-white text-xs rounded-full">Actifs</span>
+        {% endif %}
+      </button>
+    </div>
+
+    <!-- Advanced Filters -->
+    <div x-show="showFilters" x-transition class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <!-- Filtre FD -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-building text-blue-500 mr-1"></i>
+          Fédération (FD)
+        </label>
+        <select name="fd" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Toutes les FD</option>
+          {% for f in all_fds %}
+          <option value="{{ f }}" {% if fd == f %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Filtre Département -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-map-marker-alt text-green-500 mr-1"></i>
+          Département
+        </label>
+        <select name="dep" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous les départements</option>
+          {% for d in all_deps %}
+          <option value="{{ d }}" {% if dep == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Filtre Statut PAP -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-info-circle text-purple-500 mr-1"></i>
+          Statut PAP
+        </label>
+        <select name="statut" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous les statuts</option>
+          <option value="C3" {% if statut == 'C3' %}selected{% endif %}>C3</option>
+          <option value="C4" {% if statut == 'C4' %}selected{% endif %}>C4</option>
+          <option value="C3+C4" {% if statut == 'C3+C4' %}selected{% endif %}>C3+C4</option>
+          <option value="Aucun" {% if statut == 'Aucun' %}selected{% endif %}>Aucun</option>
+        </select>
+      </div>
+
+      <!-- Filtre CGT Implantée -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-flag text-cgt-red mr-1"></i>
+          CGT Implantée
+        </label>
+        <select name="cgt_implantee" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous</option>
+          <option value="oui" {% if cgt_implantee == 'oui' %}selected{% endif %}>Oui</option>
+          <option value="non" {% if cgt_implantee == 'non' %}selected{% endif %}>Non</option>
+        </select>
+      </div>
+
+      <!-- Hidden field to preserve sort -->
+      <input type="hidden" name="sort" value="{{ sort }}">
+
+      <!-- Action Buttons -->
+      <div class="col-span-1 md:col-span-2 lg:col-span-4 flex gap-3 justify-end">
+        <a href="/" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition flex items-center space-x-2">
+          <i class="fas fa-times"></i>
+          <span>Réinitialiser</span>
+        </a>
+        <button type="submit" class="px-6 py-2 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center space-x-2">
+          <i class="fas fa-filter"></i>
+          <span>Appliquer les filtres</span>
+        </button>
+      </div>
     </div>
   </form>
 </section>
@@ -190,15 +277,15 @@
 
   <!-- Sort Buttons -->
   <div class="flex flex-wrap gap-3 mb-6">
-    <a href="/?sort=date_pap_c5{% if q %}&q={{ q }}{% endif %}"
+    <a href="/?sort=date_pap_c5{% if q %}&q={{ q }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if dep %}&dep={{ dep }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}{% if cgt_implantee %}&cgt_implantee={{ cgt_implantee }}{% endif %}"
        class="px-4 py-2 rounded-lg transition {% if sort == 'date_pap_c5' %}bg-cgt-red text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">
       <i class="fas fa-calendar mr-2"></i>Trier par Date PAP
     </a>
-    <a href="/?sort=inscrits_c3{% if q %}&q={{ q }}{% endif %}"
+    <a href="/?sort=inscrits_c3{% if q %}&q={{ q }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if dep %}&dep={{ dep }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}{% if cgt_implantee %}&cgt_implantee={{ cgt_implantee }}{% endif %}"
        class="px-4 py-2 rounded-lg transition {% if sort == 'inscrits_c3' %}bg-cgt-red text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">
       <i class="fas fa-sort-numeric-down mr-2"></i>Trier par Inscrits C3
     </a>
-    <a href="/?sort=inscrits_c4{% if q %}&q={{ q }}{% endif %}"
+    <a href="/?sort=inscrits_c4{% if q %}&q={{ q }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if dep %}&dep={{ dep }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}{% if cgt_implantee %}&cgt_implantee={{ cgt_implantee }}{% endif %}"
        class="px-4 py-2 rounded-lg transition {% if sort == 'inscrits_c4' %}bg-cgt-red text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">
       <i class="fas fa-sort-numeric-down mr-2"></i>Trier par Inscrits C4
     </a>

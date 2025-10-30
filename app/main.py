@@ -96,14 +96,48 @@ def health():
     return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, q: str = "", sort: str = "date_pap_c5", db: Session = Depends(get_session)):
+def index(
+    request: Request,
+    q: str = "",
+    sort: str = "date_pap_c5",
+    fd: str = "",
+    dep: str = "",
+    statut: str = "",
+    cgt_implantee: str = "",
+    db: Session = Depends(get_session)
+):
     qs = db.query(SiretSummary)
+
+    # Recherche textuelle
     if q:
         like = f"%{q}%"
         qs = qs.filter(
             (SiretSummary.siret.like(like)) |
             (SiretSummary.raison_sociale.ilike(like))
         )
+
+    # Filtre par FD (recherche dans fd_c3 ou fd_c4)
+    if fd:
+        fd_like = f"%{fd}%"
+        qs = qs.filter(
+            (SiretSummary.fd_c3.ilike(fd_like)) |
+            (SiretSummary.fd_c4.ilike(fd_like))
+        )
+
+    # Filtre par département
+    if dep:
+        qs = qs.filter(SiretSummary.dep == dep)
+
+    # Filtre par statut PAP
+    if statut:
+        qs = qs.filter(SiretSummary.statut_pap == statut)
+
+    # Filtre CGT implantée
+    if cgt_implantee:
+        if cgt_implantee == "oui":
+            qs = qs.filter(SiretSummary.cgt_implantee == True)
+        elif cgt_implantee == "non":
+            qs = qs.filter(SiretSummary.cgt_implantee == False)
 
     # Apply sorting
     if sort == "inscrits_c3":
@@ -114,7 +148,28 @@ def index(request: Request, q: str = "", sort: str = "date_pap_c5", db: Session 
         qs = qs.order_by(SiretSummary.date_pap_c5.desc().nullslast())
 
     rows = qs.limit(100).all()
-    return templates.TemplateResponse("index.html", {"request": request, "rows": rows, "q": q, "sort": sort})
+
+    # Récupère les valeurs distinctes pour les filtres
+    all_deps = db.query(SiretSummary.dep).distinct().filter(SiretSummary.dep.isnot(None)).order_by(SiretSummary.dep).all()
+    all_fds = db.query(SiretSummary.fd_c3).distinct().filter(SiretSummary.fd_c3.isnot(None)).order_by(SiretSummary.fd_c3).all()
+    all_fds_c4 = db.query(SiretSummary.fd_c4).distinct().filter(SiretSummary.fd_c4.isnot(None)).order_by(SiretSummary.fd_c4).all()
+
+    # Combine les FDs C3 et C4 et déduplique
+    all_fds_combined = list(set([fd[0] for fd in all_fds] + [fd[0] for fd in all_fds_c4 if fd[0]]))
+    all_fds_combined.sort()
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "rows": rows,
+        "q": q,
+        "sort": sort,
+        "fd": fd,
+        "dep": dep,
+        "statut": statut,
+        "cgt_implantee": cgt_implantee,
+        "all_deps": [d[0] for d in all_deps],
+        "all_fds": all_fds_combined,
+    })
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
