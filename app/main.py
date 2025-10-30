@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 # --- Imports bas niveau (engine/Base) d'abord ---
@@ -153,6 +154,24 @@ def index(
 
     rows = qs.limit(100).all()
 
+    top_departments_query = (
+        db.query(
+            SiretSummary.dep.label("dep"),
+            func.count(SiretSummary.siret).label("count"),
+        )
+        .filter(SiretSummary.date_pap_c5.isnot(None))
+        .filter(SiretSummary.dep.isnot(None))
+        .group_by(SiretSummary.dep)
+        .order_by(func.count(SiretSummary.siret).desc())
+        .limit(10)
+        .all()
+    )
+
+    top_departments = [
+        {"dep": dep or "Non renseigné", "count": count}
+        for dep, count in top_departments_query
+    ]
+
     # Récupère les valeurs distinctes pour les filtres
     all_deps = db.query(SiretSummary.dep).distinct().filter(SiretSummary.dep.isnot(None)).order_by(SiretSummary.dep).all()
     all_fds = db.query(SiretSummary.fd_c3).distinct().filter(SiretSummary.fd_c3.isnot(None)).order_by(SiretSummary.fd_c3).all()
@@ -165,6 +184,7 @@ def index(
     return templates.TemplateResponse("index.html", {
         "request": request,
         "rows": rows,
+        "top_departments": top_departments,
         "q": q,
         "sort": sort,
         "fd": fd,
