@@ -366,3 +366,74 @@ def stats_enrichissement(db: Session = Depends(get_session)):
         "effectifs": [{"label": e[0], "count": e[1]} for e in effectifs_stats],
         "activites": [{"label": a[0], "count": a[1]} for a in activites_stats]
     }
+
+
+@router.get("/stats/dashboard-enhanced")
+def dashboard_enhanced_stats(db: Session = Depends(get_session)):
+    """
+    Statistiques enrichies pour les nouveaux graphiques du dashboard
+    """
+    # Top 10 secteurs d'activité (depuis invitations enrichies)
+    activites_stats = db.query(
+        Invitation.libelle_activite,
+        func.count(Invitation.id).label('count')
+    ).filter(
+        Invitation.libelle_activite.isnot(None)
+    ).group_by(
+        Invitation.libelle_activite
+    ).order_by(
+        func.count(Invitation.id).desc()
+    ).limit(10).all()
+
+    # Top 10 entreprises par effectifs (depuis invitations enrichies)
+    top_effectifs = db.query(
+        Invitation.siret,
+        Invitation.denomination,
+        Invitation.effectifs_label,
+        Invitation.tranche_effectifs
+    ).filter(
+        Invitation.tranche_effectifs.isnot(None),
+        Invitation.est_actif == True
+    ).order_by(
+        Invitation.tranche_effectifs.desc()
+    ).limit(10).all()
+
+    # Compte par département (pour la carte de France)
+    dep_counts = db.query(
+        SiretSummary.dep,
+        func.count(SiretSummary.siret).label('count')
+    ).filter(
+        SiretSummary.dep.isnot(None)
+    ).group_by(
+        SiretSummary.dep
+    ).order_by(
+        func.count(SiretSummary.siret).desc()
+    ).all()
+
+    # Évolution des invitations sur les 12 derniers mois
+    from datetime import datetime, timedelta
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    monthly_evolution = db.query(
+        func.strftime('%Y-%m', Invitation.date_invit).label('month'),
+        func.count(Invitation.id).label('count')
+    ).filter(
+        Invitation.date_invit >= twelve_months_ago
+    ).group_by(
+        func.strftime('%Y-%m', Invitation.date_invit)
+    ).order_by('month').all()
+
+    return {
+        "activites": [{"label": a[0][:50], "count": a[1]} for a in activites_stats],  # Tronquer les noms longs
+        "top_effectifs": [
+            {
+                "siret": e[0],
+                "denomination": e[1] or "Sans nom",
+                "effectifs_label": e[2],
+                "tranche": e[3]
+            }
+            for e in top_effectifs
+        ],
+        "departements": [{"dep": d[0], "count": d[1]} for d in dep_counts],
+        "monthly_evolution": [{"month": m[0], "count": m[1]} for m in monthly_evolution]
+    }
