@@ -187,3 +187,7 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
+
+@app.get("/recherche-siret", response_class=HTMLResponse)
+def recherche_siret_page(request: Request):
+    return templates.TemplateResponse("recherche-siret.html", {"request": request})

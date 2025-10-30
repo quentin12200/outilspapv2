@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}Recherche SIRET — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="mb-8">
+  <h1 class="text-4xl font-bold text-gray-800 mb-2">
+    <i class="fas fa-search text-cgt-red mr-3"></i>
+    Recherche de SIRET
+  </h1>
+  <p class="text-gray-600">Trouvez le SIRET d'une entreprise à partir de son nom et sa ville</p>
+</div>
+
+<!-- Search Form -->
+<section class="bg-white rounded-xl shadow-md p-8 mb-8" x-data="siretSearch()">
+  <div class="max-w-3xl mx-auto">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-building text-blue-500 mr-2"></i>
+      Informations de l'entreprise
+    </h2>
+
+    <form @submit.prevent="searchSiret" class="space-y-6">
+      <!-- Company Name -->
+      <div>
+        <label for="company_name" class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-briefcase text-gray-400 mr-2"></i>
+          Nom de l'entreprise *
+        </label>
+        <input type="text"
+               id="company_name"
+               x-model="companyName"
+               required
+               placeholder="Ex: RENAULT, CARREFOUR, AUCHAN..."
+               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+        <p class="mt-1 text-xs text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Entrez le nom de la raison sociale de l'entreprise
+        </p>
+      </div>
+
+      <!-- City -->
+      <div>
+        <label for="city" class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
+          Ville *
+        </label>
+        <input type="text"
+               id="city"
+               x-model="city"
+               required
+               placeholder="Ex: Paris, Lyon, Marseille..."
+               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+        <p class="mt-1 text-xs text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Entrez la ville où se trouve l'établissement
+        </p>
+      </div>
+
+      <!-- Search Options -->
+      <div class="bg-gray-50 rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          <i class="fas fa-globe text-purple-500 mr-2"></i>
+          Où chercher ?
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Pappers -->
+          <button type="button"
+                  @click="searchOnPappers"
+                  :disabled="!companyName || !city"
+                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                  class="p-6 bg-white border-2 border-orange-500 rounded-xl transition flex flex-col items-center space-y-3">
+            <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+              <i class="fas fa-file-alt text-orange-600 text-2xl"></i>
+            </div>
+            <div class="text-center">
+              <h4 class="font-bold text-gray-800">Pappers.fr</h4>
+              <p class="text-xs text-gray-600 mt-1">Base données officielle</p>
+            </div>
+          </button>
+
+          <!-- API Sirene -->
+          <button type="button"
+                  @click="searchOnSirene"
+                  :disabled="!companyName || !city"
+                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                  class="p-6 bg-white border-2 border-blue-500 rounded-xl transition flex flex-col items-center space-y-3">
+            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+              <i class="fas fa-database text-blue-600 text-2xl"></i>
+            </div>
+            <div class="text-center">
+              <h4 class="font-bold text-gray-800">API Sirene</h4>
+              <p class="text-xs text-gray-600 mt-1">INSEE - Gratuit</p>
+            </div>
+          </button>
+
+          <!-- Société.com -->
+          <button type="button"
+                  @click="searchOnSociete"
+                  :disabled="!companyName || !city"
+                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                  class="p-6 bg-white border-2 border-green-500 rounded-xl transition flex flex-col items-center space-y-3">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <i class="fas fa-building text-green-600 text-2xl"></i>
+            </div>
+            <div class="text-center">
+              <h4 class="font-bold text-gray-800">Société.com</h4>
+              <p class="text-xs text-gray-600 mt-1">Infos entreprises</p>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Search Button -->
+      <div class="flex justify-center">
+        <button type="button"
+                @click="searchAllSources"
+                :disabled="!companyName || !city"
+                :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cgt-darkred'"
+                class="px-8 py-4 bg-cgt-red text-white rounded-lg transition shadow-lg flex items-center space-x-3 text-lg font-bold">
+          <i class="fas fa-search"></i>
+          <span>Rechercher partout</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- Results Section -->
+<section class="bg-white rounded-xl shadow-md p-8 mb-8" x-show="sireneResults.length > 0" style="display: none;">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-list text-green-500 mr-2"></i>
+    Résultats de recherche
+    <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="sireneResults.length"></span> résultat(s))</span>
+  </h2>
+
+  <div class="space-y-4">
+    <template x-for="result in sireneResults" :key="result.siret">
+      <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-gray-800 mb-2" x-text="result.denomination"></h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-gray-600">
+                  <i class="fas fa-hashtag text-blue-500 mr-2"></i>
+                  <strong>SIRET:</strong>
+                  <span class="font-mono text-lg text-cgt-red" x-text="result.siret"></span>
+                </p>
+                <p class="text-gray-600">
+                  <i class="fas fa-building text-purple-500 mr-2"></i>
+                  <strong>SIREN:</strong>
+                  <span class="font-mono" x-text="result.siren"></span>
+                </p>
+              </div>
+              <div>
+                <p class="text-gray-600">
+                  <i class="fas fa-map-marker-alt text-green-500 mr-2"></i>
+                  <span x-text="result.adresse"></span>
+                </p>
+                <p class="text-gray-600" x-show="result.activite">
+                  <i class="fas fa-briefcase text-orange-500 mr-2"></i>
+                  <span x-text="result.activite"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+          <button @click="copySiret(result.siret)"
+                  class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+            <i class="fas fa-copy"></i>
+            <span>Copier</span>
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<!-- Loading State -->
+<div x-show="loading"
+     x-transition
+     style="display: none;"
+     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl p-8 text-center">
+    <i class="fas fa-spinner fa-spin text-5xl text-cgt-red mb-4"></i>
+    <p class="text-lg font-semibold text-gray-800">Recherche en cours...</p>
+  </div>
+</div>
+
+<!-- Instructions -->
+<section class="bg-blue-50 rounded-xl p-8 border-l-4 border-blue-500">
+  <div class="flex items-start space-x-4">
+    <i class="fas fa-lightbulb text-blue-600 text-3xl"></i>
+    <div>
+      <h3 class="text-xl font-bold text-blue-900 mb-3">Conseils de recherche</h3>
+      <ul class="space-y-2 text-blue-800">
+        <li class="flex items-start space-x-2">
+          <i class="fas fa-check text-blue-600 mt-1"></i>
+          <span><strong>Nom exact :</strong> Utilisez le nom officiel de l'entreprise tel qu'il apparaît sur le courrier</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fas fa-check text-blue-600 mt-1"></i>
+          <span><strong>Ville précise :</strong> Indiquez la ville de l'établissement concerné, pas le siège social</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fas fa-check text-blue-600 mt-1"></i>
+          <span><strong>Pappers.fr :</strong> Base de données la plus complète, idéale pour trouver rapidement un SIRET</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fas fa-check text-blue-600 mt-1"></i>
+          <span><strong>API Sirene :</strong> Données officielles de l'INSEE, gratuit mais parfois moins détaillé</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fas fa-check text-blue-600 mt-1"></i>
+          <span><strong>Si aucun résultat :</strong> Essayez avec un nom plus court ou vérifiez l'orthographe</span>
+        </li>
+      </ul>
+
+      <div class="mt-4 p-4 bg-white rounded-lg">
+        <p class="text-sm text-gray-700">
+          <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+          <strong>À savoir :</strong> Pappers.fr et Société.com s'ouvriront dans un nouvel onglet.
+          L'API Sirene affiche les résultats directement sur cette page.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Alpine.js Logic -->
+<script>
+  function siretSearch() {
+    return {
+      companyName: '',
+      city: '',
+      sireneResults: [],
+      loading: false,
+
+      searchOnPappers() {
+        if (!this.companyName || !this.city) return;
+
+        const query = encodeURIComponent(`${this.companyName} ${this.city}`);
+        const url = `https://www.pappers.fr/recherche?q=${query}`;
+        window.open(url, '_blank');
+
+        showToast('Recherche ouverte sur Pappers.fr', 'info');
+      },
+
+      searchOnSociete() {
+        if (!this.companyName || !this.city) return;
+
+        const query = encodeURIComponent(`${this.companyName} ${this.city}`);
+        const url = `https://www.societe.com/cgi-bin/search?champs=${query}`;
+        window.open(url, '_blank');
+
+        showToast('Recherche ouverte sur Société.com', 'info');
+      },
+
+      async searchOnSirene() {
+        if (!this.companyName || !this.city) return;
+
+        this.loading = true;
+        this.sireneResults = [];
+
+        try {
+          // API Sirene publique de l'INSEE
+          const companyQuery = encodeURIComponent(this.companyName);
+          const cityQuery = encodeURIComponent(this.city);
+          const url = `https://api.insee.fr/entreprises/sirene/V3/siret?q=denominationUniteLegale:${companyQuery} AND commune:${cityQuery}`;
+
+          const response = await fetch(url, {
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error('Erreur lors de la recherche');
+          }
+
+          const data = await response.json();
+
+          if (data.etablissements && data.etablissements.length > 0) {
+            this.sireneResults = data.etablissements.slice(0, 10).map(etab => ({
+              siret: etab.siret,
+              siren: etab.siren,
+              denomination: etab.uniteLegale?.denominationUniteLegale ||
+                           etab.uniteLegale?.prenom1UniteLegale + ' ' + etab.uniteLegale?.nomUniteLegale ||
+                           'Nom non disponible',
+              adresse: `${etab.adresseEtablissement?.numeroVoieEtablissement || ''} ${etab.adresseEtablissement?.typeVoieEtablissement || ''} ${etab.adresseEtablissement?.libelleVoieEtablissement || ''}, ${etab.adresseEtablissement?.codePostalEtablissement || ''} ${etab.adresseEtablissement?.libelleCommuneEtablissement || ''}`.trim(),
+              activite: etab.uniteLegale?.activitePrincipaleUniteLegale || ''
+            }));
+
+            showToast(`${this.sireneResults.length} résultat(s) trouvé(s)`, 'success');
+          } else {
+            showToast('Aucun résultat trouvé dans l\'API Sirene', 'warning');
+          }
+        } catch (error) {
+          console.error('Erreur:', error);
+          showToast('Erreur lors de la recherche. Essayez Pappers.fr ou Société.com', 'error');
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      searchAllSources() {
+        this.searchOnPappers();
+        setTimeout(() => this.searchOnSirene(), 500);
+      },
+
+      copySiret(siret) {
+        navigator.clipboard.writeText(siret).then(() => {
+          showToast(`SIRET ${siret} copié dans le presse-papier`, 'success');
+        }).catch(() => {
+          showToast('Erreur lors de la copie', 'error');
+        });
+      }
+    }
+  }
+</script>
+
+{% endblock %}
