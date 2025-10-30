@@ -1,11 +1,13 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Query
+from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
+from datetime import datetime
 from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
 from ..schemas import SiretSummaryOut
+from ..services.sirene_api import enrichir_siret, SireneAPIError
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -20,6 +22,37 @@ async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_sess
 @router.post("/ingest/invit")
 async def ingest_invit(file: UploadFile = File(...), db: Session = Depends(get_session)):
     n = etl.ingest_invit_excel(db, file.file)
+
+    # Enrichissement automatique des nouvelles invitations via API Sirene
+    # (uniquement celles qui n'ont pas encore été enrichies)
+    invitations_non_enrichies = db.query(Invitation).filter(
+        Invitation.date_enrichissement.is_(None)
+    ).all()
+
+    enrichis = 0
+    for invitation in invitations_non_enrichies[:50]:  # Limite à 50 pour éviter timeout (30 req/min max)
+        try:
+            data = await enrichir_siret(invitation.siret)
+            if data:
+                invitation.denomination = data.get("denomination")
+                invitation.enseigne = data.get("enseigne")
+                invitation.adresse = data.get("adresse")
+                invitation.code_postal = data.get("code_postal")
+                invitation.commune = data.get("commune")
+                invitation.activite_principale = data.get("activite_principale")
+                invitation.libelle_activite = data.get("libelle_activite")
+                invitation.tranche_effectifs = data.get("tranche_effectifs")
+                invitation.effectifs_label = data.get("effectifs_label")
+                invitation.est_siege = data.get("est_siege")
+                invitation.est_actif = data.get("est_actif")
+                invitation.categorie_entreprise = data.get("categorie_entreprise")
+                invitation.date_enrichissement = datetime.now()
+                enrichis += 1
+        except Exception:
+            pass  # On continue même si une erreur se produit
+
+    db.commit()
+
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/build/summary")
@@ -128,4 +161,181 @@ def dashboard_stats(db: Session = Depends(get_session)):
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
         "monthly_invitations": [{"month": m[0], "count": m[1]} for m in monthly_invitations],
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats]
+    }
+
+
+# ============================================================================
+# ENRICHISSEMENT API SIRENE
+# ============================================================================
+
+@router.post("/sirene/enrichir/{siret}")
+async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
+    """
+    Enrichit une invitation avec les données de l'API Sirene
+    """
+    # Vérifie que l'invitation existe
+    invitation = db.query(Invitation).filter(Invitation.siret == siret).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail=f"Aucune invitation trouvée pour le SIRET {siret}")
+
+    try:
+        # Récupère les données depuis l'API Sirene
+        data = await enrichir_siret(siret)
+
+        if not data:
+            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
+
+        # Met à jour l'invitation
+        invitation.denomination = data.get("denomination")
+        invitation.enseigne = data.get("enseigne")
+        invitation.adresse = data.get("adresse")
+        invitation.code_postal = data.get("code_postal")
+        invitation.commune = data.get("commune")
+        invitation.activite_principale = data.get("activite_principale")
+        invitation.libelle_activite = data.get("libelle_activite")
+        invitation.tranche_effectifs = data.get("tranche_effectifs")
+        invitation.effectifs_label = data.get("effectifs_label")
+        invitation.est_siege = data.get("est_siege")
+        invitation.est_actif = data.get("est_actif")
+        invitation.categorie_entreprise = data.get("categorie_entreprise")
+        invitation.date_enrichissement = datetime.now()
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"SIRET {siret} enrichi avec succès",
+            "data": data
+        }
+
+    except SireneAPIError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/sirene/enrichir-tout")
+async def enrichir_toutes_invitations(
+    force: bool = Query(False, description="Forcer le réenrichissement même si déjà fait"),
+    db: Session = Depends(get_session)
+):
+    """
+    Enrichit toutes les invitations qui n'ont pas encore été enrichies
+    Si force=True, réenrichit même celles déjà enrichies
+    """
+    # Récupère les invitations à enrichir
+    query = db.query(Invitation)
+    if not force:
+        query = query.filter(Invitation.date_enrichissement.is_(None))
+
+    invitations = query.all()
+
+    if not invitations:
+        return {
+            "success": True,
+            "message": "Aucune invitation à enrichir",
+            "enrichis": 0,
+            "erreurs": 0
+        }
+
+    enrichis = 0
+    erreurs = 0
+    erreurs_details = []
+
+    for invitation in invitations:
+        try:
+            # Récupère les données depuis l'API Sirene
+            data = await enrichir_siret(invitation.siret)
+
+            if data:
+                # Met à jour l'invitation
+                invitation.denomination = data.get("denomination")
+                invitation.enseigne = data.get("enseigne")
+                invitation.adresse = data.get("adresse")
+                invitation.code_postal = data.get("code_postal")
+                invitation.commune = data.get("commune")
+                invitation.activite_principale = data.get("activite_principale")
+                invitation.libelle_activite = data.get("libelle_activite")
+                invitation.tranche_effectifs = data.get("tranche_effectifs")
+                invitation.effectifs_label = data.get("effectifs_label")
+                invitation.est_siege = data.get("est_siege")
+                invitation.est_actif = data.get("est_actif")
+                invitation.categorie_entreprise = data.get("categorie_entreprise")
+                invitation.date_enrichissement = datetime.now()
+                enrichis += 1
+            else:
+                erreurs += 1
+                erreurs_details.append(f"SIRET {invitation.siret} non trouvé")
+
+        except SireneAPIError as e:
+            erreurs += 1
+            erreurs_details.append(f"SIRET {invitation.siret}: {str(e)}")
+        except Exception as e:
+            erreurs += 1
+            erreurs_details.append(f"SIRET {invitation.siret}: Erreur inattendue")
+
+    # Sauvegarde en base
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"{enrichis} invitations enrichies, {erreurs} erreurs",
+        "enrichis": enrichis,
+        "erreurs": erreurs,
+        "erreurs_details": erreurs_details[:10]  # Limite à 10 premières erreurs
+    }
+
+
+@router.get("/sirene/stats")
+def stats_enrichissement(db: Session = Depends(get_session)):
+    """
+    Retourne les statistiques sur l'enrichissement des invitations
+    """
+    total = db.query(func.count(Invitation.id)).scalar() or 0
+    enrichis = db.query(func.count(Invitation.id)).filter(
+        Invitation.date_enrichissement.isnot(None)
+    ).scalar() or 0
+    non_enrichis = total - enrichis
+
+    # Invitations avec établissements actifs
+    actifs = db.query(func.count(Invitation.id)).filter(
+        Invitation.est_actif == True
+    ).scalar() or 0
+
+    # Invitations avec établissements inactifs
+    inactifs = db.query(func.count(Invitation.id)).filter(
+        Invitation.est_actif == False
+    ).scalar() or 0
+
+    # Top 10 des tranches d'effectifs
+    effectifs_stats = db.query(
+        Invitation.effectifs_label,
+        func.count(Invitation.id).label('count')
+    ).filter(
+        Invitation.effectifs_label.isnot(None)
+    ).group_by(
+        Invitation.effectifs_label
+    ).order_by(
+        func.count(Invitation.id).desc()
+    ).limit(10).all()
+
+    # Top 10 des activités
+    activites_stats = db.query(
+        Invitation.libelle_activite,
+        func.count(Invitation.id).label('count')
+    ).filter(
+        Invitation.libelle_activite.isnot(None)
+    ).group_by(
+        Invitation.libelle_activite
+    ).order_by(
+        func.count(Invitation.id).desc()
+    ).limit(10).all()
+
+    return {
+        "total": total,
+        "enrichis": enrichis,
+        "non_enrichis": non_enrichis,
+        "pourcentage_enrichis": round((enrichis / total * 100) if total > 0 else 0, 1),
+        "actifs": actifs,
+        "inactifs": inactifs,
+        "effectifs": [{"label": e[0], "count": e[1]} for e in effectifs_stats],
+        "activites": [{"label": a[0], "count": a[1]} for a in activites_stats]
     }

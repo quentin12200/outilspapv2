@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, Date, Boolean, JSON, Text, DateTime
 from .db import Base
 
 class PVEvent(Base):
@@ -29,6 +29,21 @@ class Invitation(Base):
     date_invit = Column(Date, nullable=False)                    # date PAP C5
     source = Column(Text)                                        # RED / mail / etc.
     raw = Column(JSON)
+
+    # Données enrichies depuis l'API Sirene
+    denomination = Column(Text)                                  # Raison sociale
+    enseigne = Column(Text)                                      # Enseigne commerciale
+    adresse = Column(Text)                                       # Adresse complète
+    code_postal = Column(String(10))
+    commune = Column(Text)
+    activite_principale = Column(String(10))                     # Code NAF
+    libelle_activite = Column(Text)                              # Libellé de l'activité
+    tranche_effectifs = Column(String(5))                        # Code tranche
+    effectifs_label = Column(Text)                               # Libellé de la tranche
+    est_siege = Column(Boolean)                                  # True si siège social
+    est_actif = Column(Boolean)                                  # True si établissement actif
+    categorie_entreprise = Column(String(10))                    # PME, ETI, GE...
+    date_enrichissement = Column(DateTime)                       # Date du dernier enrichissement
 
 class SiretSummary(Base):
     __tablename__ = "siret_summary"
