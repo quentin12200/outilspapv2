@@ -42,7 +42,7 @@
     </div>
     <p class="text-sm text-gray-500">
       <i class="fas fa-info-circle mr-1"></i>
-      Le fichier doit contenir une colonne SIREN pour effectuer les correspondances
+      Le fichier doit contenir une colonne SIRET (14 chiffres) pour effectuer les correspondances
     </p>
   </form>
 </section>
@@ -89,7 +89,7 @@
       <p class="text-3xl font-bold {% if col_siren %}text-green-600{% else %}text-red-600{% endif %}">
         {% if col_siren %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-times-circle"></i>{% endif %}
       </p>
-      <p class="text-sm text-gray-600 mt-1">Colonne SIREN</p>
+      <p class="text-sm text-gray-600 mt-1">Colonne SIRET</p>
     </div>
     <div class="text-center">
       <p class="text-3xl font-bold text-purple-600">{{ match_count|default(0) }}</p>
@@ -114,7 +114,7 @@
     <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200">
       {% set important_cols = [] %}
       {% for col in columns %}
-        {% if col.lower() in ['siren', 'siret', 'raison sociale', 'fd', 'ud', 'région', 'cp', 'ville', 'idcc déclaré', 'presence cgt', '% cgt', 'groupe sbf 120 o/n', 'nom du groupe'] %}
+        {% if col.lower() in ['siret', 'raison sociale', 'fd', 'ud', 'région', 'cp', 'ville', 'idcc déclaré', 'presence cgt', '% cgt', 'groupe sbf 120 o/n', 'nom du groupe'] %}
           {% set _ = important_cols.append(col) %}
         {% endif %}
       {% endfor %}
@@ -147,23 +147,23 @@
     </div>
     <p class="mt-3 text-xs text-gray-500">
       <i class="fas fa-info-circle mr-1"></i>
-      Affichage uniquement des colonnes clés (SIREN, Raison sociale, FD, UD, CGT, etc.)
+      Affichage uniquement des colonnes clés (SIRET, Raison sociale, FD, UD, CGT, etc.)
     </p>
   </details>
 </section>
 {% endif %}
 
-<!-- Warning if no SIREN column -->
+<!-- Warning if no SIRET column -->
 {% if columns and not col_siren %}
 <section class="bg-red-50 rounded-xl p-6 mb-8 border-l-4 border-red-500">
   <div class="flex items-start space-x-4">
     <i class="fas fa-exclamation-triangle text-red-600 text-3xl mt-1"></i>
     <div class="flex-1">
       <h3 class="text-xl font-bold text-red-900 mb-2">
-        Colonne SIREN non détectée
+        Colonne SIRET non détectée
       </h3>
       <p class="text-red-800 mb-4">
-        Aucune colonne "SIREN" n'a été trouvée dans votre fichier. Le croisement avec les invitations PAP n'est pas possible.
+        Aucune colonne "SIRET" n'a été trouvée dans votre fichier. Le croisement avec les invitations PAP n'est pas possible.
       </p>
       <div class="bg-white rounded-lg p-4">
         <h4 class="font-semibold text-gray-800 mb-2">
@@ -171,7 +171,7 @@
           Solution :
         </h4>
         <p class="text-sm text-gray-700">
-          Assurez-vous que votre fichier Excel contient une colonne nommée <strong class="text-red-600">"SIREN"</strong> ou <strong class="text-red-600">"Siren"</strong> avec les numéros SIREN à 9 chiffres.
+          Assurez-vous que votre fichier Excel contient une colonne nommée <strong class="text-red-600">"SIRET"</strong> avec les numéros SIRET à 14 chiffres.
         </p>
       </div>
       <div class="mt-4">
@@ -226,9 +226,9 @@
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gradient-to-r from-green-600 to-green-700 text-white">
         <tr>
-          {% if 'siren' in columns|map('lower') %}
+          {% if 'siret' in columns|map('lower') %}
           <th class="px-4 py-3 text-left text-xs font-bold uppercase sticky left-0 bg-green-600">
-            <i class="fas fa-building mr-1"></i>SIREN
+            <i class="fas fa-hashtag mr-1"></i>SIRET
           </th>
           {% endif %}
           {% if 'raison sociale' in columns|map('lower') %}
@@ -289,7 +289,7 @@
           Aucune correspondance trouvée
         </h3>
         <p class="text-yellow-800 mb-4">
-          Les SIREN de votre fichier de ciblage ne correspondent à aucune invitation PAP enregistrée dans la base.
+          Les SIRET de votre fichier de ciblage ne correspondent à aucune invitation PAP enregistrée dans la base.
         </p>
 
         <div class="bg-white rounded-lg p-4 mb-4">
@@ -304,11 +304,11 @@
             </li>
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
-              <span><strong>SIREN différents :</strong> Les entreprises de votre fichier de ciblage n'ont pas encore reçu d'invitation PAP</span>
+              <span><strong>SIRET différents :</strong> Les entreprises de votre fichier de ciblage n'ont pas encore reçu d'invitation PAP</span>
             </li>
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
-              <span><strong>Format SIREN incorrect :</strong> Vérifiez que la colonne SIREN contient bien 9 chiffres</span>
+              <span><strong>Format SIRET incorrect :</strong> Vérifiez que la colonne SIRET contient bien 14 chiffres</span>
             </li>
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
@@ -348,7 +348,7 @@
         </li>
         <li class="flex items-start space-x-2">
           <span class="font-bold">2.</span>
-          <span>Assurez-vous que le fichier contient une colonne <strong>SIREN</strong></span>
+          <span>Assurez-vous que le fichier contient une colonne <strong>SIRET</strong> (14 chiffres)</span>
         </li>
         <li class="flex items-start space-x-2">
           <span class="font-bold">3.</span>

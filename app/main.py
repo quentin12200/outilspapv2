@@ -130,14 +130,17 @@ def ciblage_get(request: Request, db: Session = Depends(get_session)):
     columns = list(df.columns)
     preview = df.head(10).to_dict(orient="records")
 
+    # Récupère tous les SIRET des invitations
     invit_rows = db.query(Invitation.siret).all()
-    siret_list = [r[0] for r in invit_rows]
-    siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
+    siret_list = [r[0] for r in invit_rows if r[0]]
 
-    col_siren = next((c for c in df.columns if c.lower().startswith("siren")), None)
+    # Cherche une colonne SIRET dans le fichier
+    col_siret = next((c for c in df.columns if c.lower() in ['siret']), None)
+
     match_rows = []
-    if col_siren:
-        match_rows = df[df[col_siren].astype(str).isin(siren_list)].to_dict(orient="records")
+    if col_siret:
+        # Correspondance directe avec les SIRET complets
+        match_rows = df[df[col_siret].astype(str).isin(siret_list)].to_dict(orient="records")
 
     return templates.TemplateResponse(
         "ciblage.html",
@@ -145,7 +148,7 @@ def ciblage_get(request: Request, db: Session = Depends(get_session)):
             "request": request,
             "columns": columns,
             "preview_rows": preview,
-            "col_siren": col_siren,
+            "col_siren": col_siret,  # Garde le nom pour rétrocompatibilité template
             "match_rows": match_rows,
             "match_count": len(match_rows),
         }
@@ -163,14 +166,17 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
     columns = list(df.columns)
     preview = df.head(10).to_dict(orient="records")
 
+    # Récupère tous les SIRET des invitations
     invit_rows = db.query(Invitation.siret).all()
-    siret_list = [r[0] for r in invit_rows]
-    siren_list = {s[:9] for s in siret_list if s and len(s) >= 9}
+    siret_list = [r[0] for r in invit_rows if r[0]]
 
-    col_siren = next((c for c in df.columns if c.lower().startswith("siren")), None)
+    # Cherche une colonne SIRET dans le fichier
+    col_siret = next((c for c in df.columns if c.lower() in ['siret']), None)
+
     match_rows = []
-    if col_siren:
-        match_rows = df[df[col_siren].astype(str).isin(siren_list)].head(20).to_dict(orient="records")
+    if col_siret:
+        # Correspondance directe avec les SIRET complets
+        match_rows = df[df[col_siret].astype(str).isin(siret_list)].to_dict(orient="records")
 
     return templates.TemplateResponse(
         "ciblage.html",
@@ -178,7 +184,7 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
             "request": request,
             "columns": columns,
             "preview_rows": preview,
-            "col_siren": col_siren,
+            "col_siren": col_siret,  # Garde le nom pour rétrocompatibilité template
             "match_rows": match_rows,
             "match_count": len(match_rows),
         }
