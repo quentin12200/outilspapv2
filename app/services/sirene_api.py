@@ -3,8 +3,9 @@ Service d'intégration avec l'API Sirene (INSEE)
 Documentation: https://www.data.gouv.fr/dataservices/api-sirene-open-data/
 """
 
+import os
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 import logging
 
@@ -33,12 +34,12 @@ class SireneAPI:
             api_key: Clé API optionnelle pour augmenter les limites de taux
                     Si None, utilise l'API publique (30 req/min)
         """
-        self.api_key = api_key
+        self.api_key = api_key or os.getenv("SIRENE_API_TOKEN") or os.getenv("SIRENE_API_KEY")
         self.headers = {
             "Accept": "application/json"
         }
-        if api_key:
-            self.headers["Authorization"] = f"Bearer {api_key}"
+        if self.api_key:
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
 
     async def get_siret(self, siret: str) -> Optional[Dict[str, Any]]:
         """
@@ -78,6 +79,70 @@ class SireneAPI:
 
         except httpx.TimeoutException:
             logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
+            raise SireneAPIError("Timeout de l'API Sirene")
+        except httpx.RequestError as e:
+            logger.error(f"Erreur réseau API Sirene: {e}")
+            raise SireneAPIError("Erreur de connexion à l'API Sirene")
+
+    async def search_siret(
+        self,
+        denomination: str,
+        commune: str,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Recherche des établissements par raison sociale et commune."""
+
+        denomination = (denomination or "").strip()
+        commune = (commune or "").strip()
+
+        if not denomination or not commune:
+            return []
+
+        url = f"{SIRENE_API_BASE}/siret"
+
+        def _sanitize(value: str) -> str:
+            return value.replace('"', ' ').strip()
+
+        query_parts = [
+            f'denominationUniteLegale:"{_sanitize(denomination)}"',
+            f'commune:"{_sanitize(commune)}"',
+        ]
+
+        params = {
+            "q": " AND ".join(query_parts),
+            "nombre": str(max(1, min(limit, 20))),
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                response = await client.get(url, headers=self.headers, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                etablissements = data.get("etablissements", [])
+                return [self._parse_etablissement(etab) for etab in etablissements]
+            if response.status_code in (400, 404):
+                return []
+            if response.status_code == 401:
+                logger.error("Clé API Sirene absente ou invalide")
+                raise SireneAPIError("Accès refusé par l'API Sirene")
+            if response.status_code == 429:
+                logger.warning("Limite de taux API Sirene atteinte")
+                raise SireneAPIError("Trop de requêtes, veuillez patienter")
+
+            logger.error(
+                "Erreur API Sirene (%s): %s",
+                response.status_code,
+                response.text,
+            )
+            raise SireneAPIError(f"Erreur API: {response.status_code}")
+
+        except httpx.TimeoutException:
+            logger.error(
+                "Timeout lors de la recherche Sirene pour %s / %s",
+                denomination,
+                commune,
+            )
             raise SireneAPIError("Timeout de l'API Sirene")
         except httpx.RequestError as e:
             logger.error(f"Erreur réseau API Sirene: {e}")
@@ -215,3 +280,22 @@ async def enrichir_siret(siret: str) -> Optional[Dict[str, Any]]:
     except SireneAPIError as e:
         logger.error(f"Erreur enrichissement SIRET {siret}: {e}")
         return None
+
+
+async def rechercher_siret(
+    denomination: str,
+    commune: str,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """Helper pour rechercher des établissements via l'API Sirene."""
+
+    try:
+        return await sirene_api.search_siret(denomination, commune, limit)
+    except SireneAPIError as e:
+        logger.error(
+            "Erreur recherche Sirene pour %s / %s: %s",
+            denomination,
+            commune,
+            e,
+        )
+        raise

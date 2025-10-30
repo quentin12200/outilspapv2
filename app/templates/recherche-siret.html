@@ -264,32 +264,34 @@
         this.sireneResults = [];
 
         try {
-          // API Sirene publique de l'INSEE
-          const companyQuery = encodeURIComponent(this.companyName);
-          const cityQuery = encodeURIComponent(this.city);
-          const url = `https://api.insee.fr/entreprises/sirene/V3/siret?q=denominationUniteLegale:${companyQuery} AND commune:${cityQuery}`;
-
-          const response = await fetch(url, {
-            headers: {
-              'Accept': 'application/json'
-            }
+          const params = new URLSearchParams({
+            nom: this.companyName,
+            ville: this.city,
           });
 
-          if (!response.ok) {
-            throw new Error('Erreur lors de la recherche');
+          const response = await fetch(`/api/sirene/search?${params.toString()}`);
+
+          let payload = {};
+          try {
+            payload = await response.json();
+          } catch (parseError) {
+            payload = {};
           }
 
-          const data = await response.json();
+          if (!response.ok) {
+            const message = payload?.detail || 'Erreur lors de la recherche';
+            throw new Error(message);
+          }
 
-          if (data.etablissements && data.etablissements.length > 0) {
-            this.sireneResults = data.etablissements.slice(0, 10).map(etab => ({
-              siret: etab.siret,
-              siren: etab.siren,
-              denomination: etab.uniteLegale?.denominationUniteLegale ||
-                           etab.uniteLegale?.prenom1UniteLegale + ' ' + etab.uniteLegale?.nomUniteLegale ||
-                           'Nom non disponible',
-              adresse: `${etab.adresseEtablissement?.numeroVoieEtablissement || ''} ${etab.adresseEtablissement?.typeVoieEtablissement || ''} ${etab.adresseEtablissement?.libelleVoieEtablissement || ''}, ${etab.adresseEtablissement?.codePostalEtablissement || ''} ${etab.adresseEtablissement?.libelleCommuneEtablissement || ''}`.trim(),
-              activite: etab.uniteLegale?.activitePrincipaleUniteLegale || ''
+          const results = payload.results || [];
+
+          if (results.length > 0) {
+            this.sireneResults = results.map(result => ({
+              siret: result.siret,
+              siren: result.siren,
+              denomination: result.denomination || 'Nom non disponible',
+              adresse: result.adresse || '',
+              activite: result.libelle_activite || result.activite_principale || '',
             }));
 
             showToast(`${this.sireneResults.length} résultat(s) trouvé(s)`, 'success');
@@ -298,7 +300,7 @@
           }
         } catch (error) {
           console.error('Erreur:', error);
-          showToast('Erreur lors de la recherche. Essayez Pappers.fr ou Société.com', 'error');
+          showToast(error.message || 'Erreur lors de la recherche. Essayez Pappers.fr ou Société.com', 'error');
         } finally {
           this.loading = false;
         }

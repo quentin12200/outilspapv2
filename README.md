@@ -9,8 +9,23 @@ notamment les bases de données issues des PV retenus.
   mais il est disponible en téléchargement via les *Releases*.
 
 📦 **Téléchargement direct :**
-[👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/PV-retenus-branche-interpro-Audience-et-SVE/releases/latest)
+[👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/outilspapv2/releases/latest)
+
+ℹ️ **Où placer le fichier ?** Déposez `papcse.db` à la racine du dépôt (au même niveau
+que ce README) ou mettez à jour la variable d’environnement `DATABASE_URL` pour pointer
+vers son emplacement.
 
 ## 🔐 Vérification d’intégrité
 Pour vérifier que le fichier téléchargé n’a pas été altéré, comparez le SHA-256 :
+
+```bash
+sha256sum papcse.db
+# 36f5a979939849c7429d2ea3f06d376de3485dc645b59daf26b2be2eb866d6b8  papcse.db
+```
+
+## 🌐 Utilisation de l'API Sirene
+
+Les recherches SIRET réalisées depuis la page « Recherche de SIRET » s'appuient sur l'API Sirene de l'INSEE.
+Pour éviter les erreurs 401/403 et bénéficier d'un débit confortable, ajoutez un jeton Bearer
+dans la variable d'environnement `SIRENE_API_TOKEN` (ou `SIRENE_API_KEY`) sur votre instance Railway.
 

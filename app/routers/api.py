@@ -7,7 +7,7 @@ from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
 from ..schemas import SiretSummaryOut
-from ..services.sirene_api import enrichir_siret, SireneAPIError
+from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -194,6 +194,21 @@ def dashboard_stats(db: Session = Depends(get_session)):
 # ============================================================================
 # ENRICHISSEMENT API SIRENE
 # ============================================================================
+
+@router.get("/sirene/search")
+async def sirene_search(
+    nom: str = Query(..., min_length=2),
+    ville: str = Query(..., min_length=2),
+    limit: int = Query(10, ge=1, le=20),
+):
+    """Recherche d'établissements via l'API Sirene."""
+
+    try:
+        results = await rechercher_siret(nom, ville, limit)
+        return {"results": results}
+    except SireneAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
 
 @router.post("/sirene/enrichir/{siret}")
 async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
