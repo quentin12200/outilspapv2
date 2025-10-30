@@ -48,51 +48,139 @@
 </section>
 
 {% if columns %}
-<!-- Columns Detected -->
+<!-- Columns Detected - Hidden by default -->
 <section class="bg-white rounded-xl shadow-md p-6 mb-8">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">
-    <i class="fas fa-columns text-blue-500 mr-2"></i>
-    Colonnes détectées
-    <span class="text-sm font-normal text-gray-500 ml-2">({{ columns|length }} colonnes)</span>
-  </h2>
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-    {% for col in columns %}
-    <div class="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-      <i class="fas fa-tag text-gray-400"></i>
-      <span class="text-sm font-medium text-gray-700">{{ col }}</span>
+  <details class="group">
+    <summary class="cursor-pointer text-xl font-bold text-gray-800 hover:text-cgt-red transition flex items-center justify-between">
+      <span>
+        <i class="fas fa-columns text-blue-500 mr-2"></i>
+        Colonnes détectées
+        <span class="text-sm font-normal text-gray-500 ml-2">({{ columns|length }} colonnes)</span>
+      </span>
+      <i class="fas fa-chevron-down group-open:rotate-180 transition-transform text-gray-400"></i>
+    </summary>
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      {% for col in columns %}
+      <div class="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+        <i class="fas fa-tag text-gray-400 text-xs"></i>
+        <span class="text-sm text-gray-700">{{ col }}</span>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
+    <p class="mt-3 text-xs text-gray-500">
+      <i class="fas fa-info-circle mr-1"></i>
+      Cliquez pour voir/masquer toutes les colonnes du fichier
+    </p>
+  </details>
+</section>
+
+<!-- Summary Stats -->
+<section class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-8 border-l-4 border-blue-500">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="text-center">
+      <p class="text-3xl font-bold text-blue-600">{{ columns|length }}</p>
+      <p class="text-sm text-gray-600 mt-1">Colonnes</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold text-green-600">{{ preview_rows|length }}</p>
+      <p class="text-sm text-gray-600 mt-1">Lignes (aperçu)</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold {% if col_siren %}text-green-600{% else %}text-red-600{% endif %}">
+        {% if col_siren %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-times-circle"></i>{% endif %}
+      </p>
+      <p class="text-sm text-gray-600 mt-1">Colonne SIREN</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold text-purple-600">{{ match_count|default(0) }}</p>
+      <p class="text-sm text-gray-600 mt-1">Correspondances</p>
+    </div>
   </div>
 </section>
 {% endif %}
 
 {% if preview_rows %}
-<!-- Preview Section -->
+<!-- Preview Section - Only key columns -->
 <section class="bg-white rounded-xl shadow-md p-6 mb-8">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">
-    <i class="fas fa-eye text-purple-500 mr-2"></i>
-    Aperçu des données
-    <span class="text-sm font-normal text-gray-500 ml-2">(10 premières lignes)</span>
-  </h2>
-  <div class="overflow-x-auto rounded-lg border border-gray-200">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
-        <tr>
-          {% for col in columns %}
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase whitespace-nowrap">{{ col }}</th>
+  <details class="group">
+    <summary class="cursor-pointer text-xl font-bold text-gray-800 hover:text-cgt-red transition flex items-center justify-between">
+      <span>
+        <i class="fas fa-eye text-purple-500 mr-2"></i>
+        Aperçu des données
+        <span class="text-sm font-normal text-gray-500 ml-2">(10 premières lignes)</span>
+      </span>
+      <i class="fas fa-chevron-down group-open:rotate-180 transition-transform text-gray-400"></i>
+    </summary>
+    <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+      {% set important_cols = [] %}
+      {% for col in columns %}
+        {% if col.lower() in ['siren', 'siret', 'raison sociale', 'fd', 'ud', 'région', 'cp', 'ville', 'idcc déclaré', 'presence cgt', '% cgt', 'groupe sbf 120 o/n', 'nom du groupe'] %}
+          {% set _ = important_cols.append(col) %}
+        {% endif %}
+      {% endfor %}
+
+      {% if important_cols %}
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
+          <tr>
+            {% for col in important_cols %}
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase whitespace-nowrap">{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for row in preview_rows %}
+          <tr class="hover:bg-gray-50 transition">
+            {% for col in important_cols %}
+            <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{{ row[col] }}</td>
+            {% endfor %}
+          </tr>
           {% endfor %}
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        {% for row in preview_rows %}
-        <tr class="hover:bg-gray-50 transition">
-          {% for col in columns %}
-          <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{{ row[col] }}</td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+      {% else %}
+      <p class="p-4 text-gray-600 text-center">
+        <i class="fas fa-info-circle mr-2"></i>
+        Aucune colonne clé détectée. Cliquez pour voir toutes les colonnes détectées ci-dessus.
+      </p>
+      {% endif %}
+    </div>
+    <p class="mt-3 text-xs text-gray-500">
+      <i class="fas fa-info-circle mr-1"></i>
+      Affichage uniquement des colonnes clés (SIREN, Raison sociale, FD, UD, CGT, etc.)
+    </p>
+  </details>
+</section>
+{% endif %}
+
+<!-- Warning if no SIREN column -->
+{% if columns and not col_siren %}
+<section class="bg-red-50 rounded-xl p-6 mb-8 border-l-4 border-red-500">
+  <div class="flex items-start space-x-4">
+    <i class="fas fa-exclamation-triangle text-red-600 text-3xl mt-1"></i>
+    <div class="flex-1">
+      <h3 class="text-xl font-bold text-red-900 mb-2">
+        Colonne SIREN non détectée
+      </h3>
+      <p class="text-red-800 mb-4">
+        Aucune colonne "SIREN" n'a été trouvée dans votre fichier. Le croisement avec les invitations PAP n'est pas possible.
+      </p>
+      <div class="bg-white rounded-lg p-4">
+        <h4 class="font-semibold text-gray-800 mb-2">
+          <i class="fas fa-wrench text-red-500 mr-2"></i>
+          Solution :
+        </h4>
+        <p class="text-sm text-gray-700">
+          Assurez-vous que votre fichier Excel contient une colonne nommée <strong class="text-red-600">"SIREN"</strong> ou <strong class="text-red-600">"Siren"</strong> avec les numéros SIREN à 9 chiffres.
+        </p>
+      </div>
+      <div class="mt-4">
+        <a href="/ciblage" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition inline-flex items-center space-x-2">
+          <i class="fas fa-redo"></i>
+          <span>Réessayer avec un autre fichier</span>
+        </a>
+      </div>
+    </div>
   </div>
 </section>
 {% endif %}
@@ -193,15 +281,54 @@
 
   {% else %}
   <!-- No Matches Message -->
-  <div class="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-    <i class="fas fa-search text-6xl text-gray-300 mb-4"></i>
-    <h3 class="text-xl font-bold text-gray-700 mb-2">Aucune correspondance trouvée</h3>
-    <p class="text-gray-600">
-      Aucune entreprise de votre fichier de ciblage n'a reçu d'invitation PAP.
-    </p>
-    <p class="text-sm text-gray-500 mt-2">
-      Vérifiez que votre fichier contient une colonne SIREN valide.
-    </p>
+  <div class="p-8 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+    <div class="flex items-start space-x-4">
+      <i class="fas fa-info-circle text-yellow-600 text-3xl mt-1"></i>
+      <div class="flex-1">
+        <h3 class="text-xl font-bold text-yellow-900 mb-3">
+          Aucune correspondance trouvée
+        </h3>
+        <p class="text-yellow-800 mb-4">
+          Les SIREN de votre fichier de ciblage ne correspondent à aucune invitation PAP enregistrée dans la base.
+        </p>
+
+        <div class="bg-white rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-gray-800 mb-2">
+            <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+            Causes possibles :
+          </h4>
+          <ul class="space-y-2 text-sm text-gray-700">
+            <li class="flex items-start space-x-2">
+              <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
+              <span><strong>Aucune invitation PAP importée :</strong> Allez dans Admin pour importer les invitations PAP (cycle 5)</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
+              <span><strong>SIREN différents :</strong> Les entreprises de votre fichier de ciblage n'ont pas encore reçu d'invitation PAP</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
+              <span><strong>Format SIREN incorrect :</strong> Vérifiez que la colonne SIREN contient bien 9 chiffres</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
+              <span><strong>Tableau non mis à jour :</strong> Allez dans Admin et cliquez sur "Recalculer le tableau"</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <a href="/admin" class="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center space-x-2">
+            <i class="fas fa-cog"></i>
+            <span>Aller dans Admin</span>
+          </a>
+          <a href="/" class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center space-x-2">
+            <i class="fas fa-home"></i>
+            <span>Voir les invitations PAP</span>
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
   {% endif %}
 </section>
