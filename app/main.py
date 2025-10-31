@@ -22,6 +22,11 @@ from .models import Invitation, SiretSummary
 DB_URL = os.getenv("DB_URL", "").strip()                # URL de l'asset Release GitHub
 DB_SHA256 = os.getenv("DB_SHA256", "").lower().strip()  # Empreinte optionnelle
 DB_GH_TOKEN = os.getenv("DB_GH_TOKEN", "").strip() or None  # Token si repo privé
+DB_FAIL_ON_HASH_MISMATCH = os.getenv("DB_FAIL_ON_HASH_MISMATCH", "").strip().lower()
+
+
+def _is_truthy(value: str) -> bool:
+    return value in {"1", "true", "yes", "on"}
 
 def _sha256_file(path: str) -> str:
     h = hashlib.sha256()
@@ -79,9 +84,16 @@ def ensure_sqlite_asset() -> None:
                 f"  want: {DB_SHA256}\n"
                 f"  path: {db_path}"
             )
-            if downloaded:
+            if downloaded and _is_truthy(DB_FAIL_ON_HASH_MISMATCH):
                 raise RuntimeError(message)
-            logger.warning("%s -- continuing because the database already existed.", message)
+
+            level = logging.ERROR if downloaded else logging.WARNING
+            logger.log(
+                level,
+                "%s -- continuing%s.",
+                message,
+                " (asset freshly downloaded)" if downloaded else " because the database already existed",
+            )
 
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()

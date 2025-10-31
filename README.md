@@ -37,6 +37,12 @@ sha256sum papcse.db
 # 36f5a979939849c7429d2ea3f06d376de3485dc645b59daf26b2be2eb866d6b8  papcse.db
 ```
 
+👉 **Déploiement :** l’application calcule cette empreinte au démarrage si la variable
+`DB_SHA256` est renseignée. Par défaut, elle continue à fonctionner même si le hash ne
+correspond plus (par exemple après un enrichissement local). Pour retrouver un blocage
+strict en cas d’écart, définissez `DB_FAIL_ON_HASH_MISMATCH=1` dans vos variables
+d’environnement.
+
 ## 🌐 Utilisation de l'API Sirene
 
 Les recherches SIRET réalisées depuis la page « Recherche de SIRET » s'appuient sur l'API Sirene de l'INSEE.
