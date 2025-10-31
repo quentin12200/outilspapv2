@@ -206,7 +206,8 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             adresse=pick_first_truthy(
                 "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
                 "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement",
-                "rue", "numero_et_voie", "voie"
+                "rue", "numero_et_voie", "voie", "adresse_etablissement", "adresse2", "complement_adresse",
+                "numero_voie", "adresse_geo", "adresse_complete_etablissement"
             ),
             code_postal=pick_first_truthy("code_postal", "code postal", "cp", "code_postal_etablissement", "postal"),
             commune=pick_first_truthy("commune", "ville", "localite", "libelle_commune_etablissement", "adresse_ville", "city"),
@@ -218,7 +219,9 @@ def ingest_invit_excel(session: Session, file_like) -> int:
                 "tranche_effectifs", "tranche_effectif", "tranche_effectifs_salaries", "tranche_effectif_salarie"
             ),
             effectifs_label=pick_first_truthy(
-                "effectifs", "effectif", "effectifs_salaries", "effectifs salaries", "effectifs categorie"
+                "effectifs", "effectif", "effectifs_salaries", "effectifs salaries", "effectifs categorie",
+                "effectif_salarie", "nb_salaries", "nombre_salaries", "salaries", "nombre_de_salaries",
+                "effectif_total", "total_effectif", "nb_employes", "nombre_employes"
             ),
             categorie_entreprise=pick_first_truthy(
                 "categorie_entreprise", "categorie", "taille_entreprise", "taille"

@@ -187,7 +187,8 @@ for inv in invitations:
             raw,
             "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
             "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement",
-            "rue", "numero_et_voie", "voie"
+            "rue", "numero_et_voie", "voie", "adresse_etablissement", "adresse2", "complement_adresse",
+            "numero_voie", "adresse_geo", "adresse_complete_etablissement"
         )
         if inv.adresse:
             updated = True
@@ -237,8 +238,9 @@ for inv in invitations:
     # Effectifs label
     if not inv.effectifs_label:
         inv.effectifs_label = _pick_from_raw(
-            raw, "effectifs", "effectif", "effectifs_salaries", "effectifs salaries",
-            "effectifs categorie"
+            raw, "effectifs", "effectif", "effectifs_salaries", "effectifs salaries", "effectifs categorie",
+            "effectif_salarie", "nb_salaries", "nombre_salaries", "salaries", "nombre_de_salaries",
+            "effectif_total", "total_effectif", "nb_employes", "nombre_employes"
         )
         if inv.effectifs_label:
             updated = True
