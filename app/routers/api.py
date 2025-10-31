@@ -120,74 +120,117 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
 def dashboard_stats(db: Session = Depends(get_session)):
     """Retourne les statistiques pour le tableau de bord"""
 
-    # Nombre total de SIRET
+    audience_threshold = 1000
+
+    inscrits_ref = func.coalesce(SiretSummary.inscrits_c4, SiretSummary.inscrits_c3, 0)
+    voix_ref = func.coalesce(SiretSummary.cgt_voix_c4, SiretSummary.cgt_voix_c3, 0)
+
     total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
 
-    # Nombre d'invitations PAP C5
-    total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
-
-    # Nombre de SIRET avec CGT implantée
-    cgt_implantee = db.query(func.count(SiretSummary.siret)).filter(
-        SiretSummary.cgt_implantee == True
+    audience_siret = db.query(func.count(SiretSummary.siret)).filter(
+        inscrits_ref >= audience_threshold
     ).scalar() or 0
 
-    # Nombre total d'inscrits C3 et C4
-    total_inscrits_c3 = db.query(func.sum(SiretSummary.inscrits_c3)).scalar() or 0
-    total_inscrits_c4 = db.query(func.sum(SiretSummary.inscrits_c4)).scalar() or 0
+    audience_inscrits = db.query(func.sum(inscrits_ref)).filter(
+        inscrits_ref >= audience_threshold
+    ).scalar() or 0
 
-    # Nombre total de voix CGT C3 et C4
-    total_voix_cgt_c3 = db.query(func.sum(SiretSummary.cgt_voix_c3)).scalar() or 0
-    total_voix_cgt_c4 = db.query(func.sum(SiretSummary.cgt_voix_c4)).scalar() or 0
+    audience_cgt_implantee = db.query(func.count(SiretSummary.siret)).filter(
+        inscrits_ref >= audience_threshold,
+        SiretSummary.cgt_implantee == True,  # noqa: E712
+    ).scalar() or 0
 
-    # Répartition par département (top 10)
-    dep_stats = db.query(
-        SiretSummary.dep,
-        func.count(SiretSummary.siret).label('count')
-    ).filter(
-        SiretSummary.dep.isnot(None)
-    ).group_by(
-        SiretSummary.dep
-    ).order_by(
-        func.count(SiretSummary.siret).desc()
-    ).limit(10).all()
+    audience_voix_cgt = db.query(func.sum(voix_ref)).filter(
+        inscrits_ref >= audience_threshold
+    ).scalar() or 0
 
-    # Évolution mensuelle des invitations (6 derniers mois)
+    audience_invitations = (
+        db.query(func.count(func.distinct(Invitation.siret)))
+        .join(SiretSummary, SiretSummary.siret == Invitation.siret)
+        .filter(inscrits_ref >= audience_threshold)
+        .scalar()
+        or 0
+    )
+
+    # Répartition par département (top 10) sur la cible
+    dep_stats = (
+        db.query(
+            SiretSummary.dep,
+            func.count(SiretSummary.siret).label("count"),
+        )
+        .filter(SiretSummary.dep.isnot(None), inscrits_ref >= audience_threshold)
+        .group_by(SiretSummary.dep)
+        .order_by(func.count(SiretSummary.siret).desc())
+        .limit(10)
+        .all()
+    )
+
+    # Évolution mensuelle des invitations (6 derniers mois) pour la cible
     from datetime import datetime, timedelta
+
     six_months_ago = datetime.now() - timedelta(days=180)
 
-    monthly_invitations = db.query(
-        func.strftime('%Y-%m', Invitation.date_invit).label('month'),
-        func.count(Invitation.id).label('count')
-    ).filter(
-        Invitation.date_invit >= six_months_ago
-    ).group_by(
-        func.strftime('%Y-%m', Invitation.date_invit)
-    ).order_by('month').all()
+    monthly_invitations = (
+        db.query(
+            func.strftime("%Y-%m", Invitation.date_invit).label("month"),
+            func.count(Invitation.id).label("count"),
+        )
+        .join(SiretSummary, SiretSummary.siret == Invitation.siret)
+        .filter(
+            Invitation.date_invit >= six_months_ago,
+            inscrits_ref >= audience_threshold,
+        )
+        .group_by(func.strftime("%Y-%m", Invitation.date_invit))
+        .order_by("month")
+        .all()
+    )
 
-    # Statistiques par statut PAP
-    statut_stats = db.query(
-        SiretSummary.statut_pap,
-        func.count(SiretSummary.siret).label('count')
-    ).filter(
-        SiretSummary.statut_pap.isnot(None)
-    ).group_by(
-        SiretSummary.statut_pap
-    ).all()
+    # Statistiques par statut PAP sur la cible
+    statut_stats = (
+        db.query(
+            SiretSummary.statut_pap,
+            func.count(SiretSummary.siret).label("count"),
+        )
+        .filter(
+            SiretSummary.statut_pap.isnot(None),
+            inscrits_ref >= audience_threshold,
+        )
+        .group_by(SiretSummary.statut_pap)
+        .all()
+    )
+
+    audience_inscrits = int(audience_inscrits or 0)
+    audience_voix_cgt = int(audience_voix_cgt or 0)
 
     return {
-        "total_siret": total_siret,
-        "total_invitations": total_invitations,
-        "cgt_implantee": cgt_implantee,
-        "cgt_implantee_percent": round((cgt_implantee / total_siret * 100) if total_siret > 0 else 0, 1),
-        "total_inscrits_c3": int(total_inscrits_c3),
-        "total_inscrits_c4": int(total_inscrits_c4),
-        "total_voix_cgt_c3": int(total_voix_cgt_c3),
-        "total_voix_cgt_c4": int(total_voix_cgt_c4),
-        "percent_voix_c3": round((total_voix_cgt_c3 / total_inscrits_c3 * 100) if total_inscrits_c3 > 0 else 0, 1),
-        "percent_voix_c4": round((total_voix_cgt_c4 / total_inscrits_c4 * 100) if total_inscrits_c4 > 0 else 0, 1),
+        "audience_threshold": audience_threshold,
+        "audience_siret": audience_siret,
+        "audience_share_percent": round(
+            (audience_siret / total_siret * 100) if total_siret > 0 else 0, 1
+        ),
+        "audience_inscrits": audience_inscrits,
+        "audience_invitations": audience_invitations,
+        "audience_invitations_percent": round(
+            (audience_invitations / audience_siret * 100) if audience_siret > 0 else 0,
+            1,
+        ),
+        "audience_non_invites": max(audience_siret - audience_invitations, 0),
+        "audience_cgt_implantee": audience_cgt_implantee,
+        "audience_cgt_implantee_percent": round(
+            (audience_cgt_implantee / audience_siret * 100) if audience_siret > 0 else 0,
+            1,
+        ),
+        "audience_sans_cgt": max(audience_siret - audience_cgt_implantee, 0),
+        "audience_voix_cgt": audience_voix_cgt,
+        "audience_voix_percent": round(
+            (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
+            1,
+        ),
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
-        "monthly_invitations": [{"month": m[0], "count": m[1]} for m in monthly_invitations],
-        "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats]
+        "monthly_invitations": [
+            {"month": m[0], "count": m[1]} for m in monthly_invitations
+        ],
+        "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
     }
 
 

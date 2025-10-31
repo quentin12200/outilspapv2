@@ -39,84 +39,86 @@
 
   <!-- Stats Cards Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Card 1: Total SIRET -->
+    <!-- Card 1: Cible audience SIRET -->
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
       <div class="flex items-center justify-between mb-3">
         <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">Total SIRET</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.total_siret || '0'">0</p>
+          <p class="text-sm text-gray-500 uppercase font-semibold">SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrits</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.audience_siret ? stats.audience_siret.toLocaleString('fr-FR') : '0'">0</p>
         </div>
         <div class="bg-blue-100 rounded-full p-4">
           <i class="fas fa-building text-blue-500 text-2xl"></i>
         </div>
       </div>
-      <div class="pt-3 border-t border-gray-100">
-        <p class="text-xs text-gray-600">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4
+      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
+        <p class="text-gray-600">
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 (dernier cycle disponible)
         </p>
-        <p class="text-xs text-gray-500 mt-1">Établissements avec au moins un PV (Cycle 3 ou 4)</p>
+        <p class="text-gray-500">Part du fichier SIRET : <span x-text="(stats.audience_share_percent || 0) + '%'"></span></p>
+        <p class="text-gray-500">Audience cumulée : <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</p>
       </div>
     </div>
 
-    <!-- Card 2: Invitations PAP -->
+    <!-- Card 2: Invitations PAP sur la cible -->
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
       <div class="flex items-center justify-between mb-3">
         <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">Invitations PAP C5</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.total_invitations || '0'">0</p>
+          <p class="text-sm text-gray-500 uppercase font-semibold">Invitations PAP C5 ciblées</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.audience_invitations ? stats.audience_invitations.toLocaleString('fr-FR') : '0'">0</p>
         </div>
         <div class="bg-green-100 rounded-full p-4">
           <i class="fas fa-envelope text-green-500 text-2xl"></i>
         </div>
       </div>
-      <div class="pt-3 border-t border-gray-100">
-        <p class="text-xs text-gray-600">
-          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5
+      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
+        <p class="text-gray-600">
+          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 filtrées sur la cible ≥ <span x-text="stats.audience_threshold || 1000"></span>
         </p>
-        <p class="text-xs text-gray-500 mt-1">Invitations au PAP reçues (Cycle 5 : 2025-2028)</p>
+        <p class="text-gray-500">Couverture : <span x-text="(stats.audience_invitations_percent || 0) + '%'"></span> des SIRET prioritaires</p>
+        <p class="text-gray-500">Restant à inviter : <span x-text="stats.audience_non_invites ? stats.audience_non_invites.toLocaleString('fr-FR') : '0'"></span> SIRET</p>
       </div>
     </div>
 
-    <!-- Card 3: CGT Implantée -->
+    <!-- Card 3: CGT implantée sur la cible -->
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
       <div class="flex items-center justify-between mb-3">
         <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">CGT Implantée</p>
+          <p class="text-sm text-gray-500 uppercase font-semibold">CGT implantée (cible)</p>
           <p class="text-3xl font-bold text-gray-800 mt-2">
-            <span x-text="stats.cgt_implantee || '0'">0</span>
-            <span class="text-sm text-gray-500 ml-2" x-text="'(' + (stats.cgt_implantee_percent || '0') + '%)'"></span>
+            <span x-text="stats.audience_cgt_implantee ? stats.audience_cgt_implantee.toLocaleString('fr-FR') : '0'"></span>
+            <span class="text-sm text-gray-500 ml-2" x-text="'(' + (stats.audience_cgt_implantee_percent || 0) + '%)'"></span>
           </p>
         </div>
         <div class="bg-red-100 rounded-full p-4">
           <i class="fas fa-flag text-cgt-red text-2xl"></i>
         </div>
       </div>
-      <div class="pt-3 border-t border-gray-100">
-        <p class="text-xs text-gray-600">
-          <i class="fas fa-vote-yea mr-1"></i><strong>Source :</strong> PV C3 + C4
+      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
+        <p class="text-gray-600">
+          <i class="fas fa-vote-yea mr-1"></i><strong>Source :</strong> PV C3 + C4 (dernier cycle disponible)
         </p>
-        <p class="text-xs text-gray-500 mt-1">SIRET où la CGT a obtenu ≥ 1 voix (C3 ou C4)</p>
+        <p class="text-gray-500">SIRET sans implantation : <span x-text="stats.audience_sans_cgt ? stats.audience_sans_cgt.toLocaleString('fr-FR') : '0'"></span></p>
       </div>
     </div>
 
-    <!-- Card 4: Voix CGT C4 -->
+    <!-- Card 4: Voix CGT sur la cible -->
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
       <div class="flex items-center justify-between mb-3">
         <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">% Voix CGT C4</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="(stats.percent_voix_c4 || '0') + '%'">0%</p>
+          <p class="text-sm text-gray-500 uppercase font-semibold">Part des voix CGT (cible)</p>
+          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="(stats.audience_voix_percent || 0) + '%'"></p>
         </div>
         <div class="bg-purple-100 rounded-full p-4">
           <i class="fas fa-chart-pie text-purple-500 text-2xl"></i>
         </div>
       </div>
-      <div class="pt-3 border-t border-gray-100">
-        <p class="text-xs text-gray-600">
-          <i class="fas fa-calendar-alt mr-1"></i><strong>Source :</strong> PV Cycle 4 uniquement
+      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
+        <p class="text-gray-600">
+          <i class="fas fa-calendar-alt mr-1"></i><strong>Source :</strong> Dernier PV disponible (C4 sinon C3)
         </p>
-        <p class="text-xs text-gray-500 mt-1">
-          <span x-text="stats.total_voix_cgt_c4 || '0'"></span> voix CGT /
-          <span x-text="stats.total_inscrits_c4 || '0'"></span> inscrits
+        <p class="text-gray-500">
+          <span x-text="stats.audience_voix_cgt ? stats.audience_voix_cgt.toLocaleString('fr-FR') : '0'"></span> voix CGT /
+          <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es
         </p>
       </div>
     </div>
@@ -129,10 +131,10 @@
       <div class="mb-4">
         <h3 class="text-xl font-bold text-gray-800">
           <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
-          Top 10 Départements
+          Top 10 départements (≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
         </h3>
         <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • Nombre de SIRET par département
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • SIRET prioritaires par département
         </p>
       </div>
       <div style="height: 300px; position: relative;">
@@ -145,10 +147,10 @@
       <div class="mb-4">
         <h3 class="text-xl font-bold text-gray-800">
           <i class="fas fa-calendar-alt text-cgt-red mr-2"></i>
-          Invitations Mensuelles (6 mois)
+          Invitations mensuelles (cible)
         </h3>
         <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 • Évolution sur 6 mois
+          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span>
         </p>
       </div>
       <div style="height: 300px; position: relative;">
@@ -163,10 +165,10 @@
       <div>
         <h3 class="text-xl font-bold text-gray-800">
           <i class="fas fa-info-circle text-cgt-red mr-2"></i>
-          Répartition par Statut PAP
+          Statut PAP des SIRET prioritaires
         </h3>
         <p class="text-xs text-gray-600 mt-2">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • Nombre de SIRET par statut
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> par statut
         </p>
       </div>
     </div>
@@ -176,7 +178,7 @@
       <p class="text-xs text-gray-700">
         <i class="fas fa-lightbulb text-blue-600 mr-1"></i>
         <strong>Explication :</strong>
-        Les statuts indiquent pour quels cycles un SIRET a eu des Procès-Verbaux :
+        Les statuts indiquent pour quels cycles un SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> a eu des Procès-Verbaux :
       </p>
       <ul class="mt-2 ml-4 text-xs text-gray-600 space-y-1">
         <li>• <strong>C3</strong> : Uniquement PV du Cycle 3 (2017-2020)</li>
@@ -556,12 +558,14 @@
         const ctx = document.getElementById('departmentsChart');
         if (!ctx || !this.stats.departments) return;
 
+        const threshold = this.stats.audience_threshold || 1000;
+
         new Chart(ctx, {
           type: 'bar',
           data: {
             labels: this.stats.departments.map(d => d.dep),
             datasets: [{
-              label: 'Nombre de SIRET',
+              label: `SIRET ≥ ${threshold} inscrits`,
               data: this.stats.departments.map(d => d.count),
               backgroundColor: '#d5001c',
               borderColor: '#ab0015',
@@ -592,12 +596,14 @@
         const ctx = document.getElementById('monthlyChart');
         if (!ctx || !this.stats.monthly_invitations) return;
 
+        const threshold = this.stats.audience_threshold || 1000;
+
         new Chart(ctx, {
           type: 'line',
           data: {
             labels: this.stats.monthly_invitations.map(m => m.month),
             datasets: [{
-              label: 'Invitations',
+              label: `Invitations (≥ ${threshold})`,
               data: this.stats.monthly_invitations.map(m => m.count),
               borderColor: '#d5001c',
               backgroundColor: 'rgba(213, 0, 28, 0.1)',
