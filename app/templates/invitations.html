@@ -101,11 +101,15 @@
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Enseigne</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Adresse</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ville</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Code postal</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Source</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Actif</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Siège</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Activité</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Effectifs</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Catégorie</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Enrichissement</th>
         </tr>
       </thead>
@@ -118,6 +122,7 @@
           </td>
           <td class="px-4 py-3">{{ invit.denomination or '' }}</td>
           <td class="px-4 py-3">{{ invit.enseigne or '' }}</td>
+          <td class="px-4 py-3">{{ invit.adresse or '' }}</td>
           <td class="px-4 py-3">{{ invit.commune or '' }}</td>
           <td class="px-4 py-3 whitespace-nowrap">{{ invit.code_postal or '' }}</td>
           <td class="px-4 py-3">{{ invit.source or '—' }}</td>
@@ -139,6 +144,31 @@
             <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
             {% endif %}
           </td>
+          <td class="px-4 py-3" data-sort-value="{{ invit.activite_principale or '' }}">
+            {% if invit.activite_principale or invit.libelle_activite %}
+            <div class="flex flex-col">
+              <span class="font-semibold text-gray-800">{{ invit.libelle_activite or 'Activité inconnue' }}</span>
+              {% if invit.activite_principale %}
+              <span class="text-xs text-gray-500">Code NAF {{ invit.activite_principale }}</span>
+              {% endif %}
+            </div>
+            {% else %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3" data-sort-value="{{ invit.tranche_effectifs or '' }}">
+            {% if invit.effectifs_label or invit.tranche_effectifs %}
+            <div class="flex flex-col">
+              <span class="font-semibold text-gray-800">{{ invit.effectifs_label or 'Effectifs inconnus' }}</span>
+              {% if invit.tranche_effectifs %}
+              <span class="text-xs text-gray-500">Tranche {{ invit.tranche_effectifs }}</span>
+              {% endif %}
+            </div>
+            {% else %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3" data-sort-value="{{ invit.categorie_entreprise or '' }}">{{ invit.categorie_entreprise or '—' }}</td>
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_enrichissement or '' }}">{{ invit.date_enrichissement or '' }}</td>
         </tr>
         {% endfor %}
