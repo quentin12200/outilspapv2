@@ -75,6 +75,21 @@
       transform: scale(1.01);
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
+
+    .sortable-header {
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      white-space: nowrap;
+    }
+
+    .sortable-header .sort-indicator {
+      font-weight: normal;
+      margin-left: 0.25rem;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      display: inline-block;
+    }
   </style>
 
   {% block head %}{% endblock %}
@@ -88,10 +103,10 @@
 
         <!-- Logo & Title -->
         <div class="flex items-center space-x-4">
-          <img src="/static/logo.png" alt="Logo CGT" class="h-14 w-auto bg-white rounded-lg p-2 shadow-md">
+          <img src="{{ url_for('static', path='logo-opcv2.svg') }}" alt="Logo Outils PAP Ciblage" class="h-16 w-auto bg-white/95 rounded-lg p-1 shadow-md object-contain border border-white/50">
           <div class="hidden md:block">
-            <h1 class="text-2xl font-bold text-white tracking-tight">PAP/CSE Dashboard</h1>
-            <p class="text-sm text-red-100">Suivi Audience Interpro CGT</p>
+            <h1 class="text-2xl font-bold text-white tracking-tight">PAP/CSE · Tableau de bord</h1>
+            <p class="text-sm text-red-100">Suivi ciblage PAP</p>
           </div>
         </div>
 
@@ -101,9 +116,17 @@
             <i class="fas fa-home"></i>
             <span>Accueil</span>
           </a>
+          <a href="/presentation" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-bullseye"></i>
+            <span>Présentation</span>
+          </a>
           <a href="/recherche-siret" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
             <i class="fas fa-search"></i>
             <span>Recherche SIRET</span>
+          </a>
+          <a href="/invitations" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-envelope-open-text"></i>
+            <span>Invitations</span>
           </a>
           <a href="/ciblage" class="px-4 py-2 rounded-lg text-white hover:bg-white/20 transition flex items-center space-x-2">
             <i class="fas fa-crosshairs"></i>
@@ -132,8 +155,14 @@
         <a href="/" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
           <i class="fas fa-home mr-2"></i> Accueil
         </a>
+        <a href="/presentation" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
+          <i class="fas fa-bullseye mr-2"></i> Présentation
+        </a>
         <a href="/recherche-siret" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
           <i class="fas fa-search mr-2"></i> Recherche SIRET
+        </a>
+        <a href="/invitations" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
+          <i class="fas fa-envelope-open-text mr-2"></i> Invitations
         </a>
         <a href="/ciblage" class="block px-3 py-2 rounded-md text-white hover:bg-white/20 transition">
           <i class="fas fa-crosshairs mr-2"></i> Ciblage
@@ -155,14 +184,16 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div>
-          <h3 class="text-lg font-bold mb-3">PAP/CSE Dashboard</h3>
-          <p class="text-gray-400 text-sm">Suivi de l'audience interprofessionnelle de la CGT</p>
+          <h3 class="text-lg font-bold mb-3">PAP/CSE · Tableau de bord</h3>
+          <p class="text-gray-400 text-sm">Suivi ciblage PAP</p>
         </div>
         <div>
           <h3 class="text-lg font-bold mb-3">Navigation</h3>
           <ul class="space-y-2 text-sm">
             <li><a href="/" class="text-gray-400 hover:text-white">Accueil</a></li>
+            <li><a href="/presentation" class="text-gray-400 hover:text-white">Présentation</a></li>
             <li><a href="/recherche-siret" class="text-gray-400 hover:text-white">Recherche SIRET</a></li>
+            <li><a href="/invitations" class="text-gray-400 hover:text-white">Invitations</a></li>
             <li><a href="/ciblage" class="text-gray-400 hover:text-white">Ciblage</a></li>
             <li><a href="/admin" class="text-gray-400 hover:text-white">Admin</a></li>
           </ul>
