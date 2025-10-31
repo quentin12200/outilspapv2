@@ -130,18 +130,36 @@ def fill_invitation_columns_from_raw():
     session = Session(bind=engine)
 
     try:
+        # Compte d'abord les statistiques
+        total_invitations = session.query(Invitation).count()
+        invitations_with_raw = session.query(Invitation).filter(Invitation.raw.isnot(None)).count()
+        denomination_null = session.query(Invitation).filter(Invitation.denomination.is_(None)).count()
+
+        logger.info(f"  📊 Statistiques :")
+        logger.info(f"    • Total invitations        : {total_invitations}")
+        logger.info(f"    • Avec champ raw rempli    : {invitations_with_raw}")
+        logger.info(f"    • Denomination NULL        : {denomination_null}")
+
         # Récupère toutes les invitations qui ont un champ raw non-null
         invitations = session.query(Invitation).filter(Invitation.raw.isnot(None)).all()
 
         if not invitations:
-            logger.info("  ℹ️  Aucune invitation avec données raw à traiter")
+            logger.warning("  ⚠️  Aucune invitation avec données raw à traiter")
+            logger.warning("  💡 Si le tableau est vide, les données n'ont peut-être pas de champ raw.")
+            logger.warning("  💡 Exécutez le script : python scripts/migrate_and_fix_invitations.py")
             return
 
         updated_count = 0
+        skipped_already_filled = 0
 
         for inv in invitations:
             raw = inv.raw or {}
             updated = False
+
+            # Si les colonnes importantes sont déjà remplies, on skip
+            if inv.denomination and inv.commune and inv.code_postal:
+                skipped_already_filled += 1
+                continue
 
             # Denomination
             if not inv.denomination:
@@ -244,7 +262,15 @@ def fill_invitation_columns_from_raw():
                 updated_count += 1
 
         session.commit()
-        logger.info(f"✅ Migration terminée: {updated_count} invitations mises à jour")
+        logger.info(f"✅ Migration terminée !")
+        logger.info(f"    • Invitations mises à jour    : {updated_count}")
+        logger.info(f"    • Invitations déjà remplies   : {skipped_already_filled}")
+        logger.info(f"    • Total traité                : {updated_count + skipped_already_filled}")
+
+        if updated_count == 0 and denomination_null > 0:
+            logger.warning("  ⚠️  Aucune mise à jour effectuée mais des colonnes sont NULL")
+            logger.warning("  💡 Les données n'ont probablement pas de champ raw rempli")
+            logger.warning("  💡 Exécutez : python scripts/migrate_and_fix_invitations.py")
 
     except Exception as e:
         session.rollback()
