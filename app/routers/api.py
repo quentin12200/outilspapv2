@@ -122,7 +122,13 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
     audience_threshold = 1000
 
-    inscrits_ref = func.coalesce(SiretSummary.inscrits_c4, SiretSummary.inscrits_c3, 0)
+    # On retient la meilleure audience observée entre les cycles 3 et 4.
+    # Les colonnes peuvent valoir 0 lorsqu'aucun scrutin n'a eu lieu : on
+    # neutralise donc ces zéros avant de calculer le maximum.
+    inscrits_ref = func.max(
+        func.coalesce(func.nullif(SiretSummary.inscrits_c4, 0), 0),
+        func.coalesce(func.nullif(SiretSummary.inscrits_c3, 0), 0),
+    )
     voix_ref = func.coalesce(SiretSummary.cgt_voix_c4, SiretSummary.cgt_voix_c3, 0)
 
     total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
