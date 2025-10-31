@@ -54,6 +54,10 @@
         <p class="text-gray-600">
           <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 (dernier cycle disponible)
         </p>
+        <p class="text-gray-500">
+          C3 : <span x-text="stats.audience_siret_c3 ? stats.audience_siret_c3.toLocaleString('fr-FR') : '0'"></span> SIRET •
+          C4 : <span x-text="stats.audience_siret_c4 ? stats.audience_siret_c4.toLocaleString('fr-FR') : '0'"></span> SIRET
+        </p>
         <p class="text-gray-500">Part du fichier SIRET : <span x-text="(stats.audience_share_percent || 0) + '%'"></span></p>
         <p class="text-gray-500">Audience cumulée : <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</p>
       </div>

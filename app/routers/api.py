@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case, or_
 from typing import List
 from datetime import datetime
 from ..db import get_session, Base, engine
@@ -122,38 +122,75 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
     audience_threshold = 1000
 
-    # On retient la meilleure audience observée entre les cycles 3 et 4.
-    # Les colonnes peuvent valoir 0 lorsqu'aucun scrutin n'a eu lieu : on
-    # neutralise donc ces zéros avant de calculer le maximum.
-    inscrits_ref = func.max(
-        func.coalesce(func.nullif(SiretSummary.inscrits_c4, 0), 0),
-        func.coalesce(func.nullif(SiretSummary.inscrits_c3, 0), 0),
+    inscrits_c3 = func.coalesce(func.nullif(SiretSummary.inscrits_c3, 0), 0)
+    inscrits_c4 = func.coalesce(func.nullif(SiretSummary.inscrits_c4, 0), 0)
+
+    audience_filter = or_(
+        inscrits_c3 >= audience_threshold,
+        inscrits_c4 >= audience_threshold,
     )
-    voix_ref = func.coalesce(SiretSummary.cgt_voix_c4, SiretSummary.cgt_voix_c3, 0)
+
+    inscrits_ref = case(
+        (inscrits_c4 >= inscrits_c3, inscrits_c4),
+        else_=inscrits_c3,
+    )
+    voix_ref = func.coalesce(
+        func.nullif(SiretSummary.cgt_voix_c4, 0),
+        func.nullif(SiretSummary.cgt_voix_c3, 0),
+        0,
+    )
 
     total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
 
-    audience_siret = db.query(func.count(SiretSummary.siret)).filter(
-        inscrits_ref >= audience_threshold
-    ).scalar() or 0
+    audience_siret_c3 = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(inscrits_c3 >= audience_threshold)
+        .scalar()
+        or 0
+    )
 
-    audience_inscrits = db.query(func.sum(inscrits_ref)).filter(
-        inscrits_ref >= audience_threshold
-    ).scalar() or 0
+    audience_siret_c4 = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(inscrits_c4 >= audience_threshold)
+        .scalar()
+        or 0
+    )
 
-    audience_cgt_implantee = db.query(func.count(SiretSummary.siret)).filter(
-        inscrits_ref >= audience_threshold,
-        SiretSummary.cgt_implantee == True,  # noqa: E712
-    ).scalar() or 0
+    audience_siret = (
+        db.query(func.count(func.distinct(SiretSummary.siret)))
+        .filter(audience_filter)
+        .scalar()
+        or 0
+    )
 
-    audience_voix_cgt = db.query(func.sum(voix_ref)).filter(
-        inscrits_ref >= audience_threshold
-    ).scalar() or 0
+    audience_inscrits = (
+        db.query(func.sum(inscrits_ref))
+        .filter(audience_filter)
+        .scalar()
+        or 0
+    )
+
+    audience_cgt_implantee = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(
+            audience_filter,
+            SiretSummary.cgt_implantee == True,  # noqa: E712
+        )
+        .scalar()
+        or 0
+    )
+
+    audience_voix_cgt = (
+        db.query(func.sum(voix_ref))
+        .filter(audience_filter)
+        .scalar()
+        or 0
+    )
 
     audience_invitations = (
         db.query(func.count(func.distinct(Invitation.siret)))
         .join(SiretSummary, SiretSummary.siret == Invitation.siret)
-        .filter(inscrits_ref >= audience_threshold)
+        .filter(audience_filter)
         .scalar()
         or 0
     )
@@ -164,7 +201,7 @@ def dashboard_stats(db: Session = Depends(get_session)):
             SiretSummary.dep,
             func.count(SiretSummary.siret).label("count"),
         )
-        .filter(SiretSummary.dep.isnot(None), inscrits_ref >= audience_threshold)
+        .filter(SiretSummary.dep.isnot(None), audience_filter)
         .group_by(SiretSummary.dep)
         .order_by(func.count(SiretSummary.siret).desc())
         .limit(10)
@@ -184,7 +221,7 @@ def dashboard_stats(db: Session = Depends(get_session)):
         .join(SiretSummary, SiretSummary.siret == Invitation.siret)
         .filter(
             Invitation.date_invit >= six_months_ago,
-            inscrits_ref >= audience_threshold,
+            audience_filter,
         )
         .group_by(func.strftime("%Y-%m", Invitation.date_invit))
         .order_by("month")
@@ -199,7 +236,7 @@ def dashboard_stats(db: Session = Depends(get_session)):
         )
         .filter(
             SiretSummary.statut_pap.isnot(None),
-            inscrits_ref >= audience_threshold,
+            audience_filter,
         )
         .group_by(SiretSummary.statut_pap)
         .all()
@@ -211,6 +248,8 @@ def dashboard_stats(db: Session = Depends(get_session)):
     return {
         "audience_threshold": audience_threshold,
         "audience_siret": audience_siret,
+        "audience_siret_c3": audience_siret_c3,
+        "audience_siret_c4": audience_siret_c4,
         "audience_share_percent": round(
             (audience_siret / total_siret * 100) if total_siret > 0 else 0, 1
         ),
