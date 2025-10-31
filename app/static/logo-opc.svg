@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="logo-title logo-desc">
+  <title id="logo-title">Outils PAP Ciblage</title>
+  <desc id="logo-desc">Logo combinant une feuille, une cible rouge et une épingle de localisation avec le texte Outils PAP Ciblage.</desc>
+  <rect width="512" height="512" fill="#ffffff" rx="48"/>
+  <g transform="translate(70 90)">
+    <rect x="0" y="0" width="220" height="280" rx="28" fill="#eef2f7"/>
+    <path d="M220 0v80h80" fill="#ffffff"/>
+    <path d="M220 0v80h80" fill="none" stroke="#0c172a" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M24 60h144" stroke="#0c172a" stroke-width="12" stroke-linecap="round"/>
+    <path d="M24 140h168" stroke="#0c172a" stroke-width="16" stroke-linecap="round"/>
+    <path d="M24 200h168" stroke="#0c172a" stroke-width="16" stroke-linecap="round"/>
+    <path d="M24 260h120" stroke="#0c172a" stroke-width="16" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(256 132)">
+    <circle cx="130" cy="130" r="120" fill="#e12539"/>
+    <circle cx="130" cy="130" r="84" fill="#ffffff"/>
+    <circle cx="130" cy="130" r="54" fill="#e12539"/>
+    <circle cx="130" cy="130" r="26" fill="#ffffff"/>
+    <circle cx="130" cy="130" r="120" fill="none" stroke="#ffffff" stroke-width="12"/>
+    <circle cx="130" cy="130" r="100" fill="none" stroke="#e12539" stroke-width="12"/>
+    <path d="M130 210c45 0 82 36 82 82c0 44-62 94-78 106a8 8 0 0 1-8 0c-16-12-78-62-78-106c0-46 37-82 82-82z" fill="#e12539"/>
+    <circle cx="130" cy="238" r="34" fill="#ffffff"/>
+  </g>
+  <g fill="#0c172a" font-family="'DejaVu Sans', Arial, sans-serif" font-weight="700">
+    <text x="80" y="404" font-size="64">Outils PAP</text>
+    <text x="80" y="464" font-size="64">Ciblage</text>
+  </g>
+</svg>
