@@ -3,6 +3,9 @@
 
 {% block head %}
 <style>
+  [x-cloak] {
+    display: none !important;
+  }
   .stat-card {
     transition: all 0.3s ease;
   }
@@ -25,20 +28,47 @@
 {% endif %}
 
 <!-- Dashboard Stats Section -->
-<section class="mb-8" x-data="dashboardData()" x-init="loadStats()">
-  <div class="flex items-center justify-between mb-6">
-    <h2 class="text-3xl font-bold text-gray-800">
-      <i class="fas fa-chart-line text-cgt-red mr-2"></i>
-      Tableau de bord
-    </h2>
-    <button @click="loadStats()" class="px-4 py-2 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center space-x-2">
+<section class="mb-8 relative" x-data="dashboardData()" x-init="loadStats()">
+  <div
+    x-cloak
+    x-show="loading"
+    x-transition.opacity.duration.300ms
+    class="absolute inset-0 z-20 flex items-center justify-center bg-white/80"
+  >
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-6 text-center border border-gray-200">
+      <div class="flex justify-center">
+        <span class="w-16 h-16 border-4 border-cgt-red border-t-transparent rounded-full animate-spin"></span>
+      </div>
+      <div>
+        <p class="text-lg font-semibold text-gray-800">Chargement des données…</p>
+        <p class="text-sm text-gray-500">Merci de patienter, les indicateurs se préparent.</p>
+      </div>
+      <div class="space-y-2">
+        <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div
+            class="bg-cgt-red h-2 transition-all duration-200 ease-out"
+            :style="`width: ${loadingProgress}%`"
+          ></div>
+        </div>
+        <p class="text-sm font-medium text-gray-600" x-text="`${loadingProgress}%`"></p>
+      </div>
+    </div>
+  </div>
+
+  <div :class="{ 'blur-sm pointer-events-none select-none': loading }">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-3xl font-bold text-gray-800">
+        <i class="fas fa-chart-line text-cgt-red mr-2"></i>
+        Tableau de bord
+      </h2>
+      <button @click="loadStats()" class="px-4 py-2 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center space-x-2">
       <i class="fas fa-sync-alt"></i>
       <span>Actualiser</span>
     </button>
   </div>
 
-  <!-- Stats Cards Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Stats Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <!-- Card 1: Cible audience SIRET -->
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
       <div class="flex items-center justify-between mb-3">
@@ -130,8 +160,8 @@
     </div>
   </div>
 
-  <!-- Charts Row -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <!-- Departments Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
       <div class="mb-4">
@@ -165,8 +195,8 @@
     </div>
   </div>
 
-  <!-- Statut PAP Stats -->
-  <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+    <!-- Statut PAP Stats -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
     <div class="flex items-start justify-between mb-4">
       <div>
         <h3 class="text-xl font-bold text-gray-800">
@@ -202,6 +232,7 @@
         </div>
       </template>
     </div>
+  </div>
   </div>
 </section>
 
@@ -535,29 +566,67 @@
 
 <!-- Alpine.js Dashboard Data -->
 <script>
-  function dashboardData() {
-    return {
-      stats: {},
-      loading: false,
+    function dashboardData() {
+      return {
+        stats: {},
+        loading: false,
+        loadingProgress: 0,
+        progressTimer: null,
 
-      async loadStats() {
-        this.loading = true;
-        try {
-          const response = await fetch('/api/stats/dashboard');
-          this.stats = await response.json();
+        beginProgress() {
+          this.loadingProgress = 5;
+          this.clearProgressTimer();
+          this.progressTimer = setInterval(() => {
+            if (this.loadingProgress >= 90) {
+              return;
+            }
+            const remaining = 90 - this.loadingProgress;
+            const step = Math.max(1, Math.round(remaining * 0.2));
+            this.loadingProgress = Math.min(90, this.loadingProgress + step);
+          }, 250);
+        },
 
-          // Render charts after stats are loaded
-          this.$nextTick(() => {
-            this.renderDepartmentsChart();
-            this.renderMonthlyChart();
-          });
-        } catch (error) {
-          console.error('Error loading stats:', error);
-          showToast('Erreur lors du chargement des statistiques', 'error');
-        } finally {
-          this.loading = false;
-        }
-      },
+        clearProgressTimer() {
+          if (this.progressTimer) {
+            clearInterval(this.progressTimer);
+            this.progressTimer = null;
+          }
+        },
+
+        finishProgress() {
+          this.clearProgressTimer();
+          this.loadingProgress = 100;
+          setTimeout(() => {
+            this.loading = false;
+            this.loadingProgress = 0;
+          }, 400);
+        },
+
+        async loadStats() {
+          if (this.loading) {
+            return;
+          }
+          this.loading = true;
+          this.beginProgress();
+          try {
+            const response = await fetch('/api/stats/dashboard');
+            if (!response.ok) {
+              throw new Error('Réponse invalide du serveur');
+            }
+            this.stats = await response.json();
+
+            // Render charts after stats are loaded
+            this.$nextTick(() => {
+              this.renderDepartmentsChart();
+              this.renderMonthlyChart();
+            });
+          } catch (error) {
+            console.error('Error loading stats:', error);
+            showToast('Erreur lors du chargement des statistiques', 'error');
+          } finally {
+            this.finishProgress();
+          }
+        },
 
       renderDepartmentsChart() {
         const ctx = document.getElementById('departmentsChart');
