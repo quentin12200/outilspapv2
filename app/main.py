@@ -100,6 +100,109 @@ def on_startup():
 def health():
     return {"status": "ok"}
 
+@app.get("/presentation", response_class=HTMLResponse)
+def presentation(request: Request, db: Session = Depends(get_session)):
+    total_sirets = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    invitations_total = db.query(func.count(Invitation.id)).scalar() or 0
+    pap_sirets = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(SiretSummary.date_pap_c5.isnot(None))
+        .scalar()
+        or 0
+    )
+    c4_carence = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(SiretSummary.carence_c4.is_(True))
+        .scalar()
+        or 0
+    )
+
+    feature_blocks = [
+        {
+            "title": "Tableau de bord",
+            "description": "Suivez les indicateurs clés sur les SIRET à enjeu et visualisez la couverture des invitations PAP.",
+            "icon": "fa-chart-line",
+            "href": "/",
+        },
+        {
+            "title": "Invitations PAP",
+            "description": "Retrouvez chaque invitation importée, filtrez par département ou source et suivez les relances.",
+            "icon": "fa-envelope-open-text",
+            "href": "/invitations",
+        },
+        {
+            "title": "Recherche SIRET",
+            "description": "Identifiez rapidement un établissement via l’API Sirene et reliez-le à vos ciblages locaux.",
+            "icon": "fa-search",
+            "href": "/recherche-siret",
+        },
+        {
+            "title": "Mes ciblages",
+            "description": "Chargez vos fichiers de ciblage C3/C4 pour croiser audience, résultats et priorités CGT.",
+            "icon": "fa-crosshairs",
+            "href": "/ciblage",
+        },
+    ]
+
+    timeline = [
+        {
+            "title": "Invitation PAP reçue",
+            "subtitle": "Le PAP arrive dans l’UD / FD",
+            "description": "Enregistrez la date dans l’outil pour tracer le point de départ du cycle C5.",
+            "icon": "fa-inbox",
+        },
+        {
+            "title": "Mobilisation des équipes",
+            "subtitle": "Préparation de la candidature",
+            "description": "Associez le SIRET aux militant·es référent·es et vérifiez l’implantation CGT existante.",
+            "icon": "fa-people-group",
+        },
+        {
+            "title": "Scrutin C5",
+            "subtitle": "PV à récupérer",
+            "description": "Lorsque le PV est publié, rattachez-le au même SIRET pour fermer la boucle PAP → PV.",
+            "icon": "fa-file-circle-check",
+        },
+    ]
+
+    c5_calendar = [
+        {
+            "period": "T1 2025",
+            "focus": "Campagne d’invitations massives",
+            "details": "Consolider les retours PAP et prioriser les établissements à ≥ 1 000 inscrit·es.",
+        },
+        {
+            "period": "T2 2025",
+            "focus": "Dépôt des listes",
+            "details": "Ajuster les candidatures avec les UD / FD et suivre les carences à éviter.",
+        },
+        {
+            "period": "T3 2025",
+            "focus": "Tenue des scrutins C5",
+            "details": "Anticiper la collecte des PV et pointer les établissements sans retour.",
+        },
+        {
+            "period": "T4 2025",
+            "focus": "Analyse des résultats",
+            "details": "Comparer voix CGT / inscrits pour mesurer l’impact des invitations.",
+        },
+    ]
+
+    return templates.TemplateResponse(
+        "presentation.html",
+        {
+            "request": request,
+            "total_sirets": total_sirets,
+            "invitations_total": invitations_total,
+            "pap_sirets": pap_sirets,
+            "c4_carence": c4_carence,
+            "feature_blocks": feature_blocks,
+            "timeline": timeline,
+            "c5_calendar": c5_calendar,
+        },
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
