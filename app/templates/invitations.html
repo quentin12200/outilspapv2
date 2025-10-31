@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Invitations PAP — PAP/CSE{% endblock %}
+
+{% block content %}
+<section class="mb-8">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fas fa-envelope-open-text text-cgt-red"></i>
+        Invitations PAP importées
+      </h1>
+      <p class="text-sm text-gray-500 mt-2 max-w-2xl">
+        Retrouvez ci-dessous l'ensemble des invitations au PAP Cycle 5 importées dans l'outil. Utilisez les filtres pour affiner la liste ou cliquer sur les en-têtes du tableau pour réordonner les colonnes.
+      </p>
+    </div>
+    <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+      <p class="text-sm text-gray-500 uppercase font-semibold">Invitations recensées</p>
+      <p class="text-3xl font-bold text-gray-800">{{ total_invitations }}</p>
+    </div>
+  </div>
+
+  <form method="get" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="q">
+          <i class="fas fa-search text-cgt-red mr-1"></i>
+          Recherche
+        </label>
+        <input id="q" name="q" value="{{ q }}" type="text" placeholder="SIRET, raison sociale, ville..."
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="source">
+          <i class="fas fa-inbox text-cgt-red mr-1"></i>
+          Source
+        </label>
+        <select id="source" name="source" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Toutes</option>
+          {% for item in sources %}
+          <option value="{{ item }}" {% if source == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="est_actif">
+          <i class="fas fa-industry text-cgt-red mr-1"></i>
+          Établissement actif
+        </label>
+        <select id="est_actif" name="est_actif" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous</option>
+          <option value="oui" {% if est_actif == 'oui' %}selected{% endif %}>Oui</option>
+          <option value="non" {% if est_actif == 'non' %}selected{% endif %}>Non</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="est_siege">
+          <i class="fas fa-building text-cgt-red mr-1"></i>
+          Siège social
+        </label>
+        <select id="est_siege" name="est_siege" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous</option>
+          <option value="oui" {% if est_siege == 'oui' %}selected{% endif %}>Oui</option>
+          <option value="non" {% if est_siege == 'non' %}selected{% endif %}>Non</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mt-6 flex flex-col md:flex-row gap-3 md:justify-end">
+      <a href="/invitations" class="px-5 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition inline-flex items-center gap-2">
+        <i class="fas fa-undo"></i>
+        Réinitialiser
+      </a>
+      <button type="submit" class="px-6 py-2 rounded-lg bg-cgt-red text-white hover:bg-cgt-darkred transition inline-flex items-center gap-2">
+        <i class="fas fa-filter"></i>
+        Appliquer
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+      <i class="fas fa-list"></i>
+      Liste des invitations
+    </h2>
+    <button onclick="toggleFullscreenTable('invitations-table')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+      <i class="fas fa-expand mr-2"></i>
+      Plein écran
+    </button>
+  </div>
+  {% if invitations %}
+  <div class="overflow-x-auto rounded-lg border border-gray-200">
+    <table id="invitations-table" class="min-w-full divide-y divide-gray-200" data-sortable="true">
+      <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date invitation</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Enseigne</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ville</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Code postal</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Source</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Actif</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Siège</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Enrichissement</th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        {% for invit in invitations %}
+        <tr class="table-row-hover hover:bg-cgt-lightred">
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit or '' }}">{{ invit.date_invit or '' }}</td>
+          <td class="px-4 py-3 whitespace-nowrap">
+            <a href="/siret/{{ invit.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
+          </td>
+          <td class="px-4 py-3">{{ invit.denomination or '' }}</td>
+          <td class="px-4 py-3">{{ invit.enseigne or '' }}</td>
+          <td class="px-4 py-3">{{ invit.commune or '' }}</td>
+          <td class="px-4 py-3 whitespace-nowrap">{{ invit.code_postal or '' }}</td>
+          <td class="px-4 py-3">{{ invit.source or '—' }}</td>
+          <td class="px-4 py-3 text-center" data-sort-value="{{ 1 if invit.est_actif else (0 if invit.est_actif is not none else '') }}">
+            {% if invit.est_actif is none %}
+            <span class="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-bold">—</span>
+            {% elif invit.est_actif %}
+            <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
+            {% else %}
+            <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center" data-sort-value="{{ 1 if invit.est_siege else (0 if invit.est_siege is not none else '') }}">
+            {% if invit.est_siege is none %}
+            <span class="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-bold">—</span>
+            {% elif invit.est_siege %}
+            <span class="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-bold">OUI</span>
+            {% else %}
+            <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_enrichissement or '' }}">{{ invit.date_enrichissement or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-gray-500">Aucune invitation n'a encore été importée.</p>
+  {% endif %}
+</section>
+{% endblock %}

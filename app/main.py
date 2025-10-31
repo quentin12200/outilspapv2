@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine
-from .models import SiretSummary
+from .models import Invitation, SiretSummary
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -194,6 +194,61 @@ def index(
         "all_deps": [d[0] for d in all_deps],
         "all_fds": all_fds_combined,
     })
+
+
+@app.get("/invitations", response_class=HTMLResponse)
+def invitations(
+    request: Request,
+    q: str = "",
+    source: str = "",
+    est_actif: str = "",
+    est_siege: str = "",
+    db: Session = Depends(get_session),
+):
+    qs = db.query(Invitation)
+
+    if q:
+        like = f"%{q}%"
+        qs = qs.filter(
+            (Invitation.siret.like(like))
+            | (Invitation.denomination.ilike(like))
+            | (Invitation.commune.ilike(like))
+        )
+
+    if source:
+        qs = qs.filter(Invitation.source == source)
+
+    if est_actif:
+        if est_actif == "oui":
+            qs = qs.filter(Invitation.est_actif.is_(True))
+        elif est_actif == "non":
+            qs = qs.filter(Invitation.est_actif.is_(False))
+
+    if est_siege:
+        if est_siege == "oui":
+            qs = qs.filter(Invitation.est_siege.is_(True))
+        elif est_siege == "non":
+            qs = qs.filter(Invitation.est_siege.is_(False))
+
+    invitations = (
+        qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
+    )
+
+    sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
+
+    return templates.TemplateResponse(
+        "invitations.html",
+        {
+            "request": request,
+            "invitations": invitations,
+            "q": q,
+            "source": source,
+            "sources": sources,
+            "est_actif": est_actif,
+            "est_siege": est_siege,
+            "total_invitations": len(invitations),
+        },
+    )
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
