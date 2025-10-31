@@ -22,37 +22,6 @@ async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_sess
 @router.post("/ingest/invit")
 async def ingest_invit(file: UploadFile = File(...), db: Session = Depends(get_session)):
     n = etl.ingest_invit_excel(db, file.file)
-
-    # Enrichissement automatique des nouvelles invitations via API Sirene
-    # (uniquement celles qui n'ont pas encore été enrichies)
-    invitations_non_enrichies = db.query(Invitation).filter(
-        Invitation.date_enrichissement.is_(None)
-    ).all()
-
-    enrichis = 0
-    for invitation in invitations_non_enrichies[:50]:  # Limite à 50 pour éviter timeout (30 req/min max)
-        try:
-            data = await enrichir_siret(invitation.siret)
-            if data:
-                invitation.denomination = data.get("denomination")
-                invitation.enseigne = data.get("enseigne")
-                invitation.adresse = data.get("adresse")
-                invitation.code_postal = data.get("code_postal")
-                invitation.commune = data.get("commune")
-                invitation.activite_principale = data.get("activite_principale")
-                invitation.libelle_activite = data.get("libelle_activite")
-                invitation.tranche_effectifs = data.get("tranche_effectifs")
-                invitation.effectifs_label = data.get("effectifs_label")
-                invitation.est_siege = data.get("est_siege")
-                invitation.est_actif = data.get("est_actif")
-                invitation.categorie_entreprise = data.get("categorie_entreprise")
-                invitation.date_enrichissement = datetime.now()
-                enrichis += 1
-        except Exception:
-            pass  # On continue même si une erreur se produit
-
-    db.commit()
-
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/build/summary")

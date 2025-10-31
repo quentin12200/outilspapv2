@@ -139,154 +139,38 @@
 
 </div>
 
-<!-- Enrichissement API Sirene -->
-<section class="bg-white rounded-xl shadow-md p-6 mb-8" x-data="sireneEnrichment()">
+<!-- Informations Invitations -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-2xl font-bold text-gray-800">
       <i class="fas fa-database text-indigo-500 mr-2"></i>
-      Enrichissement API Sirene (INSEE)
+      Invitations importées
     </h2>
-    <button @click="loadStats" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-      <i class="fas fa-sync-alt mr-1"></i>
-      Actualiser
-    </button>
   </div>
 
-  <!-- Statistiques -->
-  <div x-show="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-      <div class="flex items-center justify-between mb-2">
-        <i class="fas fa-check-circle text-indigo-600 text-2xl"></i>
-        <span class="text-2xl font-bold text-indigo-700" x-text="stats?.enrichis || 0"></span>
-      </div>
-      <p class="text-xs text-indigo-600 font-semibold">Enrichis</p>
-      <p class="text-xs text-gray-600 mt-1" x-text="`${stats?.pourcentage_enrichis || 0}% du total`"></p>
-    </div>
-
-    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="flex items-center justify-between mb-2">
-        <i class="fas fa-clock text-gray-600 text-2xl"></i>
-        <span class="text-2xl font-bold text-gray-700" x-text="stats?.non_enrichis || 0"></span>
-      </div>
-      <p class="text-xs text-gray-600 font-semibold">En attente</p>
-      <p class="text-xs text-gray-500 mt-1">Non enrichis</p>
-    </div>
-
-    <div class="p-4 bg-green-50 rounded-lg border border-green-200">
-      <div class="flex items-center justify-between mb-2">
-        <i class="fas fa-building text-green-600 text-2xl"></i>
-        <span class="text-2xl font-bold text-green-700" x-text="stats?.actifs || 0"></span>
-      </div>
-      <p class="text-xs text-green-600 font-semibold">Actifs</p>
-      <p class="text-xs text-gray-600 mt-1">Établissements actifs</p>
-    </div>
-
-    <div class="p-4 bg-red-50 rounded-lg border border-red-200">
-      <div class="flex items-center justify-between mb-2">
-        <i class="fas fa-times-circle text-red-600 text-2xl"></i>
-        <span class="text-2xl font-bold text-red-700" x-text="stats?.inactifs || 0"></span>
-      </div>
-      <p class="text-xs text-red-600 font-semibold">Inactifs</p>
-      <p class="text-xs text-gray-600 mt-1">Établissements fermés</p>
-    </div>
-  </div>
-
-  <!-- Actions -->
   <div class="space-y-4">
     <div class="p-4 bg-indigo-50 border-l-4 border-indigo-500 rounded-lg">
       <p class="text-sm text-indigo-800">
         <i class="fas fa-info-circle mr-2"></i>
-        L'enrichissement récupère automatiquement les informations officielles (raison sociale, adresse, effectifs, activité) depuis l'API Sirene de l'INSEE.
+        Les invitations affichées dans l’outil proviennent uniquement des fichiers Excel importés via cette page d’administration.
       </p>
       <p class="text-xs text-indigo-700 mt-2">
-        <strong>Note :</strong> Les nouvelles invitations sont enrichies automatiquement lors de l'import (limite : 50 par import). Utilisez le bouton ci-dessous pour enrichir le reste.
+        Aucun enrichissement automatique n’est désormais réalisé auprès de l’API Sirene : les raisons sociales, adresses et autres champs correspondent strictement aux colonnes présentes dans vos fichiers.
       </p>
     </div>
 
-    <button @click="enrichirTout"
-            :disabled="loading || (stats && stats.non_enrichis === 0)"
-            :class="loading || (stats && stats.non_enrichis === 0) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'"
-            class="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg transition shadow-md flex items-center justify-center space-x-2">
-      <i class="fas" :class="loading ? 'fa-spinner fa-spin' : 'fa-cloud-download-alt'"></i>
-      <span x-text="loading ? 'Enrichissement en cours...' : 'Enrichir toutes les invitations'"></span>
-    </button>
-
-    <div x-show="result" x-transition class="p-4 rounded-lg border" :class="result?.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-      <p class="text-sm font-semibold" :class="result?.success ? 'text-green-800' : 'text-red-800'" x-text="result?.message"></p>
-      <div x-show="result?.erreurs_details && result.erreurs_details.length > 0" class="mt-2">
-        <p class="text-xs font-semibold text-gray-700 mb-1">Premières erreurs :</p>
-        <ul class="text-xs text-gray-600 space-y-1">
-          <template x-for="err in result?.erreurs_details" :key="err">
-            <li x-text="'• ' + err"></li>
-          </template>
-        </ul>
-      </div>
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <h3 class="text-sm font-semibold text-gray-700 mb-2">Conseils</h3>
+      <ul class="text-xs text-gray-600 space-y-1 list-disc list-inside">
+        <li>Vérifiez que les colonnes essentielles (SIRET, date, raison sociale, ville) sont bien remplies dans votre fichier Excel avant l’import.</li>
+        <li>Si plusieurs colonnes contiennent des variantes d’une même information, la plateforme affichera la première valeur non vide détectée.</li>
+        <li>Vous pouvez réimporter un fichier actualisé à tout moment : les données de la page « Invitations » seront alors mises à jour après recalcul.</li>
+      </ul>
     </div>
-
-    <p class="text-xs text-gray-500">
-      <i class="fas fa-info-circle mr-1"></i>
-      API Sirene : 30 requêtes/minute maximum (sans clé API). Le traitement peut prendre plusieurs minutes.
-    </p>
   </div>
 </section>
 
-<script>
-  function sireneEnrichment() {
-    return {
-      stats: null,
-      loading: false,
-      result: null,
-
-      async loadStats() {
-        try {
-          const response = await fetch('/api/sirene/stats');
-          this.stats = await response.json();
-        } catch (error) {
-          console.error('Erreur chargement stats:', error);
-        }
-      },
-
-      async enrichirTout() {
-        if (this.loading) return;
-
-        const confirmation = confirm(
-          `Voulez-vous enrichir ${this.stats?.non_enrichis || 0} invitations ?\n\n` +
-          `Cela peut prendre plusieurs minutes (limite API : 30 req/min).`
-        );
-
-        if (!confirmation) return;
-
-        this.loading = true;
-        this.result = null;
-
-        try {
-          const response = await fetch('/api/sirene/enrichir-tout', { method: 'POST' });
-          this.result = await response.json();
-
-          // Recharge les stats après enrichissement
-          await this.loadStats();
-
-          if (this.result.success) {
-            showToast(`${this.result.enrichis} invitations enrichies avec succès`, 'success');
-          }
-        } catch (error) {
-          this.result = {
-            success: false,
-            message: 'Erreur lors de l\'enrichissement: ' + error.message
-          };
-          showToast('Erreur lors de l\'enrichissement', 'error');
-        } finally {
-          this.loading = false;
-        }
-      },
-
-      init() {
-        // Charge les stats au démarrage
-        this.loadStats();
-      }
-    }
-  }
-</script>
+  
 
 <!-- Instructions -->
 <section class="bg-blue-50 rounded-xl p-8 border-l-4 border-blue-500 mb-8">
