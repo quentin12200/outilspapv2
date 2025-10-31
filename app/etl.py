@@ -199,15 +199,17 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             raw=raw_payload or None,
             denomination=pick_first_truthy(
                 "denomination", "denomination_usuelle", "raison_sociale", "raison sociale",
-                "raison_sociale_etablissement", "nom_raison_sociale", "rs"
+                "raison_sociale_etablissement", "nom_raison_sociale", "rs", "nom",
+                "nom_entreprise", "societe", "entreprise", "nom_de_l_entreprise", "libelle"
             ),
-            enseigne=pick_first_truthy("enseigne", "enseigne_commerciale"),
+            enseigne=pick_first_truthy("enseigne", "enseigne_commerciale", "enseigne commerciale", "nom_commercial"),
             adresse=pick_first_truthy(
                 "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
-                "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie"
+                "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement",
+                "rue", "numero_et_voie", "voie"
             ),
-            code_postal=pick_first_truthy("code_postal", "code postal", "cp", "code_postal_etablissement"),
-            commune=pick_first_truthy("commune", "ville", "localite", "libelle_commune_etablissement"),
+            code_postal=pick_first_truthy("code_postal", "code postal", "cp", "code_postal_etablissement", "postal"),
+            commune=pick_first_truthy("commune", "ville", "localite", "libelle_commune_etablissement", "adresse_ville", "city"),
             activite_principale=pick_first_truthy("activite_principale", "code_naf", "naf", "code_ape", "ape"),
             libelle_activite=pick_first_truthy(
                 "libelle_activite", "libelle activité", "libelle_naf", "activite", "activite_principale_libelle"

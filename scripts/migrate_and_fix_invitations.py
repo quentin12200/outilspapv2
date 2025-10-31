@@ -169,14 +169,15 @@ for inv in invitations:
         inv.denomination = _pick_from_raw(
             raw,
             "denomination", "denomination_usuelle", "raison_sociale", "raison sociale",
-            "raison_sociale_etablissement", "nom_raison_sociale", "rs", "nom"
+            "raison_sociale_etablissement", "nom_raison_sociale", "rs", "nom",
+            "nom_entreprise", "societe", "entreprise", "nom_de_l_entreprise", "libelle"
         )
         if inv.denomination:
             updated = True
 
     # Enseigne
     if not inv.enseigne:
-        inv.enseigne = _pick_from_raw(raw, "enseigne", "enseigne_commerciale", "enseigne commerciale")
+        inv.enseigne = _pick_from_raw(raw, "enseigne", "enseigne_commerciale", "enseigne commerciale", "nom_commercial")
         if inv.enseigne:
             updated = True
 
@@ -185,7 +186,8 @@ for inv in invitations:
         inv.adresse = _pick_from_raw(
             raw,
             "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
-            "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement"
+            "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement",
+            "rue", "numero_et_voie", "voie"
         )
         if inv.adresse:
             updated = True
@@ -193,7 +195,7 @@ for inv in invitations:
     # Code postal
     if not inv.code_postal:
         inv.code_postal = _pick_from_raw(
-            raw, "code_postal", "code postal", "cp", "code_postal_etablissement"
+            raw, "code_postal", "code postal", "cp", "code_postal_etablissement", "postal"
         )
         if inv.code_postal:
             updated = True
@@ -201,7 +203,7 @@ for inv in invitations:
     # Commune
     if not inv.commune:
         inv.commune = _pick_from_raw(
-            raw, "commune", "ville", "localite", "adresse_ville", "libelle_commune_etablissement"
+            raw, "commune", "ville", "localite", "adresse_ville", "libelle_commune_etablissement", "city"
         )
         if inv.commune:
             updated = True
