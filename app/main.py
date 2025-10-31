@@ -81,7 +81,7 @@ ensure_sqlite_asset()
 # ⚠️ Import des routers APRÈS ensure_sqlite_asset()
 from .routers import api  # noqa: E402
 
-app = FastAPI(title="PAP/CSE Dashboard")
+app = FastAPI(title="PAP/CSE · Tableau de bord")
 app.include_router(api.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
