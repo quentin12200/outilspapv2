@@ -115,12 +115,16 @@
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         {% for invit in invitations %}
-        {% set raw = invit.raw or {} %}
-        {% set display_denomination = invit.display_denomination or invit.denomination or raw.get('raison_sociale') or raw.get('NomRS') or '' %}
-        {% set display_commune = invit.display_commune or invit.commune or raw.get('commune') or raw.get('ville') or '' %}
-        {% set display_adresse = invit.display_adresse or invit.adresse or raw.get('adresse') or '' %}
-        {% set display_cp = invit.display_code_postal or invit.code_postal or raw.get('code_postal') or '' %}
-        {% set display_enseigne = invit.enseigne or raw.get('enseigne') or raw.get('Enseigne') or '' %}
+        {% set display_denomination = invit.display_denomination %}
+        {% set display_commune = invit.display_commune %}
+        {% set display_adresse = invit.display_adresse %}
+        {% set display_cp = invit.display_code_postal %}
+        {% set display_enseigne = invit.display_enseigne %}
+        {% set activity_label = invit.display_activite_label %}
+        {% set activity_code = invit.display_activite_code %}
+        {% set effectifs_label = invit.display_effectifs_label %}
+        {% set effectifs_tranche = invit.display_tranche_effectifs %}
+        {% set categorie = invit.display_categorie %}
         <tr class="table-row-hover hover:bg-cgt-lightred">
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit or '' }}">{{ invit.date_invit or '' }}</td>
           <td class="px-4 py-3 whitespace-nowrap">
@@ -150,31 +154,31 @@
             <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
             {% endif %}
           </td>
-          <td class="px-4 py-3" data-sort-value="{{ invit.activite_principale or '' }}">
-            {% if invit.activite_principale or invit.libelle_activite %}
+          <td class="px-4 py-3" data-sort-value="{{ activity_code or '' }}">
+            {% if activity_label or activity_code %}
             <div class="flex flex-col">
-              <span class="font-semibold text-gray-800">{{ invit.libelle_activite or 'Activité inconnue' }}</span>
-              {% if invit.activite_principale %}
-              <span class="text-xs text-gray-500">Code NAF {{ invit.activite_principale }}</span>
+              <span class="font-semibold text-gray-800">{{ activity_label or 'Activité inconnue' }}</span>
+              {% if activity_code %}
+              <span class="text-xs text-gray-500">Code NAF {{ activity_code }}</span>
               {% endif %}
             </div>
             {% else %}
             <span class="text-gray-400">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-3" data-sort-value="{{ invit.tranche_effectifs or '' }}">
-            {% if invit.effectifs_label or invit.tranche_effectifs %}
+          <td class="px-4 py-3" data-sort-value="{{ effectifs_tranche or '' }}">
+            {% if effectifs_label or effectifs_tranche %}
             <div class="flex flex-col">
-              <span class="font-semibold text-gray-800">{{ invit.effectifs_label or 'Effectifs inconnus' }}</span>
-              {% if invit.tranche_effectifs %}
-              <span class="text-xs text-gray-500">Tranche {{ invit.tranche_effectifs }}</span>
+              <span class="font-semibold text-gray-800">{{ effectifs_label or 'Effectifs inconnus' }}</span>
+              {% if effectifs_tranche %}
+              <span class="text-xs text-gray-500">Tranche {{ effectifs_tranche }}</span>
               {% endif %}
             </div>
             {% else %}
             <span class="text-gray-400">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-3" data-sort-value="{{ invit.categorie_entreprise or '' }}">{{ invit.categorie_entreprise or '—' }}</td>
+          <td class="px-4 py-3" data-sort-value="{{ categorie or '' }}">{{ categorie or '—' }}</td>
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_enrichissement or '' }}">{{ invit.date_enrichissement or '' }}</td>
         </tr>
         {% endfor %}

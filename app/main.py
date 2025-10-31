@@ -4,12 +4,15 @@ import os
 import hashlib
 import urllib.request
 import logging
+import re
+import unicodedata
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from typing import Any, Mapping
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine
@@ -361,128 +364,141 @@ def invitations(
         qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
     )
 
-    def pick_from_raw(raw, keys):
+    def _normalize_raw_key(key: str) -> str:
+        normalized = unicodedata.normalize("NFKD", str(key))
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = normalized.lower()
+        normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+        return normalized.strip("_")
+
+    def _clean_raw_value(value: Any) -> Any | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            lowered = cleaned.lower()
+            if lowered in {"nan", "none", "null"}:
+                return None
+            return cleaned
+        return value
+
+    def _build_raw_map(raw: Mapping[str, Any] | None) -> dict[str, Any]:
+        if not raw:
+            return {}
+        mapped: dict[str, Any] = {}
+        for key, value in raw.items():
+            cleaned = _clean_raw_value(value)
+            if cleaned is None:
+                continue
+            norm = _normalize_raw_key(key)
+            if not norm or norm in mapped:
+                continue
+            mapped[norm] = cleaned
+        return mapped
+
+    def _pick_from_map(raw_map: dict[str, Any], *keys: str) -> Any | None:
         for key in keys:
-            value = raw.get(key)
-            if value:
-                return value
+            norm = _normalize_raw_key(key)
+            if norm and norm in raw_map:
+                return raw_map[norm]
         return None
 
     for inv in invitations:
-        raw = inv.raw or {}
+        raw_map = _build_raw_map(getattr(inv, "raw", None))
 
-        inv.display_denomination = next(
-            (
-                value
-                for value in [
-                    inv.denomination,
-                    pick_from_raw(
-                        raw,
-                        [
-                            "denomination",
-                            "denomination_usuelle",
-                            "raison_sociale",
-                            "raison sociale",
-                            "Raison sociale",
-                            "raison_sociale_etablissement",
-                            "RAISON_SOCIALE",
-                            "RAISON_SOCIALE_ETABLISSEMENT",
-                            "raison_sociale_uai",
-                            "nom_raison_sociale",
-                            "NomRS",
-                            "Nom",
-                            "nom",
-                            "rs",
-                            "RS",
-                        ],
-                    ),
-                ]
-                if value
-            ),
-            None,
+        inv.display_denomination = inv.denomination or _pick_from_map(
+            raw_map,
+            "denomination",
+            "denomination_usuelle",
+            "raison_sociale",
+            "raison sociale",
+            "raison_sociale_etablissement",
+            "nom_raison_sociale",
+            "rs",
         )
 
-        inv.display_commune = next(
-            (
-                value
-                for value in [
-                    inv.commune,
-                    pick_from_raw(
-                        raw,
-                        [
-                            "commune",
-                            "Commune",
-                            "ville",
-                            "Ville",
-                            "LibelleCommuneEtablissement",
-                            "LIBELLE_COMMUNE_ETABLISSEMENT",
-                            "libelle_commune_etablissement",
-                            "libelle_commune",
-                            "Localite",
-                            "localite",
-                            "adresse_ville",
-                        ],
-                    ),
-                ]
-                if value
-            ),
-            None,
+        inv.display_enseigne = inv.enseigne or _pick_from_map(
+            raw_map,
+            "enseigne",
+            "enseigne_commerciale",
+            "enseigne commerciale",
         )
 
-        inv.display_adresse = next(
-            (
-                value
-                for value in [
-                    inv.adresse,
-                    pick_from_raw(
-                        raw,
-                        [
-                            "adresse",
-                            "Adresse",
-                            "adresse_ligne_1",
-                            "adresse_ligne_2",
-                            "adresse_complete",
-                            "adresse_pap",
-                            "adresse_postale",
-                            "libelle_voie",
-                            "LibelleVoieEtablissement",
-                            "LIBELLE_VOIE_ETABLISSEMENT",
-                            "ligne_4",
-                            "Ligne4",
-                            "L4",
-                        ],
-                    ),
-                ]
-                if value
-            ),
-            None,
+        inv.display_commune = inv.commune or _pick_from_map(
+            raw_map,
+            "commune",
+            "ville",
+            "localite",
+            "adresse_ville",
+            "libelle_commune_etablissement",
         )
 
-        inv.display_code_postal = next(
-            (
-                value
-                for value in [
-                    inv.code_postal,
-                    pick_from_raw(
-                        raw,
-                        [
-                            "code_postal",
-                            "Code_postal",
-                            "Code Postal",
-                            "codePostal",
-                            "CodePostal",
-                            "cp",
-                            "CP",
-                            "code_postal_etablissement",
-                            "CODE_POSTAL_ETABLISSEMENT",
-                            "CodePostalEtablissement",
-                            "code_postal_uai",
-                        ],
-                    ),
-                ]
-                if value
-            ),
-            None,
+        inv.display_adresse = inv.adresse or _pick_from_map(
+            raw_map,
+            "adresse_complete",
+            "adresse",
+            "adresse_ligne_1",
+            "adresse_ligne1",
+            "adresse_ligne 1",
+            "adresse1",
+            "adresse_postale",
+            "ligne_4",
+            "ligne4",
+            "libelle_voie",
+            "libelle_voie_etablissement",
+        )
+
+        inv.display_code_postal = inv.code_postal or _pick_from_map(
+            raw_map,
+            "code_postal",
+            "code postal",
+            "code_postal_etablissement",
+            "cp",
+        )
+
+        inv.display_activite_code = inv.activite_principale or _pick_from_map(
+            raw_map,
+            "activite_principale",
+            "code_naf",
+            "naf",
+            "code_ape",
+            "ape",
+        )
+
+        inv.display_activite_label = inv.libelle_activite or _pick_from_map(
+            raw_map,
+            "libelle_activite",
+            "libelle activité",
+            "libelle_naf",
+            "activite",
+            "activite_principale_libelle",
+        )
+
+        inv.display_effectifs_label = inv.effectifs_label or _pick_from_map(
+            raw_map,
+            "effectifs",
+            "effectif",
+            "effectifs_salaries",
+            "effectifs salaries",
+            "effectifs categorie",
+        )
+
+        inv.display_tranche_effectifs = inv.tranche_effectifs or _pick_from_map(
+            raw_map,
+            "tranche_effectifs",
+            "tranche_effectif",
+            "tranche_effectifs_salaries",
+            "tranche_effectif_salarie",
+        )
+
+        inv.display_categorie = inv.categorie_entreprise or _pick_from_map(
+            raw_map,
+            "categorie_entreprise",
+            "categorie",
+            "taille_entreprise",
+            "taille",
         )
 
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]

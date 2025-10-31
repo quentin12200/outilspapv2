@@ -1,4 +1,4 @@
-import pandas as pd, numpy as np, re
+import pandas as pd, numpy as np, re, unicodedata
 from dateutil.parser import parse as dtparse
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -8,6 +8,39 @@ def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
     df.columns = [c.lower() for c in df.columns]
     return df
+
+def _normalize_raw_key(key: str) -> str:
+    key = unicodedata.normalize("NFKD", str(key))
+    key = "".join(ch for ch in key if not unicodedata.combining(ch))
+    key = key.lower()
+    key = re.sub(r"[^a-z0-9]+", "_", key)
+    return key.strip("_")
+
+def _clean_raw_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        lowered = cleaned.lower()
+        if lowered in {"nan", "none", "null"}:
+            return None
+        return cleaned
+    return value
+
+def _build_raw_payload(row: pd.Series) -> dict[str, str]:
+    payload: dict[str, str] = {}
+    for col, value in row.items():
+        cleaned = _clean_raw_value(value)
+        if cleaned is None:
+            continue
+        key = _normalize_raw_key(col)
+        if not key:
+            continue
+        if key not in payload:
+            payload[key] = cleaned
+    return payload
 
 def _to14(x):
     if pd.isna(x): return None
@@ -127,16 +160,69 @@ def ingest_invit_excel(session: Session, file_like) -> int:
     inserted = 0
     for _, r in df.iterrows():
         siret = _to14(r.get(c_siret))
-        if not siret: 
+        if not siret:
             continue
         date_invit = _todate(r.get(c_date))
-        if not date_invit: 
+        if not date_invit:
             continue
+        raw_payload = _build_raw_payload(r)
+
+        def pick(*keys: str) -> str | None:
+            for key in keys:
+                norm = _normalize_raw_key(key)
+                if norm and norm in raw_payload:
+                    return raw_payload[norm]
+            return None
+
+        def pick_bool(*keys: str):
+            value = pick(*keys)
+            if value is None:
+                return None
+            lowered = str(value).strip().lower()
+            if lowered in {"1", "oui", "o", "yes", "y", "true"}:
+                return True
+            if lowered in {"0", "non", "n", "no", "false"}:
+                return False
+            return None
+
+        def pick_first_truthy(*keys: str) -> str | None:
+            for key in keys:
+                value = pick(key)
+                if value:
+                    return value
+            return None
+
         inv = Invitation(
             siret=siret,
             date_invit=date_invit,
-            source="import_excel",
-            raw=None
+            source=pick_first_truthy("source", "origine", "canal") or "import_excel",
+            raw=raw_payload or None,
+            denomination=pick_first_truthy(
+                "denomination", "denomination_usuelle", "raison_sociale", "raison sociale",
+                "raison_sociale_etablissement", "nom_raison_sociale", "rs"
+            ),
+            enseigne=pick_first_truthy("enseigne", "enseigne_commerciale"),
+            adresse=pick_first_truthy(
+                "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
+                "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie"
+            ),
+            code_postal=pick_first_truthy("code_postal", "code postal", "cp", "code_postal_etablissement"),
+            commune=pick_first_truthy("commune", "ville", "localite", "libelle_commune_etablissement"),
+            activite_principale=pick_first_truthy("activite_principale", "code_naf", "naf", "code_ape", "ape"),
+            libelle_activite=pick_first_truthy(
+                "libelle_activite", "libelle activité", "libelle_naf", "activite", "activite_principale_libelle"
+            ),
+            tranche_effectifs=pick_first_truthy(
+                "tranche_effectifs", "tranche_effectif", "tranche_effectifs_salaries", "tranche_effectif_salarie"
+            ),
+            effectifs_label=pick_first_truthy(
+                "effectifs", "effectif", "effectifs_salaries", "effectifs salaries", "effectifs categorie"
+            ),
+            categorie_entreprise=pick_first_truthy(
+                "categorie_entreprise", "categorie", "taille_entreprise", "taille"
+            ),
+            est_actif=pick_bool("est_actif", "actif", "etat_etablissement", "etat"),
+            est_siege=pick_bool("est_siege", "siege", "siege_social"),
         )
         session.add(inv)
         inserted += 1
