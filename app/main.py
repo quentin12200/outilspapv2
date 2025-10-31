@@ -7,11 +7,12 @@ from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine
-from .models import SiretSummary
+from .models import Invitation, SiretSummary
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -153,6 +154,24 @@ def index(
 
     rows = qs.limit(100).all()
 
+    top_departments_query = (
+        db.query(
+            SiretSummary.dep.label("dep"),
+            func.count(SiretSummary.siret).label("count"),
+        )
+        .filter(SiretSummary.date_pap_c5.isnot(None))
+        .filter(SiretSummary.dep.isnot(None))
+        .group_by(SiretSummary.dep)
+        .order_by(func.count(SiretSummary.siret).desc())
+        .limit(10)
+        .all()
+    )
+
+    top_departments = [
+        {"dep": dep or "Non renseigné", "count": count}
+        for dep, count in top_departments_query
+    ]
+
     # Récupère les valeurs distinctes pour les filtres
     all_deps = db.query(SiretSummary.dep).distinct().filter(SiretSummary.dep.isnot(None)).order_by(SiretSummary.dep).all()
     all_fds = db.query(SiretSummary.fd_c3).distinct().filter(SiretSummary.fd_c3.isnot(None)).order_by(SiretSummary.fd_c3).all()
@@ -165,6 +184,7 @@ def index(
     return templates.TemplateResponse("index.html", {
         "request": request,
         "rows": rows,
+        "top_departments": top_departments,
         "q": q,
         "sort": sort,
         "fd": fd,
@@ -174,6 +194,61 @@ def index(
         "all_deps": [d[0] for d in all_deps],
         "all_fds": all_fds_combined,
     })
+
+
+@app.get("/invitations", response_class=HTMLResponse)
+def invitations(
+    request: Request,
+    q: str = "",
+    source: str = "",
+    est_actif: str = "",
+    est_siege: str = "",
+    db: Session = Depends(get_session),
+):
+    qs = db.query(Invitation)
+
+    if q:
+        like = f"%{q}%"
+        qs = qs.filter(
+            (Invitation.siret.like(like))
+            | (Invitation.denomination.ilike(like))
+            | (Invitation.commune.ilike(like))
+        )
+
+    if source:
+        qs = qs.filter(Invitation.source == source)
+
+    if est_actif:
+        if est_actif == "oui":
+            qs = qs.filter(Invitation.est_actif.is_(True))
+        elif est_actif == "non":
+            qs = qs.filter(Invitation.est_actif.is_(False))
+
+    if est_siege:
+        if est_siege == "oui":
+            qs = qs.filter(Invitation.est_siege.is_(True))
+        elif est_siege == "non":
+            qs = qs.filter(Invitation.est_siege.is_(False))
+
+    invitations = (
+        qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
+    )
+
+    sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
+
+    return templates.TemplateResponse(
+        "invitations.html",
+        {
+            "request": request,
+            "invitations": invitations,
+            "q": q,
+            "source": source,
+            "sources": sources,
+            "est_actif": est_actif,
+            "est_siege": est_siege,
+            "total_invitations": len(invitations),
+        },
+    )
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
