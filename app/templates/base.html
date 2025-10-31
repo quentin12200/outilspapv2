@@ -75,6 +75,21 @@
       transform: scale(1.01);
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
+
+    .sortable-header {
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      white-space: nowrap;
+    }
+
+    .sortable-header .sort-indicator {
+      font-weight: normal;
+      margin-left: 0.25rem;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      display: inline-block;
+    }
   </style>
 
   {% block head %}{% endblock %}

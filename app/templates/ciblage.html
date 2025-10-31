@@ -120,7 +120,7 @@
       {% endfor %}
 
       {% if important_cols %}
-      <table class="min-w-full divide-y divide-gray-200">
+      <table class="min-w-full divide-y divide-gray-200" data-sortable="true">
         <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
           <tr>
             {% for col in important_cols %}
@@ -223,11 +223,11 @@
 
   <!-- Matches Table -->
   <div class="overflow-x-auto rounded-lg border border-gray-200">
-    <table class="min-w-full divide-y divide-gray-200">
+    <table class="min-w-full divide-y divide-gray-200" data-sortable="true">
       <thead class="bg-gradient-to-r from-green-600 to-green-700 text-white">
         <tr>
           {% if 'siret' in columns|map('lower') %}
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase sticky left-0 bg-green-600">
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase sticky left-0 bg-green-600" data-sort-type="numeric">
             <i class="fas fa-hashtag mr-1"></i>SIRET
           </th>
           {% endif %}
@@ -247,7 +247,7 @@
         {% for row in match_rows %}
         <tr class="hover:bg-green-50 transition">
           {% if 'siren' in columns|map('lower') %}
-          <td class="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-white whitespace-nowrap">
+          <td class="px-4 py-3 text-sm font-semibold text-gray-900 sticky left-0 bg-white whitespace-nowrap" data-sort-value="{{ row['siren'] or row['SIREN'] }}">
             {{ row['siren'] or row['SIREN'] }}
           </td>
           {% endif %}

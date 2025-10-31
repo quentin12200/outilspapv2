@@ -407,20 +407,20 @@
     <h4 class="text-lg font-bold text-gray-700 mb-4">Top 10 des départements par invitations PAP C5</h4>
     {% if top_departments %}
     <div class="overflow-x-auto rounded-lg border border-gray-200">
-      <table class="min-w-full divide-y divide-gray-200">
+      <table class="min-w-full divide-y divide-gray-200" data-sortable="true">
         <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
           <tr>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Rang</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Rang</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">Département</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Invitations PAP C5</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Invitations PAP C5</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for entry in top_departments %}
           <tr class="table-row-hover hover:bg-cgt-lightred">
-            <td class="px-4 py-3 font-semibold text-gray-700">#{{ loop.index }}</td>
+            <td class="px-4 py-3 font-semibold text-gray-700" data-rank-cell data-sort-value="{{ loop.index }}">#{{ loop.index }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ entry.dep }}</td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3" data-sort-value="{{ entry.count }}">
               <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
                 {{ entry.count }}
               </span>
@@ -439,19 +439,19 @@
   <div>
     <h4 class="text-lg font-bold text-gray-700 mb-4">Toutes les invitations (100 premières)</h4>
     <div class="overflow-x-auto rounded-lg border border-gray-200">
-      <table id="pap-table" class="min-w-full divide-y divide-gray-200">
+      <table id="pap-table" class="min-w-full divide-y divide-gray-200" data-sortable="true">
         <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
           <tr>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">IDCC</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV C3</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C3</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV C4</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Inscrits C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PV C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Inscrits C3</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PV C4</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Inscrits C4</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">Statut</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PV Max</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Date PAP C5</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PV Max</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PAP C5</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase">CGT</th>
           </tr>
         </thead>
@@ -463,13 +463,13 @@
             </td>
             <td class="px-4 py-3">{{ r.raison_sociale or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.idcc or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_c3 or '' }}</td>
-            <td class="px-4 py-3 text-center">{{ r.inscrits_c3 or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_c4 or '' }}</td>
-            <td class="px-4 py-3 text-center">{{ r.inscrits_c4 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c3 or '' }}">{{ r.date_pv_c3 or '' }}</td>
+            <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c3 if r.inscrits_c3 is not none else '' }}">{{ r.inscrits_c3 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c4 or '' }}">{{ r.date_pv_c4 or '' }}</td>
+            <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c4 if r.inscrits_c4 is not none else '' }}">{{ r.inscrits_c4 or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pv_max or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">{{ r.date_pap_c5 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max or '' }}">{{ r.date_pv_max or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pap_c5 or '' }}">{{ r.date_pap_c5 or '' }}</td>
             <td class="px-4 py-3 text-center">
               {% if r.cgt_implantee %}
               <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
