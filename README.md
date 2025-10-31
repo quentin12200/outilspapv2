@@ -4,9 +4,23 @@ Ce dépôt contient les fichiers liés au suivi de l’audience interprofessionn
 notamment les bases de données issues des PV retenus.
 
 ## 🗄️ Contenu
-- **`papcse.db`** : base de données SQLite utilisée pour l’analyse des PV CSE et SVE.  
-  Ce fichier n’est pas versionné dans Git pour des raisons de taille,  
+- **`papcse.db`** : base de données SQLite utilisée pour l’analyse des PV CSE et SVE.
+  Ce fichier n’est pas versionné dans Git pour des raisons de taille,
   mais il est disponible en téléchargement via les *Releases*.
+
+## 🧭 Découvrir la plateforme
+
+La page `/presentation` résume la vocation de l’outil « PAP/CSE · Tableau de bord » :
+
+- **Héros introductif** pour rappeler le suivi ciblage PAP et les publics visés.
+- **Cartes de fonctionnalités** décrivant les modules principaux (Tableau de bord, Invitations PAP,
+  Ciblages, Recherche SIRET) avec des liens directs.
+- **Boucle PAP → PV** et **calendrier C5** pour visualiser la continuité entre invitations,
+  votes et échéances à venir.
+- **Guide de démarrage** listant les étapes essentielles (connexion, chargement de ciblages,
+  exploration des KPI).
+
+👉 Accédez-y depuis la navigation principale ou directement via `https://<votre-instance>/presentation`.
 
 📦 **Téléchargement direct :**
 [👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/outilspapv2/releases/latest)
