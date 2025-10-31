@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, or_
+from sqlalchemy import func, or_
 from typing import List
 from datetime import datetime
 from ..db import get_session, Base, engine
@@ -122,74 +122,16 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
     audience_threshold = 1000
 
-    max_inscrits_c3 = (
-        db.query(
-            PVEvent.siret.label("siret"),
-            func.max(func.nullif(PVEvent.inscrits, 0)).label("max_inscrits_c3"),
-        )
-        .filter(PVEvent.cycle == "C3")
-        .group_by(PVEvent.siret)
-        .subquery()
-    )
-
-    max_inscrits_c4 = (
-        db.query(
-            PVEvent.siret.label("siret"),
-            func.max(func.nullif(PVEvent.inscrits, 0)).label("max_inscrits_c4"),
-        )
-        .filter(PVEvent.cycle == "C4")
-        .group_by(PVEvent.siret)
-        .subquery()
-    )
-
-    max_c3_expr = func.coalesce(max_inscrits_c3.c.max_inscrits_c3, 0)
-    max_c4_expr = func.coalesce(max_inscrits_c4.c.max_inscrits_c4, 0)
-    max_ref_expr = case((max_c4_expr >= max_c3_expr, max_c4_expr), else_=max_c3_expr)
-
-    audience_scope = (
-        db.query(
-            SiretSummary.siret.label("siret"),
-            max_c3_expr.label("max_inscrits_c3"),
-            max_c4_expr.label("max_inscrits_c4"),
-            max_ref_expr.label("max_inscrits_ref"),
-        )
-        .outerjoin(max_inscrits_c3, max_inscrits_c3.c.siret == SiretSummary.siret)
-        .outerjoin(max_inscrits_c4, max_inscrits_c4.c.siret == SiretSummary.siret)
-        .subquery()
-    )
-
-    audience_filter = or_(
-        audience_scope.c.max_inscrits_c3 >= audience_threshold,
-        audience_scope.c.max_inscrits_c4 >= audience_threshold,
-    )
+    total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
 
     audience_selected = (
         db.query(
-            audience_scope.c.siret,
-            audience_scope.c.max_inscrits_c3,
-            audience_scope.c.max_inscrits_c4,
-            audience_scope.c.max_inscrits_ref,
+            SiretSummary.siret.label("siret"),
+            func.coalesce(SiretSummary.inscrits_c4, 0).label("inscrits_c4"),
+            SiretSummary.carence_c4.label("carence_c4"),
         )
-        .filter(audience_filter)
+        .filter(func.coalesce(SiretSummary.inscrits_c4, 0) >= audience_threshold)
         .subquery()
-    )
-
-    total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
-
-    audience_siret_c3 = (
-        db.query(func.count(audience_scope.c.siret))
-        .select_from(audience_scope)
-        .filter(audience_scope.c.max_inscrits_c3 >= audience_threshold)
-        .scalar()
-        or 0
-    )
-
-    audience_siret_c4 = (
-        db.query(func.count(audience_scope.c.siret))
-        .select_from(audience_scope)
-        .filter(audience_scope.c.max_inscrits_c4 >= audience_threshold)
-        .scalar()
-        or 0
     )
 
     audience_siret = (
@@ -199,34 +141,45 @@ def dashboard_stats(db: Session = Depends(get_session)):
         or 0
     )
 
+    audience_siret_c4_carence = (
+        db.query(func.count(audience_selected.c.siret))
+        .select_from(audience_selected)
+        .filter(audience_selected.c.carence_c4.is_(True))
+        .scalar()
+        or 0
+    )
+
+    audience_siret_c4_pv = (
+        db.query(func.count(audience_selected.c.siret))
+        .select_from(audience_selected)
+        .filter(
+            or_(
+                audience_selected.c.carence_c4.is_(False),
+                audience_selected.c.carence_c4.is_(None),
+            )
+        )
+        .scalar()
+        or 0
+    )
+
     audience_inscrits = (
-        db.query(func.sum(audience_selected.c.max_inscrits_ref))
+        db.query(func.sum(audience_selected.c.inscrits_c4))
         .select_from(audience_selected)
         .scalar()
         or 0
     )
 
     audience_cgt_implantee = (
-        db.query(func.count(audience_selected.c.siret))
-        .select_from(audience_selected)
-        .join(SiretSummary, SiretSummary.siret == audience_selected.c.siret)
+        db.query(func.count(SiretSummary.siret))
+        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
         .filter(SiretSummary.cgt_implantee == True)  # noqa: E712
         .scalar()
         or 0
     )
 
-    voix_ref = case(
-        (
-            audience_selected.c.max_inscrits_c4 >= audience_selected.c.max_inscrits_c3,
-            func.coalesce(func.nullif(SiretSummary.cgt_voix_c4, 0), 0),
-        ),
-        else_=func.coalesce(func.nullif(SiretSummary.cgt_voix_c3, 0), 0),
-    )
-
     audience_voix_cgt = (
-        db.query(func.sum(voix_ref))
-        .select_from(audience_selected)
-        .join(SiretSummary, SiretSummary.siret == audience_selected.c.siret)
+        db.query(func.sum(func.coalesce(SiretSummary.cgt_voix_c4, 0)))
+        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
         .scalar()
         or 0
     )
@@ -287,8 +240,8 @@ def dashboard_stats(db: Session = Depends(get_session)):
     return {
         "audience_threshold": audience_threshold,
         "audience_siret": audience_siret,
-        "audience_siret_c3": audience_siret_c3,
-        "audience_siret_c4": audience_siret_c4,
+        "audience_siret_c4_pv": audience_siret_c4_pv,
+        "audience_siret_c4_carence": audience_siret_c4_carence,
         "audience_share_percent": round(
             (audience_siret / total_siret * 100) if total_siret > 0 else 0, 1
         ),

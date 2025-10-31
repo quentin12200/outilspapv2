@@ -43,7 +43,7 @@
     <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
       <div class="flex items-center justify-between mb-3">
         <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrits</p>
+          <p class="text-sm text-gray-500 uppercase font-semibold">SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrits (Cycle 4)</p>
           <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.audience_siret ? stats.audience_siret.toLocaleString('fr-FR') : '0'">0</p>
         </div>
         <div class="bg-blue-100 rounded-full p-4">
@@ -52,11 +52,13 @@
       </div>
       <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
         <p class="text-gray-600">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 (dernier cycle disponible)
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 &amp; carences C4 uniquement
         </p>
         <p class="text-gray-500">
-          C3 : <span x-text="stats.audience_siret_c3 ? stats.audience_siret_c3.toLocaleString('fr-FR') : '0'"></span> SIRET •
-          C4 : <span x-text="stats.audience_siret_c4 ? stats.audience_siret_c4.toLocaleString('fr-FR') : '0'"></span> SIRET
+          PV tenus C4 : <span x-text="stats.audience_siret_c4_pv ? stats.audience_siret_c4_pv.toLocaleString('fr-FR') : '0'"></span> SIRET
+        </p>
+        <p class="text-gray-500">
+          Carences C4 : <span x-text="stats.audience_siret_c4_carence ? stats.audience_siret_c4_carence.toLocaleString('fr-FR') : '0'"></span> SIRET
         </p>
         <p class="text-gray-500">Part du fichier SIRET : <span x-text="(stats.audience_share_percent || 0) + '%'"></span></p>
         <p class="text-gray-500">Audience cumulée : <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</p>
@@ -99,7 +101,7 @@
       </div>
       <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
         <p class="text-gray-600">
-          <i class="fas fa-vote-yea mr-1"></i><strong>Source :</strong> PV C3 + C4 (dernier cycle disponible)
+          <i class="fas fa-vote-yea mr-1"></i><strong>Source :</strong> PV C4 (incl. carences ≥ seuil)
         </p>
         <p class="text-gray-500">SIRET sans implantation : <span x-text="stats.audience_sans_cgt ? stats.audience_sans_cgt.toLocaleString('fr-FR') : '0'"></span></p>
       </div>
@@ -118,7 +120,7 @@
       </div>
       <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
         <p class="text-gray-600">
-          <i class="fas fa-calendar-alt mr-1"></i><strong>Source :</strong> Dernier PV disponible (C4 sinon C3)
+          <i class="fas fa-calendar-alt mr-1"></i><strong>Source :</strong> PV C4
         </p>
         <p class="text-gray-500">
           <span x-text="stats.audience_voix_cgt ? stats.audience_voix_cgt.toLocaleString('fr-FR') : '0'"></span> voix CGT /
@@ -135,10 +137,10 @@
       <div class="mb-4">
         <h3 class="text-xl font-bold text-gray-800">
           <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
-          Top 10 départements (≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
+          Top 10 départements (C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
         </h3>
         <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • SIRET prioritaires par département
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 • SIRET prioritaires par département
         </p>
       </div>
       <div style="height: 300px; position: relative;">
@@ -169,10 +171,10 @@
       <div>
         <h3 class="text-xl font-bold text-gray-800">
           <i class="fas fa-info-circle text-cgt-red mr-2"></i>
-          Statut PAP des SIRET prioritaires
+          Statut PAP des SIRET C4 ≥ <span x-text="stats.audience_threshold || 1000"></span>
         </h3>
         <p class="text-xs text-gray-600 mt-2">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C3 + C4 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> par statut
+          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> par statut
         </p>
       </div>
     </div>
@@ -185,9 +187,8 @@
         Les statuts indiquent pour quels cycles un SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> a eu des Procès-Verbaux :
       </p>
       <ul class="mt-2 ml-4 text-xs text-gray-600 space-y-1">
-        <li>• <strong>C3</strong> : Uniquement PV du Cycle 3 (2017-2020)</li>
-        <li>• <strong>C4</strong> : Uniquement PV du Cycle 4 (2021-2024)</li>
-        <li>• <strong>C3+C4</strong> : PV dans les deux cycles (continuité)</li>
+        <li>• <strong>C4</strong> : PV tenu ou carence enregistrée au Cycle 4 (2021-2024)</li>
+        <li>• <strong>C3+C4</strong> : Historique C3 mais C4 prioritaire</li>
         <li>• <strong>Aucun</strong> : Pas de PV enregistré</li>
       </ul>
     </div>
