@@ -135,6 +135,24 @@
     <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="sireneResults.length"></span> résultat(s))</span>
   </h2>
 
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-4 text-sm">
+    <p class="text-gray-600">
+      Source :
+      <span class="font-semibold" x-text="resultsSource === 'local' ? 'Base PAP/CSE consolidée' : 'API Sirene (INSEE)'"></span>
+    </p>
+    <template x-if="resultsSource === 'local'">
+      <p class="text-gray-500 flex items-center gap-2">
+        <i class="fas fa-database text-cgt-red"></i>
+        Correspondances internes (raison sociale &amp; ville)
+      </p>
+    </template>
+  </div>
+
+  <div x-show="warningMessage" class="mb-4 p-4 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm" style="display: none;">
+    <i class="fas fa-exclamation-triangle mr-2"></i>
+    <span x-text="warningMessage"></span>
+  </div>
+
   <div class="space-y-4">
     <template x-for="result in sireneResults" :key="result.siret">
       <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
@@ -235,6 +253,8 @@
       companyName: '',
       city: '',
       sireneResults: [],
+      resultsSource: null,
+      warningMessage: '',
       loading: false,
 
       searchOnPappers() {
@@ -262,6 +282,8 @@
 
         this.loading = true;
         this.sireneResults = [];
+        this.resultsSource = null;
+        this.warningMessage = '';
 
         try {
           const params = new URLSearchParams({
@@ -284,6 +306,8 @@
           }
 
           const results = payload.results || [];
+          this.resultsSource = payload.source || 'sirene';
+          this.warningMessage = payload.warning || '';
 
           if (results.length > 0) {
             this.sireneResults = results.map(result => ({
@@ -291,15 +315,20 @@
               siren: result.siren,
               denomination: result.denomination || 'Nom non disponible',
               adresse: result.adresse || '',
-              activite: result.libelle_activite || result.activite_principale || '',
+              activite: result.activite || result.libelle_activite || result.activite_principale || '',
             }));
 
-            showToast(`${this.sireneResults.length} résultat(s) trouvé(s)`, 'success');
+            const sourceLabel = this.resultsSource === 'local' ? 'la base interne' : 'l\'API Sirene';
+            showToast(`${this.sireneResults.length} résultat(s) trouvé(s) via ${sourceLabel}`, 'success');
           } else {
-            showToast('Aucun résultat trouvé dans l\'API Sirene', 'warning');
+            const message = this.resultsSource === 'local'
+              ? 'Aucun résultat correspondant dans la base interne'
+              : 'Aucun résultat trouvé dans l\'API Sirene';
+            showToast(message, 'warning');
           }
         } catch (error) {
           console.error('Erreur:', error);
+          this.resultsSource = null;
           showToast(error.message || 'Erreur lors de la recherche. Essayez Pappers.fr ou Société.com', 'error');
         } finally {
           this.loading = false;

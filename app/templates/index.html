@@ -55,114 +55,116 @@
     </div>
   </div>
 
-  <div :class="{ 'blur-sm pointer-events-none select-none': loading }">
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-3xl font-bold text-gray-800">
-        <i class="fas fa-chart-line text-cgt-red mr-2"></i>
-        Tableau de bord
-      </h2>
-      <button @click="loadStats()" class="px-4 py-2 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition flex items-center space-x-2">
-      <i class="fas fa-sync-alt"></i>
-      <span>Actualiser</span>
-    </button>
-  </div>
-
-    <!-- Stats Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Card 1: Cible audience SIRET -->
-    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrits (Cycle 4)</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.audience_siret ? stats.audience_siret.toLocaleString('fr-FR') : '0'">0</p>
-        </div>
-        <div class="bg-blue-100 rounded-full p-4">
-          <i class="fas fa-building text-blue-500 text-2xl"></i>
-        </div>
-      </div>
-      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
-        <p class="text-gray-600">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 &amp; carences C4 uniquement
-        </p>
-        <p class="text-gray-500">
-          PV tenus C4 : <span x-text="stats.audience_siret_c4_pv ? stats.audience_siret_c4_pv.toLocaleString('fr-FR') : '0'"></span> SIRET
-        </p>
-        <p class="text-gray-500">
-          Carences C4 : <span x-text="stats.audience_siret_c4_carence ? stats.audience_siret_c4_carence.toLocaleString('fr-FR') : '0'"></span> SIRET
-        </p>
-        <p class="text-gray-500">Part du fichier SIRET : <span x-text="(stats.audience_share_percent || 0) + '%'"></span></p>
-        <p class="text-gray-500">Audience cumulée : <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</p>
-        <p class="text-gray-500">Élections C5 à venir : <span x-text="stats.audience_upcoming_c5 ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '0'"></span> SIRET</p>
-      </div>
-    </div>
-
-    <!-- Card 2: Invitations PAP sur la cible -->
-    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">Invitations PAP C5 ciblées</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.audience_invitations ? stats.audience_invitations.toLocaleString('fr-FR') : '0'">0</p>
-        </div>
-        <div class="bg-green-100 rounded-full p-4">
-          <i class="fas fa-envelope text-green-500 text-2xl"></i>
-        </div>
-      </div>
-      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
-        <p class="text-gray-600">
-          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 filtrées sur la cible ≥ <span x-text="stats.audience_threshold || 1000"></span>
-        </p>
-        <p class="text-gray-500">Couverture : <span x-text="(stats.audience_invitations_percent || 0) + '%'"></span> des SIRET prioritaires</p>
-        <p class="text-gray-500">Restant à inviter : <span x-text="stats.audience_non_invites ? stats.audience_non_invites.toLocaleString('fr-FR') : '0'"></span> SIRET</p>
-      </div>
-    </div>
-
-    <!-- Card 3: CGT implantée sur la cible -->
-    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">CGT implantée (cible)</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2">
-            <span x-text="stats.audience_cgt_implantee ? stats.audience_cgt_implantee.toLocaleString('fr-FR') : '0'"></span>
-            <span class="text-sm text-gray-500 ml-2" x-text="'(' + (stats.audience_cgt_implantee_percent || 0) + '%)'"></span>
+  <div :class="{ 'pointer-events-none select-none opacity-60': loading }" class="space-y-10">
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cgt-red via-cgt-darkred to-gray-900 text-white shadow-2xl">
+      <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.8),transparent_60%)]"></div>
+      <div class="relative px-8 py-12 lg:px-16 flex flex-col lg:flex-row gap-10 lg:items-center lg:justify-between">
+        <div class="space-y-6 max-w-2xl">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] rounded-full bg-white/10">Tableau de bord</span>
+            <button @click="loadStats()" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 transition text-sm font-semibold">
+              <i class="fas fa-sync-alt"></i>
+              Actualiser
+            </button>
+          </div>
+          <h2 class="text-3xl lg:text-4xl font-black leading-tight">Piloter les invitations PAP et les scrutins C5 prioritaires</h2>
+          <p class="text-white/80 text-base">
+            Visualisez votre cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span> inscrit·es, suivez les invitations et anticipez les prochaines élections grâce aux données consolidées PAP/CSE.
           </p>
+          <div class="flex flex-wrap gap-3">
+            <a href="/calendrier" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-cgt-red font-semibold shadow-lg hover:bg-gray-100 transition">
+              <i class="fas fa-calendar-alt"></i>
+              Calendrier C5 +1000
+            </a>
+            <a href="/recherche-siret" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/60 text-white font-semibold hover:bg-white/10 transition">
+              <i class="fas fa-search"></i>
+              Recherche SIRET
+            </a>
+            <a href="/admin" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/60 text-white font-semibold hover:bg-white/10 transition">
+              <i class="fas fa-cogs"></i>
+              Administration
+            </a>
+          </div>
         </div>
-        <div class="bg-red-100 rounded-full p-4">
-          <i class="fas fa-flag text-cgt-red text-2xl"></i>
+        <div class="w-full lg:w-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span></p>
+            <p class="text-3xl font-bold" x-text="stats.audience_siret ? stats.audience_siret.toLocaleString('fr-FR') : '—'">—</p>
+            <p class="text-sm text-white/70">SIRET Cycle 4 consolidés</p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Invitations PAP C5 ciblées</p>
+            <p class="text-3xl font-bold" x-text="stats.audience_invitations ? stats.audience_invitations.toLocaleString('fr-FR') : '—'">—</p>
+            <p class="text-sm text-white/70">Couverture : <span x-text="(stats.audience_invitations_percent || 0) + '%'"></span></p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Élections C5 à venir</p>
+            <p class="text-3xl font-bold" x-text="stats.audience_upcoming_c5 ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '—'">—</p>
+            <p class="text-sm text-white/70">SIRET avec date prévisionnelle</p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Voix CGT (cible)</p>
+            <p class="text-3xl font-bold" x-text="(stats.audience_voix_percent || 0) + '%'"></p>
+            <p class="text-sm text-white/70"><span x-text="stats.audience_voix_cgt ? stats.audience_voix_cgt.toLocaleString('fr-FR') : '—'"></span> voix</p>
+          </div>
         </div>
-      </div>
-      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
-        <p class="text-gray-600">
-          <i class="fas fa-vote-yea mr-1"></i><strong>Source :</strong> PV C4 (incl. carences ≥ seuil)
-        </p>
-        <p class="text-gray-500">SIRET sans implantation : <span x-text="stats.audience_sans_cgt ? stats.audience_sans_cgt.toLocaleString('fr-FR') : '0'"></span></p>
       </div>
     </div>
 
-    <!-- Card 4: Voix CGT sur la cible -->
-    <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex-1">
-          <p class="text-sm text-gray-500 uppercase font-semibold">Part des voix CGT (cible)</p>
-          <p class="text-3xl font-bold text-gray-800 mt-2" x-text="(stats.audience_voix_percent || 0) + '%'"></p>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-blue-100">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-blue-600">Cible Cycle 4</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="stats.audience_siret ? stats.audience_siret.toLocaleString('fr-FR') : '0'"></p>
+          </div>
+          <span class="w-11 h-11 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl"><i class="fas fa-building"></i></span>
         </div>
-        <div class="bg-purple-100 rounded-full p-4">
-          <i class="fas fa-chart-pie text-purple-500 text-2xl"></i>
-        </div>
+        <ul class="space-y-1 text-xs text-gray-600">
+          <li>PV tenus : <span class="font-semibold" x-text="stats.audience_siret_c4_pv ? stats.audience_siret_c4_pv.toLocaleString('fr-FR') : '0'"></span></li>
+          <li>Carences : <span class="font-semibold" x-text="stats.audience_siret_c4_carence ? stats.audience_siret_c4_carence.toLocaleString('fr-FR') : '0'"></span></li>
+          <li>Audience cumulée : <span class="font-semibold" x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</li>
+        </ul>
       </div>
-      <div class="pt-3 border-t border-gray-100 space-y-1 text-xs">
-        <p class="text-gray-600">
-          <i class="fas fa-calendar-alt mr-1"></i><strong>Source :</strong> PV C4
-        </p>
-        <p class="text-gray-500">
-          <span x-text="stats.audience_voix_cgt ? stats.audience_voix_cgt.toLocaleString('fr-FR') : '0'"></span> voix CGT /
-          <span x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es
-        </p>
+      <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-green-100">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-green-600">Invitations C5</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="stats.audience_invitations ? stats.audience_invitations.toLocaleString('fr-FR') : '0'"></p>
+          </div>
+          <span class="w-11 h-11 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl"><i class="fas fa-envelope"></i></span>
+        </div>
+        <ul class="space-y-1 text-xs text-gray-600">
+          <li>Couverture cible : <span class="font-semibold" x-text="(stats.audience_invitations_percent || 0) + '%'"></span></li>
+          <li>Restant à inviter : <span class="font-semibold" x-text="stats.audience_non_invites ? stats.audience_non_invites.toLocaleString('fr-FR') : '0'"></span></li>
+        </ul>
+      </div>
+      <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-red-100">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-cgt-red">Implantation CGT</p>
+            <p class="text-2xl font-bold text-gray-900">
+              <span x-text="stats.audience_cgt_implantee ? stats.audience_cgt_implantee.toLocaleString('fr-FR') : '0'"></span>
+              <span class="text-sm text-gray-500 ml-1" x-text="'(' + (stats.audience_cgt_implantee_percent || 0) + '%)'"></span>
+            </p>
+          </div>
+          <span class="w-11 h-11 rounded-full bg-red-100 text-cgt-red flex items-center justify-center text-xl"><i class="fas fa-flag"></i></span>
+        </div>
+        <p class="text-xs text-gray-600">SIRET sans CGT : <span class="font-semibold" x-text="stats.audience_sans_cgt ? stats.audience_sans_cgt.toLocaleString('fr-FR') : '0'"></span></p>
+      </div>
+      <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-purple-100">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-purple-600">Voix CGT</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="(stats.audience_voix_percent || 0) + '%'"></p>
+          </div>
+          <span class="w-11 h-11 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl"><i class="fas fa-chart-pie"></i></span>
+        </div>
+        <p class="text-xs text-gray-600"><span class="font-semibold" x-text="stats.audience_voix_cgt ? stats.audience_voix_cgt.toLocaleString('fr-FR') : '0'"></span> voix CGT / <span class="font-semibold" x-text="stats.audience_inscrits ? stats.audience_inscrits.toLocaleString('fr-FR') : '0'"></span> inscrit·es</p>
       </div>
     </div>
-  </div>
 
-    <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Departments Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
       <div class="mb-4">
@@ -213,7 +215,7 @@
   </div>
 
     <!-- Statut PAP Stats -->
-    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+    <div class="bg-white/90 backdrop-blur rounded-2xl shadow-lg border border-gray-200 p-6 mb-4">
     <div class="flex items-start justify-between mb-4">
       <div>
         <h3 class="text-xl font-bold text-gray-800">
@@ -227,16 +229,15 @@
     </div>
 
     <!-- Légende explicative -->
-    <div class="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-      <p class="text-xs text-gray-700">
-        <i class="fas fa-lightbulb text-blue-600 mr-1"></i>
-        <strong>Explication :</strong>
-        Les statuts indiquent pour quels cycles un SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span> a eu des Procès-Verbaux :
+    <div class="mb-4 rounded-xl border border-blue-200 bg-blue-50/70 p-4">
+      <p class="text-xs text-blue-900 font-semibold flex items-center gap-2">
+        <i class="fas fa-lightbulb"></i>
+        Comprendre les statuts PAP
       </p>
-      <ul class="mt-2 ml-4 text-xs text-gray-600 space-y-1">
-        <li>• <strong>C4</strong> : PV tenu ou carence enregistrée au Cycle 4 (2021-2024)</li>
-        <li>• <strong>C3+C4</strong> : Historique C3 mais C4 prioritaire</li>
-        <li>• <strong>Aucun</strong> : Pas de PV enregistré</li>
+      <ul class="mt-2 text-xs text-blue-900/80 space-y-1">
+        <li><strong>C4</strong> : PV tenu ou carence enregistrée (2021-2024)</li>
+        <li><strong>C3+C4</strong> : Historique C3 mais C4 prioritaire</li>
+        <li><strong>Aucun</strong> : Aucun PV consolidé</li>
       </ul>
     </div>
 

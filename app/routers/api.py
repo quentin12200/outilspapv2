@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List
 from datetime import datetime, timedelta, date
+import re
+
 from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
@@ -334,19 +336,93 @@ def dashboard_stats(db: Session = Depends(get_session)):
 # ENRICHISSEMENT API SIRENE
 # ============================================================================
 
+def _normalise_search_term(value: str) -> str:
+    return re.sub(r"\s+", " ", value or "").strip()
+
+
+def _search_local_siret(db: Session, nom: str, ville: str, limit: int) -> list[dict[str, str]]:
+    """Fallback local en cas d'échec de l'API Sirene."""
+
+    query = db.query(SiretSummary)
+
+    cleaned_name = _normalise_search_term(nom)
+    if cleaned_name:
+        for token in cleaned_name.split():
+            query = query.filter(SiretSummary.raison_sociale.ilike(f"%{token}%"))
+
+    cleaned_city = _normalise_search_term(ville)
+    if cleaned_city:
+        for token in cleaned_city.split():
+            query = query.filter(SiretSummary.ville.ilike(f"%{token}%"))
+
+    if not cleaned_name and not cleaned_city:
+        return []
+
+    rows = (
+        query
+        .order_by(func.coalesce(SiretSummary.inscrits_c4, 0).desc())
+        .limit(limit)
+        .all()
+    )
+
+    results: list[dict[str, str]] = []
+    for row in rows:
+        adresse_parts = [
+            row.cp or "",
+            (row.ville or "").title(),
+        ]
+        adresse = " ".join(part for part in adresse_parts if part).strip()
+
+        fd = row.fd_c4 or row.fd_c3
+        idcc = row.idcc
+        meta_parts = [
+            f"FD {fd}" if fd else "",
+            f"IDCC {idcc}" if idcc else "",
+        ]
+        activite = " • ".join(part for part in meta_parts if part)
+
+        results.append({
+            "siret": row.siret,
+            "siren": row.siren,
+            "denomination": row.raison_sociale or "Raison sociale inconnue",
+            "adresse": adresse,
+            "activite": activite,
+        })
+
+    return results
+
+
 @router.get("/sirene/search")
 async def sirene_search(
     nom: str = Query(..., min_length=2),
     ville: str = Query(..., min_length=2),
     limit: int = Query(10, ge=1, le=20),
+    db: Session = Depends(get_session),
 ):
     """Recherche d'établissements via l'API Sirene."""
 
+    sirene_error: str | None = None
+    results: List[dict] = []
+
     try:
         results = await rechercher_siret(nom, ville, limit)
-        return {"results": results}
     except SireneAPIError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        sirene_error = str(exc)
+
+    if results:
+        return {"results": results, "source": "sirene"}
+
+    fallback = _search_local_siret(db, nom, ville, limit)
+    if fallback:
+        response = {"results": fallback, "source": "local"}
+        if sirene_error:
+            response["warning"] = sirene_error
+        return response
+
+    if sirene_error:
+        raise HTTPException(status_code=502, detail=sirene_error)
+
+    return {"results": [], "source": "sirene"}
 
 
 @router.post("/sirene/enrichir/{siret}")
