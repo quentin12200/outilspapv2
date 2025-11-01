@@ -137,6 +137,34 @@
     </div>
   </section>
 
+  <!-- Diagnostic Doublons -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-stethoscope text-red-500 mr-2"></i>
+      Diagnostic des Doublons
+    </h2>
+    <div class="space-y-4">
+      <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+        <p class="text-sm text-yellow-800 mb-2">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          <strong>Avez-vous importé le même fichier plusieurs fois ?</strong>
+        </p>
+        <p class="text-xs text-yellow-700">
+          Si vous voyez trop d'invitations (ex: 5000 au lieu de 1000), vous avez probablement des doublons.
+          Utilisez cet outil pour les détecter et les supprimer automatiquement.
+        </p>
+      </div>
+      <a href="/admin/diagnostics" class="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2 font-semibold">
+        <i class="fas fa-search"></i>
+        <span>Vérifier les doublons</span>
+      </a>
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-info-circle mr-1"></i>
+        Détecte et supprime automatiquement les invitations importées en double
+      </p>
+    </div>
+  </section>
+
 </div>
 
 <!-- Informations Invitations -->

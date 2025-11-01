@@ -8,7 +8,7 @@ import re
 import unicodedata
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -652,6 +652,81 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
+
+@app.get("/admin/diagnostics", response_class=HTMLResponse)
+def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
+    """Page de diagnostic des doublons d'invitations"""
+
+    # Compter le total
+    total = db.query(func.count(Invitation.id)).scalar() or 0
+
+    # Compter les SIRET uniques
+    unique_sirets = db.query(func.count(func.distinct(Invitation.siret))).scalar() or 0
+
+    # Calculer les doublons
+    duplicates = total - unique_sirets
+
+    # Compter par source
+    sources = db.query(
+        Invitation.source,
+        func.count(Invitation.id)
+    ).group_by(Invitation.source).all()
+
+    sources_data = [{"source": s or "Sans source", "count": c} for s, c in sources]
+
+    # Trouver les top 10 SIRET avec le plus de doublons
+    duplicated_sirets = db.query(
+        Invitation.siret,
+        func.count(Invitation.id).label('count')
+    ).group_by(Invitation.siret).having(func.count(Invitation.id) > 1).order_by(
+        func.count(Invitation.id).desc()
+    ).limit(10).all()
+
+    top_duplicates = []
+    for siret, count in duplicated_sirets:
+        dates = db.query(Invitation.date_invit).filter(Invitation.siret == siret).limit(3).all()
+        dates_str = ", ".join([str(d[0]) for d in dates if d[0]])
+        top_duplicates.append({
+            "siret": siret,
+            "count": count,
+            "dates": dates_str
+        })
+
+    return templates.TemplateResponse("admin_diagnostics.html", {
+        "request": request,
+        "total": total,
+        "unique_sirets": unique_sirets,
+        "duplicates": duplicates,
+        "sources": sources_data,
+        "top_duplicates": top_duplicates,
+        "has_duplicates": duplicates > 0
+    })
+
+@app.post("/admin/diagnostics/remove-duplicates")
+def remove_duplicates(db: Session = Depends(get_session)):
+    """Supprime les doublons d'invitations (garde le plus récent par SIRET)"""
+
+    # Trouver les IDs à GARDER (ID max par SIRET)
+    subq = db.query(
+        Invitation.siret,
+        func.max(Invitation.id).label('max_id')
+    ).group_by(Invitation.siret).subquery()
+
+    ids_to_keep = db.query(Invitation.id).join(
+        subq,
+        Invitation.id == subq.c.max_id
+    ).all()
+
+    ids_to_keep_set = {id_tuple[0] for id_tuple in ids_to_keep}
+
+    # Supprimer les doublons
+    deleted = db.query(Invitation).filter(
+        ~Invitation.id.in_(ids_to_keep_set)
+    ).delete(synchronize_session=False)
+
+    db.commit()
+
+    return RedirectResponse(url="/admin/diagnostics?success=1", status_code=303)
 
 @app.get("/recherche-siret", response_class=HTMLResponse)
 def recherche_siret_page(request: Request):
