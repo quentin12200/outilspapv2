@@ -165,6 +165,67 @@
     </div>
   </section>
 
+  <!-- Base de données -->
+  <section class="bg-white rounded-xl shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-database text-blue-500 mr-2"></i>
+      Base de données (papcse.db)
+    </h2>
+    <div class="space-y-4">
+      <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+        <p class="text-sm text-blue-800 mb-2">
+          <i class="fas fa-info-circle mr-2"></i>
+          <strong>Téléchargement automatique au démarrage</strong>
+        </p>
+        <p class="text-xs text-blue-700 mb-2">
+          La base de données <code class="bg-blue-100 px-2 py-1 rounded">papcse.db</code> est téléchargée automatiquement
+          depuis GitHub Release v1.0.0 au premier démarrage si elle n'existe pas.
+        </p>
+        <p class="text-xs text-blue-700">
+          <strong>Configuration :</strong> Définissez <code class="bg-blue-100 px-2 py-1 rounded">DB_URL</code> dans les variables d'environnement Railway.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Statut de la base -->
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
+            <i class="fas fa-check-circle text-green-500 mr-1"></i>
+            Statut
+          </p>
+          <p class="text-lg font-bold text-green-600">Base chargée</p>
+          <p class="text-xs text-gray-500 mt-1">
+            La base de données est opérationnelle
+          </p>
+        </div>
+
+        <!-- Version -->
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
+            <i class="fas fa-tag text-purple-500 mr-1"></i>
+            Version Release
+          </p>
+          <p class="text-lg font-bold text-purple-600">v1.0.0</p>
+          <p class="text-xs text-gray-500 mt-1">
+            Avec scores syndicaux complets
+          </p>
+        </div>
+      </div>
+
+      <div class="p-3 bg-gray-100 rounded-lg">
+        <p class="text-xs text-gray-700 font-mono">
+          <strong>URL :</strong> https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
+        </p>
+      </div>
+
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-lightbulb mr-1"></i>
+        <strong>Note :</strong> La base ne sera re-téléchargée que si elle est absente.
+        Pour forcer une mise à jour, supprimez le fichier et redémarrez l'application.
+      </p>
+    </div>
+  </section>
+
 </div>
 
 <!-- Informations Invitations -->
