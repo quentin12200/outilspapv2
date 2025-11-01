@@ -350,14 +350,33 @@ def build_siret_summary(session: Session) -> int:
     last_c3 = last_per_cycle(mask_c3)
     last_c4 = last_per_cycle(mask_c4)
 
-    # Invitations: dernière date par SIRET (filtrées C5)
+    # Invitations: dernière date par SIRET.
+    #
+    # L'ancien code filtrait strictement les dates sur la plage 2025-2028 en partant
+    # du principe que toutes les invitations référencées seraient uniquement C5.
+    # En pratique, les fichiers importés contiennent des invitations datées dès 2022
+    # (voire plus tôt) mais toujours liées au cycle 5. Ce filtrage supprimait donc
+    # toutes les lignes et empêchait l'alimentation de `date_pap_c5`, d'où un
+    # tableau "Invitations PAP - Cycle 5" vide.
+    #
+    # On remonte désormais la dernière date valide quel que soit l'année ; cela
+    # garantit que la table récapitulative reflète bien les données importées tout
+    # en conservant la possibilité de filtrer côté interface.
     if not inv.empty:
-        C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
         inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
-        inv_c5 = inv[(inv["date_invit"] >= C5_START) & (inv["date_invit"] <= C5_END)]
-        inv_latest = inv_c5.groupby("siret", as_index=False)["date_invit"].max().rename(columns={"date_invit":"date_pap_c5"})
+        valid_inv = inv[inv["date_invit"].notna()].copy()
+        if not valid_inv.empty:
+            inv_latest = (
+                valid_inv
+                .sort_values(["siret", "date_invit"], ascending=[True, False])
+                .drop_duplicates(subset="siret", keep="first")
+                .rename(columns={"date_invit": "date_pap_c5"})
+                [["siret", "date_pap_c5"]]
+            )
+        else:
+            inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
     else:
-        inv_latest = pd.DataFrame(columns=["siret","date_pap_c5"])
+        inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
 
     # Fusion C3/C4
     base = last_c3.merge(last_c4, on="siret", how="outer", suffixes=("_c3","_c4"))
