@@ -309,8 +309,8 @@ def presentation(request: Request, db: Session = Depends(get_session)):
     total_sirets = db.query(func.count(SiretSummary.siret)).scalar() or 0
     invitations_total = db.query(func.count(Invitation.id)).scalar() or 0
     pap_sirets = (
-        db.query(func.count(SiretSummary.siret))
-        .filter(SiretSummary.date_pap_c5.isnot(None))
+        db.query(func.count(func.distinct(Invitation.siret)))
+        .filter(Invitation.siret.isnot(None))
         .scalar()
         or 0
     )
