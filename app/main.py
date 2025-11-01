@@ -16,7 +16,9 @@ from typing import Any, Mapping
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine, SessionLocal
-from .models import Invitation, SiretSummary
+from datetime import date, datetime
+
+from .models import Invitation, SiretSummary, PVEvent
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -338,6 +340,118 @@ def index(
         "all_deps": [d[0] for d in all_deps],
         "all_fds": all_fds_combined,
     })
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+
+    formats = (
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+        "%d.%m.%Y",
+    )
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+
+    # Tentative ISO 8601 générique (permet 2025-03-01T00:00:00)
+    try:
+        return datetime.fromisoformat(cleaned).date()
+    except ValueError:
+        return None
+
+
+def _to_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.strip().replace(" ", "").replace(",", ".")
+        if not cleaned:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
+
+
+@app.get("/elections", response_class=HTMLResponse)
+def upcoming_elections(
+    request: Request,
+    min_effectif: int = 1000,
+    db: Session = Depends(get_session),
+):
+    today = date.today()
+
+    stmt = (
+        db.query(
+            PVEvent.siret,
+            PVEvent.raison_sociale,
+            PVEvent.ud,
+            PVEvent.region,
+            PVEvent.effectif_siret,
+            PVEvent.inscrits,
+            PVEvent.cycle,
+            PVEvent.date_prochain_scrutin,
+            PVEvent.date_pv,
+            PVEvent.institution,
+        )
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+    )
+
+    per_siret: dict[str, dict[str, Any]] = {}
+    for row in stmt:
+        parsed_date = _parse_date(row.date_prochain_scrutin)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        effectif_value = _to_number(row.effectif_siret)
+        if effectif_value is None:
+            effectif_value = _to_number(row.inscrits)
+
+        if min_effectif and (effectif_value is None or effectif_value < min_effectif):
+            continue
+
+        key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        payload = {
+            "siret": row.siret,
+            "raison_sociale": row.raison_sociale,
+            "ud": row.ud,
+            "region": row.region,
+            "effectif": int(effectif_value) if effectif_value is not None else None,
+            "cycle": row.cycle,
+            "date": parsed_date,
+            "date_display": parsed_date.strftime("%d/%m/%Y"),
+            "date_pv": _parse_date(row.date_pv),
+            "institution": row.institution,
+        }
+
+        existing = per_siret.get(key)
+        if existing is None or parsed_date < existing["date"]:
+            per_siret[key] = payload
+
+    elections_list = sorted(per_siret.values(), key=lambda item: item["date"])
+
+    return templates.TemplateResponse(
+        "elections.html",
+        {
+            "request": request,
+            "elections": elections_list,
+            "min_effectif": min_effectif,
+        },
+    )
 
 
 @app.get("/invitations", response_class=HTMLResponse)
