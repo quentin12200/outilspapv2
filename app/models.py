@@ -39,14 +39,30 @@ class PVEvent(Base):
     tx_participation_pv = Column("Tx_Part._PV", Float)
 
     # Scores des syndicats au PV
-    score_cgt = Column("score_CGT", Integer)
-    score_cfdt = Column("score_CFDT", Integer)
-    score_fo = Column("score_FO", Integer)
-    score_cftc = Column("score_CFTC", Integer)
-    score_cgc = Column("score_CGC", Integer)
-    score_unsa = Column("score_UNSA", Integer)
-    score_solidaire = Column("score_SOLIDAIRE", Integer)
-    score_autre = Column("score_AUTRE", Integer)
+    cgt_voix = Column("score_CGT", Integer)
+    score_cgt = synonym("cgt_voix")
+
+    cfdt_voix = Column("score_CFDT", Integer)
+    score_cfdt = synonym("cfdt_voix")
+
+    fo_voix = Column("score_FO", Integer)
+    score_fo = synonym("fo_voix")
+
+    cftc_voix = Column("score_CFTC", Integer)
+    score_cftc = synonym("cftc_voix")
+
+    cgc_voix = Column("score_CGC", Integer)
+    score_cgc = synonym("cgc_voix")
+
+    unsa_voix = Column("score_UNSA", Integer)
+    score_unsa = synonym("unsa_voix")
+
+    sud_voix = Column("score_SOLIDAIRE", Integer)
+    solidaire_voix = synonym("sud_voix")
+    score_solidaire = synonym("sud_voix")
+
+    autre_voix = Column("score_AUTRE", Integer)
+    score_autre = synonym("autre_voix")
 
     # Présence syndicats au PV
     controle = Column("Contrôle", String(50))
@@ -110,7 +126,7 @@ class PVEvent(Base):
     pct_siret_cgt = Column("%_Siret_CGT", Float)
     pct_siret_cfdt = Column("%_Siret_CFDT", Float)
     pct_siret_fo = Column("%_Siret_FO", Float)
-    pct_siret_cgc = Column("%_Siret_CGC", Float)
+    pct_siret_cgc = Column("%Siret_CGC", Float)
 
     # Informations SIREN
     siren = Column(String(9))
@@ -133,7 +149,7 @@ class PVEvent(Base):
 
     # CAC 40 / SBF 120
     code_sbf120 = Column("Code SBF_120", String(50))
-    codes_sbf120_cac40 = Column("Codes SBF_120(120360) CAC_40(120400)", String(100))
+    codes_sbf120_cac40 = Column("Codes SBF_120_(120360) CAC_40_(120400)", String(100))
     est_cac40_sbf120 = Column("O/N CAC40/SBF120", String(10))
     nom_groupe_sbf120 = Column("Nom_Groupe_SBF_120", Text)
 
