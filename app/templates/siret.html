@@ -571,27 +571,27 @@
       </thead>
       <tbody class="divide-y divide-gray-200">
         <!-- CGT -->
-        {% if row.cgt_voix_c3 or row.cgt_voix_c4 %}
+        {% if row.score_cgt_c3 or row.score_cgt_c4 %}
         <tr class="hover:bg-red-50 transition">
           <td class="px-4 py-3 font-bold text-cgt-red flex items-center">
             <i class="fas fa-flag mr-2"></i>
             CGT
           </td>
           <td class="px-4 py-3 text-center">
-            <span class="text-lg font-bold text-blue-600">{{ row.cgt_voix_c3 or '–' }}</span>
-            {% if row.inscrits_c3 and row.cgt_voix_c3 %}
-            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cgt_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            <span class="text-lg font-bold text-blue-600">{{ row.score_cgt_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.score_cgt_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.score_cgt_c3 / row.inscrits_c3 * 100)) }}%)</span>
             {% endif %}
           </td>
           <td class="px-4 py-3 text-center">
-            <span class="text-lg font-bold text-green-600">{{ row.cgt_voix_c4 or '–' }}</span>
-            {% if row.inscrits_c4 and row.cgt_voix_c4 %}
-            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cgt_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            <span class="text-lg font-bold text-green-600">{{ row.score_cgt_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.score_cgt_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.score_cgt_c4 / row.inscrits_c4 * 100)) }}%)</span>
             {% endif %}
           </td>
           <td class="px-4 py-3 text-center">
-            {% if row.cgt_voix_c3 and row.cgt_voix_c4 %}
-              {% set diff = row.cgt_voix_c4 - row.cgt_voix_c3 %}
+            {% if row.score_cgt_c3 and row.score_cgt_c4 %}
+              {% set diff = row.score_cgt_c4 - row.score_cgt_c3 %}
               <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
                 {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
                 {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}

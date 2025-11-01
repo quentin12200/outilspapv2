@@ -474,9 +474,7 @@ def run_migrations():
     try:
         logger.info("🚀 Démarrage des migrations de base de données...")
 
-        # Migration v1.0.0 - Ajout des colonnes manquantes
-        add_pv_events_columns_if_needed()
-        add_siret_summary_columns_if_needed()
+        # Migration Sirene pour invitations
         add_sirene_columns_if_needed()
 
         # Migration données invitations
