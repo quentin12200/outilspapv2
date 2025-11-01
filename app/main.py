@@ -460,10 +460,17 @@ def _to_number(value: Any) -> float | None:
     return None
 
 
-@app.get("/elections", response_class=HTMLResponse)
-def upcoming_elections(
+@app.get("/calendrier", response_class=HTMLResponse)
+def calendrier_elections(
     request: Request,
     min_effectif: int = 1000,
+    q: str = "",
+    cycle: str = "",
+    institution: str = "",
+    fd: str = "",
+    idcc: str = "",
+    ud: str = "",
+    region: str = "",
     db: Session = Depends(get_session),
 ):
     today = date.today()
@@ -480,9 +487,28 @@ def upcoming_elections(
             PVEvent.date_prochain_scrutin,
             PVEvent.date_pv,
             PVEvent.institution,
+            PVEvent.fd,
+            PVEvent.idcc,
         )
         .filter(PVEvent.date_prochain_scrutin.isnot(None))
     )
+
+    search_term = q.strip().lower()
+    cycle_filter = cycle.strip()
+    institution_filter = institution.strip()
+    fd_filter = fd.strip()
+    idcc_filter = idcc.strip()
+    ud_filter = ud.strip()
+    region_filter = region.strip()
+
+    options = {
+        "cycles": set(),
+        "institutions": set(),
+        "fds": set(),
+        "idccs": set(),
+        "uds": set(),
+        "regions": set(),
+    }
 
     per_siret: dict[str, dict[str, Any]] = {}
     for row in stmt:
@@ -490,12 +516,44 @@ def upcoming_elections(
         if not parsed_date or parsed_date < today:
             continue
 
+        if row.cycle:
+            options["cycles"].add(row.cycle)
+        if row.institution:
+            options["institutions"].add(row.institution)
+        if row.fd:
+            options["fds"].add(row.fd)
+        if row.idcc:
+            options["idccs"].add(str(row.idcc))
+        if row.ud:
+            options["uds"].add(row.ud)
+        if row.region:
+            options["regions"].add(row.region)
+
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
             effectif_value = _to_number(row.inscrits)
 
         if min_effectif and (effectif_value is None or effectif_value < min_effectif):
             continue
+
+        if cycle_filter and (row.cycle or "") != cycle_filter:
+            continue
+        if institution_filter and (row.institution or "") != institution_filter:
+            continue
+        if fd_filter and (row.fd or "") != fd_filter:
+            continue
+        if idcc_filter and (str(row.idcc or "")) != idcc_filter:
+            continue
+        if ud_filter and (row.ud or "") != ud_filter:
+            continue
+        if region_filter and (row.region or "") != region_filter:
+            continue
+
+        if search_term:
+            siret_value = str(row.siret or "")
+            raison = (row.raison_sociale or "").lower()
+            if search_term not in siret_value.lower() and search_term not in raison:
+                continue
 
         key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
         payload = {
@@ -509,6 +567,8 @@ def upcoming_elections(
             "date_display": parsed_date.strftime("%d/%m/%Y"),
             "date_pv": _parse_date(row.date_pv),
             "institution": row.institution,
+            "fd": row.fd,
+            "idcc": row.idcc,
         }
 
         existing = per_siret.get(key)
@@ -518,11 +578,28 @@ def upcoming_elections(
     elections_list = sorted(per_siret.values(), key=lambda item: item["date"])
 
     return templates.TemplateResponse(
-        "elections.html",
+        "calendrier.html",
         {
             "request": request,
             "elections": elections_list,
-            "min_effectif": min_effectif,
+            "filters": {
+                "min_effectif": min_effectif,
+                "q": q,
+                "cycle": cycle_filter,
+                "institution": institution_filter,
+                "fd": fd_filter,
+                "idcc": idcc_filter,
+                "ud": ud_filter,
+                "region": region_filter,
+            },
+            "options": {
+                "cycles": sorted(options["cycles"]),
+                "institutions": sorted(options["institutions"]),
+                "fds": sorted(options["fds"]),
+                "idccs": sorted(options["idccs"]),
+                "uds": sorted(options["uds"]),
+                "regions": sorted(options["regions"]),
+            },
         },
     )
 
