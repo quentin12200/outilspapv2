@@ -396,7 +396,11 @@ def index(
     rows = qs.limit(100).all()
 
     # Ajoute un fallback pour l'affichage de la date PAP C5 directement depuis les invitations
-    missing_dates = [r.siret for r in rows if getattr(r, "date_pap_c5", None) is None]
+    missing_dates = [
+        r.siret
+        for r in rows
+        if _is_missing_date_value(getattr(r, "date_pap_c5", None))
+    ]
     fallback_dates: dict[str, date] = {}
     if missing_dates:
         fallback_dates = dict(
@@ -410,17 +414,27 @@ def index(
         )
 
     for r in rows:
-        display_date = getattr(r, "date_pap_c5", None) or fallback_dates.get(r.siret)
-        if isinstance(display_date, str):
-            parsed = _parse_date(display_date)
-            display_date = parsed or display_date
-        label = None
-        if isinstance(display_date, (datetime, date)):
-            label = display_date.strftime("%d/%m/%Y")
-        elif display_date is not None:
-            label = str(display_date)
-        setattr(r, "date_pap_c5_display", display_date)
+        original_value = getattr(r, "date_pap_c5", None)
+        source_value = original_value
+        if _is_missing_date_value(source_value):
+            source_value = fallback_dates.get(r.siret)
+
+        display_date = _coerce_date_value(source_value)
+        label = _format_date_label(display_date, source_value)
+        sort_value = ""
+
+        if display_date is not None:
+            sort_value = display_date.isoformat()
+            value_for_display = display_date
+        elif source_value is not None:
+            value_for_display = source_value
+            sort_value = str(source_value).strip()
+        else:
+            value_for_display = None
+
+        setattr(r, "date_pap_c5_display", value_for_display)
         setattr(r, "date_pap_c5_label", label)
+        setattr(r, "date_pap_c5_sort", sort_value)
 
     top_departments_query = (
         db.query(
@@ -491,6 +505,66 @@ def _parse_date(value: str | None) -> date | None:
         return datetime.fromisoformat(cleaned).date()
     except ValueError:
         return None
+
+
+def _is_missing_date_value(value: Any) -> bool:
+    if value is None:
+        return True
+
+    # pandas NaT objects expose .isnat
+    if hasattr(value, "isnat"):
+        try:
+            if bool(value.isnat):
+                return True
+        except Exception:
+            pass
+
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return True
+        lowered = cleaned.lower()
+        if lowered in {"nan", "nat", "none", "null"}:
+            return True
+        if lowered.startswith("0000-00-00"):
+            return True
+
+    return False
+
+
+def _coerce_date_value(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if hasattr(value, "to_pydatetime"):
+        try:
+            converted = value.to_pydatetime()
+            if isinstance(converted, datetime):
+                return converted.date()
+        except Exception:
+            pass
+    if isinstance(value, str):
+        parsed = _parse_date(value)
+        if parsed:
+            return parsed
+    return None
+
+
+def _format_date_label(date_value: date | None, raw_value: Any) -> str | None:
+    if date_value is not None:
+        return date_value.strftime("%d/%m/%Y")
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text:
+        return None
+    lowered = text.lower()
+    if lowered in {"nan", "nat", "none", "null"}:
+        return None
+    return text
 
 
 def _to_number(value: Any) -> float | None:

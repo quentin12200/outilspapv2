@@ -523,12 +523,19 @@
             <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c4 if r.inscrits_c4 is not none else '' }}">{{ r.inscrits_c4 or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max or '' }}">{{ r.date_pv_max or '' }}</td>
-            {% set pap_date = r.date_pap_c5_display or r.date_pap_c5 %}
-            <td class="px-4 py-3 whitespace-nowrap text-center" data-sort-value="{{ pap_date or '' }}">
-              {% if pap_date %}
+            {% set pap_label = r.date_pap_c5_label %}
+            {% set pap_value = r.date_pap_c5_display or r.date_pap_c5 %}
+            {% set pap_sort = r.date_pap_c5_sort or '' %}
+            <td class="px-4 py-3 whitespace-nowrap text-center" data-sort-value="{{ pap_sort }}">
+              {% if pap_label %}
               <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
                 <i class="fas fa-calendar-check mr-1"></i>
-                {{ r.date_pap_c5_label or pap_date }}
+                {{ pap_label }}
+              </span>
+              {% elif pap_value %}
+              <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                <i class="fas fa-calendar-check mr-1"></i>
+                {{ pap_value }}
               </span>
               {% else %}
               <span class="text-gray-400 text-sm">—</span>
