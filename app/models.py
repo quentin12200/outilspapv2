@@ -2,12 +2,12 @@ from sqlalchemy import Column, Integer, String, Date, Boolean, JSON, Text, DateT
 from .db import Base
 
 class PVEvent(Base):
-    __tablename__ = "pv_events"
-    id = Column(Integer, primary_key=True)
+    __tablename__ = "Tous_PV"  # Nom réel de la table dans la base
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Colonnes de base - noms exacts de la base
-    cycle = Column("Cycle", String(10), index=True, nullable=False)
-    siret = Column(String(14), index=True, nullable=False)
+    cycle = Column("Cycle", String(10), index=True)
+    siret = Column(String(14), index=True)
     id_pv = Column(String(50))
     fd = Column("FD", String(80))
     idcc = Column(String(20))
@@ -137,7 +137,7 @@ class PVEvent(Base):
     annee_prochain = Column("ANNÉE_PROCHAIN", Integer)
     binaire = Column(String(50))
 
-    # Compatibilité ancienne version
+    # Compatibilité ancienne version (colonnes qui peuvent ne pas exister)
     type = Column(String(255))
     blancs_nuls = Column(Integer)
     cgt_siege = Column(Integer)
