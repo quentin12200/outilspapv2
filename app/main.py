@@ -7,6 +7,7 @@ import logging
 import re
 import unicodedata
 import tempfile
+from types import SimpleNamespace
 from urllib.parse import urlparse
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -372,6 +373,33 @@ def index(
         qs = qs.order_by(SiretSummary.date_pap_c5.desc().nullslast())
 
     rows = qs.limit(100).all()
+
+    # Ajoute un fallback pour l'affichage de la date PAP C5 directement depuis les invitations
+    missing_dates = [r.siret for r in rows if getattr(r, "date_pap_c5", None) is None]
+    fallback_dates: dict[str, date] = {}
+    if missing_dates:
+        fallback_dates = dict(
+            db.query(
+                Invitation.siret,
+                func.max(Invitation.date_invit).label("latest_date"),
+            )
+            .filter(Invitation.siret.in_(missing_dates))
+            .group_by(Invitation.siret)
+            .all()
+        )
+
+    for r in rows:
+        display_date = getattr(r, "date_pap_c5", None) or fallback_dates.get(r.siret)
+        if isinstance(display_date, str):
+            parsed = _parse_date(display_date)
+            display_date = parsed or display_date
+        label = None
+        if isinstance(display_date, (datetime, date)):
+            label = display_date.strftime("%d/%m/%Y")
+        elif display_date is not None:
+            label = str(display_date)
+        setattr(r, "date_pap_c5_display", display_date)
+        setattr(r, "date_pap_c5_label", label)
 
     top_departments_query = (
         db.query(
@@ -1141,19 +1169,27 @@ def recherche_siret_page(request: Request):
 def siret_detail(siret: str, request: Request, db: Session = Depends(get_session)):
     from .models import PVEvent, Invitation
 
-    # Récupère le résumé SIRET
-    row = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+    # Résumé agrégé issu de siret_summary
+    summary_row = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
 
-    if not row:
+    # Historiques détaillés
+    pv_history = (
+        db.query(PVEvent)
+        .filter(PVEvent.siret == siret)
+        .order_by(PVEvent.date_pv.desc())
+        .all()
+    )
+    invitations = (
+        db.query(Invitation)
+        .filter(Invitation.siret == siret)
+        .order_by(Invitation.date_invit.desc())
+        .all()
+    )
+
+    if not summary_row and not pv_history and not invitations:
         return templates.TemplateResponse("siret.html", {"request": request, "row": None})
 
-    # Récupère l'historique complet des PV
-    pv_history = db.query(PVEvent).filter(PVEvent.siret == siret).order_by(PVEvent.date_pv.desc()).all()
-
-    # Récupère les invitations
-    invitations = db.query(Invitation).filter(Invitation.siret == siret).order_by(Invitation.date_invit.desc()).all()
-
-    # Normalisation des dates pour l'affichage (gestion des chaînes et NaT)
+    # Helpers -----------------------------------------------------------------
     def _to_date(value):
         if value is None:
             return None
@@ -1172,37 +1208,243 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
                     continue
         return None
 
+    def _to_int(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            if value != value:  # NaN
+                return None
+            return int(round(value))
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            cleaned = cleaned.replace("\xa0", "").replace(" ", "").replace(",", ".")
+            try:
+                return int(float(cleaned))
+            except ValueError:
+                return None
+        return None
+
+    def _to_float(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and value != value:
+                return None
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            cleaned = cleaned.replace("\xa0", "").replace(",", ".")
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _set_if_missing(obj, attr: str, value):
+        if value is None:
+            return
+        current = getattr(obj, attr, None)
+        if current is None or (isinstance(current, str) and not current.strip()):
+            setattr(obj, attr, value)
+
+    def _cycle_event(cycle_name: str):
+        target = (cycle_name or "").strip().upper()
+        for pv in pv_history:
+            if (pv.cycle or "").strip().upper() == target:
+                return pv
+        return None
+
+    # Construction du résumé exploitable dans le template ---------------------
+    if summary_row:
+        summary = summary_row
+    else:
+        defaults = {column.name: None for column in SiretSummary.__table__.columns}
+        defaults["siret"] = siret
+        summary = SimpleNamespace(**defaults)
+
+    base_event = pv_history[0] if pv_history else None
+    latest_invitation = invitations[0] if invitations else None
+    pv_c3 = _cycle_event("C3")
+    pv_c4 = _cycle_event("C4")
+
+    if base_event:
+        _set_if_missing(summary, "raison_sociale", base_event.raison_sociale)
+        _set_if_missing(summary, "idcc", base_event.idcc)
+        _set_if_missing(summary, "cp", base_event.cp)
+        _set_if_missing(summary, "ville", base_event.ville)
+        _set_if_missing(summary, "region", base_event.region)
+        _set_if_missing(summary, "ul", base_event.ul)
+
+    if latest_invitation:
+        label = latest_invitation.denomination or latest_invitation.enseigne
+        _set_if_missing(summary, "raison_sociale", label)
+        _set_if_missing(summary, "cp", latest_invitation.code_postal)
+        _set_if_missing(summary, "ville", latest_invitation.commune)
+
+    if pv_c3:
+        _set_if_missing(summary, "fd_c3", pv_c3.fd)
+        _set_if_missing(summary, "ud_c3", pv_c3.ud)
+        _set_if_missing(summary, "date_pv_c3", _to_date(pv_c3.date_pv))
+        _set_if_missing(summary, "inscrits_c3", _to_int(pv_c3.inscrits))
+        _set_if_missing(summary, "votants_c3", _to_int(pv_c3.votants))
+        _set_if_missing(summary, "cgt_voix_c3", _to_int(pv_c3.cgt_voix))
+        _set_if_missing(summary, "cfdt_voix_c3", _to_int(pv_c3.cfdt_voix))
+        _set_if_missing(summary, "fo_voix_c3", _to_int(pv_c3.fo_voix))
+        _set_if_missing(summary, "cftc_voix_c3", _to_int(pv_c3.cftc_voix))
+        _set_if_missing(summary, "cgc_voix_c3", _to_int(pv_c3.cgc_voix))
+        _set_if_missing(summary, "unsa_voix_c3", _to_int(pv_c3.unsa_voix))
+        _set_if_missing(summary, "sud_voix_c3", _to_int(pv_c3.sud_voix))
+        _set_if_missing(summary, "solidaire_voix_c3", _to_int(pv_c3.solidaire_voix))
+        _set_if_missing(summary, "autre_voix_c3", _to_int(pv_c3.autre_voix))
+
+    if pv_c4:
+        _set_if_missing(summary, "fd_c4", pv_c4.fd)
+        _set_if_missing(summary, "ud_c4", pv_c4.ud)
+        _set_if_missing(summary, "date_pv_c4", _to_date(pv_c4.date_pv))
+        _set_if_missing(summary, "inscrits_c4", _to_int(pv_c4.inscrits))
+        _set_if_missing(summary, "votants_c4", _to_int(pv_c4.votants))
+        _set_if_missing(summary, "cgt_voix_c4", _to_int(pv_c4.cgt_voix))
+        _set_if_missing(summary, "cfdt_voix_c4", _to_int(pv_c4.cfdt_voix))
+        _set_if_missing(summary, "fo_voix_c4", _to_int(pv_c4.fo_voix))
+        _set_if_missing(summary, "cftc_voix_c4", _to_int(pv_c4.cftc_voix))
+        _set_if_missing(summary, "cgc_voix_c4", _to_int(pv_c4.cgc_voix))
+        _set_if_missing(summary, "unsa_voix_c4", _to_int(pv_c4.unsa_voix))
+        _set_if_missing(summary, "sud_voix_c4", _to_int(pv_c4.sud_voix))
+        _set_if_missing(summary, "solidaire_voix_c4", _to_int(pv_c4.solidaire_voix))
+        _set_if_missing(summary, "autre_voix_c4", _to_int(pv_c4.autre_voix))
+        _set_if_missing(summary, "effectif_siret", _to_int(pv_c4.effectif_siret))
+        _set_if_missing(summary, "tranche1_effectif", pv_c4.tranche1_effectif)
+        _set_if_missing(summary, "tranche2_effectif", pv_c4.tranche2_effectif)
+        siret_moins_50_value = _to_int(pv_c4.siret_moins_50)
+        if siret_moins_50_value is not None:
+            _set_if_missing(summary, "siret_moins_50", bool(siret_moins_50_value))
+        _set_if_missing(summary, "nb_college_siret", _to_int(pv_c4.nb_college_siret))
+        _set_if_missing(summary, "score_siret_cgt", _to_int(pv_c4.score_siret_cgt))
+        _set_if_missing(summary, "score_siret_cfdt", _to_int(pv_c4.score_siret_cfdt))
+        _set_if_missing(summary, "score_siret_fo", _to_int(pv_c4.score_siret_fo))
+        _set_if_missing(summary, "score_siret_cftc", _to_int(pv_c4.score_siret_cftc))
+        _set_if_missing(summary, "score_siret_cgc", _to_int(pv_c4.score_siret_cgc))
+        _set_if_missing(summary, "score_siret_unsa", _to_int(pv_c4.score_siret_unsa))
+        _set_if_missing(summary, "score_siret_sud", _to_int(pv_c4.score_siret_sud))
+        _set_if_missing(summary, "score_siret_autre", _to_int(pv_c4.score_siret_autre))
+        _set_if_missing(summary, "pct_siret_cgt", _to_float(pv_c4.pct_siret_cgt))
+        _set_if_missing(summary, "pct_siret_cfdt", _to_float(pv_c4.pct_siret_cfdt))
+        _set_if_missing(summary, "pct_siret_fo", _to_float(pv_c4.pct_siret_fo))
+        _set_if_missing(summary, "pct_siret_cgc", _to_float(pv_c4.pct_siret_cgc))
+        _set_if_missing(summary, "presence_cgt_siret", pv_c4.presence_cgt_siret)
+        _set_if_missing(summary, "pres_siret_cgt", pv_c4.pres_siret_cgt)
+
+    if not getattr(summary, "effectif_siret", None) and pv_c3:
+        _set_if_missing(summary, "effectif_siret", _to_int(pv_c3.effectif_siret))
+        _set_if_missing(summary, "tranche1_effectif", pv_c3.tranche1_effectif)
+        _set_if_missing(summary, "tranche2_effectif", pv_c3.tranche2_effectif)
+
+    if getattr(summary, "dep", None) in (None, ""):
+        summary.dep = (pv_c4.ud if pv_c4 and pv_c4.ud else (pv_c3.ud if pv_c3 else None))
+
+    if getattr(summary, "ul", None) in (None, ""):
+        summary.ul = pv_c4.ul if pv_c4 and pv_c4.ul else (pv_c3.ul if pv_c3 else getattr(summary, "ul", None))
+
+    if getattr(summary, "statut_pap", None) in (None, ""):
+        if pv_c4 and pv_c3:
+            summary.statut_pap = "C3+C4"
+        elif pv_c4:
+            summary.statut_pap = "C4"
+        elif pv_c3:
+            summary.statut_pap = "C3"
+        elif invitations:
+            summary.statut_pap = "Invitation"
+
+    # Dates clés ----------------------------------------------------------------
+    for attr in ("date_pv_c3", "date_pv_c4", "date_pv_max", "date_pap_c5"):
+        value = getattr(summary, attr, None)
+        if isinstance(value, str):
+            parsed = _to_date(value)
+            if parsed:
+                setattr(summary, attr, parsed)
+
+    if getattr(summary, "date_pv_max", None) is None and pv_history:
+        candidates = [d for d in (_to_date(pv.date_pv) for pv in pv_history) if d]
+        if candidates:
+            summary.date_pv_max = max(candidates)
+
+    latest_inv_date = latest_invitation.date_invit if latest_invitation else None
+    if getattr(summary, "date_pap_c5", None) is None and latest_inv_date:
+        summary.date_pap_c5 = latest_inv_date
+
+    pap_display = getattr(summary, "date_pap_c5", None) or latest_inv_date
+    if isinstance(pap_display, str):
+        pap_display = _to_date(pap_display) or pap_display
+    summary.date_pap_c5_display = pap_display
+    summary.date_pap_c5_label = (
+        pap_display.strftime("%d/%m/%Y")
+        if isinstance(pap_display, (date, datetime))
+        else (str(pap_display) if pap_display else None)
+    )
+
+    # Indicateur d'implantation CGT --------------------------------------------
+    if getattr(summary, "cgt_implantee", None) is None:
+        def _truthy_flag(value) -> bool:
+            if value is None:
+                return False
+            text = str(value).strip().lower()
+            return text in {"oui", "o", "1", "true", "vrai", "y", "yes"}
+
+        cgt_present = False
+        for pv in pv_history:
+            if _to_int(pv.cgt_voix) and _to_int(pv.cgt_voix) > 0:
+                cgt_present = True
+                break
+            if _truthy_flag(pv.pres_siret_cgt) or _truthy_flag(pv.presence_cgt_siret) or _truthy_flag(pv.pres_pv_cgt):
+                cgt_present = True
+                break
+        summary.cgt_implantee = cgt_present
+
+    row = summary
+
+    # Timeline -----------------------------------------------------------------
     timeline_events = []
     for pv in pv_history:
         event_date = _to_date(pv.date_pv)
-        timeline_events.append({
-            "date": event_date,
-            "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
-            "type": "pv",
-            "cycle": pv.cycle,
-            "inscrits": pv.inscrits,
-            "votants": pv.votants,
-            "cgt_voix": pv.cgt_voix,
-            "carence": "car" in (pv.type or "").lower(),
-            "fd": pv.fd,
-            "ud": pv.ud,
-        })
+        timeline_events.append(
+            {
+                "date": event_date,
+                "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
+                "type": "pv",
+                "cycle": pv.cycle,
+                "inscrits": _to_int(pv.inscrits),
+                "votants": _to_int(pv.votants),
+                "cgt_voix": _to_int(pv.cgt_voix),
+                "carence": "car" in (pv.type or "").lower(),
+                "fd": pv.fd,
+                "ud": pv.ud,
+            }
+        )
 
     for inv in invitations:
         event_date = _to_date(inv.date_invit)
-        timeline_events.append({
-            "date": event_date,
-            "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
-            "type": "invitation",
-            "source": inv.source,
-        })
+        timeline_events.append(
+            {
+                "date": event_date,
+                "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
+                "type": "invitation",
+                "source": inv.source,
+            }
+        )
 
     timeline_events.sort(key=lambda ev: ev["date"] or date.min, reverse=True)
 
-    # Récupère les informations enrichies Sirene (si disponible)
+    # Informations Sirene -------------------------------------------------------
     sirene_data = None
     if invitations:
-        # Prend la première invitation enrichie
         enriched_inv = next((inv for inv in invitations if inv.date_enrichissement is not None), None)
         if enriched_inv:
             sirene_data = {
@@ -1221,11 +1463,14 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
                 "date_enrichissement": enriched_inv.date_enrichissement,
             }
 
-    return templates.TemplateResponse("siret.html", {
-        "request": request,
-        "row": row,
-        "pv_history": pv_history,
-        "invitations": invitations,
-        "timeline_events": timeline_events,
-        "sirene_data": sirene_data,
-    })
+    return templates.TemplateResponse(
+        "siret.html",
+        {
+            "request": request,
+            "row": row,
+            "pv_history": pv_history,
+            "invitations": invitations,
+            "timeline_events": timeline_events,
+            "sirene_data": sirene_data,
+        },
+    )
