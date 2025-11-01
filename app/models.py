@@ -126,7 +126,7 @@ class PVEvent(Base):
     pct_siret_cgt = Column("%_Siret_CGT", Float)
     pct_siret_cfdt = Column("%_Siret_CFDT", Float)
     pct_siret_fo = Column("%_Siret_FO", Float)
-    pct_siret_cgc = Column("%Siret_CGC", Float)
+    pct_siret_cgc = Column("%_Siret_CGC", Float)
 
     # Informations SIREN
     siren = Column(String(9))
