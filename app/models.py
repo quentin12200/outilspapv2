@@ -66,7 +66,7 @@ class PVEvent(Base):
 
     # Présence syndicats au PV
     controle = Column("Contrôle", String(50))
-    presence_cgt_pv = Column("Présence_CGT_PV", Float)
+    presence_cgt_pv = Column("Présence_CGT_PV", String(10))
     pres_pv_cgt = Column("PRES_PV_CGT", String(10))
     pres_pv_cfdt = Column("PRES_PV_CFDT", String(10))
     pres_pv_fo = Column("PRES_PV_FO", String(10))
@@ -133,14 +133,14 @@ class PVEvent(Base):
     effectif_siren = Column("Effectif_Siren", Float)
     tranche_effectif_siren = Column("Tranche_effectif_SIREN", String(50))
     cpte_siren = Column("Cpte_Siren", Float)
-    siren_votants = Column("Siren\nvotants", Float)
-    siren_sve = Column("Siren\nSVE", Float)
-    siren_voix_cgt = Column("Siren\nvoix\nCGT", Float)
-    siren_score_cgt = Column("Siren\nScore\nCGT", Float)
-    siren_voix_cfdt = Column("Siren\nvoix\nCFDT", Float)
-    siren_voix_fo = Column("Siren\nvoix\nFO", Float)
-    siren_voix_cftc = Column("Siren\nvoix\nCFTC", Float)
-    siren_voix_cgc = Column("Siren\nvoix\nCGC", Float)
+    siren_votants = Column("Siren votants", Float)
+    siren_sve = Column("Siren SVE", Float)
+    siren_voix_cgt = Column("Siren voix CGT", Float)
+    siren_score_cgt = Column("Siren Score CGT", Float)
+    siren_voix_cfdt = Column("Siren voix CFDT", Float)
+    siren_voix_fo = Column("Siren voix FO", Float)
+    siren_voix_cftc = Column("Siren voix CFTC", Float)
+    siren_voix_cgc = Column("Siren voix CGC", Float)
 
     # Informations RED
     idcc_red = Column("IDCC_RED", String(20))
@@ -148,9 +148,9 @@ class PVEvent(Base):
     cr_code = Column("cr_Code", String(20))
 
     # CAC 40 / SBF 120
-    code_sbf120 = Column("Code\nSBF_120", String(50))
-    codes_sbf120_cac40 = Column("Codes\nSBF_120_(120360)\nCAC_40_(120400)", String(120))
-    est_cac40_sbf120 = Column("O/N\nCAC40/SBF120", String(10))
+    code_sbf120 = Column("Code SBF_120", String(50))
+    codes_sbf120_cac40 = Column("Codes SBF_120_(120360) CAC_40_(120400)", String(120))
+    est_cac40_sbf120 = Column("O/N CAC40/SBF120", String(10))
     nom_groupe_sbf120 = Column("Nom_Groupe_SBF_120", Text)
 
     # Dates et divers
