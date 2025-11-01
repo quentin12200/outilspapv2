@@ -163,7 +163,9 @@ class PVEvent(Base):
     type = Column(String(255))
     blancs_nuls = Column(Integer)
     cgt_siege = Column(Integer)
-    departement = Column(String(5))
+    # Compatibilité : certains appels hérités utilisent « departement ».
+    # On expose un alias vers la colonne « UD » (union départementale).
+    departement = synonym("ud")
     autres_indics = Column(JSON)
 
 class Invitation(Base):
