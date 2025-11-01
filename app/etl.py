@@ -1,5 +1,6 @@
 import pandas as pd, numpy as np, re, unicodedata
 from dateutil.parser import parse as dtparse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .models import PVEvent, Invitation, SiretSummary
@@ -236,8 +237,25 @@ def ingest_invit_excel(session: Session, file_like) -> int:
 
 # -------- Construire le résumé 1-ligne/SIRET --------
 def build_siret_summary(session: Session) -> int:
-    # Récup PV en pandas
-    pvs = pd.read_sql(session.query(PVEvent).statement, session.bind)
+    # Récup PV en pandas (colonnes explicitement étiquetées)
+    pvs_stmt = select(
+        PVEvent.siret.label("siret"),
+        PVEvent.cycle.label("cycle"),
+        PVEvent.type.label("type"),
+        PVEvent.date_pv.label("date_pv"),
+        PVEvent.raison_sociale.label("raison_sociale"),
+        PVEvent.idcc.label("idcc"),
+        PVEvent.fd.label("fd"),
+        PVEvent.ud.label("ud"),
+        PVEvent.departement.label("departement"),
+        PVEvent.cp.label("cp"),
+        PVEvent.ville.label("ville"),
+        PVEvent.inscrits.label("inscrits"),
+        PVEvent.votants.label("votants"),
+        PVEvent.cgt_voix.label("cgt_voix"),
+    )
+    pvs = pd.read_sql(pvs_stmt, session.bind)
+
     inv = pd.read_sql(session.query(Invitation).statement, session.bind)
 
     if pvs.empty:
