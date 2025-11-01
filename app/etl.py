@@ -1,6 +1,7 @@
 import pandas as pd, numpy as np, re, unicodedata
 from dateutil.parser import parse as dtparse
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .models import PVEvent, Invitation, SiretSummary
@@ -264,17 +265,24 @@ def build_siret_summary(session: Session) -> int:
         PVEvent.autre_voix.label("autre_voix"),
     )
     pvs = pd.read_sql(pvs_stmt, session.bind)
-    inv = pd.read_sql(session.query(Invitation).statement, session.bind)
+
+    try:
+        inv_stmt = session.query(Invitation).statement
+        inv = pd.read_sql(inv_stmt, session.bind)
+    except OperationalError:
+        inv = pd.DataFrame()
 
     if pvs.empty:
         session.query(SiretSummary).delete()
         session.commit()
         return 0
 
-    def pick_last(df_cycle):
-        # garde la ligne la plus récente du cycle
-        df_cycle = df_cycle.sort_values("date_pv", ascending=False)
-        return df_cycle.head(1)
+    def last_per_cycle(mask):
+        subset = pvs.loc[mask].copy()
+        if subset.empty:
+            return subset
+        subset = subset.sort_values(["siret", "date_pv"], ascending=[True, False])
+        return subset.drop_duplicates(subset="siret", keep="first")
 
     # Normaliser
     pvs["cycle"] = pvs["cycle"].fillna("").astype(str).str.upper().str.strip()
@@ -293,8 +301,8 @@ def build_siret_summary(session: Session) -> int:
     pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce")
     mask_c3 = (pvs["cycle"]=="C3") & (pvs["date_pv"] >= C3_START) & (pvs["date_pv"] <= C3_END)
     mask_c4 = (pvs["cycle"]=="C4") & (pvs["date_pv"] >= C4_START) & (pvs["date_pv"] <= C4_END)
-    last_c3 = (pvs[mask_c3].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
-    last_c4 = (pvs[mask_c4].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
+    last_c3 = last_per_cycle(mask_c3)
+    last_c4 = last_per_cycle(mask_c4)
 
     # Invitations: dernière date par SIRET (filtrées C5)
     if not inv.empty:
@@ -415,12 +423,12 @@ def build_siret_summary(session: Session) -> int:
     })
 
     # Reset table (simple & robuste)
-    session.query(SiretSummary).delete()
+    session.execute(SiretSummary.__table__.delete())
     session.commit()
 
     # Bulk-insert
     out = out.where(pd.notna(out), None)
-    # Conversion ultime : tout NaN/NaT/None
+
     def nan_to_none(val):
         try:
             if pd.isna(val):
@@ -428,7 +436,17 @@ def build_siret_summary(session: Session) -> int:
         except Exception:
             pass
         return val
-    rows = [{k: nan_to_none(v) for k, v in row.items()} for row in out.to_dict(orient="records")]
-    session.bulk_insert_mappings(SiretSummary, rows)
-    session.commit()
+
+    records = out.to_dict(orient="records")
+    rows = [{k: nan_to_none(v) for k, v in row.items()} for row in records]
+
+    if not rows:
+        return 0
+
+    chunk_size = 2000
+    for start in range(0, len(rows), chunk_size):
+        chunk = rows[start:start + chunk_size]
+        session.execute(SiretSummary.__table__.insert(), chunk)
+        session.commit()
+
     return len(rows)
