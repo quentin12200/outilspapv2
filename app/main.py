@@ -255,7 +255,10 @@ def _auto_seed_invitations(session: Session) -> None:
                     pass
 
     if last_error:
-        raise last_error
+        logger.warning(
+            "Automatic invitation import failed for all candidates; proceeding without seeding: %s",
+            last_error,
+        )
 
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()
