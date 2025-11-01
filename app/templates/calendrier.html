@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Calendrier prochaines élections +1000 · PAP/CSE{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  <div class="bg-white shadow-lg rounded-2xl p-6 border border-gray-200">
+    <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div class="space-y-2">
+        <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-cgt-lightred text-cgt-red">
+            <i class="fas fa-calendar-alt text-xl"></i>
+          </span>
+          Calendrier prochaines élections +1000
+        </h1>
+        <p class="text-gray-600">
+          Visualisez les scrutins à venir (colonne <code>date_prochain_scrutin</code>) pour les établissements
+          dont l'effectif SIRET est supérieur ou égal au seuil sélectionné.
+        </p>
+      </div>
+
+      <form method="get" class="w-full lg:w-auto">
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <label class="block text-sm font-semibold text-gray-700">
+            Recherche (SIRET ou raison sociale)
+            <input
+              type="text"
+              name="q"
+              value="{{ filters.q }}"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+              placeholder="Ex : 1234 ou entreprise"
+            >
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            Effectif SIRET minimum
+            <input
+              type="number"
+              min="0"
+              name="min_effectif"
+              value="{{ filters.min_effectif }}"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            Cycle
+            <select
+              name="cycle"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Tous</option>
+              {% for value in options.cycles %}
+                <option value="{{ value }}" {% if filters.cycle == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            Type de scrutin
+            <select
+              name="institution"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Tous</option>
+              {% for value in options.institutions %}
+                <option value="{{ value }}" {% if filters.institution == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            FD
+            <select
+              name="fd"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Toutes</option>
+              {% for value in options.fds %}
+                <option value="{{ value }}" {% if filters.fd == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            IDCC
+            <select
+              name="idcc"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Tous</option>
+              {% for value in options.idccs %}
+                <option value="{{ value }}" {% if filters.idcc == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            UD
+            <select
+              name="ud"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Toutes</option>
+              {% for value in options.uds %}
+                <option value="{{ value }}" {% if filters.ud == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            Région
+            <select
+              name="region"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Toutes</option>
+              {% for value in options.regions %}
+                <option value="{{ value }}" {% if filters.region == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button
+            type="submit"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cgt-red text-white hover:bg-cgt-darkred transition"
+          >
+            <i class="fas fa-filter"></i>
+            Appliquer les filtres
+          </button>
+          <a
+            href="{{ request.url.path }}"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+          >
+            <i class="fas fa-undo"></i>
+            Réinitialiser
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="bg-white shadow-lg rounded-2xl border border-gray-200 overflow-hidden">
+    {% if elections %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date scrutin</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SIRET</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Raison sociale</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FD</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IDCC</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UD</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Région</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effectif SIRET</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cycle</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-100">
+            {% for item in elections %}
+              <tr class="hover:bg-gray-50 transition">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                  {{ item.date_display }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-cgt-red font-mono">
+                  {{ item.siret or "—" }}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-900">
+                  {{ item.raison_sociale or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.fd or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.idcc or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.ud or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.region or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {% if item.effectif is not none %}
+                    {{ "{:,.0f}".format(item.effectif).replace(",", " ") }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.cycle or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.institution or "—" }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="px-6 py-4 bg-gray-50 text-sm text-gray-600 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <p>
+          {{ elections|length }} échéance(s) à venir correspond(ent) aux filtres.
+        </p>
+        <p>
+          Seuil effectif&nbsp;: <strong>{{ filters.min_effectif }}</strong>
+          {% if filters.cycle %} · Cycle <strong>{{ filters.cycle }}</strong>{% endif %}
+          {% if filters.institution %} · Type <strong>{{ filters.institution }}</strong>{% endif %}
+        </p>
+      </div>
+    {% else %}
+      <div class="p-8 text-center text-gray-600">
+        <i class="fas fa-calendar-times text-4xl text-gray-300 mb-4"></i>
+        <p class="text-lg font-semibold">Aucune élection future ne correspond aux critères.</p>
+        <p class="mt-1">Essayez d'ajuster les filtres ou vérifiez la colonne <code>date_prochain_scrutin</code>.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

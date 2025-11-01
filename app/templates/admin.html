@@ -3,340 +3,491 @@
 
 {% block content %}
 
-<!-- Page Header -->
+<!-- Header -->
 <div class="mb-8">
-  <h1 class="text-4xl font-bold text-gray-800 mb-2">
+  <h1 class="text-4xl font-bold text-gray-800 mb-2 flex items-center">
     <i class="fas fa-cog text-cgt-red mr-3"></i>
     Administration
   </h1>
-  <p class="text-gray-600">Gestion des imports et mise à jour des données</p>
+  <p class="text-gray-600">
+    Suivi centralisé des imports, automatisations et nouvelles fonctionnalités de la plateforme PAP/CSE.
+  </p>
 </div>
 
-<!-- Import Forms -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-
-  <!-- Import PV -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-file-excel text-blue-500 mr-2"></i>
-      Importer PV (Excel initial)
-    </h2>
-    <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" class="space-y-4">
+<!-- Global metrics -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-3">
       <div>
-        <label for="pvfile" class="block text-sm font-semibold text-gray-700 mb-2">
-          Sélectionnez le fichier Excel des PV
-        </label>
-        <input type="file" name="file" id="pvfile" required
-               accept=".xlsx,.xls"
-               class="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-3 file:px-6
-                      file:rounded-lg file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-blue-50 file:text-blue-700
-                      hover:file:bg-blue-100
-                      border border-gray-300 rounded-lg cursor-pointer" />
+        <p class="text-xs font-semibold text-gray-500 uppercase">PV enregistrés</p>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.pv_total or 0 }}</p>
       </div>
-      <button type="submit" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md flex items-center justify-center space-x-2">
-        <i class="fas fa-upload"></i>
-        <span>Importer les PV</span>
-      </button>
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-info-circle mr-1"></i>
-        Import des Procès-Verbaux des élections professionnelles
-      </p>
-    </form>
-  </section>
-
-  <!-- Import Invitations PAP -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-envelope text-green-500 mr-2"></i>
-      Importer Invitations PAP (Cycle 5)
-    </h2>
-    <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="space-y-4">
-      <div>
-        <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">
-          Sélectionnez le fichier Excel des invitations
-        </label>
-        <input type="file" name="file" id="invitfile" required
-               accept=".xlsx,.xls"
-               class="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-3 file:px-6
-                      file:rounded-lg file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-green-50 file:text-green-700
-                      hover:file:bg-green-100
-                      border border-gray-300 rounded-lg cursor-pointer" />
-      </div>
-      <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
-        <i class="fas fa-upload"></i>
-        <span>Importer les invitations</span>
-      </button>
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-info-circle mr-1"></i>
-        Import des invitations PAP du cycle 5
-      </p>
-    </form>
-  </section>
-
-  <!-- Import Ciblage -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-crosshairs text-purple-500 mr-2"></i>
-      Importer Fichier de Ciblage
-    </h2>
-    <form method="post" action="/ciblage/import" enctype="multipart/form-data" class="space-y-4">
-      <div>
-        <label for="ciblagefile" class="block text-sm font-semibold text-gray-700 mb-2">
-          Sélectionnez le fichier de ciblage
-        </label>
-        <input type="file" name="file" id="ciblagefile" required
-               accept=".xlsx,.xls"
-               class="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-3 file:px-6
-                      file:rounded-lg file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-purple-50 file:text-purple-700
-                      hover:file:bg-purple-100
-                      border border-gray-300 rounded-lg cursor-pointer" />
-      </div>
-      <button type="submit" class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-md flex items-center justify-center space-x-2">
-        <i class="fas fa-upload"></i>
-        <span>Importer le ciblage</span>
-      </button>
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-info-circle mr-1"></i>
-        Fichiers de ciblage (CAC40, SBF120, etc.)
-      </p>
-    </form>
-  </section>
-
-  <!-- Update Summary -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-sync text-orange-500 mr-2"></i>
-      Mettre à jour le Tableau
-    </h2>
-    <div class="space-y-4">
-      <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
-        <p class="text-sm text-orange-800">
-          <i class="fas fa-exclamation-triangle mr-2"></i>
-          Cette action recalcule le tableau de synthèse à partir des données PV et invitations.
-        </p>
-      </div>
-      <form method="post" action="/api/build/summary">
-        <button type="submit" class="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-sync-alt"></i>
-          <span>Recalculer le tableau</span>
-        </button>
-      </form>
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-info-circle mr-1"></i>
-        Utilisez cette fonction après chaque import de données
-      </p>
+      <span class="inline-flex items-center justify-center w-12 h-12 bg-cgt-red/10 text-cgt-red rounded-full">
+        <i class="fas fa-poll text-xl"></i>
+      </span>
     </div>
-  </section>
-
-  <!-- Diagnostic Doublons -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-stethoscope text-red-500 mr-2"></i>
-      Diagnostic des Doublons
-    </h2>
-    <div class="space-y-4">
-      <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
-        <p class="text-sm text-yellow-800 mb-2">
-          <i class="fas fa-exclamation-triangle mr-2"></i>
-          <strong>Avez-vous importé le même fichier plusieurs fois ?</strong>
-        </p>
-        <p class="text-xs text-yellow-700">
-          Si vous voyez trop d'invitations (ex: 5000 au lieu de 1000), vous avez probablement des doublons.
-          Utilisez cet outil pour les détecter et les supprimer automatiquement.
-        </p>
-      </div>
-      <a href="/admin/diagnostics" class="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2 font-semibold">
-        <i class="fas fa-search"></i>
-        <span>Vérifier les doublons</span>
-      </a>
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-info-circle mr-1"></i>
-        Détecte et supprime automatiquement les invitations importées en double
-      </p>
-    </div>
-  </section>
-
-  <!-- Base de données -->
-  <section class="bg-white rounded-xl shadow-md p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-database text-blue-500 mr-2"></i>
-      Base de données (papcse.db)
-    </h2>
-    <div class="space-y-4">
-      <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
-        <p class="text-sm text-blue-800 mb-2">
-          <i class="fas fa-info-circle mr-2"></i>
-          <strong>Téléchargement automatique au démarrage</strong>
-        </p>
-        <p class="text-xs text-blue-700 mb-2">
-          La base de données <code class="bg-blue-100 px-2 py-1 rounded">papcse.db</code> est téléchargée automatiquement
-          depuis GitHub Release v1.0.0 au premier démarrage si elle n'existe pas.
-        </p>
-        <p class="text-xs text-blue-700">
-          <strong>Configuration :</strong> Définissez <code class="bg-blue-100 px-2 py-1 rounded">DB_URL</code> dans les variables d'environnement Railway.
-        </p>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Statut de la base -->
-        <div class="p-4 bg-gray-50 rounded-lg">
-          <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
-            <i class="fas fa-check-circle text-green-500 mr-1"></i>
-            Statut
-          </p>
-          <p class="text-lg font-bold text-green-600">Base chargée</p>
-          <p class="text-xs text-gray-500 mt-1">
-            La base de données est opérationnelle
-          </p>
-        </div>
-
-        <!-- Version -->
-        <div class="p-4 bg-gray-50 rounded-lg">
-          <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
-            <i class="fas fa-tag text-purple-500 mr-1"></i>
-            Version Release
-          </p>
-          <p class="text-lg font-bold text-purple-600">v1.0.0</p>
-          <p class="text-xs text-gray-500 mt-1">
-            Avec scores syndicaux complets
-          </p>
-        </div>
-      </div>
-
-      <div class="p-3 bg-gray-100 rounded-lg">
-        <p class="text-xs text-gray-700 font-mono">
-          <strong>URL :</strong> https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
-        </p>
-      </div>
-
-      <p class="text-xs text-gray-500">
-        <i class="fas fa-lightbulb mr-1"></i>
-        <strong>Note :</strong> La base ne sera re-téléchargée que si elle est absente.
-        Pour forcer une mise à jour, supprimez le fichier et redémarrez l'application.
-      </p>
-    </div>
-  </section>
-
-</div>
-
-<!-- Informations Invitations -->
-<section class="bg-white rounded-xl shadow-md p-6 mb-8">
-  <div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">
-      <i class="fas fa-database text-indigo-500 mr-2"></i>
-      Invitations importées
-    </h2>
+    <p class="text-xs text-gray-500">SIRET distincts : {{ stats.pv_sirets or 0 }}</p>
   </div>
 
-  <div class="space-y-4">
-    <div class="p-4 bg-indigo-50 border-l-4 border-indigo-500 rounded-lg">
-      <p class="text-sm text-indigo-800">
-        <i class="fas fa-info-circle mr-2"></i>
-        Les invitations affichées dans l’outil proviennent uniquement des fichiers Excel importés via cette page d’administration.
-      </p>
-      <p class="text-xs text-indigo-700 mt-2">
-        Aucun enrichissement automatique n’est désormais réalisé auprès de l’API Sirene : les raisons sociales, adresses et autres champs correspondent strictement aux colonnes présentes dans vos fichiers.
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="text-xs font-semibold text-gray-500 uppercase">Résumé SIRET</p>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.summary_total or 0 }}</p>
+      </div>
+      <span class="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-full">
+        <i class="fas fa-database text-xl"></i>
+      </span>
+    </div>
+    <p class="text-xs text-gray-500">Dernier PV enregistré : {{ stats.last_summary or '—' }}</p>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="text-xs font-semibold text-gray-500 uppercase">Invitations PAP C5</p>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.invit_total or 0 }}</p>
+      </div>
+      <span class="inline-flex items-center justify-center w-12 h-12 bg-green-100 text-green-600 rounded-full">
+        <i class="fas fa-envelope-open-text text-xl"></i>
+      </span>
+    </div>
+    <p class="text-xs text-gray-500">Dernière invitation : {{ stats.last_invitation or '—' }}</p>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="text-xs font-semibold text-gray-500 uppercase">Élections ≥ {{ upcoming_threshold }}</p>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.upcoming_total or 0 }}</p>
+      </div>
+      <span class="inline-flex items-center justify-center w-12 h-12 bg-purple-100 text-purple-600 rounded-full">
+        <i class="fas fa-calendar-day text-xl"></i>
+      </span>
+    </div>
+    <p class="text-xs text-gray-500">Prochaine échéance : {{ stats.upcoming_next or '—' }}</p>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4">Raccourcis & nouvelles fonctionnalités</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    <a href="/calendrier" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-purple-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Calendrier prochaines élections +1000</p>
+        <p class="text-xs text-gray-500">Vue dédiée aux scrutins à venir (date_prochain_scrutin)</p>
+      </div>
+      <i class="fas fa-calendar-alt text-purple-500 text-xl"></i>
+    </a>
+
+    <a href="/invitations" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-green-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Tableau Invitations PAP</p>
+        <p class="text-xs text-gray-500">Consultez et filtrez les imports automatiques ou manuels</p>
+      </div>
+      <i class="fas fa-envelope text-green-500 text-xl"></i>
+    </a>
+
+    <a href="/admin/diagnostics" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-red-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Diagnostic des doublons</p>
+        <p class="text-xs text-gray-500">Détection & nettoyage des invitations importées plusieurs fois</p>
+      </div>
+      <i class="fas fa-stethoscope text-red-500 text-xl"></i>
+    </a>
+
+    <a href="#imports" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-blue-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Import manuel</p>
+        <p class="text-xs text-gray-500">Accéder rapidement aux formulaires d'import Excel</p>
+      </div>
+      <i class="fas fa-file-upload text-blue-500 text-xl"></i>
+    </a>
+  </div>
+</section>
+
+<!-- Upcoming elections preview -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-10">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Calendrier des prochaines élections ≥ {{ upcoming_threshold }}</h2>
+      <p class="text-sm text-gray-500">Les données proviennent de la colonne « date_prochain_scrutin » croisée avec l'effectif SIRET.</p>
+    </div>
+    <a href="/calendrier" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
+      <i class="fas fa-external-link-alt mr-2"></i>
+      Ouvrir le calendrier complet
+    </a>
+  </div>
+
+  {% if upcoming_preview %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200 text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left font-semibold text-gray-600">Date</th>
+          <th class="px-4 py-3 text-left font-semibold text-gray-600">Entreprise / SIRET</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">Effectif</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">Cycle</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">Type</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">FD</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">IDCC</th>
+          <th class="px-4 py-3 text-left font-semibold text-gray-600">Implantation</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for item in upcoming_preview %}
+        <tr class="hover:bg-purple-50/40">
+          <td class="px-4 py-3 font-semibold text-gray-700">{{ item.date_display }}</td>
+          <td class="px-4 py-3">
+            <div class="font-semibold text-gray-800">{{ item.raison_sociale or '—' }}</div>
+            <div class="text-xs text-gray-500 tracking-widest">{{ item.siret or '—' }}</div>
+          </td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.effectif or '—' }}</td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.cycle or '—' }}</td>
+          <td class="px-4 py-3 text-center">
+            {% if item.institution == 'CAR' %}
+              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">Carence</span>
+            {% elif item.institution == 'CSE' %}
+              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CSE</span>
+            {% else %}
+              <span class="text-gray-700">{{ item.institution or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.fd or '—' }}</td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.idcc or '—' }}</td>
+          <td class="px-4 py-3 text-gray-700">
+            <div>{{ item.ud or '—' }}</div>
+            <div class="text-xs text-gray-500">{{ item.region or '—' }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-gray-500 mt-3">Affichage des 5 prochaines échéances. Utilisez le calendrier pour explorer l'intégralité des scrutins à venir.</p>
+  {% else %}
+  <div class="p-6 bg-purple-50 border border-dashed border-purple-200 rounded-lg text-purple-700">
+    <i class="fas fa-info-circle mr-2"></i>
+    Aucun scrutin ≥ {{ upcoming_threshold }} salarié à venir n'a été détecté dans la base pour le moment.
+  </div>
+  {% endif %}
+</section>
+
+<!-- Automations -->
+<section class="mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4">Automatisations & intégrations</h2>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    {% set db = db_asset %}
+    <div class="bg-white rounded-xl shadow-md p-6 border border-blue-50">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-xl font-semibold text-gray-800">Base papcse.db</h3>
+          <p class="text-xs text-gray-500">Téléchargement automatique depuis GitHub Release</p>
+        </div>
+        {% if db.exists %}
+          <span class="px-3 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded-full">Disponible</span>
+        {% else %}
+          <span class="px-3 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">Introuvable</span>
+        {% endif %}
+      </div>
+      <ul class="text-sm text-gray-600 space-y-2">
+        <li><strong>Chemin :</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ db.path or '—' }}</code></li>
+        <li><strong>Taille :</strong> {{ db.size_mb ~ ' Mo' if db.size_mb else '—' }}</li>
+        <li>
+          <strong>Source Release :</strong>
+          {% if db.url %}
+            <a href="{{ db.url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ db.url }}</a>
+          {% else %}
+            <span>Non configuré</span>
+          {% endif %}
+        </li>
+        <li>
+          <strong>Hash attendu :</strong>
+          {% if db.expected_hash %}
+            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ db.expected_hash }}</code>
+          {% else %}
+            <span>Non fourni</span>
+          {% endif %}
+        </li>
+        <li>
+          <strong>Hash calculé :</strong>
+          {% if db.actual_hash %}
+            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ db.actual_hash }}</code>
+            {% if db.expected_hash %}
+              {% if db.hash_match %}
+                <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">Conforme</span>
+              {% else %}
+                <span class="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">À vérifier</span>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <span>—</span>
+          {% endif %}
+        </li>
+      </ul>
+      <p class="text-xs text-gray-500 mt-4">
+        La base est téléchargée au démarrage si elle est absente. Supprimez le fichier local pour forcer un rafraîchissement depuis la release configurée.
       </p>
     </div>
 
-    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <h3 class="text-sm font-semibold text-gray-700 mb-2">Conseils</h3>
-      <ul class="text-xs text-gray-600 space-y-1 list-disc list-inside">
-        <li>Vérifiez que les colonnes essentielles (SIRET, date, raison sociale, ville) sont bien remplies dans votre fichier Excel avant l’import.</li>
-        <li>Si plusieurs colonnes contiennent des variantes d’une même information, la plateforme affichera la première valeur non vide détectée.</li>
-        <li>Vous pouvez réimporter un fichier actualisé à tout moment : les données de la page « Invitations » seront alors mises à jour après recalcul.</li>
+    {% set invit = invitations_asset %}
+    <div class="bg-white rounded-xl shadow-md p-6 border border-green-50">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-xl font-semibold text-gray-800">Invitations PAP C5</h3>
+          <p class="text-xs text-gray-500">Préchargement automatique lors du premier démarrage</p>
+        </div>
+        {% if invit.auto_enabled %}
+          <span class="px-3 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded-full">Auto-chargement activé</span>
+        {% else %}
+          <span class="px-3 py-1 text-xs font-semibold bg-gray-100 text-gray-600 rounded-full">Auto-chargement désactivé</span>
+        {% endif %}
+      </div>
+      <ul class="text-sm text-gray-600 space-y-2">
+        <li>
+          <strong>Source Release :</strong>
+          {% if invit.url %}
+            <a href="{{ invit.url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.url }}</a>
+          {% else %}
+            <span>Non configuré</span>
+          {% endif %}
+        </li>
+        {% if not invit.url and invit.inferred_url %}
+          <li class="text-xs text-gray-500">
+            <strong>URL déduite :</strong>
+            <a href="{{ invit.inferred_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.inferred_url }}</a>
+            {% if invit.inferred_urls and invit.inferred_urls|length > 1 %}
+              <span class="ml-1 text-gray-400">(+{{ invit.inferred_urls|length - 1 }} variante{{ 's' if invit.inferred_urls|length > 2 else '' }})</span>
+            {% endif %}
+          </li>
+        {% endif %}
+        <li><strong>Invitations en base :</strong> {{ invit.count or 0 }}</li>
+        <li><strong>Dernière date importée :</strong> {{ invit.last_date or '—' }}</li>
+        {% if invit.effective_url %}
+          <li class="text-xs text-gray-500">
+            <strong>Dernier import automatique :</strong>
+            <a href="{{ invit.effective_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.effective_url }}</a>
+          </li>
+        {% endif %}
+        <li>
+          <strong>Hash attendu :</strong>
+          {% if invit.expected_hash %}
+            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ invit.expected_hash }}</code>
+          {% else %}
+            <span>Non fourni</span>
+          {% endif %}
+        </li>
       </ul>
+      <p class="text-xs text-gray-500 mt-4">
+        Si la table est vide au démarrage, le fichier configuré est importé automatiquement puis disponible dans le tableau « Invitations PAP - Cycle 5 ».
+      </p>
+    </div>
+
+    {% set sirene = sirene_status %}
+    <div class="bg-white rounded-xl shadow-md p-6 border border-indigo-50">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-xl font-semibold text-gray-800">API Sirene</h3>
+          <p class="text-xs text-gray-500">Enrichissement SIRET via la clé INSEE</p>
+        </div>
+        {% if sirene.configured %}
+          <span class="px-3 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-full">Clé détectée</span>
+        {% else %}
+          <span class="px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded-full">Clé manquante</span>
+        {% endif %}
+      </div>
+      <ul class="text-sm text-gray-600 space-y-2">
+        <li>
+          <strong>Variables Railway :</strong>
+          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_KEY</code>
+          <span class="text-xs text-gray-400">(clé intégration)</span>
+          <span class="mx-2 text-gray-300">•</span>
+          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_TOKEN</code>
+          <span class="text-xs text-gray-400">(token OAuth)</span>
+        </li>
+        <li><strong>Statut :</strong> {% if sirene.configured %}{{ sirene.masked }}{% else %}Non configurée{% endif %}</li>
+        {% if sirene.has_integration_key %}
+          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">X-INSEE-Api-Key-Integration</code></li>
+        {% elif sirene.has_token %}
+          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">Authorization: Bearer ...</code></li>
+        {% endif %}
+        <li><strong>Usages :</strong> autocomplete SIRET, fiches entreprises, enrichissement invitations.</li>
+      </ul>
+      <p class="text-xs text-gray-500 mt-4">
+        Ajoutez la clé fournie par l'INSEE sur Railway pour activer l'enrichissement automatique des raisons sociales et adresses lors des imports ou recherches SIRET.
+      </p>
     </div>
   </div>
 </section>
 
-  
+<!-- Import forms -->
+<section id="imports" class="mb-12">
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Imports manuels</h2>
+    <p class="text-sm text-gray-500">Chargez ici vos fichiers Excel mis à jour. Recalculez ensuite le tableau de synthèse pour rafraîchir le tableau de bord.</p>
+  </div>
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <!-- Import PV -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-file-excel text-blue-500 mr-2"></i>
+        Importer PV (Excel initial)
+      </h3>
+      <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label for="pvfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel des PV</label>
+          <input type="file" name="file" id="pvfile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg cursor-pointer" />
+        </div>
+        <button type="submit" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-upload"></i>
+          <span>Importer les PV</span>
+        </button>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Import des Procès-Verbaux des élections professionnelles (onglet « Tous PV »).</p>
+      </form>
+    </section>
 
-<!-- Instructions -->
-<section class="bg-blue-50 rounded-xl p-8 border-l-4 border-blue-500 mb-8">
-  <div class="flex items-start space-x-4">
-    <i class="fas fa-lightbulb text-blue-600 text-3xl"></i>
-    <div>
-      <h3 class="text-xl font-bold text-blue-900 mb-3">Processus d'import recommandé</h3>
-      <ol class="space-y-3 text-blue-800">
+    <!-- Import Invitations -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-envelope text-green-500 mr-2"></i>
+        Importer Invitations PAP (Cycle 5)
+      </h3>
+      <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel des invitations</label>
+          <input type="file" name="file" id="invitfile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border border-gray-300 rounded-lg cursor-pointer" />
+        </div>
+        <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-upload"></i>
+          <span>Importer les invitations</span>
+        </button>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Ajoutez ici les invitations complémentaires ou mises à jour du cycle 5.</p>
+      </form>
+    </section>
+
+    <!-- Import Ciblage -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-crosshairs text-purple-500 mr-2"></i>
+        Importer fichier de ciblage
+      </h3>
+      <form method="post" action="/ciblage/import" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label for="ciblagefile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier de ciblage</label>
+          <input type="file" name="file" id="ciblagefile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 border border-gray-300 rounded-lg cursor-pointer" />
+        </div>
+        <button type="submit" class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-upload"></i>
+          <span>Importer le ciblage</span>
+        </button>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Utilisez ce module pour croiser vos listes (CAC40, SBF120…) avec les invitations détectées.</p>
+      </form>
+    </section>
+
+    <!-- Rebuild summary -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-sync text-orange-500 mr-2"></i>
+        Recalculer le tableau de synthèse
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg text-sm text-orange-800">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          À utiliser après chaque import PV ou invitation pour mettre à jour le tableau de bord.
+        </div>
+        <form method="post" action="/api/build/summary">
+          <button type="submit" class="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition shadow-md flex items-center justify-center space-x-2">
+            <i class="fas fa-sync-alt"></i>
+            <span>Recalculer le tableau</span>
+          </button>
+        </form>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Le recalcul nettoie les données, reconstruit <code>siret_summary</code> et alimente les graphiques du tableau de bord.</p>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- Quality tools and reminders -->
+<section class="mb-12">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-semibold text-gray-800 flex items-center"><i class="fas fa-stethoscope text-red-500 mr-2"></i>Diagnostic des doublons</h3>
+        <a href="/admin/diagnostics" class="px-3 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">Ouvrir</a>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Détecte et supprime automatiquement les invitations importées plusieurs fois (garde la plus récente par SIRET).</p>
+      <ul class="text-xs text-gray-500 space-y-2">
+        <li><i class="fas fa-check text-green-500 mr-2"></i>Compteur global, SIRET uniques et nombre de doublons.</li>
+        <li><i class="fas fa-check text-green-500 mr-2"></i>Top 10 des SIRET concernés avec aperçu des dates importées.</li>
+        <li><i class="fas fa-check text-green-500 mr-2"></i>Bouton de suppression rapide (garde la ligne la plus récente).</li>
+      </ul>
+    </section>
+
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center"><i class="fas fa-lightbulb text-yellow-500 mr-2"></i>Processus recommandé</h3>
+      <ol class="space-y-4 text-sm text-gray-600">
         <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">1</span>
+          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">1</span>
           <div>
             <strong>Importer les PV</strong>
-            <p class="text-sm text-blue-700 mt-1">Importez d'abord le fichier Excel contenant les procès-verbaux des élections.</p>
+            <p class="text-xs text-gray-500 mt-1">Utilisez l'onglet « Tous PV » de votre fichier Excel.</p>
           </div>
         </li>
         <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">2</span>
+          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">2</span>
           <div>
-            <strong>Importer les invitations PAP</strong>
-            <p class="text-sm text-blue-700 mt-1">Ensuite, importez le fichier des invitations PAP du cycle 5.</p>
+            <strong>Ajouter les invitations PAP</strong>
+            <p class="text-xs text-gray-500 mt-1">Import manuel ou automatique via la variable <code>INVITATIONS_URL</code>.</p>
           </div>
         </li>
         <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">3</span>
+          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">3</span>
           <div>
-            <strong>Mettre à jour le tableau</strong>
-            <p class="text-sm text-blue-700 mt-1">Cliquez sur "Recalculer le tableau" pour générer le tableau de synthèse.</p>
+            <strong>Recalculer le tableau</strong>
+            <p class="text-xs text-gray-500 mt-1">Cliquez sur « Recalculer » pour alimenter <code>siret_summary</code>, le tableau de bord et le calendrier.</p>
           </div>
         </li>
         <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white rounded-full text-sm font-bold flex-shrink-0">4</span>
+          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">4</span>
           <div>
-            <strong>(Optionnel) Importer un fichier de ciblage</strong>
-            <p class="text-sm text-blue-700 mt-1">Pour croiser avec des listes CAC40/SBF120, importez un fichier de ciblage.</p>
+            <strong>Vérifier les doublons</strong>
+            <p class="text-xs text-gray-500 mt-1">Contrôlez la qualité des invitations avec l'outil diagnostic.</p>
           </div>
         </li>
       </ol>
-    </div>
+    </section>
   </div>
 </section>
 
-<!-- Database Info -->
-<section class="bg-white rounded-xl shadow-md p-6">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">
-    <i class="fas fa-database text-gray-600 mr-2"></i>
-    Informations Base de Données
+<!-- Reference information -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-database text-gray-600 mr-3"></i>
+    Informations techniques
   </h2>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="flex items-center space-x-3 mb-2">
-        <i class="fas fa-table text-gray-500 text-xl"></i>
-        <span class="text-sm font-semibold text-gray-700">Tables principales</span>
-      </div>
-      <ul class="text-xs text-gray-600 space-y-1">
-        <li>• pv_events</li>
-        <li>• invitations</li>
-        <li>• siret_summary</li>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Tables principales</h3>
+      <ul class="space-y-1 text-xs">
+        <li>• <code>Tous_PV</code> (historique des PV)</li>
+        <li>• <code>invitations</code> (PAP cycle 5)</li>
+        <li>• <code>siret_summary</code> (agrégations tableau de bord)</li>
       </ul>
     </div>
-    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="flex items-center space-x-3 mb-2">
-        <i class="fas fa-file-excel text-green-500 text-xl"></i>
-        <span class="text-sm font-semibold text-gray-700">Formats acceptés</span>
-      </div>
-      <ul class="text-xs text-gray-600 space-y-1">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Formats acceptés</h3>
+      <ul class="space-y-1 text-xs">
         <li>• Excel (.xlsx)</li>
         <li>• Excel 97-2003 (.xls)</li>
       </ul>
     </div>
-    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="flex items-center space-x-3 mb-2">
-        <i class="fas fa-shield-alt text-yellow-500 text-xl"></i>
-        <span class="text-sm font-semibold text-gray-700">Sécurité</span>
-      </div>
-      <ul class="text-xs text-gray-600 space-y-1">
-        <li>• Validation SHA256</li>
-        <li>• Données locales SQLite</li>
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Sécurité & intégrité</h3>
+      <ul class="space-y-1 text-xs">
+        <li>• Validation SHA256 (DB & invitations)</li>
+        <li>• Téléchargements GitHub Release sécurisés</li>
+        <li>• Données stockées en local SQLite</li>
       </ul>
     </div>
   </div>

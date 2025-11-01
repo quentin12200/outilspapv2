@@ -4,6 +4,7 @@ Documentation: https://www.data.gouv.fr/dataservices/api-sirene-open-data/
 """
 
 import os
+import uuid
 import httpx
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -34,12 +35,44 @@ class SireneAPI:
             api_key: Clé API optionnelle pour augmenter les limites de taux
                     Si None, utilise l'API publique (30 req/min)
         """
-        self.api_key = api_key or os.getenv("SIRENE_API_TOKEN") or os.getenv("SIRENE_API_KEY")
+        provided = (api_key or "").strip()
+        env_token = (os.getenv("SIRENE_API_TOKEN") or "").strip()
+        env_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+
+        self.bearer_token: Optional[str] = None
+        self.integration_key: Optional[str] = None
+
+        if provided:
+            if self._looks_like_integration_key(provided):
+                self.integration_key = provided
+            else:
+                self.bearer_token = provided
+
+        if not self.bearer_token and env_token:
+            self.bearer_token = env_token
+        if not self.integration_key and env_key:
+            self.integration_key = env_key
+
+        # Pour compatibilité descendante, expose self.api_key avec la valeur utilisée
+        self.api_key = self.bearer_token or self.integration_key
+
         self.headers = {
             "Accept": "application/json"
         }
-        if self.api_key:
-            self.headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.bearer_token:
+            self.headers["Authorization"] = f"Bearer {self.bearer_token}"
+        if self.integration_key:
+            # Les clés d'intégration Sirene attendent un header dédié (pas de Bearer)
+            self.headers["X-INSEE-Api-Key-Integration"] = self.integration_key
+
+    @staticmethod
+    def _looks_like_integration_key(value: str) -> bool:
+        """Détecte les clés API d'intégration (format UUID v4)."""
+        try:
+            uuid.UUID(value)
+            return True
+        except (ValueError, AttributeError, TypeError):
+            return False
 
     async def get_siret(self, siret: str) -> Optional[Dict[str, Any]]:
         """
