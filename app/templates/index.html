@@ -98,9 +98,11 @@
             <p class="text-sm text-white/70">Couverture : <span x-text="(stats.audience_invitations_percent || 0) + '%'"></span></p>
           </div>
           <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
-            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Élections C5 à venir</p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">
+              Élections C5 à venir (≥ <span x-text="stats.audience_threshold || 1000"></span>)
+            </p>
             <p class="text-3xl font-bold" x-text="stats.audience_upcoming_c5 ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '—'">—</p>
-            <p class="text-sm text-white/70">SIRET avec date prévisionnelle</p>
+            <p class="text-sm text-white/70">SIRET avec date prévisionnelle C5</p>
           </div>
           <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
             <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Voix CGT (cible)</p>
