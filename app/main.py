@@ -4,16 +4,17 @@ import os
 import hashlib
 import urllib.request
 import logging
+import math
 import re
 import unicodedata
 import tempfile
 from types import SimpleNamespace
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import Any, Mapping
 
@@ -414,8 +415,11 @@ def index(
     sort: str = "date_pap_c5",
     fd: str = "",
     dep: str = "",
+    ud: str = "",
+    idcc: str = "",
     statut: str = "",
     cgt_implantee: str = "",
+    page: int = 1,
     db: Session = Depends(get_session)
 ):
     latest_inv_subq = (
@@ -449,6 +453,31 @@ def index(
     if dep:
         qs = qs.filter(SiretSummary.dep == dep)
 
+    # Filtre par UD (recherche directe ou via le département inféré)
+    if ud:
+        ud_clean = ud.strip()
+        if ud_clean:
+            ud_like = f"%{ud_clean}%"
+            conditions = [
+                SiretSummary.ud_c3.ilike(ud_like),
+                SiretSummary.ud_c4.ilike(ud_like),
+            ]
+
+            candidate = ud_clean.upper().replace("UD", "").replace("-", " ").strip()
+            candidate = candidate.replace(" ", "")
+            if candidate:
+                normalized_values = {candidate}
+                if candidate.isdigit() and len(candidate) == 1:
+                    normalized_values.add(candidate.zfill(2))
+                for value in normalized_values:
+                    conditions.append(SiretSummary.dep == value)
+
+            qs = qs.filter(or_(*conditions))
+
+    # Filtre par IDCC
+    if idcc:
+        qs = qs.filter(SiretSummary.idcc == idcc)
+
     # Filtre par statut PAP
     if statut:
         qs = qs.filter(SiretSummary.statut_pap == statut)
@@ -460,14 +489,37 @@ def index(
         elif cgt_implantee == "non":
             qs = qs.filter(SiretSummary.cgt_implantee == False)
 
+    filtered_query = qs
+    total_count = filtered_query.count()
+
+    page_size = 100
+    total_pages = max(1, math.ceil(total_count / page_size)) if total_count else 1
+    current_page = max(1, min(page, total_pages))
+    offset = (current_page - 1) * page_size
+
     # Apply sorting
     if sort == "inscrits_c3":
-        qs = qs.order_by(SiretSummary.inscrits_c3.desc().nullslast())
+        sorted_query = filtered_query.order_by(
+            SiretSummary.inscrits_c3.desc().nullslast(),
+            SiretSummary.date_pap_c5.desc().nullslast(),
+        )
     elif sort == "inscrits_c4":
-        qs = qs.order_by(SiretSummary.inscrits_c4.desc().nullslast())
+        sorted_query = filtered_query.order_by(
+            SiretSummary.inscrits_c4.desc().nullslast(),
+            SiretSummary.date_pap_c5.desc().nullslast(),
+        )
+    elif sort == "fd":
+        fd_sort = func.lower(func.coalesce(SiretSummary.fd_c4, SiretSummary.fd_c3))
+        sorted_query = filtered_query.order_by(fd_sort.asc().nullslast(), SiretSummary.raison_sociale.asc())
+    elif sort == "ud":
+        ud_sort = func.lower(func.coalesce(SiretSummary.ud_c4, SiretSummary.ud_c3, SiretSummary.dep))
+        sorted_query = filtered_query.order_by(ud_sort.asc().nullslast(), SiretSummary.raison_sociale.asc())
+    elif sort == "idcc":
+        idcc_sort = func.lower(SiretSummary.idcc)
+        sorted_query = filtered_query.order_by(idcc_sort.asc().nullslast(), SiretSummary.raison_sociale.asc())
     else:  # default: date_pap_c5
-        qs = (
-            qs.outerjoin(
+        sorted_query = (
+            filtered_query.outerjoin(
                 latest_inv_subq,
                 SiretSummary.siret == latest_inv_subq.c.siret,
             )
@@ -477,7 +529,11 @@ def index(
             )
         )
 
-    rows = qs.limit(100).all()
+    rows = (
+        sorted_query.offset(offset)
+        .limit(page_size)
+        .all()
+    )
 
     siret_keys = [r.siret for r in rows if r.siret]
     fallback_dates: dict[str, date] = {}
@@ -517,6 +573,14 @@ def index(
         setattr(r, "date_pap_c5_label", label)
         setattr(r, "date_pap_c5_sort", sort_value)
 
+        display_fd = _first_non_empty(r.fd_c4, r.fd_c3)
+        display_ud = _resolve_ud_label(r)
+        display_idcc = _first_non_empty(r.idcc)
+
+        setattr(r, "display_fd", display_fd or "")
+        setattr(r, "display_ud", display_ud or "")
+        setattr(r, "display_idcc", display_idcc or "")
+
     top_departments_query = (
         db.query(
             SiretSummary.dep.label("dep"),
@@ -539,13 +603,68 @@ def index(
     ]
 
     # Récupère les valeurs distinctes pour les filtres
-    all_deps = db.query(SiretSummary.dep).distinct().filter(SiretSummary.dep.isnot(None)).order_by(SiretSummary.dep).all()
+    all_deps_query = db.query(SiretSummary.dep).distinct().filter(SiretSummary.dep.isnot(None)).order_by(SiretSummary.dep).all()
     all_fds = db.query(SiretSummary.fd_c3).distinct().filter(SiretSummary.fd_c3.isnot(None)).order_by(SiretSummary.fd_c3).all()
     all_fds_c4 = db.query(SiretSummary.fd_c4).distinct().filter(SiretSummary.fd_c4.isnot(None)).order_by(SiretSummary.fd_c4).all()
+    all_uds_c3 = db.query(SiretSummary.ud_c3).distinct().filter(SiretSummary.ud_c3.isnot(None)).order_by(SiretSummary.ud_c3).all()
+    all_uds_c4 = db.query(SiretSummary.ud_c4).distinct().filter(SiretSummary.ud_c4.isnot(None)).order_by(SiretSummary.ud_c4).all()
+    all_idccs_query = (
+        db.query(SiretSummary.idcc)
+        .distinct()
+        .filter(SiretSummary.idcc.isnot(None))
+        .order_by(SiretSummary.idcc)
+        .all()
+    )
 
     # Combine les FDs C3 et C4 et déduplique
-    all_fds_combined = list(set([fd[0] for fd in all_fds] + [fd[0] for fd in all_fds_c4 if fd[0]]))
+    all_fds_combined = list({
+        fd[0].strip() for fd in all_fds if fd[0]
+    } | {
+        fd[0].strip() for fd in all_fds_c4 if fd[0]
+    })
     all_fds_combined.sort()
+
+    all_deps_list = [d[0] for d in all_deps_query if d[0]]
+    inferred_uds = {f"UD {dep}" for dep in all_deps_list}
+    all_uds_combined = list({
+        ud_value[0].strip() for ud_value in all_uds_c3 if ud_value[0]
+    } | {
+        ud_value[0].strip() for ud_value in all_uds_c4 if ud_value[0]
+    } | inferred_uds)
+    all_uds_combined.sort()
+
+    all_idccs = [code[0] for code in all_idccs_query if code[0]]
+    all_idccs.sort()
+
+    def build_query(**overrides: Any) -> str:
+        base_params: dict[str, Any] = {
+            "q": q,
+            "sort": sort,
+            "fd": fd,
+            "dep": dep,
+            "ud": ud,
+            "idcc": idcc,
+            "statut": statut,
+            "cgt_implantee": cgt_implantee,
+            "page": current_page,
+        }
+        base_params.update(overrides)
+        cleaned = {
+            key: value
+            for key, value in base_params.items()
+            if value not in (None, "", [])
+        }
+        return urlencode(cleaned)
+
+    def build_url(**overrides: Any) -> str:
+        query = build_query(**overrides)
+        return f"/?{query}" if query else "/"
+
+    start_index = 0
+    end_index = 0
+    if total_count:
+        start_index = (current_page - 1) * page_size + 1
+        end_index = min(current_page * page_size, total_count)
 
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -555,10 +674,22 @@ def index(
         "sort": sort,
         "fd": fd,
         "dep": dep,
+        "ud": ud,
+        "idcc": idcc,
         "statut": statut,
         "cgt_implantee": cgt_implantee,
-        "all_deps": [d[0] for d in all_deps],
+        "all_deps": all_deps_list,
         "all_fds": all_fds_combined,
+        "all_uds": all_uds_combined,
+        "all_idccs": all_idccs,
+        "page": current_page,
+        "total_pages": total_pages,
+        "page_size": page_size,
+        "total_count": total_count,
+        "start_index": start_index,
+        "end_index": end_index,
+        "build_query": build_query,
+        "build_url": build_url,
     })
 
 
@@ -634,6 +765,58 @@ def _coerce_date_value(value: Any) -> date | None:
         parsed = _parse_date(value)
         if parsed:
             return parsed
+    return None
+
+
+def _first_non_empty(*values: Any) -> str | None:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _infer_dep_from_cp(cp: str | None) -> str | None:
+    if not cp:
+        return None
+
+    digits = "".join(ch for ch in str(cp) if ch.isdigit())
+    if not digits:
+        return None
+
+    if digits.startswith(("97", "98")) and len(digits) >= 3:
+        return digits[:3]
+
+    if digits.startswith("20"):
+        if len(digits) >= 3:
+            third = digits[2]
+            if third in {"0", "1", "2", "3", "4", "5"}:
+                return "2A"
+            return "2B"
+        return "2A"
+
+    if len(digits) >= 2:
+        return digits[:2]
+
+    return None
+
+
+def _resolve_ud_label(row: SiretSummary) -> str | None:
+    direct_ud = _first_non_empty(getattr(row, "ud_c4", None), getattr(row, "ud_c3", None))
+    if direct_ud:
+        return direct_ud
+
+    dep_value = _first_non_empty(getattr(row, "dep", None))
+    if dep_value:
+        return f"UD {dep_value}"
+
+    cp_value = _first_non_empty(getattr(row, "cp", None))
+    inferred = _infer_dep_from_cp(cp_value)
+    if inferred:
+        return f"UD {inferred}"
+
     return None
 
 
