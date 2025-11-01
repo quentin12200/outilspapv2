@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from typing import Any, Mapping
 
 # --- Imports bas niveau (engine/Base) d'abord ---
-from .db import get_session, Base, engine
+from .db import get_session, Base, engine, SessionLocal
 from .models import Invitation, SiretSummary
 
 # =========================================================
@@ -122,6 +122,20 @@ def on_startup():
     # Exécute les migrations pour ajouter les colonnes Sirene si nécessaire
     from .migrations import run_migrations
     run_migrations()
+
+    # Si le résumé SIRET est vide, le reconstruire automatiquement afin que
+    # le tableau de bord ne s'affiche pas avec des compteurs à zéro lors du
+    # premier démarrage (base préremplie).
+    try:
+        with SessionLocal() as session:
+            total_summary = session.query(func.count(SiretSummary.siret)).scalar() or 0
+            if total_summary == 0:
+                from . import etl
+
+                generated = etl.build_siret_summary(session)
+                logger.info("Siret summary rebuilt at startup (%s rows)", generated)
+    except Exception:  # pragma: no cover - protection démarrage
+        logger.exception("Unable to rebuild siret_summary at startup")
 
 @app.get("/health")
 def health():
