@@ -83,7 +83,6 @@ def ingest_pv_excel(session: Session, file_like) -> int:
     c_cycle   = _col_detect(df, ["cycle"])
     # date PV: utiliser STRICTEMENT la colonne "date" si elle existe
     c_datepv = "date" if "date" in df.columns else (_col_detect(df, ["date pv","date pap","date_pv","date du pv","date du pap"]) or df.columns[min(15, len(df.columns)-1)])
-    c_type    = _col_detect(df, ["type"])
     c_ins     = _col_detect(df, ["inscrit","inscrits"])
     c_vot     = _col_detect(df, ["votant","votants"])
     c_bn      = _col_detect(df, ["blanc","nul"])
@@ -103,20 +102,16 @@ def ingest_pv_excel(session: Session, file_like) -> int:
             continue
         cycle = _norm_cycle(r.get(c_cycle))
         date_pv = _todate(r.get(c_datepv))
-        type_ = str(r.get(c_type) or "")
         inscrits = _to_int(r.get(c_ins))
         votants = _to_int(r.get(c_vot))
-        bn = _to_int(r.get(c_bn))
         cgt_voix = _sum_int([r.get(c) for c in c_cgt]) if c_cgt else None
 
         ev = PVEvent(
             siret=siret,
             cycle=cycle,
             date_pv=date_pv,
-            type=type_,
             inscrits=inscrits,
             votants=votants,
-            blancs_nuls=bn,
             cgt_voix=cgt_voix,
             idcc=(r.get(c_idcc) if c_idcc else None),
             fd=(r.get(c_fd) if c_fd else None),
@@ -241,12 +236,13 @@ def build_siret_summary(session: Session) -> int:
     pvs_stmt = select(
         PVEvent.siret.label("siret"),
         PVEvent.cycle.label("cycle"),
-        PVEvent.type.label("type"),
         PVEvent.date_pv.label("date_pv"),
         PVEvent.raison_sociale.label("raison_sociale"),
         PVEvent.idcc.label("idcc"),
         PVEvent.fd.label("fd"),
         PVEvent.ud.label("ud"),
+        PVEvent.region.label("region"),
+        PVEvent.ul.label("ul"),
         PVEvent.departement.label("departement"),
         PVEvent.cp.label("cp"),
         PVEvent.ville.label("ville"),
@@ -269,7 +265,10 @@ def build_siret_summary(session: Session) -> int:
         return df_cycle.head(1)
 
     # Normaliser
-    pvs["carence"] = pvs["type"].fillna("").str.lower().str.contains("carence")
+    pvs["cycle"] = pvs["cycle"].fillna("").map(_norm_cycle)
+    for col in ("inscrits", "votants", "cgt_voix"):
+        pvs[col] = pd.to_numeric(pvs[col], errors="coerce")
+    pvs["carence"] = pvs["votants"].fillna(0) <= 0
     # Filtrage bornes cycles
     C3_START, C3_END = pd.to_datetime("2017-01-01"), pd.to_datetime("2020-12-31")
     C4_START, C4_END = pd.to_datetime("2021-01-01"), pd.to_datetime("2024-12-31")
@@ -298,6 +297,8 @@ def build_siret_summary(session: Session) -> int:
     base["dep"] = base["departement_c4"].fillna(base["departement_c3"])
     base["cp"] = base["cp_c4"].fillna(base["cp_c3"])
     base["ville"] = base["ville_c4"].fillna(base["ville_c3"])
+    base["region"] = base.get("region_c4").fillna(base.get("region_c3")) if "region_c4" in base else base.get("region_c3")
+    base["ul"] = base.get("ul_c4").fillna(base.get("ul_c3")) if "ul_c4" in base else base.get("ul_c3")
 
     base["statut_pap"] = np.where(base["date_pv_c3"].notna() & base["date_pv_c4"].notna(), "C3+C4",
                            np.where(base["date_pv_c4"].notna(), "C4",
@@ -353,6 +354,8 @@ def build_siret_summary(session: Session) -> int:
         "dep": base["dep"],
         "cp": base["cp"],
         "ville": base["ville"],
+        "region": base.get("region"),
+        "ul": base.get("ul"),
         "date_pv_c3": safe_pv_c3,
         "carence_c3": base.get("carence_c3"),
         "inscrits_c3": base.get("inscrits_c3"),
