@@ -1,6 +1,6 @@
 # app/migrations.py
 """
-Migrations automatiques pour ajouter les colonnes Sirene si elles n'existent pas.
+Migrations automatiques pour ajouter les colonnes manquantes.
 Ce script s'exécute au démarrage de l'application.
 """
 
@@ -27,6 +27,174 @@ SIRENE_COLUMNS = [
     ("date_enrichissement", "DATETIME"),
 ]
 
+# Nouvelles colonnes pour pv_events (v1.0.0 - scores syndicaux complets)
+PV_EVENTS_NEW_COLUMNS = [
+    ("id_pv", "VARCHAR(50)"),
+    ("region", "VARCHAR(100)"),
+    ("ul", "VARCHAR(100)"),
+    ("institution", "VARCHAR(100)"),
+    ("oetamic", "VARCHAR(100)"),
+    ("deno_coll", "TEXT"),
+    ("duree_mandat", "INTEGER"),
+    ("date_prochain_scrutin", "DATE"),
+    ("quadrimestre_scrutin", "VARCHAR(20)"),
+    ("controle", "VARCHAR(50)"),
+    ("date_visite_syndicat", "DATE"),
+    ("date_formation", "DATE"),
+    ("college", "VARCHAR(100)"),
+    ("compo_college", "TEXT"),
+    ("sve", "INTEGER"),
+    ("tx_participation_pv", "REAL"),
+    # Scores syndicaux
+    ("cfdt_voix", "INTEGER"),
+    ("fo_voix", "INTEGER"),
+    ("cftc_voix", "INTEGER"),
+    ("cgc_voix", "INTEGER"),
+    ("unsa_voix", "INTEGER"),
+    ("solidaire_voix", "INTEGER"),
+    ("autre_voix", "INTEGER"),
+    # Présence syndicats PV
+    ("pres_pv_cgt", "BOOLEAN"),
+    ("pres_pv_cfdt", "BOOLEAN"),
+    ("pres_pv_fo", "BOOLEAN"),
+    ("pres_pv_cftc", "BOOLEAN"),
+    ("pres_pv_cgc", "BOOLEAN"),
+    ("pres_pv_unsa", "BOOLEAN"),
+    ("pres_pv_sud", "BOOLEAN"),
+    ("pres_pv_autre", "BOOLEAN"),
+    # Composition effectifs
+    ("ouvriers", "INTEGER"),
+    ("employes", "INTEGER"),
+    ("techniciens", "INTEGER"),
+    ("maitrises", "INTEGER"),
+    ("ingenieurs", "INTEGER"),
+    ("cadres", "INTEGER"),
+    ("pct_inscrits_ictam", "REAL"),
+    # Agrégations SIRET
+    ("compte_siret", "INTEGER"),
+    ("compte_siret_cgt", "INTEGER"),
+    ("effectif_siret", "INTEGER"),
+    ("tranche1_effectif", "VARCHAR(50)"),
+    ("tranche2_effectif", "VARCHAR(50)"),
+    ("votants_siret", "INTEGER"),
+    ("nb_college_siret", "INTEGER"),
+    ("sve_siret", "INTEGER"),
+    ("tx_participation_siret", "REAL"),
+    ("siret_moins_50", "BOOLEAN"),
+    ("presence_cgt_siret", "BOOLEAN"),
+    ("pres_cgt_tous_pv_siret", "BOOLEAN"),
+    # Scores SIRET agrégés
+    ("score_siret_cgt", "INTEGER"),
+    ("score_siret_cfdt", "INTEGER"),
+    ("score_siret_fo", "INTEGER"),
+    ("score_siret_cftc", "INTEGER"),
+    ("score_siret_cgc", "INTEGER"),
+    ("score_siret_unsa", "INTEGER"),
+    ("score_siret_sud", "INTEGER"),
+    ("score_siret_autre", "INTEGER"),
+    # Présence SIRET agrégée
+    ("pres_siret_cgt", "BOOLEAN"),
+    ("pres_siret_cfdt", "BOOLEAN"),
+    ("pres_siret_fo", "BOOLEAN"),
+    ("pres_siret_cftc", "BOOLEAN"),
+    ("pres_siret_cgc", "BOOLEAN"),
+    ("pres_siret_unsa", "BOOLEAN"),
+    ("pres_siret_sud", "BOOLEAN"),
+    ("pres_siret_autre", "BOOLEAN"),
+    # Pourcentages SIRET
+    ("pct_siret_cgt", "REAL"),
+    ("pct_siret_cfdt", "REAL"),
+    ("pct_siret_fo", "REAL"),
+    ("pct_siret_cgc", "REAL"),
+    # Infos SIREN
+    ("siren", "VARCHAR(9)"),
+    ("effectif_siren", "INTEGER"),
+    ("tranche_effectif_siren", "VARCHAR(50)"),
+    ("compte_siren", "INTEGER"),
+    ("siren_votants", "INTEGER"),
+    ("siren_sve", "INTEGER"),
+    ("siren_voix_cgt", "INTEGER"),
+    ("siren_score_cgt", "REAL"),
+    ("siren_voix_cfdt", "INTEGER"),
+    ("siren_voix_fo", "INTEGER"),
+    ("siren_voix_cftc", "INTEGER"),
+    ("siren_voix_cgc", "INTEGER"),
+    # Infos RED
+    ("idcc_red", "VARCHAR(20)"),
+    ("fd_code", "VARCHAR(20)"),
+    ("cr_code", "VARCHAR(20)"),
+    # CAC40/SBF120
+    ("code_sbf120", "VARCHAR(50)"),
+    ("codes_sbf120_cac40", "VARCHAR(100)"),
+    ("est_cac40_sbf120", "VARCHAR(10)"),
+    ("nom_groupe_sbf120", "TEXT"),
+    # Divers
+    ("annee_prochain", "INTEGER"),
+    ("binaire", "VARCHAR(50)"),
+]
+
+# Nouvelles colonnes pour siret_summary (v1.0.0 - scores syndicaux)
+SIRET_SUMMARY_NEW_COLUMNS = [
+    ("region", "VARCHAR(100)"),
+    ("ul", "VARCHAR(100)"),
+    # Cycle 3 - autres syndicats
+    ("cfdt_voix_c3", "INTEGER"),
+    ("fo_voix_c3", "INTEGER"),
+    ("cftc_voix_c3", "INTEGER"),
+    ("cgc_voix_c3", "INTEGER"),
+    ("unsa_voix_c3", "INTEGER"),
+    ("sud_voix_c3", "INTEGER"),
+    ("solidaire_voix_c3", "INTEGER"),
+    ("autre_voix_c3", "INTEGER"),
+    # Cycle 4 - autres syndicats
+    ("cfdt_voix_c4", "INTEGER"),
+    ("fo_voix_c4", "INTEGER"),
+    ("cftc_voix_c4", "INTEGER"),
+    ("cgc_voix_c4", "INTEGER"),
+    ("unsa_voix_c4", "INTEGER"),
+    ("sud_voix_c4", "INTEGER"),
+    ("solidaire_voix_c4", "INTEGER"),
+    ("autre_voix_c4", "INTEGER"),
+    # Infos SIRET
+    ("effectif_siret", "INTEGER"),
+    ("tranche1_effectif", "VARCHAR(50)"),
+    ("tranche2_effectif", "VARCHAR(50)"),
+    ("siret_moins_50", "BOOLEAN"),
+    ("nb_college_siret", "INTEGER"),
+    # Scores agrégés tous cycles
+    ("score_siret_cgt", "INTEGER"),
+    ("score_siret_cfdt", "INTEGER"),
+    ("score_siret_fo", "INTEGER"),
+    ("score_siret_cftc", "INTEGER"),
+    ("score_siret_cgc", "INTEGER"),
+    ("score_siret_unsa", "INTEGER"),
+    ("score_siret_sud", "INTEGER"),
+    ("score_siret_autre", "INTEGER"),
+    # Pourcentages SIRET
+    ("pct_siret_cgt", "REAL"),
+    ("pct_siret_cfdt", "REAL"),
+    ("pct_siret_fo", "REAL"),
+    ("pct_siret_cgc", "REAL"),
+    # Présence syndicats
+    ("presence_cgt_siret", "BOOLEAN"),
+    ("pres_siret_cgt", "BOOLEAN"),
+    ("pres_siret_cfdt", "BOOLEAN"),
+    ("pres_siret_fo", "BOOLEAN"),
+    ("pres_siret_cftc", "BOOLEAN"),
+    ("pres_siret_cgc", "BOOLEAN"),
+    ("pres_siret_unsa", "BOOLEAN"),
+    ("pres_siret_sud", "BOOLEAN"),
+    ("pres_siret_autre", "BOOLEAN"),
+    # Infos SIREN
+    ("siren", "VARCHAR(9)"),
+    ("effectif_siren", "INTEGER"),
+    ("tranche_effectif_siren", "VARCHAR(50)"),
+    ("siren_score_cgt", "REAL"),
+    # CAC40/SBF120
+    ("est_cac40_sbf120", "VARCHAR(10)"),
+    ("nom_groupe_sbf120", "TEXT"),
+]
+
 
 def column_exists(table_name: str, column_name: str) -> bool:
     """Vérifie si une colonne existe dans une table."""
@@ -41,28 +209,31 @@ def column_exists(table_name: str, column_name: str) -> bool:
     return column_name in columns
 
 
-def add_sirene_columns_if_needed():
+def add_columns_to_table(table_name: str, columns_def: list):
     """
-    Ajoute les colonnes Sirene à la table invitations si elles n'existent pas.
-    Cette migration est idempotente (peut être exécutée plusieurs fois sans problème).
-    """
-    logger.info("🔍 Vérification des colonnes Sirene dans la table invitations...")
+    Ajoute des colonnes à une table si elles n'existent pas déjà.
 
-    # Vérifie si la table invitations existe
+    Args:
+        table_name: Nom de la table
+        columns_def: Liste de tuples (column_name, column_type)
+    """
+    logger.info(f"🔍 Vérification des colonnes dans la table {table_name}...")
+
+    # Vérifie si la table existe
     inspector = inspect(engine)
-    if "invitations" not in inspector.get_table_names():
-        logger.info("⚠️  Table invitations n'existe pas encore, elle sera créée par SQLAlchemy")
+    if table_name not in inspector.get_table_names():
+        logger.info(f"⚠️  Table {table_name} n'existe pas encore, elle sera créée par SQLAlchemy")
         return
 
     columns_added = []
     columns_already_exist = []
 
     with engine.connect() as conn:
-        for column_name, column_type in SIRENE_COLUMNS:
-            if not column_exists("invitations", column_name):
+        for column_name, column_type in columns_def:
+            if not column_exists(table_name, column_name):
                 # Ajoute la colonne
                 try:
-                    sql = text(f"ALTER TABLE invitations ADD COLUMN {column_name} {column_type}")
+                    sql = text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
                     conn.execute(sql)
                     conn.commit()
                     columns_added.append(column_name)
@@ -74,9 +245,24 @@ def add_sirene_columns_if_needed():
 
     # Résumé
     if columns_added:
-        logger.info(f"✅ Migration terminée: {len(columns_added)} colonnes Sirene ajoutées")
+        logger.info(f"✅ Migration {table_name}: {len(columns_added)} colonnes ajoutées")
     else:
-        logger.info(f"✅ Toutes les colonnes Sirene existent déjà ({len(columns_already_exist)}/13)")
+        logger.info(f"✅ Table {table_name}: toutes les colonnes existent déjà ({len(columns_already_exist)} colonnes)")
+
+
+def add_sirene_columns_if_needed():
+    """Ajoute les colonnes Sirene à la table invitations."""
+    add_columns_to_table("invitations", SIRENE_COLUMNS)
+
+
+def add_pv_events_columns_if_needed():
+    """Ajoute les nouvelles colonnes v1.0.0 à la table pv_events."""
+    add_columns_to_table("pv_events", PV_EVENTS_NEW_COLUMNS)
+
+
+def add_siret_summary_columns_if_needed():
+    """Ajoute les nouvelles colonnes v1.0.0 à la table siret_summary."""
+    add_columns_to_table("siret_summary", SIRET_SUMMARY_NEW_COLUMNS)
 
 
 def _normalize_raw_key(key: str) -> str:
@@ -286,9 +472,20 @@ def fill_invitation_columns_from_raw():
 def run_migrations():
     """Point d'entrée pour exécuter toutes les migrations."""
     try:
+        logger.info("🚀 Démarrage des migrations de base de données...")
+
+        # Migration v1.0.0 - Ajout des colonnes manquantes
+        add_pv_events_columns_if_needed()
+        add_siret_summary_columns_if_needed()
         add_sirene_columns_if_needed()
+
+        # Migration données invitations
         fill_invitation_columns_from_raw()
+
+        logger.info("✅ Toutes les migrations ont été exécutées avec succès!")
     except Exception as e:
         logger.error(f"❌ Erreur lors des migrations: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         # Ne pas lever l'exception pour ne pas bloquer le démarrage
         # L'application peut démarrer même si les migrations échouent
