@@ -1085,17 +1085,22 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
         "url": DB_URL or None,
     }
 
-    sirene_key = os.getenv("SIRENE_API_KEY", "").strip()
-    masked_key = None
-    if sirene_key:
-        if len(sirene_key) >= 8:
-            masked_key = f"{sirene_key[:4]}••••{sirene_key[-4:]}"
+    sirene_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+    sirene_token = (os.getenv("SIRENE_API_TOKEN") or "").strip()
+
+    masked_value = None
+    display_value = sirene_key or sirene_token
+    if display_value:
+        if len(display_value) >= 8:
+            masked_value = f"{display_value[:4]}••••{display_value[-4:]}"
         else:
-            masked_key = "••••"
+            masked_value = "••••"
 
     sirene_status = {
-        "configured": bool(sirene_key),
-        "masked": masked_key,
+        "configured": bool(display_value),
+        "masked": masked_value,
+        "has_integration_key": bool(sirene_key),
+        "has_token": bool(sirene_token),
     }
 
     return templates.TemplateResponse(

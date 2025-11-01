@@ -283,12 +283,24 @@
         {% endif %}
       </div>
       <ul class="text-sm text-gray-600 space-y-2">
-        <li><strong>Variable Railway :</strong> <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_KEY</code></li>
+        <li>
+          <strong>Variables Railway :</strong>
+          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_KEY</code>
+          <span class="text-xs text-gray-400">(clé intégration)</span>
+          <span class="mx-2 text-gray-300">•</span>
+          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_TOKEN</code>
+          <span class="text-xs text-gray-400">(token OAuth)</span>
+        </li>
         <li><strong>Statut :</strong> {% if sirene.configured %}{{ sirene.masked }}{% else %}Non configurée{% endif %}</li>
+        {% if sirene.has_integration_key %}
+          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">X-INSEE-Api-Key-Integration</code></li>
+        {% elif sirene.has_token %}
+          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">Authorization: Bearer ...</code></li>
+        {% endif %}
         <li><strong>Usages :</strong> autocomplete SIRET, fiches entreprises, enrichissement invitations.</li>
       </ul>
       <p class="text-xs text-gray-500 mt-4">
-        Ajoutez la clé sur Railway pour activer l'enrichissement automatique des raisons sociales et adresses lors des imports ou recherches SIRET.
+        Ajoutez la clé fournie par l'INSEE sur Railway pour activer l'enrichissement automatique des raisons sociales et adresses lors des imports ou recherches SIRET.
       </p>
     </div>
   </div>
