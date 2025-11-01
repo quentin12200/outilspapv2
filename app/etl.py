@@ -139,6 +139,35 @@ def _to_int(x):
     except:
         return None
 
+
+def _normalize_numeric_series(series: pd.Series) -> pd.Series:
+    """Convertit une série en valeurs numériques fiables.
+
+    Les fichiers Excel fournis dans la release contiennent souvent des
+    séparateurs d'espace (\u00a0, espaces fines, etc.) pour les milliers.
+    Lors de l'import, ces valeurs deviennent des chaînes comme ``"1 200"`` ou
+    ``"1\u202f500"`` qui ne peuvent pas être converties directement en
+    nombres. Cette fonction supprime ces séparateurs et remplace les virgules
+    par des points avant de faire ``pd.to_numeric``.
+    """
+
+    if series is None or getattr(series, "empty", False):
+        return series
+
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+
+    cleaned = (
+        series.astype(str)
+        .str.replace("\u202f", "", regex=False)
+        .str.replace("\xa0", "", regex=False)
+        .str.replace("\u00a0", "", regex=False)
+        .str.replace(" ", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
+    cleaned = cleaned.str.replace(r"[^0-9.+-]", "", regex=True)
+    return pd.to_numeric(cleaned, errors="coerce")
+
 def _sum_int(vals):
     s = 0
     has = False
@@ -266,6 +295,23 @@ def build_siret_summary(session: Session) -> int:
     )
     pvs = pd.read_sql(pvs_stmt, session.bind)
 
+    numeric_columns = [
+        "inscrits",
+        "votants",
+        "cgt_voix",
+        "cfdt_voix",
+        "fo_voix",
+        "cftc_voix",
+        "cgc_voix",
+        "unsa_voix",
+        "sud_voix",
+        "solidaire_voix",
+        "autre_voix",
+    ]
+    for col in numeric_columns:
+        if col in pvs.columns:
+            pvs[col] = _normalize_numeric_series(pvs[col])
+
     try:
         inv_stmt = session.query(Invitation).statement
         inv = pd.read_sql(inv_stmt, session.bind)
@@ -319,6 +365,28 @@ def build_siret_summary(session: Session) -> int:
     # Colonnes consolidées
     base["raison_sociale"] = base["raison_sociale_c4"].fillna(base["raison_sociale_c3"])
     base["idcc"] = base["idcc_c4"].fillna(base["idcc_c3"])
+
+    numeric_suffixes = [
+        "inscrits",
+        "votants",
+        "cgt_voix",
+        "cfdt_voix",
+        "fo_voix",
+        "cftc_voix",
+        "cgc_voix",
+        "unsa_voix",
+        "sud_voix",
+        "solidaire_voix",
+        "autre_voix",
+    ]
+    for suffix in numeric_suffixes:
+        col_c3 = f"{suffix}_c3"
+        col_c4 = f"{suffix}_c4"
+        if col_c3 in base.columns:
+            base[col_c3] = _normalize_numeric_series(base[col_c3])
+        if col_c4 in base.columns:
+            base[col_c4] = _normalize_numeric_series(base[col_c4])
+
     def _series_or_empty(name: str):
         if name in base.columns:
             return base[name]
@@ -421,6 +489,35 @@ def build_siret_summary(session: Session) -> int:
         "date_pap_c5": base.get("date_pap_c5"),
         "cgt_implantee": base["cgt_implantee"]
     })
+
+    int_columns = [
+        "inscrits_c3",
+        "inscrits_c4",
+        "votants_c3",
+        "votants_c4",
+        "cgt_voix_c3",
+        "cgt_voix_c4",
+        "cfdt_voix_c3",
+        "cfdt_voix_c4",
+        "fo_voix_c3",
+        "fo_voix_c4",
+        "cftc_voix_c3",
+        "cftc_voix_c4",
+        "cgc_voix_c3",
+        "cgc_voix_c4",
+        "unsa_voix_c3",
+        "unsa_voix_c4",
+        "sud_voix_c3",
+        "sud_voix_c4",
+        "solidaire_voix_c3",
+        "solidaire_voix_c4",
+        "autre_voix_c3",
+        "autre_voix_c4",
+    ]
+    for col in int_columns:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce").round().astype("Int64")
+
 
     # Reset table (simple & robuste)
     session.execute(SiretSummary.__table__.delete())
