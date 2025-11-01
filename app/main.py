@@ -38,6 +38,52 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 
 
+def _infer_invitation_urls() -> list[str]:
+    """Tente de déduire les URLs possibles des invitations à partir de `DB_URL`.
+
+    Pour éviter de devoir re-téléverser le fichier à chaque déploiement, on part
+    du principe que le fichier SQLite et le fichier Excel des invitations sont
+    hébergés sur la même release GitHub. Plusieurs noms courants sont testés :
+
+    - même nom que la base mais avec une extension `.xlsx` / `.csv`
+    - suffixe `-invitations` ajouté au nom du fichier
+    """
+
+    urls: list[str] = []
+
+    if INVITATIONS_URL or not DB_URL:
+        return urls  # La configuration explicite reste prioritaire
+
+    parsed = urlparse(DB_URL)
+    if parsed.scheme not in {"http", "https"}:
+        return urls
+
+    path = parsed.path or ""
+    directory, filename = os.path.split(path)
+    if not filename:
+        return urls
+
+    stem, ext = os.path.splitext(filename)
+    if not stem:
+        return urls
+
+    candidates = []
+    for candidate_ext in (".xlsx", ".csv"):
+        candidates.append(os.path.join(directory, f"{stem}{candidate_ext}"))
+        candidates.append(os.path.join(directory, f"{stem}-invitations{candidate_ext}"))
+
+    for candidate in candidates:
+        inferred = parsed._replace(path=candidate).geturl()
+        if inferred != DB_URL and inferred not in urls:
+            urls.append(inferred)
+
+    return urls
+
+
+INVITATIONS_INFERRED_URLS = _infer_invitation_urls()
+INVITATIONS_EFFECTIVE_URL: str | None = None
+
+
 def _is_truthy(value: str) -> bool:
     return value in {"1", "true", "yes", "on"}
 
@@ -152,7 +198,15 @@ def ensure_sqlite_asset() -> None:
 
 def _auto_seed_invitations(session: Session) -> None:
     """Importe automatiquement les invitations depuis une release si la table est vide."""
-    if not INVITATIONS_URL:
+    global INVITATIONS_EFFECTIVE_URL
+
+    candidates: list[tuple[str, str, str]] = []
+    if INVITATIONS_URL:
+        candidates.append(("configuration", INVITATIONS_URL, INVITATIONS_SHA256))
+    for inferred in INVITATIONS_INFERRED_URLS:
+        candidates.append(("déduction", inferred, ""))
+
+    if not candidates:
         return
 
     existing = session.query(func.count(Invitation.id)).scalar() or 0
@@ -163,36 +217,45 @@ def _auto_seed_invitations(session: Session) -> None:
         )
         return
 
-    tmp_path: str | None = None
-    try:
-        tmp_path = _download_to_temp(INVITATIONS_URL, token=INVITATIONS_GH_TOKEN)
-        if INVITATIONS_SHA256:
-            digest = _sha256_file(tmp_path).lower()
-            if digest != INVITATIONS_SHA256:
-                _log_or_raise_hash_mismatch(
-                    "invitations seed",
-                    INVITATIONS_SHA256,
-                    digest,
-                    True,
-                    INVITATIONS_FAIL_ON_HASH_MISMATCH,
-                )
+    last_error: Exception | None = None
+    for origin, url, expected_sha in candidates:
+        tmp_path: str | None = None
+        try:
+            logger.info("Trying automatic invitation import (%s): %s", origin, url)
+            tmp_path = _download_to_temp(url, token=INVITATIONS_GH_TOKEN)
+            if expected_sha:
+                digest = _sha256_file(tmp_path).lower()
+                if digest != expected_sha:
+                    _log_or_raise_hash_mismatch(
+                        "invitations seed",
+                        expected_sha,
+                        digest,
+                        True,
+                        INVITATIONS_FAIL_ON_HASH_MISMATCH,
+                    )
 
-        from . import etl  # Import tardif pour éviter les références circulaires
+            from . import etl  # Import tardif pour éviter les références circulaires
 
-        inserted = etl.ingest_invit_excel(session, tmp_path)
-        logger.info(
-            "Automatically imported %s invitations from %s.",
-            inserted,
-            INVITATIONS_URL,
-        )
-    except Exception:
-        logger.exception("Automatic invitation import failed")
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+            inserted = etl.ingest_invit_excel(session, tmp_path)
+            INVITATIONS_EFFECTIVE_URL = url
+            logger.info(
+                "Automatically imported %s invitations from %s.",
+                inserted,
+                url,
+            )
+            return
+        except Exception as exc:
+            last_error = exc
+            logger.exception("Automatic invitation import failed with %s", url)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    if last_error:
+        raise last_error
 
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()
@@ -1165,6 +1228,9 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
         "expected_hash": INVITATIONS_SHA256 or None,
         "count": total_invitations,
         "last_date": stats["last_invitation"],
+        "inferred_url": INVITATIONS_INFERRED_URLS[0] if INVITATIONS_INFERRED_URLS else None,
+        "inferred_urls": INVITATIONS_INFERRED_URLS,
+        "effective_url": INVITATIONS_EFFECTIVE_URL,
     }
 
     db_asset = {

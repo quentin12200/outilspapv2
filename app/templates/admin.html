@@ -253,8 +253,23 @@
             <span>Non configuré</span>
           {% endif %}
         </li>
+        {% if not invit.url and invit.inferred_url %}
+          <li class="text-xs text-gray-500">
+            <strong>URL déduite :</strong>
+            <a href="{{ invit.inferred_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.inferred_url }}</a>
+            {% if invit.inferred_urls and invit.inferred_urls|length > 1 %}
+              <span class="ml-1 text-gray-400">(+{{ invit.inferred_urls|length - 1 }} variante{{ 's' if invit.inferred_urls|length > 2 else '' }})</span>
+            {% endif %}
+          </li>
+        {% endif %}
         <li><strong>Invitations en base :</strong> {{ invit.count or 0 }}</li>
         <li><strong>Dernière date importée :</strong> {{ invit.last_date or '—' }}</li>
+        {% if invit.effective_url %}
+          <li class="text-xs text-gray-500">
+            <strong>Dernier import automatique :</strong>
+            <a href="{{ invit.effective_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.effective_url }}</a>
+          </li>
+        {% endif %}
         <li>
           <strong>Hash attendu :</strong>
           {% if invit.expected_hash %}
