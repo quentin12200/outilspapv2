@@ -1,13 +1,20 @@
 from sqlalchemy import Column, Integer, String, Date, Boolean, JSON, Text, DateTime, Float
+from sqlalchemy.orm import synonym
 from .db import Base
 
 class PVEvent(Base):
     __tablename__ = "Tous_PV"  # Nom réel de la table dans la base
 
+    # La base utilise « id_pv » comme identifiant principal.
+    # On expose également un attribut "id" attendu par certains appels
+    # historiques (pd.read_sql via le mapper) pour éviter toute requête
+    # vers une colonne inexistante Tous_PV.id.
+    id = Column("id_pv", String(50), primary_key=True)
+    id_pv = synonym("id")
+
     # Colonnes de base - noms exacts de la base
     cycle = Column("Cycle", String(10), index=True)
     siret = Column(String(14), index=True)
-    id_pv = Column(String(50), primary_key=True)
     fd = Column("FD", String(80))
     idcc = Column(String(20))
     raison_sociale = Column(Text)
