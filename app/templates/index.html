@@ -523,7 +523,16 @@
             <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c4 if r.inscrits_c4 is not none else '' }}">{{ r.inscrits_c4 or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max or '' }}">{{ r.date_pv_max or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pap_c5 or '' }}">{{ r.date_pap_c5 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-center" data-sort-value="{{ r.date_pap_c5 or '' }}">
+              {% if r.date_pap_c5 %}
+              <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                <i class="fas fa-calendar-check mr-1"></i>
+                {{ r.date_pap_c5.strftime('%d/%m/%Y') if r.date_pap_c5 is not string else r.date_pap_c5 }}
+              </span>
+              {% else %}
+              <span class="text-gray-400 text-sm">—</span>
+              {% endif %}
+            </td>
             <td class="px-4 py-3 text-center">
               {% if r.cgt_implantee %}
               <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>

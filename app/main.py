@@ -1153,6 +1153,52 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
     # Récupère les invitations
     invitations = db.query(Invitation).filter(Invitation.siret == siret).order_by(Invitation.date_invit.desc()).all()
 
+    # Normalisation des dates pour l'affichage (gestion des chaînes et NaT)
+    def _to_date(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            candidate = value.strip()
+            if not candidate:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
+                try:
+                    return datetime.strptime(candidate, fmt).date()
+                except ValueError:
+                    continue
+        return None
+
+    timeline_events = []
+    for pv in pv_history:
+        event_date = _to_date(pv.date_pv)
+        timeline_events.append({
+            "date": event_date,
+            "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
+            "type": "pv",
+            "cycle": pv.cycle,
+            "inscrits": pv.inscrits,
+            "votants": pv.votants,
+            "cgt_voix": pv.cgt_voix,
+            "carence": "car" in (pv.type or "").lower(),
+            "fd": pv.fd,
+            "ud": pv.ud,
+        })
+
+    for inv in invitations:
+        event_date = _to_date(inv.date_invit)
+        timeline_events.append({
+            "date": event_date,
+            "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
+            "type": "invitation",
+            "source": inv.source,
+        })
+
+    timeline_events.sort(key=lambda ev: ev["date"] or date.min, reverse=True)
+
     # Récupère les informations enrichies Sirene (si disponible)
     sirene_data = None
     if invitations:
@@ -1180,5 +1226,6 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
         "row": row,
         "pv_history": pv_history,
         "invitations": invitations,
+        "timeline_events": timeline_events,
         "sirene_data": sirene_data,
     })
