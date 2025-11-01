@@ -1,7 +1,9 @@
 import pandas as pd, numpy as np, re, unicodedata
 from dateutil.parser import parse as dtparse
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, date
 from .models import PVEvent, Invitation, SiretSummary
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -43,9 +45,25 @@ def _build_raw_payload(row: pd.Series) -> dict[str, str]:
     return payload
 
 def _to14(x):
-    if pd.isna(x): return None
-    s = re.sub(r"\D","", str(x))
-    return s.zfill(14) if s else None
+    """Normalise une valeur de SIRET en ne conservant que les chiffres."""
+
+    if pd.isna(x):
+        return None
+    s = re.sub(r"\D", "", str(x))
+    if not s:
+        return None
+    s = s.lstrip("0")
+    return s or None
+
+
+def _normalize_siret_series(series: pd.Series | None) -> pd.Series | None:
+    """Normalise une série contenant des SIRET en conservant uniquement les chiffres."""
+
+    if series is None:
+        return None
+
+    normalized = series.map(_to14)
+    return normalized
 
 def _todate(x):
     if x is None or (isinstance(x, float) and np.isnan(x)): return None
@@ -136,6 +154,35 @@ def _to_int(x):
         return int(float(str(x).replace(",", ".").strip()))
     except:
         return None
+
+
+def _normalize_numeric_series(series: pd.Series) -> pd.Series:
+    """Convertit une série en valeurs numériques fiables.
+
+    Les fichiers Excel fournis dans la release contiennent souvent des
+    séparateurs d'espace (\u00a0, espaces fines, etc.) pour les milliers.
+    Lors de l'import, ces valeurs deviennent des chaînes comme ``"1 200"`` ou
+    ``"1\u202f500"`` qui ne peuvent pas être converties directement en
+    nombres. Cette fonction supprime ces séparateurs et remplace les virgules
+    par des points avant de faire ``pd.to_numeric``.
+    """
+
+    if series is None or getattr(series, "empty", False):
+        return series
+
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+
+    cleaned = (
+        series.astype(str)
+        .str.replace("\u202f", "", regex=False)
+        .str.replace("\xa0", "", regex=False)
+        .str.replace("\u00a0", "", regex=False)
+        .str.replace(" ", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
+    cleaned = cleaned.str.replace(r"[^0-9.+-]", "", regex=True)
+    return pd.to_numeric(cleaned, errors="coerce")
 
 def _sum_int(vals):
     s = 0
@@ -236,22 +283,102 @@ def ingest_invit_excel(session: Session, file_like) -> int:
 
 # -------- Construire le résumé 1-ligne/SIRET --------
 def build_siret_summary(session: Session) -> int:
-    # Récup PV en pandas
-    pvs = pd.read_sql(session.query(PVEvent).statement, session.bind)
-    inv = pd.read_sql(session.query(Invitation).statement, session.bind)
+    # Récup PV en pandas (seulement les colonnes nécessaires, nommées explicitement)
+    pvs_stmt = select(
+        PVEvent.siret.label("siret"),
+        PVEvent.cycle.label("cycle"),
+        PVEvent.institution.label("institution"),
+        PVEvent.date_pv.label("date_pv"),
+        PVEvent.raison_sociale.label("raison_sociale"),
+        PVEvent.idcc.label("idcc"),
+        PVEvent.fd.label("fd"),
+        PVEvent.ud.label("ud"),
+        PVEvent.region.label("region"),
+        PVEvent.ul.label("ul"),
+        PVEvent.cp.label("cp"),
+        PVEvent.ville.label("ville"),
+        PVEvent.inscrits.label("inscrits"),
+        PVEvent.votants.label("votants"),
+        PVEvent.cgt_voix.label("cgt_voix"),
+        PVEvent.cfdt_voix.label("cfdt_voix"),
+        PVEvent.fo_voix.label("fo_voix"),
+        PVEvent.cftc_voix.label("cftc_voix"),
+        PVEvent.cgc_voix.label("cgc_voix"),
+        PVEvent.unsa_voix.label("unsa_voix"),
+        PVEvent.sud_voix.label("sud_voix"),
+        PVEvent.solidaire_voix.label("solidaire_voix"),
+        PVEvent.autre_voix.label("autre_voix"),
+    )
+    pvs = pd.read_sql(pvs_stmt, session.bind)
+
+    if "siret" in pvs.columns:
+        pvs["siret"] = _normalize_siret_series(pvs["siret"])
+        pvs = pvs[pvs["siret"].notna()].copy()
+
+    numeric_columns = [
+        "inscrits",
+        "votants",
+        "cgt_voix",
+        "cfdt_voix",
+        "fo_voix",
+        "cftc_voix",
+        "cgc_voix",
+        "unsa_voix",
+        "sud_voix",
+        "solidaire_voix",
+        "autre_voix",
+    ]
+    for col in numeric_columns:
+        if col in pvs.columns:
+            pvs[col] = _normalize_numeric_series(pvs[col])
+
+    inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
+    inv_latest_map: dict[str, date | None] = {}
+
+    try:
+        inv_stmt = session.query(Invitation).statement
+        inv = pd.read_sql(inv_stmt, session.bind)
+        if "siret" in inv.columns:
+            inv["siret"] = _normalize_siret_series(inv["siret"])
+            inv = inv[inv["siret"].notna()].copy()
+    except OperationalError:
+        inv = pd.DataFrame()
 
     if pvs.empty:
         session.query(SiretSummary).delete()
         session.commit()
         return 0
 
-    def pick_last(df_cycle):
-        # garde la ligne la plus récente du cycle
-        df_cycle = df_cycle.sort_values("date_pv", ascending=False)
-        return df_cycle.head(1)
+    if not inv.empty:
+        inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
+        valid_inv = inv[inv["date_invit"].notna()].copy()
+        if not valid_inv.empty:
+            valid_inv["date_pap_c5"] = valid_inv["date_invit"].dt.date
+            inv_latest = (
+                valid_inv
+                .sort_values(["siret", "date_invit"], ascending=[True, False])
+                .drop_duplicates(subset="siret", keep="first")
+                [["siret", "date_pap_c5"]]
+            )
+            inv_latest_map = dict(zip(inv_latest["siret"], inv_latest["date_pap_c5"]))
+
+    def last_per_cycle(mask):
+        subset = pvs.loc[mask].copy()
+        if subset.empty:
+            return subset
+        subset = subset.sort_values(["siret", "date_pv"], ascending=[True, False])
+        return subset.drop_duplicates(subset="siret", keep="first")
 
     # Normaliser
-    pvs["carence"] = pvs["type"].fillna("").str.lower().str.contains("carence")
+    pvs["cycle"] = pvs["cycle"].fillna("").astype(str).str.upper().str.strip()
+    type_series = pvs.get("type")
+    if type_series is None:
+        type_series = pvs.get("institution")
+    if type_series is None:
+        type_series = pd.Series(["" for _ in range(len(pvs))])
+    pvs["carence"] = type_series.fillna("").astype(str).str.lower().str.contains("car")
+    if "votants" in pvs.columns:
+        pvs.loc[pvs["votants"].fillna(0) <= 0, "carence"] = True
     # Filtrage bornes cycles
     C3_START, C3_END = pd.to_datetime("2017-01-01"), pd.to_datetime("2020-12-31")
     C4_START, C4_END = pd.to_datetime("2021-01-01"), pd.to_datetime("2024-12-31")
@@ -259,25 +386,61 @@ def build_siret_summary(session: Session) -> int:
     pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce")
     mask_c3 = (pvs["cycle"]=="C3") & (pvs["date_pv"] >= C3_START) & (pvs["date_pv"] <= C3_END)
     mask_c4 = (pvs["cycle"]=="C4") & (pvs["date_pv"] >= C4_START) & (pvs["date_pv"] <= C4_END)
-    last_c3 = (pvs[mask_c3].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
-    last_c4 = (pvs[mask_c4].groupby("siret", as_index=False).apply(pick_last).reset_index(drop=True))
+    last_c3 = last_per_cycle(mask_c3)
+    last_c4 = last_per_cycle(mask_c4)
 
-    # Invitations: dernière date par SIRET (filtrées C5)
-    if not inv.empty:
-        C5_START, C5_END = pd.to_datetime("2025-01-01"), pd.to_datetime("2028-12-31")
-        inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
-        inv_c5 = inv[(inv["date_invit"] >= C5_START) & (inv["date_invit"] <= C5_END)]
-        inv_latest = inv_c5.groupby("siret", as_index=False)["date_invit"].max().rename(columns={"date_invit":"date_pap_c5"})
-    else:
-        inv_latest = pd.DataFrame(columns=["siret","date_pap_c5"])
-
+    # Invitations: dernière date par SIRET.
+    #
+    # L'ancien code filtrait strictement les dates sur la plage 2025-2028 en partant
+    # du principe que toutes les invitations référencées seraient uniquement C5.
+    # En pratique, les fichiers importés contiennent des invitations datées dès 2022
+    # (voire plus tôt) mais toujours liées au cycle 5. Ce filtrage supprimait donc
+    # toutes les lignes et empêchait l'alimentation de `date_pap_c5`, d'où un
+    # tableau "Invitations PAP - Cycle 5" vide.
+    #
+    # On remonte désormais la dernière date valide quel que soit l'année ; cela
+    # garantit que la table récapitulative reflète bien les données importées tout
+    # en conservant la possibilité de filtrer côté interface.
     # Fusion C3/C4
     base = last_c3.merge(last_c4, on="siret", how="outer", suffixes=("_c3","_c4"))
 
     # Colonnes consolidées
     base["raison_sociale"] = base["raison_sociale_c4"].fillna(base["raison_sociale_c3"])
     base["idcc"] = base["idcc_c4"].fillna(base["idcc_c3"])
-    base["dep"] = base["departement_c4"].fillna(base["departement_c3"])
+
+    numeric_suffixes = [
+        "inscrits",
+        "votants",
+        "cgt_voix",
+        "cfdt_voix",
+        "fo_voix",
+        "cftc_voix",
+        "cgc_voix",
+        "unsa_voix",
+        "sud_voix",
+        "solidaire_voix",
+        "autre_voix",
+    ]
+    for suffix in numeric_suffixes:
+        col_c3 = f"{suffix}_c3"
+        col_c4 = f"{suffix}_c4"
+        if col_c3 in base.columns:
+            base[col_c3] = _normalize_numeric_series(base[col_c3])
+        if col_c4 in base.columns:
+            base[col_c4] = _normalize_numeric_series(base[col_c4])
+
+    def _series_or_empty(name: str):
+        if name in base.columns:
+            return base[name]
+        return pd.Series([None] * len(base), index=base.index)
+
+    if "departement_c4" in base.columns or "departement_c3" in base.columns:
+        base["dep"] = _series_or_empty("departement_c4").fillna(_series_or_empty("departement_c3"))
+    else:
+        base["dep"] = _series_or_empty("ud_c4").fillna(_series_or_empty("ud_c3"))
+
+    base["region"] = _series_or_empty("region_c4").fillna(_series_or_empty("region_c3"))
+    base["ul"] = _series_or_empty("ul_c4").fillna(_series_or_empty("ul_c3"))
     base["cp"] = base["cp_c4"].fillna(base["cp_c3"])
     base["ville"] = base["ville_c4"].fillna(base["ville_c3"])
 
@@ -294,6 +457,14 @@ def build_siret_summary(session: Session) -> int:
 
     # Joindre invitations
     base = base.merge(inv_latest, on="siret", how="left")
+
+    if "date_pap_c5" in base.columns:
+        existing_dates = pd.to_datetime(base["date_pap_c5"], errors="coerce").dt.date
+    else:
+        existing_dates = pd.Series([None] * len(base), index=base.index)
+
+    mapped_dates = base["siret"].map(inv_latest_map)
+    base["date_pap_c5"] = mapped_dates.where(mapped_dates.notna(), existing_dates)
 
     # Sélection finale / renommage
     outcols = dict(
@@ -335,6 +506,8 @@ def build_siret_summary(session: Session) -> int:
         "dep": base["dep"],
         "cp": base["cp"],
         "ville": base["ville"],
+        "region": base.get("region"),
+        "ul": base.get("ul"),
         "date_pv_c3": safe_pv_c3,
         "carence_c3": base.get("carence_c3"),
         "inscrits_c3": base.get("inscrits_c3"),
@@ -345,19 +518,67 @@ def build_siret_summary(session: Session) -> int:
         "inscrits_c4": base.get("inscrits_c4"),
         "votants_c4": base.get("votants_c4"),
         "cgt_voix_c4": base.get("cgt_voix_c4"),
+        "cfdt_voix_c3": base.get("cfdt_voix_c3"),
+        "cfdt_voix_c4": base.get("cfdt_voix_c4"),
+        "fo_voix_c3": base.get("fo_voix_c3"),
+        "fo_voix_c4": base.get("fo_voix_c4"),
+        "cftc_voix_c3": base.get("cftc_voix_c3"),
+        "cftc_voix_c4": base.get("cftc_voix_c4"),
+        "cgc_voix_c3": base.get("cgc_voix_c3"),
+        "cgc_voix_c4": base.get("cgc_voix_c4"),
+        "unsa_voix_c3": base.get("unsa_voix_c3"),
+        "unsa_voix_c4": base.get("unsa_voix_c4"),
+        "sud_voix_c3": base.get("sud_voix_c3"),
+        "sud_voix_c4": base.get("sud_voix_c4"),
+        "solidaire_voix_c3": base.get("solidaire_voix_c3"),
+        "solidaire_voix_c4": base.get("solidaire_voix_c4"),
+        "autre_voix_c3": base.get("autre_voix_c3"),
+        "autre_voix_c4": base.get("autre_voix_c4"),
         "statut_pap": base["statut_pap"],
         "date_pv_max": safe_pv_max,
         "date_pap_c5": base.get("date_pap_c5"),
         "cgt_implantee": base["cgt_implantee"]
     })
 
+    if "date_pap_c5" in out.columns:
+        out["date_pap_c5"] = pd.to_datetime(out["date_pap_c5"], errors="coerce").dt.date
+
+    int_columns = [
+        "inscrits_c3",
+        "inscrits_c4",
+        "votants_c3",
+        "votants_c4",
+        "cgt_voix_c3",
+        "cgt_voix_c4",
+        "cfdt_voix_c3",
+        "cfdt_voix_c4",
+        "fo_voix_c3",
+        "fo_voix_c4",
+        "cftc_voix_c3",
+        "cftc_voix_c4",
+        "cgc_voix_c3",
+        "cgc_voix_c4",
+        "unsa_voix_c3",
+        "unsa_voix_c4",
+        "sud_voix_c3",
+        "sud_voix_c4",
+        "solidaire_voix_c3",
+        "solidaire_voix_c4",
+        "autre_voix_c3",
+        "autre_voix_c4",
+    ]
+    for col in int_columns:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce").round().astype("Int64")
+
+
     # Reset table (simple & robuste)
-    session.query(SiretSummary).delete()
+    session.execute(SiretSummary.__table__.delete())
     session.commit()
 
     # Bulk-insert
     out = out.where(pd.notna(out), None)
-    # Conversion ultime : tout NaN/NaT/None
+
     def nan_to_none(val):
         try:
             if pd.isna(val):
@@ -365,7 +586,17 @@ def build_siret_summary(session: Session) -> int:
         except Exception:
             pass
         return val
-    rows = [{k: nan_to_none(v) for k, v in row.items()} for row in out.to_dict(orient="records")]
-    session.bulk_insert_mappings(SiretSummary, rows)
-    session.commit()
+
+    records = out.to_dict(orient="records")
+    rows = [{k: nan_to_none(v) for k, v in row.items()} for row in records]
+
+    if not rows:
+        return 0
+
+    chunk_size = 2000
+    for start in range(0, len(rows), chunk_size):
+        chunk = rows[start:start + chunk_size]
+        session.execute(SiretSummary.__table__.insert(), chunk)
+        session.commit()
+
     return len(rows)

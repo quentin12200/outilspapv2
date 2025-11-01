@@ -1,100 +1,131 @@
 {% extends "base.html" %}
 {% block title %}Présentation · PAP/CSE Tableau de bord{% endblock %}
 {% block content %}
-<section class="space-y-12">
-  <header class="bg-white rounded-2xl shadow-lg p-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-    <div class="max-w-2xl space-y-4">
-      <p class="uppercase text-sm font-semibold tracking-widest text-cgt-red">Suivi ciblage PAP</p>
-      <h1 class="text-4xl font-bold text-gray-900">Présentation de la plateforme</h1>
-      <p class="text-lg text-gray-600">
-        L’outil «&nbsp;PAP/CSE · Tableau de bord&nbsp;» accompagne les équipes confédérales dans le suivi des invitations
-        PAP, des scrutins C5 et des SIRET à fort enjeu. Retrouvez ici les principaux cas d’usage et la manière de relier
-        vos données PAP aux procès-verbaux pour ne rien manquer du cycle 5.
-      </p>
-      <div class="flex flex-wrap gap-3 pt-4">
-        <a href="/" class="inline-flex items-center px-5 py-3 rounded-xl bg-cgt-red text-white font-semibold shadow hover:bg-cgt-darkred transition">
-          <i class="fas fa-chart-line mr-2"></i>
-          Accéder au tableau de bord
-        </a>
-        <a href="/invitations" class="inline-flex items-center px-5 py-3 rounded-xl border border-cgt-red text-cgt-red font-semibold hover:bg-cgt-lightred transition">
-          <i class="fas fa-envelope-open-text mr-2"></i>
-          Gérer mes invitations PAP
-        </a>
+<section class="space-y-16">
+  <header class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cgt-red via-cgt-darkred to-gray-900 text-white">
+    <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.8),transparent_60%)]"></div>
+    <div class="relative px-8 py-12 lg:px-16 lg:py-16 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-12">
+      <div class="max-w-2xl space-y-6">
+        <span class="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] rounded-full bg-white/10">Plateforme CGT</span>
+        <h1 class="text-4xl lg:text-5xl font-black leading-tight">Relier invitations PAP et résultats C5 pour piloter le cycle électoral</h1>
+        <p class="text-base lg:text-lg text-white/80">
+          Cette page vous guide dans l’utilisation du tableau de bord PAP/CSE : compréhension des cas d’usage, modules clés et ressources pour suivre les établissements prioritaires.
+        </p>
+        <div class="flex flex-wrap gap-3 pt-4">
+          <a href="/" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-cgt-red font-semibold shadow-lg hover:bg-gray-100 transition">
+            <i class="fas fa-chart-simple"></i>
+            Ouvrir le tableau de bord
+          </a>
+          <a href="/invitations" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/60 text-white font-semibold hover:bg-white/10 transition">
+            <i class="fas fa-envelope-open-text"></i>
+            Voir les invitations PAP
+          </a>
+        </div>
       </div>
-    </div>
-    <div class="flex-1">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="bg-cgt-lightred border border-cgt-red/40 rounded-2xl p-5">
-          <p class="text-sm text-cgt-red font-semibold uppercase">SIRET suivis</p>
-          <p class="text-3xl font-bold text-gray-900">{{ '{:,}'.format(total_sirets).replace(',', ' ') }}</p>
-          <p class="text-sm text-gray-600">Fiches consolidées avec résultats C3 &amp; C4</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <p class="text-sm text-cgt-red font-semibold uppercase">Invitations PAP importées</p>
-          <p class="text-3xl font-bold text-gray-900">{{ '{:,}'.format(invitations_total).replace(',', ' ') }}</p>
-          <p class="text-sm text-gray-600">Points d’entrée pour le cycle électoral C5</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <p class="text-sm text-cgt-red font-semibold uppercase">SIRET avec PAP connu</p>
-          <p class="text-3xl font-bold text-gray-900">{{ '{:,}'.format(pap_sirets).replace(',', ' ') }}</p>
-          <p class="text-sm text-gray-600">Liens prêts pour la boucle PAP → PV</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <p class="text-sm text-cgt-red font-semibold uppercase">Carences C4 identifiées</p>
-          <p class="text-3xl font-bold text-gray-900">{{ '{:,}'.format(c4_carence).replace(',', ' ') }}</p>
-          <p class="text-sm text-gray-600">À sécuriser avant le prochain scrutin</p>
+      <div class="w-full lg:w-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/80">SIRET suivis</p>
+            <p class="text-3xl font-bold">{{ '{:,}'.format(total_sirets).replace(',', ' ') }}</p>
+            <p class="text-sm text-white/70">Fiches consolidées avec résultats C3 &amp; C4</p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/80">Invitations PAP importées</p>
+            <p class="text-3xl font-bold">{{ '{:,}'.format(invitations_total).replace(',', ' ') }}</p>
+            <p class="text-sm text-white/70">Points d’entrée pour le cycle électoral C5</p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/80">SIRET avec PAP connu</p>
+            <p class="text-3xl font-bold">{{ '{:,}'.format(pap_sirets).replace(',', ' ') }}</p>
+            <p class="text-sm text-white/70">Boucle PAP → PV prête à suivre</p>
+          </div>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/80">Carences C4 identifiées</p>
+            <p class="text-3xl font-bold">{{ '{:,}'.format(c4_carence).replace(',', ' ') }}</p>
+            <p class="text-sm text-white/70">Établissements à sécuriser en priorité</p>
+          </div>
         </div>
       </div>
     </div>
   </header>
 
-  <section class="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-    <h2 class="text-2xl font-bold text-gray-900">À quoi sert la plateforme&nbsp;?</h2>
-    <p class="text-gray-600 leading-relaxed">
-      Cette plateforme est conçue pour centraliser le suivi des établissements stratégiques de la CGT. Elle rassemble les
-      procès-verbaux des cycles 3 et 4, les invitations PAP reçues pour le cycle 5 et les enrichissements Sirene afin de
-      faciliter l’analyse, la priorisation et la coordination des équipes confédérales, fédérales et territoriales.
-    </p>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-gray-50">
-        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-          <i class="fas fa-bullseye text-cgt-red mr-3"></i>
-          Prioriser les SIRET à enjeu
-        </h3>
-        <p class="mt-3 text-gray-600">Repérez les établissements à ≥ 1&nbsp;000 inscrit·es et organisez les relances selon l’audience.</p>
+  <section class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10">
+    <div class="bg-white rounded-2xl shadow-lg p-10 space-y-6">
+      <h2 class="text-3xl font-bold text-gray-900">Pourquoi cette plateforme&nbsp;?</h2>
+      <p class="text-gray-600 leading-relaxed">
+        Le tableau de bord PAP/CSE donne une vision consolidée des invitations reçues et des scrutins C5 pour que chaque niveau de la CGT puisse agir rapidement. Les modules partagent la même base de données, les mêmes filtres et un export homogène pour fluidifier vos échanges.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {% for card in capability_cards %}
+        <div class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-6">
+          <div class="text-cgt-red text-2xl mb-3"><i class="fas {{ card.icon }}"></i></div>
+          <h3 class="text-lg font-semibold text-gray-900">{{ card.title }}</h3>
+          <p class="mt-2 text-sm text-gray-600 leading-relaxed">{{ card.description }}</p>
+        </div>
+        {% endfor %}
       </div>
-      <div class="border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-gray-50">
-        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-          <i class="fas fa-people-arrows text-cgt-red mr-3"></i>
-          Coordonner UD, FD et confédération
-        </h3>
-        <p class="mt-3 text-gray-600">Partagez une vision commune des invitations, des listes déposées et des résultats C5.</p>
+    </div>
+    <aside class="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-inner p-8 space-y-4">
+      <h3 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-lightbulb text-cgt-red"></i>
+        Trois repères clés
+      </h3>
+      <ul class="space-y-4 text-sm text-gray-600">
+        <li class="flex items-start gap-3">
+          <i class="fas fa-check text-cgt-red mt-1"></i>
+          <span>Les invitations PAP et les PV partagent le même identifiant SIRET : toute mise à jour se reflète dans chaque module.</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <i class="fas fa-check text-cgt-red mt-1"></i>
+          <span>Les imports sont cumulables : chargez vos fichiers à mesure qu’ils arrivent, l’outil gère les doublons.</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <i class="fas fa-check text-cgt-red mt-1"></i>
+          <span>Le calendrier C5 s’appuie sur la base consolidée et se met à jour après chaque import ou recalcul.</span>
+        </li>
+      </ul>
+    </aside>
+  </section>
+
+  <section class="bg-white rounded-2xl shadow-lg p-10 space-y-8">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      <div class="space-y-2">
+        <h2 class="text-3xl font-bold text-gray-900">Parcours de suivi PAP → PV</h2>
+        <p class="text-gray-600 max-w-3xl">Un même SIRET peut traverser plusieurs modules. Voici la feuille de route type pour sécuriser un scrutin C5 à partir d’une invitation.</p>
       </div>
-      <div class="border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-gray-50">
-        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-          <i class="fas fa-clipboard-check text-cgt-red mr-3"></i>
-          Sécuriser les PV C5
-        </h3>
-        <p class="mt-3 text-gray-600">Assurez le rattachement des procès-verbaux aux invitations correspondantes pour mesurer l’impact CGT.</p>
+      <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cgt-lightred text-cgt-red font-semibold uppercase text-xs tracking-widest">
+        Objectif&nbsp;: 100&nbsp;% des PV rattachés
+      </span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      {% for step in journey_steps %}
+      <div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-6 h-full">
+        <div class="flex items-center justify-between text-sm text-cgt-red font-semibold uppercase tracking-widest">
+          <span>{{ step.focus }}</span>
+          <i class="fas {{ step.icon }} text-base"></i>
+        </div>
+        <h3 class="mt-4 text-xl font-semibold text-gray-900">{{ step.title }}</h3>
+        <p class="mt-3 text-sm text-gray-600 leading-relaxed">{{ step.description }}</p>
       </div>
+      {% endfor %}
     </div>
   </section>
 
   <section class="space-y-6">
     <div class="flex items-center justify-between flex-wrap gap-4">
-      <h2 class="text-2xl font-bold text-gray-900">Fonctionnalités clés</h2>
-      <p class="text-sm text-gray-500">Chaque module est accessible depuis le menu principal et partage la même logique de tri et de filtrage.</p>
+      <h2 class="text-3xl font-bold text-gray-900">Modules à explorer</h2>
+      <p class="text-sm text-gray-500">Accédez directement aux sections clés et retrouvez vos filtres préférés dans chaque page.</p>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-      {% for feature in feature_blocks %}
-      <a href="{{ feature.href }}" class="group block h-full">
-        <article class="h-full bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition transform hover:-translate-y-1">
-          <div class="text-cgt-red text-3xl mb-4"><i class="fas {{ feature.icon }}"></i></div>
-          <h3 class="text-xl font-semibold text-gray-900 mb-2">{{ feature.title }}</h3>
-          <p class="text-gray-600 leading-relaxed">{{ feature.description }}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {% for module in module_links %}
+      <a href="{{ module.href }}" class="group block h-full">
+        <article class="h-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+          <div class="text-cgt-red text-2xl mb-4"><i class="fas {{ module.icon }}"></i></div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">{{ module.title }}</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">{{ module.description }}</p>
           <span class="mt-4 inline-flex items-center text-cgt-red font-semibold group-hover:underline">
-            Découvrir
-            <i class="fas fa-arrow-right ml-2 text-sm"></i>
+            Ouvrir
+            <i class="fas fa-arrow-right ml-2 text-xs"></i>
           </span>
         </article>
       </a>
@@ -102,81 +133,35 @@
     </div>
   </section>
 
-  <section class="bg-white rounded-2xl shadow-lg p-8 space-y-8">
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-      <div>
-        <h2 class="text-2xl font-bold text-gray-900">Boucle PAP → PV C5</h2>
-        <p class="text-gray-600 max-w-2xl">
-          Pour chaque invitation enregistrée, l’outil vous accompagne jusqu’au procès-verbal C5. Suivez les étapes clés,
-          identifiez les responsables et complétez les données pour clôturer le cycle électoral.
-        </p>
-      </div>
-      <div class="bg-cgt-lightred text-cgt-red font-semibold px-4 py-2 rounded-full uppercase text-sm tracking-widest">
-        Objectif&nbsp;: 100&nbsp;% de PV rattachés
-      </div>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {% for step in timeline %}
-      <div class="border border-gray-200 rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50">
-        <div class="text-cgt-red text-3xl mb-4"><i class="fas {{ step.icon }}"></i></div>
-        <h3 class="text-xl font-semibold text-gray-900">{{ step.title }}</h3>
-        <p class="text-sm text-cgt-red font-semibold uppercase tracking-wide">{{ step.subtitle }}</p>
-        <p class="mt-3 text-gray-600 leading-relaxed">{{ step.description }}</p>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section class="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-    <h2 class="text-2xl font-bold text-gray-900">Calendrier C5 prévisionnel</h2>
-    <p class="text-gray-600">Anticipez les grandes séquences pour articuler invitations, dépôts de listes et collecte des PV.</p>
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-      {% for slot in c5_calendar %}
-      <div class="border border-gray-200 rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50">
-        <p class="text-sm text-cgt-red font-semibold uppercase tracking-wide">{{ slot.period }}</p>
-        <h3 class="text-lg font-semibold text-gray-900 mt-2">{{ slot.focus }}</h3>
-        <p class="mt-3 text-gray-600 leading-relaxed">{{ slot.details }}</p>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <div class="bg-white rounded-2xl shadow-lg p-8 space-y-5">
-      <h2 class="text-2xl font-bold text-gray-900">Données mobilisées</h2>
-      <ul class="space-y-3 text-gray-600">
-        <li class="flex items-start">
-          <i class="fas fa-database text-cgt-red mt-1 mr-3"></i>
-          <span><strong>Procès-verbaux C3 &amp; C4</strong> consolidés par SIRET avec voix CGT, inscrits, carences et résultats par département.</span>
-        </li>
-        <li class="flex items-start">
-          <i class="fas fa-envelope text-cgt-red mt-1 mr-3"></i>
-          <span><strong>Invitations PAP C5</strong> intégrant la date de réception, la source d’envoi et les enrichissements Sirene.</span>
-        </li>
-        <li class="flex items-start">
-          <i class="fas fa-map-marker-alt text-cgt-red mt-1 mr-3"></i>
-          <span><strong>Référentiels Sirene</strong> (adresse, effectifs, tranche d’entreprise) pour préparer les relances ciblées.</span>
-        </li>
-        <li class="flex items-start">
-          <i class="fas fa-sync text-cgt-red mt-1 mr-3"></i>
-          <span><strong>Suivi des mises à jour</strong> permettant d’identifier les SIRET nécessitant un nouveau PAP ou en attente de PV.</span>
-        </li>
-      </ul>
-    </div>
-    <div class="bg-white rounded-2xl shadow-lg p-8 space-y-5">
-      <h2 class="text-2xl font-bold text-gray-900">Comment démarrer&nbsp;?</h2>
-      <ol class="list-decimal list-inside space-y-3 text-gray-600">
-        <li><strong>Connectez-vous</strong> à la plateforme et ouvrez le tableau de bord pour une vision d’ensemble.</li>
-        <li><strong>Importez vos invitations</strong> ou vérifiez celles déjà chargées dans la page «&nbsp;Invitations&nbsp;».</li>
-        <li><strong>Priorisez vos ciblages</strong> en filtrant les SIRET à ≥ 1&nbsp;000 inscrit·es puis affectez les responsabilités UD / FD.</li>
-        <li><strong>Suivez les scrutins</strong> en enregistrant les PV C5 dès réception pour mesurer la progression des voix CGT.</li>
-        <li><strong>Analysez et partagez</strong> les résultats via les tableaux exportables et les indicateurs du dashboard.</li>
-      </ol>
-      <div class="bg-cgt-lightred border border-cgt-red/40 rounded-xl p-4 text-sm text-gray-700">
-        <i class="fas fa-info-circle text-cgt-red mr-2"></i>
-        Besoin d’aller plus loin&nbsp;? Les guides d’import et les contacts référents sont disponibles dans la rubrique «&nbsp;Admin&nbsp;».
+  <section class="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-10">
+    <div class="bg-white rounded-2xl shadow-lg p-10 space-y-6">
+      <h2 class="text-3xl font-bold text-gray-900">Ressources et actions rapides</h2>
+      <p class="text-gray-600">Retrouvez dans l’espace administration les outils nécessaires pour garder la base à jour.</p>
+      <div class="space-y-4">
+        {% for resource in resource_links %}
+        <a href="{{ resource.href }}" class="flex items-start gap-4 rounded-xl border border-gray-200 p-5 hover:border-cgt-red transition">
+          <div class="w-10 h-10 rounded-lg bg-cgt-lightred text-cgt-red flex items-center justify-center text-lg">
+            <i class="fas {{ resource.icon }}"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">{{ resource.title }}</h3>
+            <p class="text-sm text-gray-600">{{ resource.description }}</p>
+          </div>
+        </a>
+        {% endfor %}
       </div>
     </div>
+    <aside class="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-inner p-8 space-y-5">
+      <h3 class="text-xl font-semibold text-gray-900">Questions fréquentes</h3>
+      <dl class="space-y-5">
+        {% for faq in faq_entries %}
+        <div class="space-y-2">
+          <dt class="text-sm font-semibold text-cgt-red uppercase tracking-widest">{{ faq.question }}</dt>
+          <dd class="text-sm text-gray-600 leading-relaxed">{{ faq.answer }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </aside>
   </section>
 </section>
 {% endblock %}

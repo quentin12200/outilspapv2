@@ -13,6 +13,14 @@ DB_SHA256=votre-sha256-existant
 
 **C'est tout !** Pas besoin d'autres variables.
 
+Ajoutez simplement votre clé Sirene :
+
+```env
+SIRENE_API_KEY=ffba7659-46eb-48b2-ba76-5946ebe8b21c
+```
+
+> ℹ️ Les anciennes intégrations via `SIRENE_API_TOKEN` (OAuth) sont toujours supportées, mais l'en-tête attendu par l'API INSEE est désormais `X-INSEE-Api-Key-Integration` lorsque vous utilisez `SIRENE_API_KEY`.
+
 ### 🔧 Comment ça fonctionne
 
 1. **Au démarrage** :
