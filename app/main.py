@@ -352,6 +352,15 @@ def index(
     cgt_implantee: str = "",
     db: Session = Depends(get_session)
 ):
+    latest_inv_subq = (
+        db.query(
+            Invitation.siret.label("siret"),
+            func.max(Invitation.date_invit).label("latest_date"),
+        )
+        .group_by(Invitation.siret)
+        .subquery()
+    )
+
     qs = db.query(SiretSummary)
 
     # Recherche textuelle
@@ -391,33 +400,39 @@ def index(
     elif sort == "inscrits_c4":
         qs = qs.order_by(SiretSummary.inscrits_c4.desc().nullslast())
     else:  # default: date_pap_c5
-        qs = qs.order_by(SiretSummary.date_pap_c5.desc().nullslast())
+        qs = (
+            qs.outerjoin(
+                latest_inv_subq,
+                SiretSummary.siret == latest_inv_subq.c.siret,
+            )
+            .order_by(
+                latest_inv_subq.c.latest_date.desc().nullslast(),
+                SiretSummary.date_pap_c5.desc().nullslast(),
+            )
+        )
 
     rows = qs.limit(100).all()
 
-    # Ajoute un fallback pour l'affichage de la date PAP C5 directement depuis les invitations
-    missing_dates = [
-        r.siret
-        for r in rows
-        if _is_missing_date_value(getattr(r, "date_pap_c5", None))
-    ]
+    siret_keys = [r.siret for r in rows if r.siret]
     fallback_dates: dict[str, date] = {}
-    if missing_dates:
+    if siret_keys:
         fallback_dates = dict(
             db.query(
-                Invitation.siret,
-                func.max(Invitation.date_invit).label("latest_date"),
+                latest_inv_subq.c.siret,
+                latest_inv_subq.c.latest_date,
             )
-            .filter(Invitation.siret.in_(missing_dates))
-            .group_by(Invitation.siret)
+            .filter(latest_inv_subq.c.siret.in_(siret_keys))
             .all()
         )
 
     for r in rows:
         original_value = getattr(r, "date_pap_c5", None)
-        source_value = original_value
-        if _is_missing_date_value(source_value):
-            source_value = fallback_dates.get(r.siret)
+        fallback_value = fallback_dates.get(r.siret)
+
+        if _is_missing_date_value(original_value) and fallback_value is not None:
+            source_value = fallback_value
+        else:
+            source_value = original_value or fallback_value
 
         display_date = _coerce_date_value(source_value)
         label = _format_date_label(display_date, source_value)
@@ -441,7 +456,10 @@ def index(
             SiretSummary.dep.label("dep"),
             func.count(SiretSummary.siret).label("count"),
         )
-        .filter(SiretSummary.date_pap_c5.isnot(None))
+        .join(
+            latest_inv_subq,
+            latest_inv_subq.c.siret == SiretSummary.siret,
+        )
         .filter(SiretSummary.dep.isnot(None))
         .group_by(SiretSummary.dep)
         .order_by(func.count(SiretSummary.siret).desc())

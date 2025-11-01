@@ -3,7 +3,7 @@ from dateutil.parser import parse as dtparse
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, date
 from .models import PVEvent, Invitation, SiretSummary
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -332,6 +332,9 @@ def build_siret_summary(session: Session) -> int:
         if col in pvs.columns:
             pvs[col] = _normalize_numeric_series(pvs[col])
 
+    inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
+    inv_latest_map: dict[str, date | None] = {}
+
     try:
         inv_stmt = session.query(Invitation).statement
         inv = pd.read_sql(inv_stmt, session.bind)
@@ -345,6 +348,19 @@ def build_siret_summary(session: Session) -> int:
         session.query(SiretSummary).delete()
         session.commit()
         return 0
+
+    if not inv.empty:
+        inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
+        valid_inv = inv[inv["date_invit"].notna()].copy()
+        if not valid_inv.empty:
+            valid_inv["date_pap_c5"] = valid_inv["date_invit"].dt.date
+            inv_latest = (
+                valid_inv
+                .sort_values(["siret", "date_invit"], ascending=[True, False])
+                .drop_duplicates(subset="siret", keep="first")
+                [["siret", "date_pap_c5"]]
+            )
+            inv_latest_map = dict(zip(inv_latest["siret"], inv_latest["date_pap_c5"]))
 
     def last_per_cycle(mask):
         subset = pvs.loc[mask].copy()
@@ -385,22 +401,6 @@ def build_siret_summary(session: Session) -> int:
     # On remonte désormais la dernière date valide quel que soit l'année ; cela
     # garantit que la table récapitulative reflète bien les données importées tout
     # en conservant la possibilité de filtrer côté interface.
-    if not inv.empty:
-        inv["date_invit"] = pd.to_datetime(inv["date_invit"], errors="coerce")
-        valid_inv = inv[inv["date_invit"].notna()].copy()
-        if not valid_inv.empty:
-            inv_latest = (
-                valid_inv
-                .sort_values(["siret", "date_invit"], ascending=[True, False])
-                .drop_duplicates(subset="siret", keep="first")
-                .rename(columns={"date_invit": "date_pap_c5"})
-                [["siret", "date_pap_c5"]]
-            )
-        else:
-            inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
-    else:
-        inv_latest = pd.DataFrame(columns=["siret", "date_pap_c5"])
-
     # Fusion C3/C4
     base = last_c3.merge(last_c4, on="siret", how="outer", suffixes=("_c3","_c4"))
 
@@ -457,6 +457,14 @@ def build_siret_summary(session: Session) -> int:
 
     # Joindre invitations
     base = base.merge(inv_latest, on="siret", how="left")
+
+    if "date_pap_c5" in base.columns:
+        existing_dates = pd.to_datetime(base["date_pap_c5"], errors="coerce").dt.date
+    else:
+        existing_dates = pd.Series([None] * len(base), index=base.index)
+
+    mapped_dates = base["siret"].map(inv_latest_map)
+    base["date_pap_c5"] = mapped_dates.where(mapped_dates.notna(), existing_dates)
 
     # Sélection finale / renommage
     outcols = dict(
@@ -531,6 +539,9 @@ def build_siret_summary(session: Session) -> int:
         "date_pap_c5": base.get("date_pap_c5"),
         "cgt_implantee": base["cgt_implantee"]
     })
+
+    if "date_pap_c5" in out.columns:
+        out["date_pap_c5"] = pd.to_datetime(out["date_pap_c5"], errors="coerce").dt.date
 
     int_columns = [
         "inscrits_c3",
