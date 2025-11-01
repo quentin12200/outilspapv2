@@ -20,14 +20,27 @@
   </div>
 </div>
 
-<!-- Message de succès -->
+<!-- Message de succès doublons -->
 {% if request.query_params.get('success') %}
 <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
   <div class="flex items-center">
     <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
     <div>
       <p class="font-semibold text-green-800">Doublons supprimés avec succès !</p>
-      <p class="text-sm text-green-700">Rechargez la page pour voir les nouvelles statistiques.</p>
+      <p class="text-sm text-green-700">Maintenant, cliquez sur "Remplir les colonnes" ci-dessous pour afficher les données.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Message de succès migration -->
+{% if request.query_params.get('migrated') %}
+<div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+  <div class="flex items-center">
+    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+    <div>
+      <p class="font-semibold text-green-800">Migration réussie !</p>
+      <p class="text-sm text-green-700">{{ request.query_params.get('migrated') }} invitations ont été mises à jour. Vérifiez maintenant la page /invitations !</p>
     </div>
   </div>
 </div>
@@ -111,6 +124,37 @@
   </div>
 </div>
 {% endif %}
+
+<!-- Bouton migration colonnes -->
+<div class="mb-8 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+  <div class="flex items-start">
+    <i class="fas fa-database text-blue-500 text-3xl mr-4 mt-1"></i>
+    <div class="flex-1">
+      <h3 class="text-xl font-bold text-blue-800 mb-2">Remplir les colonnes depuis les données importées</h3>
+      <p class="text-blue-700 mb-4">
+        Si les colonnes (Raison sociale, Adresse, Ville, Effectifs) sont <strong>vides</strong> sur la page /invitations,
+        cliquez sur ce bouton pour les remplir automatiquement depuis vos fichiers Excel.
+      </p>
+      <ul class="list-disc list-inside text-blue-700 mb-4 space-y-1 text-sm">
+        <li>Remplit Raison sociale, Adresse, Ville, Code postal</li>
+        <li>Remplit Activité, Effectifs, Enseigne (si disponibles dans l'Excel)</li>
+        <li>Utilise TOUTES les variantes de noms de colonnes</li>
+        <li>Ne modifie pas les colonnes déjà remplies</li>
+      </ul>
+
+      <form method="post" action="/admin/diagnostics/migrate-columns">
+        <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md inline-flex items-center gap-2 font-semibold">
+          <i class="fas fa-magic"></i>
+          Remplir les colonnes maintenant
+        </button>
+        <p class="text-xs text-blue-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          Cette opération peut prendre quelques secondes si vous avez beaucoup d'invitations
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
 
 <!-- Répartition par source -->
 <section class="bg-white rounded-xl shadow-md p-6 mb-8">

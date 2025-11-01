@@ -728,6 +728,133 @@ def remove_duplicates(db: Session = Depends(get_session)):
 
     return RedirectResponse(url="/admin/diagnostics?success=1", status_code=303)
 
+@app.post("/admin/diagnostics/migrate-columns")
+def migrate_columns(db: Session = Depends(get_session)):
+    """Remplit les colonnes structurées depuis le champ raw"""
+
+    from .migrations import _pick_from_raw, _pick_bool_from_raw
+
+    # Récupérer toutes les invitations avec raw non-null
+    invitations = db.query(Invitation).filter(Invitation.raw.isnot(None)).all()
+
+    updated_count = 0
+
+    for inv in invitations:
+        raw = inv.raw or {}
+        updated = False
+
+        # Si déjà rempli, skip
+        if inv.denomination and inv.commune and inv.code_postal:
+            continue
+
+        # Denomination
+        if not inv.denomination:
+            inv.denomination = _pick_from_raw(
+                raw,
+                "denomination", "denomination_usuelle", "raison_sociale", "raison sociale",
+                "raison_sociale_etablissement", "nom_raison_sociale", "rs", "nom",
+                "nom_entreprise", "societe", "entreprise", "nom_de_l_entreprise", "libelle"
+            )
+            if inv.denomination:
+                updated = True
+
+        # Enseigne
+        if not inv.enseigne:
+            inv.enseigne = _pick_from_raw(raw, "enseigne", "enseigne_commerciale", "enseigne commerciale", "nom_commercial")
+            if inv.enseigne:
+                updated = True
+
+        # Adresse
+        if not inv.adresse:
+            inv.adresse = _pick_from_raw(
+                raw,
+                "adresse_complete", "adresse", "adresse_ligne_1", "adresse_ligne1", "adresse_ligne 1",
+                "adresse1", "adresse_postale", "ligne_4", "ligne4", "libelle_voie", "libelle_voie_etablissement",
+                "rue", "numero_et_voie", "voie", "adresse_etablissement", "adresse2", "complement_adresse",
+                "numero_voie", "adresse_geo", "adresse_complete_etablissement"
+            )
+            if inv.adresse:
+                updated = True
+
+        # Code postal
+        if not inv.code_postal:
+            inv.code_postal = _pick_from_raw(
+                raw, "code_postal", "code postal", "cp", "code_postal_etablissement", "postal"
+            )
+            if inv.code_postal:
+                updated = True
+
+        # Commune
+        if not inv.commune:
+            inv.commune = _pick_from_raw(
+                raw, "commune", "ville", "localite", "adresse_ville", "libelle_commune_etablissement", "city"
+            )
+            if inv.commune:
+                updated = True
+
+        # Activité principale
+        if not inv.activite_principale:
+            inv.activite_principale = _pick_from_raw(
+                raw, "activite_principale", "code_naf", "naf", "code_ape", "ape"
+            )
+            if inv.activite_principale:
+                updated = True
+
+        # Libellé activité
+        if not inv.libelle_activite:
+            inv.libelle_activite = _pick_from_raw(
+                raw, "libelle_activite", "libelle activité", "libelle_naf", "activite",
+                "activite_principale_libelle"
+            )
+            if inv.libelle_activite:
+                updated = True
+
+        # Effectifs
+        if not inv.effectifs_label:
+            inv.effectifs_label = _pick_from_raw(
+                raw, "effectifs", "effectif", "effectifs_salaries", "effectifs salaries", "effectifs categorie",
+                "effectif_salarie", "nb_salaries", "nombre_salaries", "salaries", "nombre_de_salaries",
+                "effectif_total", "total_effectif", "nb_employes", "nombre_employes"
+            )
+            if inv.effectifs_label:
+                updated = True
+
+        # Tranche effectifs
+        if not inv.tranche_effectifs:
+            inv.tranche_effectifs = _pick_from_raw(
+                raw, "tranche_effectifs", "tranche_effectif", "tranche_effectifs_salaries",
+                "tranche_effectif_salarie"
+            )
+            if inv.tranche_effectifs:
+                updated = True
+
+        # Catégorie entreprise
+        if not inv.categorie_entreprise:
+            inv.categorie_entreprise = _pick_from_raw(
+                raw, "categorie_entreprise", "categorie", "taille_entreprise", "taille"
+            )
+            if inv.categorie_entreprise:
+                updated = True
+
+        # Est actif
+        if inv.est_actif is None:
+            inv.est_actif = _pick_bool_from_raw(raw, "est_actif", "actif", "etat_etablissement", "etat")
+            if inv.est_actif is not None:
+                updated = True
+
+        # Est siège
+        if inv.est_siege is None:
+            inv.est_siege = _pick_bool_from_raw(raw, "est_siege", "siege", "siege_social")
+            if inv.est_siege is not None:
+                updated = True
+
+        if updated:
+            updated_count += 1
+
+    db.commit()
+
+    return RedirectResponse(url=f"/admin/diagnostics?migrated={updated_count}", status_code=303)
+
 @app.get("/recherche-siret", response_class=HTMLResponse)
 def recherche_siret_page(request: Request):
     return templates.TemplateResponse("recherche-siret.html", {"request": request})
