@@ -161,7 +161,7 @@
   </div>
 
     <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <!-- Departments Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
       <div class="mb-4">
@@ -191,6 +191,22 @@
       </div>
       <div style="height: 300px; position: relative;">
         <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Upcoming Elections Chart -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="mb-4">
+        <h3 class="text-xl font-bold text-gray-800">
+          <i class="fas fa-hourglass-half text-cgt-red mr-2"></i>
+          Prochaines élections (4 trimestres)
+        </h3>
+        <p class="text-xs text-gray-600 mt-1">
+          <i class="fas fa-calendar-day mr-1"></i><strong>Source :</strong> Dates prévisionnelles C5 (≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
+        </p>
+      </div>
+      <div style="height: 300px; position: relative;">
+        <canvas id="quartersChart"></canvas>
       </div>
     </div>
   </div>
@@ -507,7 +523,24 @@
             <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c4 if r.inscrits_c4 is not none else '' }}">{{ r.inscrits_c4 or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max or '' }}">{{ r.date_pv_max or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pap_c5 or '' }}">{{ r.date_pap_c5 or '' }}</td>
+            {% set pap_label = r.date_pap_c5_label %}
+            {% set pap_value = r.date_pap_c5_display or r.date_pap_c5 %}
+            {% set pap_sort = r.date_pap_c5_sort or '' %}
+            <td class="px-4 py-3 whitespace-nowrap text-center" data-sort-value="{{ pap_sort }}">
+              {% if pap_label %}
+              <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                <i class="fas fa-calendar-check mr-1"></i>
+                {{ pap_label }}
+              </span>
+              {% elif pap_value %}
+              <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                <i class="fas fa-calendar-check mr-1"></i>
+                {{ pap_value }}
+              </span>
+              {% else %}
+              <span class="text-gray-400 text-sm">—</span>
+              {% endif %}
+            </td>
             <td class="px-4 py-3 text-center">
               {% if r.cgt_implantee %}
               <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
@@ -619,6 +652,7 @@
             this.$nextTick(() => {
               this.renderDepartmentsChart();
               this.renderMonthlyChart();
+              this.renderQuarterChart();
             });
           } catch (error) {
             console.error('Error loading stats:', error);
@@ -683,6 +717,41 @@
               backgroundColor: 'rgba(213, 0, 28, 0.1)',
               fill: true,
               tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              }
+            }
+          }
+        });
+      },
+      renderQuarterChart() {
+        const ctx = document.getElementById('quartersChart');
+        if (!ctx || !this.stats.upcoming_quarters || !this.stats.upcoming_quarters.length) return;
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: this.stats.upcoming_quarters.map(q => q.label),
+            datasets: [{
+              label: 'Nombre d\'élections à venir',
+              data: this.stats.upcoming_quarters.map(q => q.count),
+              backgroundColor: '#f97316',
+              borderColor: '#ea580c',
+              borderWidth: 1
             }]
           },
           options: {

@@ -1,46 +1,68 @@
-from sqlalchemy import Column, Integer, String, Date, Boolean, JSON, Text, DateTime, Float
+from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON
+from sqlalchemy.orm import synonym
 from .db import Base
 
-class PVEvent(Base):
-    __tablename__ = "Tous_PV"  # Nom réel de la table dans la base
-    id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Colonnes de base - noms exacts de la base
+class PVEvent(Base):
+    __tablename__ = "Tous_PV"
+
+    # Identifiant principal présent dans la base livrée
+    id = Column("id_pv", Integer, primary_key=True, autoincrement=False)
+    id_pv = synonym("id")
+
+    # Colonnes de base - respecter exactement les intitulés SQLite
     cycle = Column("Cycle", String(10), index=True)
     siret = Column(String(14), index=True)
-    id_pv = Column(String(50))
     fd = Column("FD", String(80))
-    idcc = Column(String(20))
-    raison_sociale = Column(Text)
-    cp = Column(String(10))
-    ville = Column(Text)
+    idcc = Column("idcc", String(20))
+    raison_sociale = Column("raison_sociale", Text)
+    cp = Column("cp", String(10))
+    ville = Column("ville", Text)
     ud = Column("UD", String(80))
     region = Column("Région", String(100))
-    institution = Column(String(100))
+    institution = Column("institution", String(100))
+    # Ancienne colonne « type » (CSE / CAR) -> conservée pour compatibilité
+    type = synonym("institution")
     oetamic = Column("OETAMIC", String(100))
-    deno_coll = Column(Text)
+    deno_coll = Column("deno_coll", Text)
 
     # Dates et scrutin
-    date_pv = Column("date_scrutin", Date)
-    duree_mandat = Column(Integer)
-    date_prochain_scrutin = Column(Date)
+    date_pv = Column("date_scrutin", String(32))
+    duree_mandat = Column("duree_mandat", Float)
+    date_prochain_scrutin = Column("date_prochain_scrutin", String(32))
     quadrimestre_scrutin = Column("Quadrimestre_scrutin", String(20))
 
     # Résultats du scrutin
-    inscrits = Column("num_inscrits", Integer)
-    votants = Column("num_votants", Integer)
-    sve = Column("num_sve", Integer)
+    inscrits = Column("num_inscrits", Float)
+    votants = Column("num_votants", Float)
+    sve = Column("num_sve", Float)
     tx_participation_pv = Column("Tx_Part._PV", Float)
 
     # Scores des syndicats au PV
-    score_cgt = Column("score_CGT", Integer)
-    score_cfdt = Column("score_CFDT", Integer)
-    score_fo = Column("score_FO", Integer)
-    score_cftc = Column("score_CFTC", Integer)
-    score_cgc = Column("score_CGC", Integer)
-    score_unsa = Column("score_UNSA", Integer)
-    score_solidaire = Column("score_SOLIDAIRE", Integer)
-    score_autre = Column("score_AUTRE", Integer)
+    cgt_voix = Column("score_CGT", Float)
+    score_cgt = synonym("cgt_voix")
+
+    cfdt_voix = Column("score_CFDT", Float)
+    score_cfdt = synonym("cfdt_voix")
+
+    fo_voix = Column("score_FO", Float)
+    score_fo = synonym("fo_voix")
+
+    cftc_voix = Column("score_CFTC", Float)
+    score_cftc = synonym("cftc_voix")
+
+    cgc_voix = Column("score_CGC", Float)
+    score_cgc = synonym("cgc_voix")
+
+    unsa_voix = Column("score_UNSA", Float)
+    score_unsa = synonym("unsa_voix")
+
+    sud_voix = Column("score_SOLIDAIRE", Float)
+    solidaire_voix = synonym("sud_voix")
+    score_solidaire = synonym("sud_voix")
+
+    autre_voix = Column("score_AUTRE", Float)
+    score_autre = synonym("autre_voix")
 
     # Présence syndicats au PV
     controle = Column("Contrôle", String(50))
@@ -55,39 +77,39 @@ class PVEvent(Base):
     pres_pv_autre = Column("PRES_PV_AUTRE", String(10))
 
     # Composition des effectifs
-    ouvriers = Column("Ouvriers", Integer)
-    employes = Column("Employés", Integer)
-    techniciens = Column("Techniciens", Integer)
-    maitrises = Column("Maitrises", Integer)
-    ingenieurs = Column("Ingénieurs", Integer)
-    cadres = Column("Cadres", Integer)
+    ouvriers = Column("Ouvriers", Float)
+    employes = Column("Employés", Float)
+    techniciens = Column("Techniciens", Float)
+    maitrises = Column("Maitrises", Float)
+    ingenieurs = Column("Ingénieurs", Float)
+    cadres = Column("Cadres", Float)
     pct_inscrits_ictam = Column("%_Inscrits_ICTAM", Float)
 
     # Informations agrégées SIRET
-    compte_siret = Column("Compte_siret", Integer)
-    compte_siret_cgt = Column("Compte_siret_CGT", Integer)
-    effectif_siret = Column("Effectif_Siret", Integer)
-    tranche1_effectif = Column(String(50))
-    tranche2_effectif = Column(String(50))
+    compte_siret = Column("Compte_siret", Float)
+    compte_siret_cgt = Column("Compte_siret_CGT", Float)
+    effectif_siret = Column("Effectif_Siret", Float)
+    tranche1_effectif = Column("tranche1_effectif", String(50))
+    tranche2_effectif = Column("tranche2_effectif", String(50))
     ul = Column("UL", String(100))
-    votants_siret = Column("Votants_Siret", Integer)
-    nb_college_siret = Column("Nb_Collège_Siret", Integer)
-    sve_siret = Column("SVE_Siret", Integer)
+    votants_siret = Column("Votants_Siret", Float)
+    nb_college_siret = Column("Nb_Collège_Siret", Float)
+    sve_siret = Column("SVE_Siret", Float)
     tx_participation_siret = Column("TX_Part._Siret", Float)
-    siret_moins_50 = Column("Siret_moins_50", Boolean)
+    siret_moins_50 = Column("Siret_moins_50", Float)
     college = Column("Collège", String(100))
     presence_cgt_siret = Column("Présence_CGT_Siret", String(10))
     compo_college = Column("Compo_collège", Text)
 
     # Scores agrégés SIRET
-    score_siret_cgt = Column("score_SIRET_CGT", Integer)
-    score_siret_cfdt = Column("score_SIRET_CFDT", Integer)
-    score_siret_fo = Column("score_SIRET_FO", Integer)
-    score_siret_cftc = Column("score_SIRET_CFTC", Integer)
-    score_siret_cgc = Column("score_SIRET_CGC", Integer)
-    score_siret_unsa = Column("score_SIRET_UNSA", Integer)
-    score_siret_sud = Column("score_SIRET_SUD", Integer)
-    score_siret_autre = Column("score_SIRET_AUTRE", Integer)
+    score_siret_cgt = Column("score_SIRET_CGT", Float)
+    score_siret_cfdt = Column("score_SIRET_CFDT", Float)
+    score_siret_fo = Column("score_SIRET_FO", Float)
+    score_siret_cftc = Column("score_SIRET_CFTC", Float)
+    score_siret_cgc = Column("score_SIRET_CGC", Float)
+    score_siret_unsa = Column("score_SIRET_UNSA", Float)
+    score_siret_sud = Column("score_SIRET_SUD", Float)
+    score_siret_autre = Column("score_SIRET_AUTRE", Float)
 
     # Présence agrégée SIRET
     pres_siret_cgt = Column("PRES_SIRET_CGT", String(10))
@@ -107,18 +129,18 @@ class PVEvent(Base):
     pct_siret_cgc = Column("%_Siret_CGC", Float)
 
     # Informations SIREN
-    siren = Column(String(9))
-    effectif_siren = Column("Effectif_Siren", Integer)
+    siren = Column("siren", String(9))
+    effectif_siren = Column("Effectif_Siren", Float)
     tranche_effectif_siren = Column("Tranche_effectif_SIREN", String(50))
-    cpte_siren = Column("Cpte_Siren", Integer)
-    siren_votants = Column("Siren votants", Integer)
-    siren_sve = Column("Siren SVE", Integer)
-    siren_voix_cgt = Column("Siren voix CGT", Integer)
-    siren_score_cgt = Column("Siren Score CGT", Float)
-    siren_voix_cfdt = Column("Siren voix CFDT", Integer)
-    siren_voix_fo = Column("Siren voix FO", Integer)
-    siren_voix_cftc = Column("Siren voix CFTC", Integer)
-    siren_voix_cgc = Column("Siren voix CGC", Integer)
+    cpte_siren = Column("Cpte_Siren", Float)
+    siren_votants = Column("Siren\nvotants", Float)
+    siren_sve = Column("Siren\nSVE", Float)
+    siren_voix_cgt = Column("Siren\nvoix\nCGT", Float)
+    siren_score_cgt = Column("Siren\nScore\nCGT", Float)
+    siren_voix_cfdt = Column("Siren\nvoix\nCFDT", Float)
+    siren_voix_fo = Column("Siren\nvoix\nFO", Float)
+    siren_voix_cftc = Column("Siren\nvoix\nCFTC", Float)
+    siren_voix_cgc = Column("Siren\nvoix\nCGC", Float)
 
     # Informations RED
     idcc_red = Column("IDCC_RED", String(20))
@@ -126,23 +148,20 @@ class PVEvent(Base):
     cr_code = Column("cr_Code", String(20))
 
     # CAC 40 / SBF 120
-    code_sbf120 = Column("Code SBF_120", String(50))
-    codes_sbf120_cac40 = Column("Codes SBF_120_(120360) CAC_40_(120400)", String(100))
-    est_cac40_sbf120 = Column("O/N CAC40/SBF120", String(10))
+    code_sbf120 = Column("Code\nSBF_120", String(50))
+    codes_sbf120_cac40 = Column("Codes\nSBF_120_(120360)\nCAC_40_(120400)", String(120))
+    est_cac40_sbf120 = Column("O/N\nCAC40/SBF120", String(10))
     nom_groupe_sbf120 = Column("Nom_Groupe_SBF_120", Text)
 
     # Dates et divers
-    date_visite_syndicat = Column("Date_visite_syndicat", Date)
-    date_formation = Column("Date_formation", Date)
-    annee_prochain = Column("ANNÉE_PROCHAIN", Integer)
-    binaire = Column(String(50))
+    date_visite_syndicat = Column("Date_visite_syndicat", String(32))
+    date_formation = Column("Date_formation", String(32))
+    annee_prochain = Column("ANNÉE_PROCHAIN", Float)
+    binaire = Column("binaire", Float)
 
-    # Compatibilité ancienne version (colonnes qui peuvent ne pas exister)
-    type = Column(String(255))
-    blancs_nuls = Column(Integer)
-    cgt_siege = Column(Integer)
-    departement = Column(String(5))
-    autres_indics = Column(JSON)
+    # Compatibilité : certains appels hérités utilisent « departement ».
+    departement = synonym("ud")
+
 
 class Invitation(Base):
     __tablename__ = "invitations"
@@ -166,6 +185,7 @@ class Invitation(Base):
     est_actif = Column(Boolean)                                  # True si établissement actif
     categorie_entreprise = Column(String(10))                    # PME, ETI, GE...
     date_enrichissement = Column(DateTime)                       # Date du dernier enrichissement
+
 
 class SiretSummary(Base):
     __tablename__ = "siret_summary"

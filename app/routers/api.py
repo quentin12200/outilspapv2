@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
@@ -174,9 +174,6 @@ def dashboard_stats(db: Session = Depends(get_session)):
         .all()
     )
 
-    # Évolution mensuelle des invitations (6 derniers mois) pour la cible
-    from datetime import datetime, timedelta
-
     six_months_ago = datetime.now() - timedelta(days=180)
 
     monthly_invitations = (
@@ -190,6 +187,89 @@ def dashboard_stats(db: Session = Depends(get_session)):
         .order_by("month")
         .all()
     )
+
+    def _parse_date_value(value):
+        if not value:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                try:
+                    return datetime.strptime(cleaned, fmt).date()
+                except ValueError:
+                    continue
+            try:
+                return datetime.fromisoformat(cleaned).date()
+            except ValueError:
+                return None
+        return None
+
+    def _to_number(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.strip().replace("\u202f", "").replace("\xa0", "").replace(" ", "")
+            cleaned = cleaned.replace(",", ".")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    today = date.today()
+    per_cycle = {}
+
+    upcoming_rows = (
+        db.query(
+            PVEvent.siret,
+            PVEvent.cycle,
+            PVEvent.date_prochain_scrutin,
+            PVEvent.effectif_siret,
+            PVEvent.inscrits,
+        )
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+        .all()
+    )
+
+    for siret, cycle, next_date, effectif_siret, inscrits in upcoming_rows:
+        parsed_date = _parse_date_value(next_date)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        effectif_value = _to_number(effectif_siret)
+        if effectif_value is None:
+            effectif_value = _to_number(inscrits)
+
+        if effectif_value is None or effectif_value < audience_threshold:
+            continue
+
+        key = (siret or "", cycle or "")
+        existing = per_cycle.get(key)
+        if existing is None or parsed_date < existing:
+            per_cycle[key] = parsed_date
+
+    quarter_counts: dict[tuple[int, int], int] = {}
+    for parsed_date in per_cycle.values():
+        quarter_index = ((parsed_date.month - 1) // 3) + 1
+        key = (parsed_date.year, quarter_index)
+        quarter_counts[key] = quarter_counts.get(key, 0) + 1
+
+    upcoming_quarters = [
+        {"label": f"T{quarter} {year}", "count": count}
+        for (year, quarter), count in sorted(
+            quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
+        )
+    ][:4]
 
     # Statistiques par statut PAP sur la cible
     statut_stats = (
@@ -236,6 +316,7 @@ def dashboard_stats(db: Session = Depends(get_session)):
         "monthly_invitations": [
             {"month": m[0], "count": m[1]} for m in monthly_invitations
         ],
+        "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
     }
 

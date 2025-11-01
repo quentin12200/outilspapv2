@@ -12,6 +12,7 @@ Dans Railway, allez dans les **Variables** de votre projet et ajoutez :
 
 ```
 DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
+DB_SHA256=2a699fe2236005cadc756ec59f8f21fa35fd542262823b9998b7fc49192d445d
 ```
 
 ### Étape 2 : Redémarrer l'application
@@ -36,6 +37,10 @@ Database downloaded successfully!
 | `DB_GH_TOKEN` | Token GitHub si repo privé (optionnel) | ❌ Non |
 | `DB_FAIL_ON_HASH_MISMATCH` | Échouer si le hash ne correspond pas (défaut: false) | ❌ Non |
 | `DATABASE_URL` | Chemin local de la base SQLite (défaut: `sqlite:///./papcse.db`) | ❌ Non |
+| `INVITATIONS_URL` | (Optionnel) Fichier Excel contenant les invitations PAP à charger automatiquement | ❌ Non |
+| `INVITATIONS_SHA256` | Hash SHA256 du fichier d'invitations (recommandé si `INVITATIONS_URL`) | ❌ Non |
+| `INVITATIONS_GH_TOKEN` | Token GitHub si l'asset invitations est privé (défaut : `DB_GH_TOKEN`) | ❌ Non |
+| `INVITATIONS_FAIL_ON_HASH_MISMATCH` | Échouer si le hash des invitations ne correspond pas | ❌ Non |
 
 ## Fonctionnement
 
@@ -44,7 +49,8 @@ Database downloaded successfully!
 1. ✅ L'application vérifie si `papcse.db` existe localement
 2. ⬇️ Si absent ET `DB_URL` est défini → télécharge depuis GitHub
 3. ✅ Si le hash `DB_SHA256` est fourni → vérifie l'intégrité
-4. 🚀 Démarre avec la base de données
+4. 📩 Si `INVITATIONS_URL` est défini et que la table `invitations` est vide → import automatique du fichier Excel (une seule fois)
+5. 🚀 Démarre avec la base de données
 
 ### Mise à jour de la base :
 
@@ -60,7 +66,7 @@ La version v1.0.0 de la base contient :
 ### Tables principales :
 
 - **`siret_summary`** : Synthèse par SIRET avec tous les scores syndicaux (C3, C4)
-- **`pv_events`** : Détails de tous les PV avec scores de TOUS les syndicats
+- **`Tous_PV`** : Détails de tous les PV avec scores de TOUS les syndicats
 - **`invitations`** : Invitations PAP Cycle 5
 
 ### Nouvelles colonnes v1.0.0 :
@@ -125,8 +131,12 @@ La version v1.0.0 de la base contient :
 DATABASE_URL=sqlite:///./papcse.db
 DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
 
-# Optionnel : vérification d'intégrité
-# DB_SHA256=abc123...
+# Optionnel : vérification d'intégrité (hash v1.0.0)
+DB_SHA256=2a699fe2236005cadc756ec59f8f21fa35fd542262823b9998b7fc49192d445d
+
+# Optionnel : invitations PAP préchargées
+# INVITATIONS_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/invitations.xlsx
+# INVITATIONS_SHA256=...
 
 # Optionnel : si repo privé
 # DB_GH_TOKEN=ghp_xxxxx
