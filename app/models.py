@@ -3,12 +3,11 @@ from .db import Base
 
 class PVEvent(Base):
     __tablename__ = "Tous_PV"  # Nom réel de la table dans la base
-    id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Colonnes de base - noms exacts de la base
     cycle = Column("Cycle", String(10), index=True)
     siret = Column(String(14), index=True)
-    id_pv = Column(String(50))
+    id_pv = Column(String(50), primary_key=True)
     fd = Column("FD", String(80))
     idcc = Column(String(20))
     raison_sociale = Column(Text)
@@ -127,7 +126,7 @@ class PVEvent(Base):
 
     # CAC 40 / SBF 120
     code_sbf120 = Column("Code SBF_120", String(50))
-    codes_sbf120_cac40 = Column("Codes SBF_120_(120360) CAC_40_(120400)", String(100))
+    codes_sbf120_cac40 = Column("Codes SBF_120(120360) CAC_40(120400)", String(100))
     est_cac40_sbf120 = Column("O/N CAC40/SBF120", String(10))
     nom_groupe_sbf120 = Column("Nom_Groupe_SBF_120", Text)
 
