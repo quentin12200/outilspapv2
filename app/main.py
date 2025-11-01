@@ -41,12 +41,33 @@ INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH
 def _is_truthy(value: str) -> bool:
     return value in {"1", "true", "yes", "on"}
 
+_HASH_CACHE: dict[str, tuple[float, int, str]] = {}
+
+
 def _sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _cached_sha256(path: str) -> str:
+    """Calcule (ou retrouve) le hash SHA256 d'un fichier en mettant en cache l'empreinte."""
+
+    try:
+        stat_result = os.stat(path)
+    except OSError:
+        return ""
+
+    cached = _HASH_CACHE.get(path)
+    signature = (stat_result.st_mtime, stat_result.st_size)
+    if cached and cached[0] == signature[0] and cached[1] == signature[1]:
+        return cached[2]
+
+    digest = _sha256_file(path).lower()
+    _HASH_CACHE[path] = (signature[0], signature[1], digest)
+    return digest
 
 def _sqlite_path_from_engine() -> str | None:
     try:
@@ -955,9 +976,140 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
     context.update({"request": request})
     return templates.TemplateResponse("ciblage.html", context)
 
+def _format_date(value: date | None) -> str | None:
+    if not value:
+        return None
+    return value.strftime("%d/%m/%Y")
+
+
+def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[dict[str, Any]]:
+    today = date.today()
+    per_siret: dict[str, dict[str, Any]] = {}
+
+    rows = (
+        db.query(
+            PVEvent.siret,
+            PVEvent.raison_sociale,
+            PVEvent.ud,
+            PVEvent.region,
+            PVEvent.effectif_siret,
+            PVEvent.inscrits,
+            PVEvent.cycle,
+            PVEvent.date_prochain_scrutin,
+            PVEvent.institution,
+            PVEvent.fd,
+            PVEvent.idcc,
+        )
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+        .all()
+    )
+
+    for row in rows:
+        parsed_date = _parse_date(row.date_prochain_scrutin)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        effectif_value = _to_number(row.effectif_siret)
+        if effectif_value is None:
+            effectif_value = _to_number(row.inscrits)
+
+        if min_effectif and (effectif_value is None or effectif_value < min_effectif):
+            continue
+
+        key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        payload = {
+            "siret": row.siret,
+            "raison_sociale": row.raison_sociale,
+            "ud": row.ud,
+            "region": row.region,
+            "effectif": int(effectif_value) if effectif_value is not None else None,
+            "cycle": row.cycle,
+            "institution": row.institution,
+            "fd": row.fd,
+            "idcc": row.idcc,
+            "date": parsed_date,
+            "date_display": parsed_date.strftime("%d/%m/%Y"),
+        }
+
+        existing = per_siret.get(key)
+        if existing is None or parsed_date < existing["date"]:
+            per_siret[key] = payload
+
+    return sorted(per_siret.values(), key=lambda item: item["date"])
+
+
 @app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
+def admin_page(request: Request, db: Session = Depends(get_session)):
+    total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
+    total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
+    total_summary = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
+
+    last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
+    last_invitation_date = db.query(func.max(Invitation.date_invit)).scalar()
+
+    upcoming = _collect_upcoming_for_admin(db)
+    upcoming_preview = upcoming[:5]
+
+    db_path = _sqlite_path_from_engine()
+    db_exists = bool(db_path and os.path.exists(db_path))
+    db_size = os.path.getsize(db_path) if db_exists else None
+    db_hash = _cached_sha256(db_path) if db_exists else ""
+
+    stats = {
+        "pv_total": total_pv,
+        "pv_sirets": total_sirets,
+        "summary_total": total_summary,
+        "invit_total": total_invitations,
+        "last_summary": _format_date(last_summary_date),
+        "last_invitation": _format_date(last_invitation_date),
+        "upcoming_total": len(upcoming),
+        "upcoming_next": upcoming[0]["date_display"] if upcoming else None,
+    }
+
+    invitations_asset = {
+        "auto_enabled": bool(INVITATIONS_URL),
+        "url": INVITATIONS_URL or None,
+        "expected_hash": INVITATIONS_SHA256 or None,
+        "count": total_invitations,
+        "last_date": stats["last_invitation"],
+    }
+
+    db_asset = {
+        "path": db_path,
+        "exists": db_exists,
+        "size_mb": round(db_size / (1024 * 1024), 1) if db_size else None,
+        "expected_hash": DB_SHA256 or None,
+        "actual_hash": db_hash or None,
+        "hash_match": bool(db_hash and DB_SHA256 and db_hash == DB_SHA256),
+        "url": DB_URL or None,
+    }
+
+    sirene_key = os.getenv("SIRENE_API_KEY", "").strip()
+    masked_key = None
+    if sirene_key:
+        if len(sirene_key) >= 8:
+            masked_key = f"{sirene_key[:4]}••••{sirene_key[-4:]}"
+        else:
+            masked_key = "••••"
+
+    sirene_status = {
+        "configured": bool(sirene_key),
+        "masked": masked_key,
+    }
+
+    return templates.TemplateResponse(
+        "admin.html",
+        {
+            "request": request,
+            "stats": stats,
+            "db_asset": db_asset,
+            "invitations_asset": invitations_asset,
+            "sirene_status": sirene_status,
+            "upcoming_preview": upcoming_preview,
+            "upcoming_threshold": 1000,
+        },
+    )
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
 def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
