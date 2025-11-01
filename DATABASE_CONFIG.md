@@ -12,6 +12,7 @@ Dans Railway, allez dans les **Variables** de votre projet et ajoutez :
 
 ```
 DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
+DB_SHA256=2a699fe2236005cadc756ec59f8f21fa35fd542262823b9998b7fc49192d445d
 ```
 
 ### Étape 2 : Redémarrer l'application
@@ -60,7 +61,7 @@ La version v1.0.0 de la base contient :
 ### Tables principales :
 
 - **`siret_summary`** : Synthèse par SIRET avec tous les scores syndicaux (C3, C4)
-- **`pv_events`** : Détails de tous les PV avec scores de TOUS les syndicats
+- **`Tous_PV`** : Détails de tous les PV avec scores de TOUS les syndicats
 - **`invitations`** : Invitations PAP Cycle 5
 
 ### Nouvelles colonnes v1.0.0 :
@@ -125,8 +126,8 @@ La version v1.0.0 de la base contient :
 DATABASE_URL=sqlite:///./papcse.db
 DB_URL=https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/papcse.db
 
-# Optionnel : vérification d'intégrité
-# DB_SHA256=abc123...
+# Optionnel : vérification d'intégrité (hash v1.0.0)
+DB_SHA256=2a699fe2236005cadc756ec59f8f21fa35fd542262823b9998b7fc49192d445d
 
 # Optionnel : si repo privé
 # DB_GH_TOKEN=ghp_xxxxx

@@ -21,6 +21,8 @@ class PVEvent(Base):
     ud = Column("UD", String(80))
     region = Column("Région", String(100))
     institution = Column("institution", String(100))
+    # Ancienne colonne « type » (CSE / CAR) -> conservée pour compatibilité
+    type = synonym("institution")
     oetamic = Column("OETAMIC", String(100))
     deno_coll = Column("deno_coll", Text)
 

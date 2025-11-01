@@ -236,6 +236,7 @@ def build_siret_summary(session: Session) -> int:
     pvs_stmt = select(
         PVEvent.siret.label("siret"),
         PVEvent.cycle.label("cycle"),
+        PVEvent.institution.label("institution"),
         PVEvent.date_pv.label("date_pv"),
         PVEvent.raison_sociale.label("raison_sociale"),
         PVEvent.idcc.label("idcc"),
@@ -378,7 +379,17 @@ def build_siret_summary(session: Session) -> int:
         if col in pvs.columns:
             pvs[col] = _to_numeric(pvs, col)
 
-    pvs["carence"] = pvs["votants"].fillna(0) <= 0
+    if "institution" in pvs.columns:
+        inst_series = (
+            pvs["institution"].fillna("").astype(str).str.strip().str.upper()
+        )
+    else:
+        inst_series = pd.Series([""] * len(pvs), index=pvs.index)
+
+    carence_flag = inst_series.str.contains("CAR", na=False)
+    if "votants" in pvs.columns:
+        carence_flag = carence_flag | (pvs["votants"].fillna(0) <= 0)
+    pvs["carence"] = carence_flag
     pvs["date_pv"] = pd.to_datetime(pvs["date_pv"], errors="coerce", dayfirst=True)
 
     def latest_by_cycle(df: pd.DataFrame, cycle: str, suffix: str) -> pd.DataFrame:
@@ -390,6 +401,7 @@ def build_siret_summary(session: Session) -> int:
         subset[f"carence{suffix}"] = subset["carence"]
         rename_base = {
             "raison_sociale": f"raison_sociale{suffix}",
+            "institution": f"institution{suffix}",
             "idcc": f"idcc{suffix}",
             "fd": f"fd{suffix}",
             "ud": f"ud{suffix}",
