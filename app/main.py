@@ -6,6 +6,8 @@ import urllib.request
 import logging
 import re
 import unicodedata
+import tempfile
+from urllib.parse import urlparse
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -28,6 +30,11 @@ DB_URL = os.getenv("DB_URL", "").strip()                # URL de l'asset Release
 DB_SHA256 = os.getenv("DB_SHA256", "").lower().strip()  # Empreinte optionnelle
 DB_GH_TOKEN = os.getenv("DB_GH_TOKEN", "").strip() or None  # Token si repo privé
 DB_FAIL_ON_HASH_MISMATCH = os.getenv("DB_FAIL_ON_HASH_MISMATCH", "").strip().lower()
+
+INVITATIONS_URL = os.getenv("INVITATIONS_URL", "").strip()
+INVITATIONS_SHA256 = os.getenv("INVITATIONS_SHA256", "").lower().strip()
+INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TOKEN
+INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 
 
 def _is_truthy(value: str) -> bool:
@@ -61,6 +68,35 @@ def _download(url: str, dest: str, token: str | None = None) -> None:
 logger = logging.getLogger(__name__)
 
 
+def _download_to_temp(url: str, token: str | None = None) -> str:
+    """Télécharge un fichier distant vers un fichier temporaire et retourne son chemin."""
+    suffix = os.path.splitext(urlparse(url).path)[1]
+    fd, tmp_path = tempfile.mkstemp(prefix="papcse-asset-", suffix=suffix or "")
+    os.close(fd)
+    try:
+        _download(url, tmp_path, token=token)
+        return tmp_path
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _log_or_raise_hash_mismatch(label: str, expected: str, got: str, downloaded: bool, fail_flag: str) -> None:
+    message = (
+        f"SHA256 mismatch for {label}:\n"
+        f"  got:  {got}\n"
+        f"  want: {expected}"
+    )
+    if downloaded and _is_truthy(fail_flag):
+        raise RuntimeError(message)
+
+    level = logging.ERROR if downloaded else logging.WARNING
+    logger.log(level, "%s -- continuing.", message)
+
+
 def ensure_sqlite_asset() -> None:
     """
     Garantit que le fichier SQLite existe au chemin visé par l'engine:
@@ -83,22 +119,58 @@ def ensure_sqlite_asset() -> None:
     if DB_SHA256 and os.path.exists(db_path):
         digest = _sha256_file(db_path).lower()
         if digest != DB_SHA256:
-            message = (
-                "SHA256 mismatch for DB file:\n"
-                f"  got:  {digest}\n"
-                f"  want: {DB_SHA256}\n"
-                f"  path: {db_path}"
+            _log_or_raise_hash_mismatch(
+                f"DB file at {db_path}",
+                DB_SHA256,
+                digest,
+                downloaded,
+                DB_FAIL_ON_HASH_MISMATCH,
             )
-            if downloaded and _is_truthy(DB_FAIL_ON_HASH_MISMATCH):
-                raise RuntimeError(message)
 
-            level = logging.ERROR if downloaded else logging.WARNING
-            logger.log(
-                level,
-                "%s -- continuing%s.",
-                message,
-                " (asset freshly downloaded)" if downloaded else " because the database already existed",
-            )
+
+def _auto_seed_invitations(session: Session) -> None:
+    """Importe automatiquement les invitations depuis une release si la table est vide."""
+    if not INVITATIONS_URL:
+        return
+
+    existing = session.query(func.count(Invitation.id)).scalar() or 0
+    if existing > 0:
+        logger.info(
+            "Skipping automatic invitation import: table already contains %s rows.",
+            existing,
+        )
+        return
+
+    tmp_path: str | None = None
+    try:
+        tmp_path = _download_to_temp(INVITATIONS_URL, token=INVITATIONS_GH_TOKEN)
+        if INVITATIONS_SHA256:
+            digest = _sha256_file(tmp_path).lower()
+            if digest != INVITATIONS_SHA256:
+                _log_or_raise_hash_mismatch(
+                    "invitations seed",
+                    INVITATIONS_SHA256,
+                    digest,
+                    True,
+                    INVITATIONS_FAIL_ON_HASH_MISMATCH,
+                )
+
+        from . import etl  # Import tardif pour éviter les références circulaires
+
+        inserted = etl.ingest_invit_excel(session, tmp_path)
+        logger.info(
+            "Automatically imported %s invitations from %s.",
+            inserted,
+            INVITATIONS_URL,
+        )
+    except Exception:
+        logger.exception("Automatic invitation import failed")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()
@@ -130,6 +202,7 @@ def on_startup():
     # premier démarrage (base préremplie).
     try:
         with SessionLocal() as session:
+            _auto_seed_invitations(session)
             total_summary = session.query(func.count(SiretSummary.siret)).scalar() or 0
             if total_summary == 0:
                 from . import etl

@@ -2,7 +2,7 @@
 
 ## Pourquoi réimporter ?
 
-Si le tableau des invitations affiche des colonnes vides (—), c'est que les données ont été importées avant la mise à jour du code. **Réimporter les données** est la solution la plus simple et la plus sûre.
+Si le tableau des invitations affiche des colonnes vides (—), c'est que les données ont été importées avant la mise à jour du code. **Réimporter les données** est la solution la plus simple et la plus sûre. Vous pouvez également configurer la variable d'environnement `INVITATIONS_URL` pour que l'import se fasse automatiquement à chaque nouveau déploiement (voir `DATABASE_CONFIG.md`).
 
 ---
 
