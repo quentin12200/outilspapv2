@@ -241,6 +241,8 @@ def dashboard_stats(db: Session = Depends(get_session)):
         .all()
     )
 
+    upcoming_c5_sirets: set[str] = set()
+
     for siret, cycle, next_date, effectif_siret, inscrits in upcoming_rows:
         parsed_date = _parse_date_value(next_date)
         if not parsed_date or parsed_date < today:
@@ -252,6 +254,12 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
         if effectif_value is None or effectif_value < audience_threshold:
             continue
+
+        cycle_value = (cycle or "").upper()
+        if "C4" in cycle_value and "C5" not in cycle_value:
+            siret_value = str(siret or "").strip()
+            if siret_value:
+                upcoming_c5_sirets.add(siret_value)
 
         key = (siret or "", cycle or "")
         existing = per_cycle.get(key)
@@ -312,6 +320,7 @@ def dashboard_stats(db: Session = Depends(get_session)):
             (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
             1,
         ),
+        "audience_upcoming_c5": len(upcoming_c5_sirets),
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
         "monthly_invitations": [
             {"month": m[0], "count": m[1]} for m in monthly_invitations
