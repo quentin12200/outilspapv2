@@ -1116,17 +1116,28 @@ def invitations(
         qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
     )
 
-    def normalize_siret(value: str | None) -> str | None:
+    def normalize_siret(value: Any | None) -> str | None:
         """Retourne une version canonique (14 chiffres) du SIRET lorsque possible."""
 
-        if not value:
+        if value is None:
             return None
 
-        digits_only = "".join(ch for ch in value if ch.isdigit())
+        if isinstance(value, (bytes, bytearray)):
+            text = value.decode("utf-8", "ignore")
+        else:
+            text = str(value)
+
+        if not text:
+            return None
+
+        stripped = text.strip()
+        if not stripped:
+            return None
+
+        digits_only = "".join(ch for ch in stripped if ch.isdigit())
         if len(digits_only) == 14:
             return digits_only
 
-        stripped = value.strip()
         if len(stripped) == 14 and stripped.isdigit():
             return stripped
 
