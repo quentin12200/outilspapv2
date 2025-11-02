@@ -1131,6 +1131,28 @@ def invitations(
         if row[0] and row[1]:
             pv_c5_dates[row[0]] = row[1]
 
+    # Récupérer les dates présumées de prochaine élection (depuis le PV le plus récent)
+    # On prend le dernier PV (C4 ou C3) qui a une date_prochain_scrutin
+    dates_presumees = {}
+    for siret, date_str in db.query(PVEvent.siret, PVEvent.date_prochain_scrutin).filter(
+        PVEvent.date_prochain_scrutin.isnot(None),
+        PVEvent.date_prochain_scrutin != ""
+    ).all():
+        if siret and date_str:
+            try:
+                # Tenter de parser la date (format peut varier)
+                from datetime import datetime
+                # Essayer plusieurs formats
+                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"]:
+                    try:
+                        parsed_date = datetime.strptime(date_str.strip(), fmt).date()
+                        dates_presumees[siret] = parsed_date
+                        break
+                    except:
+                        continue
+            except:
+                pass
+
     def _normalize_raw_key(key: str) -> str:
         normalized = unicodedata.normalize("NFKD", str(key))
         normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
@@ -1268,12 +1290,13 @@ def invitations(
             "taille",
         )
 
-        # Calcul du statut basé sur l'existence d'un PV C5
+        # Calcul du statut basé sur l'existence d'un PV C5 et la date présumée
         inv.statut = "en_attente"
         inv.statut_badge = "yellow"
         inv.statut_icon = "fa-clock"
         inv.statut_label = "En attente de PV"
         inv.date_pv_c5 = None
+        inv.date_presumee = None
 
         # Si le SIRET a un PV C5 enregistré
         if inv.siret in sirets_with_pv_c5:
@@ -1282,6 +1305,26 @@ def invitations(
             inv.statut_icon = "fa-check-circle"
             inv.statut_label = "PV C5 enregistré"
             inv.date_pv_c5 = pv_c5_dates.get(inv.siret)
+        else:
+            # Pas de PV C5 : vérifier si date présumée passée
+            if inv.siret in dates_presumees:
+                date_presumee = dates_presumees[inv.siret]
+                inv.date_presumee = date_presumee
+
+                if date_presumee < today:
+                    # Date présumée dépassée = Retard
+                    days_late = (today - date_presumee).days
+                    inv.statut = "retard"
+                    inv.statut_badge = "red"
+                    inv.statut_icon = "fa-exclamation-triangle"
+                    inv.statut_label = f"Retard ({days_late}j)"
+                else:
+                    # Date présumée future = En attente
+                    days_until = (date_presumee - today).days
+                    inv.statut = "en_attente"
+                    inv.statut_badge = "yellow"
+                    inv.statut_icon = "fa-clock"
+                    inv.statut_label = f"En attente ({days_until}j)"
 
     # Appliquer le filtre de statut si demandé
     if statut:
@@ -1289,6 +1332,8 @@ def invitations(
             invitations = [inv for inv in invitations if inv.statut == "pv_c5_enregistre"]
         elif statut == "en_attente":
             invitations = [inv for inv in invitations if inv.statut == "en_attente"]
+        elif statut == "retard":
+            invitations = [inv for inv in invitations if inv.statut == "retard"]
 
     # Récupérer les listes pour les filtres
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
