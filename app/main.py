@@ -1036,6 +1036,7 @@ def calendrier_elections(
         {
             "request": request,
             "elections": elections_list,
+            "next_election": elections_list[0] if elections_list else None,
             "filters": {
                 "min_effectif": min_effectif,
                 "q": q,
