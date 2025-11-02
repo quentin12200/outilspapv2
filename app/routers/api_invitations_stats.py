@@ -25,6 +25,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
     today = date.today()
     thirty_days_ago = today - timedelta(days=30)
     seven_days_ahead = today + timedelta(days=7)
+    one_year_ahead = today + timedelta(days=365)
 
     # === Comptage par UD ===
     invitations_by_ud = (
@@ -85,7 +86,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
     )
 
     # === Élections programmées dans les 7 prochains jours ===
-    upcoming_elections_count = (
+    upcoming_elections_7days_count = (
         db.query(func.count(Invitation.id))
         .filter(
             Invitation.date_election >= today,
@@ -94,12 +95,34 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
         .scalar() or 0
     )
 
-    # Détails des élections à venir
-    upcoming_elections_details = (
+    # Détails des élections à venir (7 jours)
+    upcoming_elections_7days_details = (
         db.query(Invitation)
         .filter(
             Invitation.date_election >= today,
             Invitation.date_election <= seven_days_ahead
+        )
+        .order_by(Invitation.date_election)
+        .limit(10)
+        .all()
+    )
+
+    # === Élections programmées dans l'année à venir ===
+    upcoming_elections_1year_count = (
+        db.query(func.count(Invitation.id))
+        .filter(
+            Invitation.date_election >= today,
+            Invitation.date_election <= one_year_ahead
+        )
+        .scalar() or 0
+    )
+
+    # Détails des élections dans l'année
+    upcoming_elections_1year_details = (
+        db.query(Invitation)
+        .filter(
+            Invitation.date_election >= today,
+            Invitation.date_election <= one_year_ahead
         )
         .order_by(Invitation.date_election)
         .limit(10)
@@ -153,7 +176,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
                 ]
             },
             "upcoming_elections_7days": {
-                "count": upcoming_elections_count,
+                "count": upcoming_elections_7days_count,
                 "details": [
                     {
                         "siret": inv.siret,
@@ -161,7 +184,19 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
                         "date_election": str(inv.date_election) if inv.date_election else None,
                         "days_until_election": (inv.date_election - today).days if inv.date_election else None
                     }
-                    for inv in upcoming_elections_details
+                    for inv in upcoming_elections_7days_details
+                ]
+            },
+            "upcoming_elections_1year": {
+                "count": upcoming_elections_1year_count,
+                "details": [
+                    {
+                        "siret": inv.siret,
+                        "denomination": inv.denomination,
+                        "date_election": str(inv.date_election) if inv.date_election else None,
+                        "days_until_election": (inv.date_election - today).days if inv.date_election else None
+                    }
+                    for inv in upcoming_elections_1year_details
                 ]
             }
         },
