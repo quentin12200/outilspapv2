@@ -341,6 +341,21 @@ def _compute_dashboard_stats(db: Session):
         .all()
     )
 
+    def _is_cycle_5(value: str | None) -> bool:
+        if not value:
+            return False
+
+        text = str(value).strip().upper()
+        if not text:
+            return False
+
+        if re.search(r"\bC5\b", text):
+            return True
+        if "CYCLE" in text and "5" in text:
+            return True
+
+        return False
+
     upcoming_c5_sirets: set[str] = set()
 
     for siret, cycle, next_date, effectif_siret, inscrits in upcoming_rows:
@@ -353,6 +368,9 @@ def _compute_dashboard_stats(db: Session):
         if not siret_value:
             continue
 
+        if not _is_cycle_5(cycle_value):
+            continue
+
         if siret_value not in eligible_sirets:
             effectif_value = _to_number(effectif_siret)
             if effectif_value is None:
@@ -361,12 +379,7 @@ def _compute_dashboard_stats(db: Session):
             if effectif_value is None or effectif_value < audience_threshold:
                 continue
 
-        if (
-            "C4" in cycle_value
-            and "C5" not in cycle_value
-            and siret_value in eligible_sirets
-        ):
-            upcoming_c5_sirets.add(siret_value)
+        upcoming_c5_sirets.add(siret_value)
 
         key = (siret_value, cycle_value)
         existing = per_cycle.get(key)
@@ -384,7 +397,7 @@ def _compute_dashboard_stats(db: Session):
         for (year, quarter), count in sorted(
             quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
         )
-    ][:4]
+    ]
 
     upcoming_dates = list(per_cycle.values())
     upcoming_next_date = min(upcoming_dates) if upcoming_dates else None
