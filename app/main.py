@@ -2095,10 +2095,21 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
         if current is None or (isinstance(current, str) and not current.strip()):
             setattr(obj, attr, value)
 
-    def _cycle_event(cycle_name: str):
-        target = (cycle_name or "").strip().upper()
+    def _clean_cycle(value) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return text.upper()
+
+    def _cycle_event(cycle_name: str | None):
+        target = _clean_cycle(cycle_name)
+        if not target:
+            return None
         for pv in pv_history:
-            if (pv.cycle or "").strip().upper() == target:
+            candidate = _clean_cycle(getattr(pv, "cycle", None))
+            if candidate == target:
                 return pv
         return None
 
@@ -2257,16 +2268,26 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
     timeline_events = []
     for pv in pv_history:
         event_date = _to_date(pv.date_pv)
+        raw_cycle = getattr(pv, "cycle", None)
+        cycle_label = _clean_cycle(raw_cycle)
+        type_label = getattr(pv, "type", None)
+        type_text = str(type_label).lower().strip() if type_label is not None else ""
+        display_cycle = cycle_label
+        if not display_cycle and type_label is not None:
+            display_cycle = str(type_label).strip() or None
+        if not display_cycle and raw_cycle is not None:
+            candidate_cycle = str(raw_cycle).strip()
+            display_cycle = candidate_cycle or None
         timeline_events.append(
             {
                 "date": event_date,
                 "date_label": event_date.strftime("%d/%m/%Y") if event_date else None,
                 "type": "pv",
-                "cycle": pv.cycle,
+                "cycle": display_cycle,
                 "inscrits": _to_int(pv.inscrits),
                 "votants": _to_int(pv.votants),
                 "cgt_voix": _to_int(pv.cgt_voix),
-                "carence": "car" in (pv.type or "").lower(),
+                "carence": "car" in type_text,
                 "fd": pv.fd,
                 "ud": pv.ud,
             }
