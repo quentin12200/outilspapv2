@@ -37,6 +37,7 @@ INVITATIONS_URL = os.getenv("INVITATIONS_URL", "").strip()
 INVITATIONS_SHA256 = os.getenv("INVITATIONS_SHA256", "").lower().strip()
 INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TOKEN
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
+INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _infer_invitation_urls() -> list[str]:
@@ -200,6 +201,10 @@ def ensure_sqlite_asset() -> None:
 def _auto_seed_invitations(session: Session) -> None:
     """Importe automatiquement les invitations depuis une release si la table est vide."""
     global INVITATIONS_EFFECTIVE_URL
+
+    if not INVITATIONS_AUTO_IMPORT:
+        logger.info("Automatic invitation import is disabled (INVITATIONS_AUTO_IMPORT=false)")
+        return
 
     candidates: list[tuple[str, str, str]] = []
     if INVITATIONS_URL:
@@ -1466,7 +1471,7 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
     }
 
     invitations_asset = {
-        "auto_enabled": bool(INVITATIONS_URL),
+        "auto_enabled": INVITATIONS_AUTO_IMPORT,
         "url": INVITATIONS_URL or None,
         "expected_hash": INVITATIONS_SHA256 or None,
         "count": total_invitations,
