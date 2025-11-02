@@ -20,7 +20,7 @@ from typing import Any, Mapping
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine, SessionLocal
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from .models import Invitation, SiretSummary, PVEvent
 
@@ -287,9 +287,11 @@ ensure_sqlite_asset()
 
 # ⚠️ Import des routers APRÈS ensure_sqlite_asset()
 from .routers import api  # noqa: E402
+from .routers import api_invitations_stats  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 app.include_router(api.router)
+app.include_router(api_invitations_stats.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -1063,6 +1065,10 @@ def invitations(
     source: str = "",
     est_actif: str = "",
     est_siege: str = "",
+    ud: str = "",
+    fd: str = "",
+    departement: str = "",
+    statut: str = "",
     db: Session = Depends(get_session),
 ):
     qs = db.query(Invitation)
@@ -1089,6 +1095,35 @@ def invitations(
             qs = qs.filter(Invitation.est_siege.is_(True))
         elif est_siege == "non":
             qs = qs.filter(Invitation.est_siege.is_(False))
+
+    # Nouveaux filtres
+    if ud:
+        qs = qs.filter(Invitation.ud == ud)
+
+    if fd:
+        qs = qs.filter(Invitation.fd == fd)
+
+    if departement:
+        qs = qs.filter(Invitation.code_postal.like(f"{departement}%"))
+
+    # Filtre par statut
+    today = date.today()
+    thirty_days_ago = today - timedelta(days=30)
+
+    if statut == "reponse_recue":
+        qs = qs.filter(Invitation.date_reception.isnot(None))
+    elif statut == "election_programmee":
+        qs = qs.filter(Invitation.date_election.isnot(None))
+    elif statut == "en_attente":
+        qs = qs.filter(
+            Invitation.date_reception.is_(None),
+            Invitation.date_invit >= thirty_days_ago
+        )
+    elif statut == "retard":
+        qs = qs.filter(
+            Invitation.date_reception.is_(None),
+            Invitation.date_invit < thirty_days_ago
+        )
 
     invitations = (
         qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
@@ -1231,7 +1266,43 @@ def invitations(
             "taille",
         )
 
+        # Calcul du statut
+        inv.statut = "inconnu"
+        inv.statut_badge = "gray"
+        inv.statut_icon = "fa-question"
+        inv.statut_label = "Inconnu"
+
+        if inv.date_election:
+            inv.statut = "election_programmee"
+            inv.statut_badge = "blue"
+            inv.statut_icon = "fa-calendar-check"
+            inv.statut_label = "Élection programmée"
+        elif inv.date_reception:
+            inv.statut = "reponse_recue"
+            inv.statut_badge = "green"
+            inv.statut_icon = "fa-check-circle"
+            inv.statut_label = "Réponse reçue"
+        elif inv.date_invit:
+            days_since = (today - inv.date_invit).days
+            if days_since > 30:
+                inv.statut = "retard"
+                inv.statut_badge = "red"
+                inv.statut_icon = "fa-exclamation-triangle"
+                inv.statut_label = f"Retard ({days_since}j)"
+            else:
+                inv.statut = "en_attente"
+                inv.statut_badge = "yellow"
+                inv.statut_icon = "fa-clock"
+                inv.statut_label = f"En attente ({days_since}j)"
+
+    # Récupérer les listes pour les filtres
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
+    all_uds = [row[0] for row in db.query(Invitation.ud).distinct().order_by(Invitation.ud).all() if row[0]]
+    all_fds = [row[0] for row in db.query(Invitation.fd).distinct().order_by(Invitation.fd).all() if row[0]]
+
+    # Liste des départements depuis les codes postaux
+    all_depts_raw = db.query(func.substr(Invitation.code_postal, 1, 2)).distinct().all()
+    all_depts = sorted([row[0] for row in all_depts_raw if row[0] and row[0].isdigit()])
 
     return templates.TemplateResponse(
         "invitations.html",
@@ -1243,6 +1314,13 @@ def invitations(
             "sources": sources,
             "est_actif": est_actif,
             "est_siege": est_siege,
+            "ud": ud,
+            "fd": fd,
+            "departement": departement,
+            "statut": statut,
+            "all_uds": all_uds,
+            "all_fds": all_fds,
+            "all_depts": all_depts,
             "total_invitations": len(invitations),
         },
     )

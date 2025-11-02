@@ -20,7 +20,13 @@
   </div>
 
   <form method="get" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-filter text-cgt-red mr-2"></i>
+      Filtres de recherche
+    </h3>
+
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <!-- Recherche générale -->
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2" for="q">
           <i class="fas fa-search text-cgt-red mr-1"></i>
@@ -30,6 +36,64 @@
                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
       </div>
 
+      <!-- Union Départementale (UD) -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="ud">
+          <i class="fas fa-flag-checkered text-cgt-red mr-1"></i>
+          Union Départementale (UD)
+        </label>
+        <select id="ud" name="ud" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Toutes les UD</option>
+          {% for item in all_uds %}
+          <option value="{{ item }}" {% if ud == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Fédération (FD) -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="fd">
+          <i class="fas fa-building text-cgt-red mr-1"></i>
+          Fédération (FD)
+        </label>
+        <select id="fd" name="fd" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Toutes les FD</option>
+          {% for item in all_fds %}
+          <option value="{{ item }}" {% if fd == item %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Département -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="departement">
+          <i class="fas fa-map-marker-alt text-cgt-red mr-1"></i>
+          Département
+        </label>
+        <select id="departement" name="departement" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous les départements</option>
+          {% for dept in all_depts %}
+          <option value="{{ dept }}" {% if departement == dept %}selected{% endif %}>{{ dept }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Statut -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2" for="statut">
+          <i class="fas fa-info-circle text-cgt-red mr-1"></i>
+          Statut
+        </label>
+        <select id="statut" name="statut" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+          <option value="">Tous les statuts</option>
+          <option value="reponse_recue" {% if statut == 'reponse_recue' %}selected{% endif %}>🟢 Réponse reçue</option>
+          <option value="election_programmee" {% if statut == 'election_programmee' %}selected{% endif %}>🔵 Élection programmée</option>
+          <option value="en_attente" {% if statut == 'en_attente' %}selected{% endif %}>🟡 En attente</option>
+          <option value="retard" {% if statut == 'retard' %}selected{% endif %}>🔴 Retard</option>
+        </select>
+      </div>
+
+      <!-- Source -->
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2" for="source">
           <i class="fas fa-inbox text-cgt-red mr-1"></i>
@@ -43,6 +107,7 @@
         </select>
       </div>
 
+      <!-- Établissement actif -->
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2" for="est_actif">
           <i class="fas fa-industry text-cgt-red mr-1"></i>
@@ -55,6 +120,7 @@
         </select>
       </div>
 
+      <!-- Siège social -->
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2" for="est_siege">
           <i class="fas fa-building text-cgt-red mr-1"></i>
@@ -97,89 +163,80 @@
     <table id="invitations-table" class="min-w-full divide-y divide-gray-200" data-sortable="true">
       <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
         <tr>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Statut</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date invitation</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Enseigne</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Adresse</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">UD</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Département</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ville</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Code postal</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date réception</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date élection</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Source</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Actif</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Siège</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Activité</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Effectifs</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Catégorie</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Enrichissement</th>
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         {% for invit in invitations %}
         {% set display_denomination = invit.display_denomination %}
         {% set display_commune = invit.display_commune %}
-        {% set display_adresse = invit.display_adresse %}
-        {% set display_cp = invit.display_code_postal %}
-        {% set display_enseigne = invit.display_enseigne %}
-        {% set activity_label = invit.display_activite_label %}
-        {% set activity_code = invit.display_activite_code %}
-        {% set effectifs_label = invit.display_effectifs_label %}
-        {% set effectifs_tranche = invit.display_tranche_effectifs %}
-        {% set categorie = invit.display_categorie %}
+        {% set dept = invit.code_postal[:2] if invit.code_postal and invit.code_postal|length >= 2 else '—' %}
         <tr class="table-row-hover hover:bg-cgt-lightred">
+          <!-- Statut avec badge -->
+          <td class="px-4 py-3 whitespace-nowrap">
+            {% if invit.statut_badge == 'green' %}
+              <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                <i class="fas {{ invit.statut_icon }} mr-1"></i>
+                {{ invit.statut_label }}
+              </span>
+            {% elif invit.statut_badge == 'blue' %}
+              <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                <i class="fas {{ invit.statut_icon }} mr-1"></i>
+                {{ invit.statut_label }}
+              </span>
+            {% elif invit.statut_badge == 'yellow' %}
+              <span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                <i class="fas {{ invit.statut_icon }} mr-1"></i>
+                {{ invit.statut_label }}
+              </span>
+            {% elif invit.statut_badge == 'red' %}
+              <span class="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
+                <i class="fas {{ invit.statut_icon }} mr-1"></i>
+                {{ invit.statut_label }}
+              </span>
+            {% else %}
+              <span class="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">
+                <i class="fas {{ invit.statut_icon }} mr-1"></i>
+                {{ invit.statut_label }}
+              </span>
+            {% endif %}
+          </td>
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit or '' }}">{{ invit.date_invit or '' }}</td>
           <td class="px-4 py-3 whitespace-nowrap">
             <a href="/siret/{{ invit.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
           </td>
           <td class="px-4 py-3">{{ display_denomination or '—' }}</td>
-          <td class="px-4 py-3">{{ display_enseigne or '—' }}</td>
-          <td class="px-4 py-3">{{ display_adresse or '—' }}</td>
+          <td class="px-4 py-3">{{ invit.ud or '—' }}</td>
+          <td class="px-4 py-3">{{ invit.fd or '—' }}</td>
+          <td class="px-4 py-3 text-center">
+            <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">{{ dept }}</span>
+          </td>
           <td class="px-4 py-3">{{ display_commune or '—' }}</td>
-          <td class="px-4 py-3 whitespace-nowrap">{{ display_cp or '—' }}</td>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_reception or '' }}">
+            {% if invit.date_reception %}
+              <span class="text-green-700">{{ invit.date_reception }}</span>
+            {% else %}
+              <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_election or '' }}">
+            {% if invit.date_election %}
+              <span class="text-blue-700 font-semibold">{{ invit.date_election }}</span>
+            {% else %}
+              <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
           <td class="px-4 py-3">{{ invit.source or '—' }}</td>
-          <td class="px-4 py-3 text-center" data-sort-value="{{ 1 if invit.est_actif else (0 if invit.est_actif is not none else '') }}">
-            {% if invit.est_actif is none %}
-            <span class="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-bold">—</span>
-            {% elif invit.est_actif %}
-            <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">OUI</span>
-            {% else %}
-            <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 text-center" data-sort-value="{{ 1 if invit.est_siege else (0 if invit.est_siege is not none else '') }}">
-            {% if invit.est_siege is none %}
-            <span class="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-bold">—</span>
-            {% elif invit.est_siege %}
-            <span class="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-bold">OUI</span>
-            {% else %}
-            <span class="px-3 py-1 bg-gray-300 text-gray-700 rounded-full text-xs font-bold">NON</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3" data-sort-value="{{ activity_code or '' }}">
-            {% if activity_label or activity_code %}
-            <div class="flex flex-col">
-              <span class="font-semibold text-gray-800">{{ activity_label or 'Activité inconnue' }}</span>
-              {% if activity_code %}
-              <span class="text-xs text-gray-500">Code NAF {{ activity_code }}</span>
-              {% endif %}
-            </div>
-            {% else %}
-            <span class="text-gray-400">—</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3" data-sort-value="{{ effectifs_tranche or '' }}">
-            {% if effectifs_label or effectifs_tranche %}
-            <div class="flex flex-col">
-              <span class="font-semibold text-gray-800">{{ effectifs_label or 'Effectifs inconnus' }}</span>
-              {% if effectifs_tranche %}
-              <span class="text-xs text-gray-500">Tranche {{ effectifs_tranche }}</span>
-              {% endif %}
-            </div>
-            {% else %}
-            <span class="text-gray-400">—</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3" data-sort-value="{{ categorie or '' }}">{{ categorie or '—' }}</td>
-          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_enrichissement or '' }}">{{ invit.date_enrichissement or '' }}</td>
         </tr>
         {% endfor %}
       </tbody>
