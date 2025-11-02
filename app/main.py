@@ -1131,6 +1131,11 @@ def invitations(
         if row[0] and row[1]:
             pv_c5_dates[row[0]] = row[1]
 
+    # DEBUG: Effectifs côté invitations PAP
+    pap_sirets = {inv.siret for inv in invitations if inv.siret}
+    print(f"DEBUG - Invitations PAP chargées: {len(invitations)}")
+    print(f"DEBUG - Invitations PAP avec SIRET: {len(pap_sirets)}")
+
     # Récupérer tous les SIRET qui ont un PV C3 ou C4 (reconduction)
     # DEBUG: Voir tous les cycles distincts dans la base
     all_cycles = db.query(PVEvent.cycle).distinct().all()
@@ -1144,6 +1149,18 @@ def invitations(
         .all()
     )
     print(f"DEBUG - Nombre de SIRETs avec PV C3/C4: {len(sirets_with_previous_pv)}")
+    print(
+        "DEBUG - Invitations PAP avec PV C3/C4:"
+        f" {len(pap_sirets & sirets_with_previous_pv)}"
+    )
+    print(
+        "DEBUG - Invitations PAP avec PV C5:"
+        f" {len(pap_sirets & sirets_with_pv_c5)}"
+    )
+    print(
+        "DEBUG - Invitations PAP candidates Reconduction (C3/C4 sans C5):"
+        f" {len((pap_sirets & sirets_with_previous_pv) - sirets_with_pv_c5)}"
+    )
 
     # Récupérer les dates présumées de prochaine élection (depuis le PV le plus récent)
     # On prend le dernier PV (C4 ou C3) qui a une date_prochain_scrutin
