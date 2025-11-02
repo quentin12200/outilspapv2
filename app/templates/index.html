@@ -92,8 +92,12 @@
             <p class="text-3xl font-bold" x-text="stats.audience_upcoming_c5 != null ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '—'">—</p>
             <p class="text-sm text-white/70">SIRET C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> avec une prochaine élection déclarée</p>
             <p class="text-xs text-white/60">
-              Cible totale : <span class="font-semibold" x-text="stats.audience_siret != null ? stats.audience_siret.toLocaleString('fr-FR') : '—'"></span>
-              (<span x-text="stats.audience_upcoming_c5_percent != null ? stats.audience_upcoming_c5_percent.toLocaleString('fr-FR') + ' %' : '—'"></span>)
+              Couverture de la cible :
+              <span class="font-semibold" x-text="stats.audience_upcoming_c5_percent != null ? stats.audience_upcoming_c5_percent.toLocaleString('fr-FR') + ' %' : '—'"></span>
+            </p>
+            <p class="text-xs text-white/60">
+              Période déclarée :
+              <span x-text="formatUpcomingPeriod(stats.audience_upcoming_period_start_display, stats.audience_upcoming_period_end_display)"></span>
             </p>
           </div>
           <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-2">
@@ -767,6 +771,16 @@
           } finally {
             this.finishProgress();
           }
+        },
+
+        formatUpcomingPeriod(start, end) {
+          if (start && end) {
+            if (start === end) {
+              return start;
+            }
+            return `${start} → ${end}`;
+          }
+          return start || end || '—';
         },
 
       renderDepartmentsChart() {

@@ -357,6 +357,7 @@ def _compute_dashboard_stats(db: Session):
 
     upcoming_dates = list(per_cycle.values())
     upcoming_next_date = min(upcoming_dates) if upcoming_dates else None
+    upcoming_last_date = max(upcoming_dates) if upcoming_dates else None
 
     c5_upcoming_total = len(upcoming_c5_sirets)
     c5_upcoming_percent = round(
@@ -485,6 +486,18 @@ def _compute_dashboard_stats(db: Session):
         ),
         "audience_upcoming_c5": c5_upcoming_total,
         "audience_upcoming_c5_percent": c5_upcoming_percent,
+        "audience_upcoming_period_start": (
+            upcoming_next_date.isoformat() if upcoming_next_date else None
+        ),
+        "audience_upcoming_period_end": (
+            upcoming_last_date.isoformat() if upcoming_last_date else None
+        ),
+        "audience_upcoming_period_start_display": _format_date_display(
+            upcoming_next_date
+        ),
+        "audience_upcoming_period_end_display": _format_date_display(
+            upcoming_last_date
+        ),
         "autres_possessions_total": autres_possessions_total,
         "autres_possessions_c3": autres_possessions_c3,
         "autres_possessions_c4": autres_possessions_c4,
