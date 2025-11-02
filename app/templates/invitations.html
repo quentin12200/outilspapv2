@@ -87,6 +87,7 @@
         <select id="statut" name="statut" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
           <option value="">Tous les statuts</option>
           <option value="pv_c5_enregistre" {% if statut == 'pv_c5_enregistre' %}selected{% endif %}>🔵 PV C5 enregistré</option>
+          <option value="reconduction" {% if statut == 'reconduction' %}selected{% endif %}>🟢 Reconduction</option>
           <option value="en_attente" {% if statut == 'en_attente' %}selected{% endif %}>🟡 En attente de PV</option>
           <option value="retard" {% if statut == 'retard' %}selected{% endif %}>🔴 Retard</option>
         </select>

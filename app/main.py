@@ -1131,6 +1131,15 @@ def invitations(
         if row[0] and row[1]:
             pv_c5_dates[row[0]] = row[1]
 
+    # Récupérer tous les SIRET qui ont un PV C3 ou C4 (reconduction)
+    sirets_with_previous_pv = set(
+        row[0] for row in
+        db.query(PVEvent.siret)
+        .filter(or_(PVEvent.cycle == "C3", PVEvent.cycle == "C4"))
+        .distinct()
+        .all()
+    )
+
     # Récupérer les dates présumées de prochaine élection (depuis le PV le plus récent)
     # On prend le dernier PV (C4 ou C3) qui a une date_prochain_scrutin
     dates_presumees = {}
@@ -1290,7 +1299,7 @@ def invitations(
             "taille",
         )
 
-        # Calcul du statut basé sur l'existence d'un PV C5 et la date présumée
+        # Calcul du statut basé sur l'existence d'un PV C5, PV précédent et date présumée
         inv.statut = "en_attente"
         inv.statut_badge = "yellow"
         inv.statut_icon = "fa-clock"
@@ -1298,15 +1307,34 @@ def invitations(
         inv.date_pv_c5 = None
         inv.date_presumee = None
 
-        # Si le SIRET a un PV C5 enregistré
+        # Priorité 1: Si le SIRET a un PV C5 enregistré
         if inv.siret in sirets_with_pv_c5:
             inv.statut = "pv_c5_enregistre"
             inv.statut_badge = "blue"
             inv.statut_icon = "fa-check-circle"
             inv.statut_label = "PV C5 enregistré"
             inv.date_pv_c5 = pv_c5_dates.get(inv.siret)
+
+        # Priorité 2: Si le SIRET a un PV précédent (C3 ou C4) → Reconduction
+        elif inv.siret in sirets_with_previous_pv:
+            inv.statut = "reconduction"
+            inv.statut_badge = "green"
+            inv.statut_icon = "fa-sync-alt"
+            inv.statut_label = "Reconduction"
+
+            # Afficher le compte à rebours ou retard si date connue
+            if inv.siret in dates_presumees:
+                date_presumee = dates_presumees[inv.siret]
+                inv.date_presumee = date_presumee
+                if date_presumee < today:
+                    days_late = (today - date_presumee).days
+                    inv.statut_label = f"Reconduction - Retard ({days_late}j)"
+                else:
+                    days_until = (date_presumee - today).days
+                    inv.statut_label = f"Reconduction ({days_until}j)"
+
+        # Priorité 3: Pas de PV précédent - vérifier si date présumée passée
         else:
-            # Pas de PV C5 : vérifier si date présumée passée
             if inv.siret in dates_presumees:
                 date_presumee = dates_presumees[inv.siret]
                 inv.date_presumee = date_presumee
@@ -1330,6 +1358,8 @@ def invitations(
     if statut:
         if statut == "pv_c5_enregistre":
             invitations = [inv for inv in invitations if inv.statut == "pv_c5_enregistre"]
+        elif statut == "reconduction":
+            invitations = [inv for inv in invitations if inv.statut == "reconduction"]
         elif statut == "en_attente":
             invitations = [inv for inv in invitations if inv.statut == "en_attente"]
         elif statut == "retard":
