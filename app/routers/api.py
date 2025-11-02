@@ -989,3 +989,34 @@ def add_pap_invitation(
         "message": f"Invitation PAP ajoutée pour le SIRET {siret}",
         "invitation_id": nouvelle_invitation.id
     }
+
+
+@router.get("/siret/{siret}/enrichir-sirene")
+async def enrichir_siret_from_api(siret: str):
+    """
+    Enrichit un SIRET directement depuis l'API Sirene (sans l'enregistrer).
+    Utile pour pré-remplir le formulaire d'ajout PAP.
+    """
+    try:
+        data = await enrichir_siret(siret)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
+        
+        # Formatte les données pour le formulaire
+        return {
+            "success": True,
+            "data": {
+                "siret": siret,
+                "raison_sociale": data.get("denomination"),
+                "ville": data.get("commune"),
+                "code_postal": data.get("code_postal"),
+                "adresse": data.get("adresse"),
+                "effectif": None,  # L'API Sirene ne donne pas l'effectif exact, juste la tranche
+                "ud": None,
+                "fd": None,
+                "idcc": None,
+            }
+        }
+    except SireneAPIError as e:
+        raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")

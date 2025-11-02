@@ -225,10 +225,31 @@
                 Vérifier
               </button>
             </div>
-            <p x-show="siretExists" x-cloak class="mt-2 text-sm text-green-600">
-              <i class="fas fa-check-circle mr-1"></i>
-              SIRET trouvé dans la base ! Les données ont été pré-remplies.
-            </p>
+
+            <!-- Messages de statut -->
+            <div class="mt-2 space-y-2">
+              <!-- SIRET trouvé dans la base -->
+              <p x-show="siretExists && siretChecked" x-cloak class="text-sm text-green-600">
+                <i class="fas fa-check-circle mr-1"></i>
+                SIRET trouvé dans la base ! Les données ont été pré-remplies.
+              </p>
+
+              <!-- SIRET non trouvé - option Sirene API -->
+              <div x-show="!siretExists && siretChecked" x-cloak class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-blue-800 mb-2">
+                  <i class="fas fa-info-circle mr-1"></i>
+                  SIRET non trouvé dans notre base.
+                </p>
+                <button type="button"
+                        @click="searchSireneAPI"
+                        :disabled="checkingSirene"
+                        :class="checkingSirene ? 'opacity-75' : 'hover:bg-blue-700'"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg transition text-sm flex items-center space-x-2">
+                  <i :class="checkingSirene ? 'fas fa-spinner fa-spin' : 'fas fa-cloud-download-alt'"></i>
+                  <span x-text="checkingSirene ? 'Recherche en cours...' : 'Rechercher dans l\'API Sirene'"></span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -458,7 +479,9 @@
         date_election: '',
       },
       siretExists: false,
+      siretChecked: false,
       checking: false,
+      checkingSirene: false,
       submitting: false,
 
       async checkSiret() {
@@ -466,10 +489,13 @@
 
         this.checking = true;
         this.siretExists = false;
+        this.siretChecked = false;
 
         try {
           const response = await fetch(`/api/siret/${this.form.siret}/check`);
           const payload = await response.json();
+
+          this.siretChecked = true;
 
           if (payload.exists && payload.data) {
             // Pré-remplir le formulaire
@@ -484,14 +510,43 @@
 
             this.siretExists = true;
             showToast('Données récupérées et pré-remplies !', 'success');
-          } else {
-            showToast('SIRET inconnu, remplissez les données manuellement', 'info');
           }
         } catch (error) {
           console.error('Erreur:', error);
           showToast('Erreur lors de la vérification du SIRET', 'error');
         } finally {
           this.checking = false;
+        }
+      },
+
+      async searchSireneAPI() {
+        if (this.form.siret.length !== 14) return;
+
+        this.checkingSirene = true;
+
+        try {
+          const response = await fetch(`/api/siret/${this.form.siret}/enrichir-sirene`);
+          const payload = await response.json();
+
+          if (!response.ok) {
+            throw new Error(payload?.detail || 'Erreur lors de la recherche Sirene');
+          }
+
+          if (payload.success && payload.data) {
+            // Pré-remplir le formulaire avec les données Sirene
+            const data = payload.data;
+            this.form.raison_sociale = data.raison_sociale || this.form.raison_sociale;
+            this.form.ville = data.ville || this.form.ville;
+            this.form.code_postal = data.code_postal || this.form.code_postal;
+
+            showToast('Données récupérées depuis l\'API Sirene !', 'success');
+            this.siretExists = true;
+          }
+        } catch (error) {
+          console.error('Erreur:', error);
+          showToast(error.message || 'Erreur lors de la recherche dans l\'API Sirene', 'error');
+        } finally {
+          this.checkingSirene = false;
         }
       },
 
