@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Recherche SIRET — PAP/CSE{% endblock %}
+{% block title %}Recherche SIRET & Ajout PAP — PAP/CSE{% endblock %}
 
 {% block content %}
 
@@ -7,244 +7,368 @@
 <div class="mb-8">
   <h1 class="text-4xl font-bold text-gray-800 mb-2">
     <i class="fas fa-search text-cgt-red mr-3"></i>
-    Recherche de SIRET
+    Recherche SIRET & Ajout PAP
   </h1>
-  <p class="text-gray-600">Trouvez le SIRET d'une entreprise à partir de son nom et sa ville</p>
+  <p class="text-gray-600">Trouvez un SIRET ou ajoutez une invitation PAP manuellement</p>
 </div>
 
-<!-- Search Form -->
-<section class="bg-white rounded-xl shadow-md p-8 mb-8" x-data="siretSearch()">
-  <div class="max-w-3xl mx-auto">
-    <h2 class="text-2xl font-bold text-gray-800 mb-6">
-      <i class="fas fa-building text-blue-500 mr-2"></i>
-      Informations de l'entreprise
-    </h2>
-
-    <form @submit.prevent="searchSiret" class="space-y-6">
-      <!-- Company Name -->
-      <div>
-        <label for="company_name" class="block text-sm font-semibold text-gray-700 mb-2">
-          <i class="fas fa-briefcase text-gray-400 mr-2"></i>
-          Nom de l'entreprise *
-        </label>
-        <input type="text"
-               id="company_name"
-               x-model="companyName"
-               required
-               placeholder="Ex: RENAULT, CARREFOUR, AUCHAN..."
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
-        <p class="mt-1 text-xs text-gray-500">
-          <i class="fas fa-info-circle mr-1"></i>
-          Entrez le nom de la raison sociale de l'entreprise
-        </p>
-      </div>
-
-      <!-- City -->
-      <div>
-        <label for="city" class="block text-sm font-semibold text-gray-700 mb-2">
-          <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
-          Ville *
-        </label>
-        <input type="text"
-               id="city"
-               x-model="city"
-               required
-               placeholder="Ex: Paris, Lyon, Marseille..."
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
-        <p class="mt-1 text-xs text-gray-500">
-          <i class="fas fa-info-circle mr-1"></i>
-          Entrez la ville où se trouve l'établissement
-        </p>
-      </div>
-
-      <!-- Search Options -->
-      <div class="bg-gray-50 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">
-          <i class="fas fa-globe text-purple-500 mr-2"></i>
-          Où chercher ?
-        </h3>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- Pappers -->
-          <button type="button"
-                  @click="searchOnPappers"
-                  :disabled="!companyName || !city"
-                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
-                  class="p-6 bg-white border-2 border-orange-500 rounded-xl transition flex flex-col items-center space-y-3">
-            <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-              <i class="fas fa-file-alt text-orange-600 text-2xl"></i>
-            </div>
-            <div class="text-center">
-              <h4 class="font-bold text-gray-800">Pappers.fr</h4>
-              <p class="text-xs text-gray-600 mt-1">Base données officielle</p>
-            </div>
-          </button>
-
-          <!-- API Sirene -->
-          <button type="button"
-                  @click="searchOnSirene"
-                  :disabled="!companyName || !city"
-                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
-                  class="p-6 bg-white border-2 border-blue-500 rounded-xl transition flex flex-col items-center space-y-3">
-            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              <i class="fas fa-database text-blue-600 text-2xl"></i>
-            </div>
-            <div class="text-center">
-              <h4 class="font-bold text-gray-800">API Sirene</h4>
-              <p class="text-xs text-gray-600 mt-1">INSEE - Gratuit</p>
-            </div>
-          </button>
-
-          <!-- Société.com -->
-          <button type="button"
-                  @click="searchOnSociete"
-                  :disabled="!companyName || !city"
-                  :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
-                  class="p-6 bg-white border-2 border-green-500 rounded-xl transition flex flex-col items-center space-y-3">
-            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <i class="fas fa-building text-green-600 text-2xl"></i>
-            </div>
-            <div class="text-center">
-              <h4 class="font-bold text-gray-800">Société.com</h4>
-              <p class="text-xs text-gray-600 mt-1">Infos entreprises</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick Search Button -->
-      <div class="flex justify-center">
-        <button type="button"
-                @click="searchAllSources"
-                :disabled="!companyName || !city"
-                :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cgt-darkred'"
-                class="px-8 py-4 bg-cgt-red text-white rounded-lg transition shadow-lg flex items-center space-x-3 text-lg font-bold">
-          <i class="fas fa-search"></i>
-          <span>Rechercher partout</span>
-        </button>
-      </div>
-    </form>
-  </div>
-</section>
-
-<!-- Results Section -->
-<section class="bg-white rounded-xl shadow-md p-8 mb-8" x-show="sireneResults.length > 0" style="display: none;">
-  <h2 class="text-2xl font-bold text-gray-800 mb-6">
-    <i class="fas fa-list text-green-500 mr-2"></i>
-    Résultats de recherche
-    <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="sireneResults.length"></span> résultat(s))</span>
-  </h2>
-
-  <div class="flex items-center justify-between flex-wrap gap-3 mb-4 text-sm">
-    <p class="text-gray-600">
-      Source :
-      <span class="font-semibold" x-text="resultsSource === 'local' ? 'Base PAP/CSE consolidée' : 'API Sirene (INSEE)'"></span>
-    </p>
-    <template x-if="resultsSource === 'local'">
-      <p class="text-gray-500 flex items-center gap-2">
-        <i class="fas fa-database text-cgt-red"></i>
-        Correspondances internes (raison sociale &amp; ville)
-      </p>
-    </template>
+<!-- Tabs Navigation -->
+<div class="mb-6" x-data="{ activeTab: 'search' }">
+  <div class="border-b border-gray-200">
+    <nav class="-mb-px flex space-x-8">
+      <button @click="activeTab = 'search'"
+              :class="activeTab === 'search' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+              class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
+        <i class="fas fa-search mr-2"></i>
+        Recherche SIRET
+      </button>
+      <button @click="activeTab = 'add'"
+              :class="activeTab === 'add' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+              class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
+        <i class="fas fa-plus-circle mr-2"></i>
+        Ajouter PAP
+      </button>
+    </nav>
   </div>
 
-  <div x-show="warningMessage" class="mb-4 p-4 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm" style="display: none;">
-    <i class="fas fa-exclamation-triangle mr-2"></i>
-    <span x-text="warningMessage"></span>
-  </div>
+  <!-- Tab: Recherche SIRET -->
+  <div x-show="activeTab === 'search'" x-cloak x-data="siretSearch()">
+    <section class="bg-white rounded-xl shadow-md p-8 mt-6">
+      <div class="max-w-3xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">
+          <i class="fas fa-building text-blue-500 mr-2"></i>
+          Informations de l'entreprise
+        </h2>
 
-  <div class="space-y-4">
-    <template x-for="result in sireneResults" :key="result.siret">
-      <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <h3 class="text-xl font-bold text-gray-800 mb-2" x-text="result.denomination"></h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p class="text-gray-600">
-                  <i class="fas fa-hashtag text-blue-500 mr-2"></i>
-                  <strong>SIRET:</strong>
-                  <span class="font-mono text-lg text-cgt-red" x-text="result.siret"></span>
-                </p>
-                <p class="text-gray-600">
-                  <i class="fas fa-building text-purple-500 mr-2"></i>
-                  <strong>SIREN:</strong>
-                  <span class="font-mono" x-text="result.siren"></span>
-                </p>
-              </div>
-              <div>
-                <p class="text-gray-600">
-                  <i class="fas fa-map-marker-alt text-green-500 mr-2"></i>
-                  <span x-text="result.adresse"></span>
-                </p>
-                <p class="text-gray-600" x-show="result.activite">
-                  <i class="fas fa-briefcase text-orange-500 mr-2"></i>
-                  <span x-text="result.activite"></span>
-                </p>
-              </div>
+        <form @submit.prevent="searchSiret" class="space-y-6">
+          <!-- Company Name -->
+          <div>
+            <label for="company_name" class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-briefcase text-gray-400 mr-2"></i>
+              Nom de l'entreprise *
+            </label>
+            <input type="text"
+                   id="company_name"
+                   x-model="companyName"
+                   required
+                   placeholder="Ex: RENAULT, CARREFOUR, AUCHAN..."
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+          </div>
+
+          <!-- City -->
+          <div>
+            <label for="city" class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
+              Ville *
+            </label>
+            <input type="text"
+                   id="city"
+                   x-model="city"
+                   required
+                   placeholder="Ex: Paris, Lyon, Marseille..."
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+          </div>
+
+          <!-- Search Options -->
+          <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+              <i class="fas fa-globe text-purple-500 mr-2"></i>
+              Où chercher ?
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Pappers -->
+              <button type="button"
+                      @click="searchOnPappers"
+                      :disabled="!companyName || !city"
+                      :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                      class="p-6 bg-white border-2 border-orange-500 rounded-xl transition flex flex-col items-center space-y-3">
+                <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                  <i class="fas fa-file-alt text-orange-600 text-2xl"></i>
+                </div>
+                <div class="text-center">
+                  <h4 class="font-bold text-gray-800">Pappers.fr</h4>
+                  <p class="text-xs text-gray-600 mt-1">Base données officielle</p>
+                </div>
+              </button>
+
+              <!-- API Sirene -->
+              <button type="button"
+                      @click="searchOnSirene"
+                      :disabled="!companyName || !city"
+                      :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                      class="p-6 bg-white border-2 border-blue-500 rounded-xl transition flex flex-col items-center space-y-3">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <i class="fas fa-database text-blue-600 text-2xl"></i>
+                </div>
+                <div class="text-center">
+                  <h4 class="font-bold text-gray-800">API Sirene</h4>
+                  <p class="text-xs text-gray-600 mt-1">INSEE - Gratuit</p>
+                </div>
+              </button>
+
+              <!-- Société.com -->
+              <button type="button"
+                      @click="searchOnSociete"
+                      :disabled="!companyName || !city"
+                      :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105'"
+                      class="p-6 bg-white border-2 border-green-500 rounded-xl transition flex flex-col items-center space-y-3">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                  <i class="fas fa-building text-green-600 text-2xl"></i>
+                </div>
+                <div class="text-center">
+                  <h4 class="font-bold text-gray-800">Société.com</h4>
+                  <p class="text-xs text-gray-600 mt-1">Infos entreprises</p>
+                </div>
+              </button>
             </div>
           </div>
-          <button @click="copySiret(result.siret)"
-                  class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
-            <i class="fas fa-copy"></i>
-            <span>Copier</span>
-          </button>
-        </div>
+
+          <!-- Quick Search Button -->
+          <div class="flex justify-center">
+            <button type="button"
+                    @click="searchAllSources"
+                    :disabled="!companyName || !city"
+                    :class="!companyName || !city ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cgt-darkred'"
+                    class="px-8 py-4 bg-cgt-red text-white rounded-lg transition shadow-lg flex items-center space-x-3 text-lg font-bold">
+              <i class="fas fa-search"></i>
+              <span>Rechercher partout</span>
+            </button>
+          </div>
+        </form>
       </div>
-    </template>
-  </div>
-</section>
+    </section>
 
-<!-- Loading State -->
-<div x-show="loading"
-     x-transition
-     style="display: none;"
-     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-  <div class="bg-white rounded-xl p-8 text-center">
-    <i class="fas fa-spinner fa-spin text-5xl text-cgt-red mb-4"></i>
-    <p class="text-lg font-semibold text-gray-800">Recherche en cours...</p>
-  </div>
-</div>
+    <!-- Results Section -->
+    <section class="bg-white rounded-xl shadow-md p-8 mt-6" x-show="sireneResults.length > 0" style="display: none;">
+      <h2 class="text-2xl font-bold text-gray-800 mb-6">
+        <i class="fas fa-list text-green-500 mr-2"></i>
+        Résultats de recherche
+        <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="sireneResults.length"></span> résultat(s))</span>
+      </h2>
 
-<!-- Instructions -->
-<section class="bg-blue-50 rounded-xl p-8 border-l-4 border-blue-500">
-  <div class="flex items-start space-x-4">
-    <i class="fas fa-lightbulb text-blue-600 text-3xl"></i>
-    <div>
-      <h3 class="text-xl font-bold text-blue-900 mb-3">Conseils de recherche</h3>
-      <ul class="space-y-2 text-blue-800">
-        <li class="flex items-start space-x-2">
-          <i class="fas fa-check text-blue-600 mt-1"></i>
-          <span><strong>Nom exact :</strong> Utilisez le nom officiel de l'entreprise tel qu'il apparaît sur le courrier</span>
-        </li>
-        <li class="flex items-start space-x-2">
-          <i class="fas fa-check text-blue-600 mt-1"></i>
-          <span><strong>Ville précise :</strong> Indiquez la ville de l'établissement concerné, pas le siège social</span>
-        </li>
-        <li class="flex items-start space-x-2">
-          <i class="fas fa-check text-blue-600 mt-1"></i>
-          <span><strong>Pappers.fr :</strong> Base de données la plus complète, idéale pour trouver rapidement un SIRET</span>
-        </li>
-        <li class="flex items-start space-x-2">
-          <i class="fas fa-check text-blue-600 mt-1"></i>
-          <span><strong>API Sirene :</strong> Données officielles de l'INSEE, gratuit mais parfois moins détaillé</span>
-        </li>
-        <li class="flex items-start space-x-2">
-          <i class="fas fa-check text-blue-600 mt-1"></i>
-          <span><strong>Si aucun résultat :</strong> Essayez avec un nom plus court ou vérifiez l'orthographe</span>
-        </li>
-      </ul>
+      <div class="space-y-4">
+        <template x-for="result in sireneResults" :key="result.siret">
+          <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <h3 class="text-xl font-bold text-gray-800 mb-2" x-text="result.denomination"></h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p class="text-gray-600">
+                      <i class="fas fa-hashtag text-blue-500 mr-2"></i>
+                      <strong>SIRET:</strong>
+                      <span class="font-mono text-lg text-cgt-red" x-text="result.siret"></span>
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-gray-600">
+                      <i class="fas fa-map-marker-alt text-green-500 mr-2"></i>
+                      <span x-text="result.adresse"></span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button @click="copySiret(result.siret)"
+                      class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                <i class="fas fa-copy"></i>
+                <span>Copier</span>
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
 
-      <div class="mt-4 p-4 bg-white rounded-lg">
-        <p class="text-sm text-gray-700">
-          <i class="fas fa-info-circle text-blue-500 mr-2"></i>
-          <strong>À savoir :</strong> Pappers.fr et Société.com s'ouvriront dans un nouvel onglet.
-          L'API Sirene affiche les résultats directement sur cette page.
-        </p>
+    <!-- Loading State -->
+    <div x-show="loading"
+         x-transition
+         style="display: none;"
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl p-8 text-center">
+        <i class="fas fa-spinner fa-spin text-5xl text-cgt-red mb-4"></i>
+        <p class="text-lg font-semibold text-gray-800">Recherche en cours...</p>
       </div>
     </div>
   </div>
-</section>
+
+  <!-- Tab: Ajout PAP -->
+  <div x-show="activeTab === 'add'" x-cloak x-data="papAdd()">
+    <section class="bg-white rounded-xl shadow-md p-8 mt-6">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">
+          <i class="fas fa-plus-circle text-green-500 mr-2"></i>
+          Ajouter une invitation PAP
+        </h2>
+
+        <form @submit.prevent="submitPapForm" class="space-y-6">
+          <!-- SIRET (avec vérification) -->
+          <div>
+            <label for="pap_siret" class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+              SIRET * (14 chiffres)
+            </label>
+            <div class="flex gap-2">
+              <input type="text"
+                     id="pap_siret"
+                     x-model="form.siret"
+                     @blur="checkSiret"
+                     maxlength="14"
+                     required
+                     placeholder="12345678901234"
+                     class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+              <button type="button"
+                      @click="checkSiret"
+                      :disabled="form.siret.length !== 14 || checking"
+                      class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <i :class="checking ? 'fas fa-spinner fa-spin' : 'fas fa-search'"></i>
+                Vérifier
+              </button>
+            </div>
+            <p x-show="siretExists" x-cloak class="mt-2 text-sm text-green-600">
+              <i class="fas fa-check-circle mr-1"></i>
+              SIRET trouvé dans la base ! Les données ont été pré-remplies.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Raison sociale -->
+            <div>
+              <label for="pap_raison" class="block text-sm font-semibold text-gray-700 mb-2">
+                Raison sociale *
+              </label>
+              <input type="text"
+                     id="pap_raison"
+                     x-model="form.raison_sociale"
+                     required
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Ville -->
+            <div>
+              <label for="pap_ville" class="block text-sm font-semibold text-gray-700 mb-2">
+                Ville *
+              </label>
+              <input type="text"
+                     id="pap_ville"
+                     x-model="form.ville"
+                     required
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Code postal -->
+            <div>
+              <label for="pap_cp" class="block text-sm font-semibold text-gray-700 mb-2">
+                Code postal *
+              </label>
+              <input type="text"
+                     id="pap_cp"
+                     x-model="form.code_postal"
+                     required
+                     maxlength="5"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- UD -->
+            <div>
+              <label for="pap_ud" class="block text-sm font-semibold text-gray-700 mb-2">
+                Union Départementale (UD)
+              </label>
+              <input type="text"
+                     id="pap_ud"
+                     x-model="form.ud"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- FD -->
+            <div>
+              <label for="pap_fd" class="block text-sm font-semibold text-gray-700 mb-2">
+                Fédération (FD)
+              </label>
+              <input type="text"
+                     id="pap_fd"
+                     x-model="form.fd"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- IDCC -->
+            <div>
+              <label for="pap_idcc" class="block text-sm font-semibold text-gray-700 mb-2">
+                IDCC
+              </label>
+              <input type="text"
+                     id="pap_idcc"
+                     x-model="form.idcc"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Effectif connu -->
+            <div>
+              <label for="pap_effectif" class="block text-sm font-semibold text-gray-700 mb-2">
+                Effectif connu
+              </label>
+              <input type="number"
+                     id="pap_effectif"
+                     x-model="form.effectif_connu"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Date invitation PAP -->
+            <div>
+              <label for="pap_date_invit" class="block text-sm font-semibold text-gray-700 mb-2">
+                Date invitation PAP *
+              </label>
+              <input type="date"
+                     id="pap_date_invit"
+                     x-model="form.date_invit"
+                     required
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Date réception -->
+            <div>
+              <label for="pap_date_reception" class="block text-sm font-semibold text-gray-700 mb-2">
+                Date réception
+              </label>
+              <input type="date"
+                     id="pap_date_reception"
+                     x-model="form.date_reception"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+
+            <!-- Date élection -->
+            <div>
+              <label for="pap_date_election" class="block text-sm font-semibold text-gray-700 mb-2">
+                Date élection (si connue)
+              </label>
+              <input type="date"
+                     id="pap_date_election"
+                     x-model="form.date_election"
+                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="flex justify-center gap-4 mt-8">
+            <button type="button"
+                    @click="resetForm"
+                    class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition">
+              <i class="fas fa-undo mr-2"></i>
+              Réinitialiser
+            </button>
+            <button type="submit"
+                    :disabled="submitting"
+                    :class="submitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
+                    class="px-8 py-3 bg-green-600 text-white rounded-lg transition flex items-center space-x-2">
+              <i :class="submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'"></i>
+              <span x-text="submitting ? 'Enregistrement...' : 'Enregistrer l\'invitation PAP'"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
 
 <!-- Alpine.js Logic -->
 <script>
@@ -253,83 +377,51 @@
       companyName: '',
       city: '',
       sireneResults: [],
-      resultsSource: null,
-      warningMessage: '',
       loading: false,
 
       searchOnPappers() {
         if (!this.companyName || !this.city) return;
-
         const query = encodeURIComponent(`${this.companyName} ${this.city}`);
-        const url = `https://www.pappers.fr/recherche?q=${query}`;
-        window.open(url, '_blank');
-
+        window.open(`https://www.pappers.fr/recherche?q=${query}`, '_blank');
         showToast('Recherche ouverte sur Pappers.fr', 'info');
       },
 
       searchOnSociete() {
         if (!this.companyName || !this.city) return;
-
         const query = encodeURIComponent(`${this.companyName} ${this.city}`);
-        const url = `https://www.societe.com/cgi-bin/search?champs=${query}`;
-        window.open(url, '_blank');
-
+        window.open(`https://www.societe.com/cgi-bin/search?champs=${query}`, '_blank');
         showToast('Recherche ouverte sur Société.com', 'info');
       },
 
       async searchOnSirene() {
         if (!this.companyName || !this.city) return;
-
         this.loading = true;
         this.sireneResults = [];
-        this.resultsSource = null;
-        this.warningMessage = '';
 
         try {
-          const params = new URLSearchParams({
-            nom: this.companyName,
-            ville: this.city,
-          });
-
+          const params = new URLSearchParams({nom: this.companyName, ville: this.city});
           const response = await fetch(`/api/sirene/search?${params.toString()}`);
-
-          let payload = {};
-          try {
-            payload = await response.json();
-          } catch (parseError) {
-            payload = {};
-          }
+          const payload = await response.json();
 
           if (!response.ok) {
-            const message = payload?.detail || 'Erreur lors de la recherche';
-            throw new Error(message);
+            throw new Error(payload?.detail || 'Erreur lors de la recherche');
           }
 
           const results = payload.results || [];
-          this.resultsSource = payload.source || 'sirene';
-          this.warningMessage = payload.warning || '';
-
           if (results.length > 0) {
             this.sireneResults = results.map(result => ({
               siret: result.siret,
               siren: result.siren,
               denomination: result.denomination || 'Nom non disponible',
               adresse: result.adresse || '',
-              activite: result.activite || result.libelle_activite || result.activite_principale || '',
             }));
-
-            const sourceLabel = this.resultsSource === 'local' ? 'la base interne' : 'l\'API Sirene';
-            showToast(`${this.sireneResults.length} résultat(s) trouvé(s) via ${sourceLabel}`, 'success');
+            showToast(`${this.sireneResults.length} résultat(s) trouvé(s)`, 'success');
           } else {
-            const message = this.resultsSource === 'local'
-              ? 'Aucun résultat correspondant dans la base interne'
-              : 'Aucun résultat trouvé dans l\'API Sirene';
-            showToast(message, 'warning');
+            showToast('Aucun résultat trouvé', 'warning');
           }
         } catch (error) {
           console.error('Erreur:', error);
-          this.resultsSource = null;
-          showToast(error.message || 'Erreur lors de la recherche. Essayez Pappers.fr ou Société.com', 'error');
+          showToast(error.message || 'Erreur lors de la recherche', 'error');
         } finally {
           this.loading = false;
         }
@@ -342,13 +434,120 @@
 
       copySiret(siret) {
         navigator.clipboard.writeText(siret).then(() => {
-          showToast(`SIRET ${siret} copié dans le presse-papier`, 'success');
+          showToast(`SIRET ${siret} copié`, 'success');
         }).catch(() => {
           showToast('Erreur lors de la copie', 'error');
         });
       }
     }
   }
+
+  function papAdd() {
+    return {
+      form: {
+        siret: '',
+        raison_sociale: '',
+        ville: '',
+        code_postal: '',
+        ud: '',
+        fd: '',
+        idcc: '',
+        effectif_connu: null,
+        date_invit: '',
+        date_reception: '',
+        date_election: '',
+      },
+      siretExists: false,
+      checking: false,
+      submitting: false,
+
+      async checkSiret() {
+        if (this.form.siret.length !== 14) return;
+
+        this.checking = true;
+        this.siretExists = false;
+
+        try {
+          const response = await fetch(`/api/siret/${this.form.siret}/check`);
+          const payload = await response.json();
+
+          if (payload.exists && payload.data) {
+            // Pré-remplir le formulaire
+            const data = payload.data;
+            this.form.raison_sociale = data.raison_sociale || this.form.raison_sociale;
+            this.form.ville = data.ville || this.form.ville;
+            this.form.code_postal = data.code_postal || this.form.code_postal;
+            this.form.ud = data.ud || this.form.ud;
+            this.form.fd = data.fd || this.form.fd;
+            this.form.idcc = data.idcc || this.form.idcc;
+            this.form.effectif_connu = data.effectif || this.form.effectif_connu;
+
+            this.siretExists = true;
+            showToast('Données récupérées et pré-remplies !', 'success');
+          } else {
+            showToast('SIRET inconnu, remplissez les données manuellement', 'info');
+          }
+        } catch (error) {
+          console.error('Erreur:', error);
+          showToast('Erreur lors de la vérification du SIRET', 'error');
+        } finally {
+          this.checking = false;
+        }
+      },
+
+      async submitPapForm() {
+        this.submitting = true;
+
+        try {
+          const params = new URLSearchParams();
+          for (const [key, value] of Object.entries(this.form)) {
+            if (value !== null && value !== '') {
+              params.append(key, value);
+            }
+          }
+
+          const response = await fetch(`/api/invitation/add?${params.toString()}`, {
+            method: 'POST',
+          });
+
+          const payload = await response.json();
+
+          if (!response.ok) {
+            throw new Error(payload?.detail || 'Erreur lors de l\'enregistrement');
+          }
+
+          showToast('Invitation PAP ajoutée avec succès !', 'success');
+          this.resetForm();
+        } catch (error) {
+          console.error('Erreur:', error);
+          showToast(error.message || 'Erreur lors de l\'enregistrement', 'error');
+        } finally {
+          this.submitting = false;
+        }
+      },
+
+      resetForm() {
+        this.form = {
+          siret: '',
+          raison_sociale: '',
+          ville: '',
+          code_postal: '',
+          ud: '',
+          fd: '',
+          idcc: '',
+          effectif_connu: null,
+          date_invit: '',
+          date_reception: '',
+          date_election: '',
+        };
+        this.siretExists = false;
+      }
+    }
+  }
 </script>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
 
 {% endblock %}
