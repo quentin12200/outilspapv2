@@ -16,6 +16,21 @@ router = APIRouter(prefix="/api", tags=["api"])
 
 from fastapi.responses import RedirectResponse
 
+
+def _month_bucket_expression(db: Session, column):
+    """Return a SQL expression that groups dates by month across dialects."""
+
+    bind = db.get_bind()
+    dialect = (bind.dialect.name if bind is not None else "sqlite").lower()
+
+    if dialect == "postgresql":
+        return func.to_char(column, "YYYY-MM")
+    if dialect.startswith("mysql"):
+        return func.date_format(column, "%Y-%m")
+
+    # SQLite (and default fallback) uses strftime
+    return func.strftime("%Y-%m", column)
+
 @router.post("/ingest/pv")
 async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_session)):
     n = etl.ingest_pv_excel(db, file.file)
@@ -246,18 +261,20 @@ def dashboard_stats(db: Session = Depends(get_session)):
         dep_counts.items(), key=lambda item: (-item[1], item[0])
     )[:10]
 
-    six_months_ago = datetime.now() - timedelta(days=180)
+    six_months_ago = date.today() - timedelta(days=180)
 
     if eligible_sirets:
+        month_bucket = _month_bucket_expression(db, Invitation.date_invit)
+
         monthly_invitations = (
             db.query(
-                func.strftime("%Y-%m", Invitation.date_invit).label("month"),
+                month_bucket.label("month"),
                 func.count(Invitation.id).label("count"),
             )
             .filter(Invitation.siret.in_(eligible_sirets))
             .filter(Invitation.date_invit >= six_months_ago)
-            .group_by(func.strftime("%Y-%m", Invitation.date_invit))
-            .order_by("month")
+            .group_by(month_bucket)
+            .order_by(month_bucket)
             .all()
         )
     else:
@@ -783,17 +800,20 @@ def dashboard_enhanced_stats(db: Session = Depends(get_session)):
     ).all()
 
     # Évolution des invitations sur les 12 derniers mois
-    from datetime import datetime, timedelta
-    twelve_months_ago = datetime.now() - timedelta(days=365)
+    twelve_months_ago = date.today() - timedelta(days=365)
 
-    monthly_evolution = db.query(
-        func.strftime('%Y-%m', Invitation.date_invit).label('month'),
-        func.count(Invitation.id).label('count')
-    ).filter(
-        Invitation.date_invit >= twelve_months_ago
-    ).group_by(
-        func.strftime('%Y-%m', Invitation.date_invit)
-    ).order_by('month').all()
+    month_bucket = _month_bucket_expression(db, Invitation.date_invit)
+
+    monthly_evolution = (
+        db.query(
+            month_bucket.label('month'),
+            func.count(Invitation.id).label('count')
+        )
+        .filter(Invitation.date_invit >= twelve_months_ago)
+        .group_by(month_bucket)
+        .order_by(month_bucket)
+        .all()
+    )
 
     return {
         "activites": [{"label": a[0][:50], "count": a[1]} for a in activites_stats],  # Tronquer les noms longs
