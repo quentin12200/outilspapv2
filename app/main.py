@@ -1212,17 +1212,21 @@ def invitations(
             try:
                 # Tenter de parser la date (format peut varier)
                 from datetime import datetime
+
+                normalized_key = normalize_siret(siret)
+                if not normalized_key:
+                    continue
+
                 # Essayer plusieurs formats
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"]:
                     try:
                         parsed_date = datetime.strptime(date_str.strip(), fmt).date()
-                        dates_presumees[siret] = parsed_date
+                        dates_presumees[normalized_key] = parsed_date
                         break
                     except:
                         continue
             except:
                 pass
-
     def _normalize_raw_key(key: str) -> str:
         normalized = unicodedata.normalize("NFKD", str(key))
         normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
@@ -1266,6 +1270,10 @@ def invitations(
 
     for inv in invitations:
         raw_map = _build_raw_map(getattr(inv, "raw", None))
+        normalized_siret = normalize_siret(inv.siret)
+        inv.siret_normalized = normalized_siret or (
+            inv.siret.strip() if isinstance(inv.siret, str) else inv.siret
+        )
 
         inv.display_denomination = inv.denomination or _pick_from_map(
             raw_map,
@@ -1369,23 +1377,23 @@ def invitations(
         inv.date_presumee = None
 
         # Priorité 1: Si le SIRET a un PV C5 enregistré
-        if inv.siret in sirets_with_pv_c5:
+        if normalized_siret and normalized_siret in sirets_with_pv_c5:
             inv.statut = "pv_c5_enregistre"
             inv.statut_badge = "blue"
             inv.statut_icon = "fa-check-circle"
             inv.statut_label = "PV C5 enregistré"
-            inv.date_pv_c5 = pv_c5_dates.get(inv.siret)
+            inv.date_pv_c5 = pv_c5_dates.get(normalized_siret)
 
         # Priorité 2: Si le SIRET a un PV précédent (C3 ou C4) → Reconduction
-        elif inv.siret in sirets_with_previous_pv:
+        elif normalized_siret and normalized_siret in sirets_with_previous_pv:
             inv.statut = "reconduction"
             inv.statut_badge = "green"
             inv.statut_icon = "fa-sync-alt"
             inv.statut_label = "Reconduction"
 
             # Afficher le compte à rebours ou retard si date connue
-            if inv.siret in dates_presumees:
-                date_presumee = dates_presumees[inv.siret]
+            if normalized_siret and normalized_siret in dates_presumees:
+                date_presumee = dates_presumees[normalized_siret]
                 inv.date_presumee = date_presumee
                 if date_presumee < today:
                     days_late = (today - date_presumee).days
@@ -1396,8 +1404,8 @@ def invitations(
 
         # Priorité 3: Pas de PV précédent - vérifier si date présumée passée
         else:
-            if inv.siret in dates_presumees:
-                date_presumee = dates_presumees[inv.siret]
+            if normalized_siret and normalized_siret in dates_presumees:
+                date_presumee = dates_presumees[normalized_siret]
                 inv.date_presumee = date_presumee
 
                 if date_presumee < today:
@@ -1940,20 +1948,37 @@ def recherche_siret_page(request: Request):
 @app.get("/siret/{siret}", response_class=HTMLResponse)
 def siret_detail(siret: str, request: Request, db: Session = Depends(get_session)):
     from .models import PVEvent, Invitation
+    param_siret = (siret or "").strip()
+    normalized_param = "".join(ch for ch in param_siret if ch.isdigit())
+    candidate_sirets = []
+    for value in (normalized_param, param_siret):
+        if value and value not in candidate_sirets:
+            candidate_sirets.append(value)
+    if not candidate_sirets:
+        candidate_sirets.append(siret)
+    query_sirets = candidate_sirets or [siret]
 
     # Résumé agrégé issu de siret_summary
-    summary_row = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+    summary_row = None
+    for candidate in candidate_sirets:
+        summary_row = (
+            db.query(SiretSummary)
+            .filter(SiretSummary.siret == candidate)
+            .first()
+        )
+        if summary_row:
+            break
 
     # Historiques détaillés
     pv_history = (
         db.query(PVEvent)
-        .filter(PVEvent.siret == siret)
+        .filter(PVEvent.siret.in_(query_sirets))
         .order_by(PVEvent.date_pv.desc())
         .all()
     )
     invitations = (
         db.query(Invitation)
-        .filter(Invitation.siret == siret)
+        .filter(Invitation.siret.in_(query_sirets))
         .order_by(Invitation.date_invit.desc())
         .all()
     )
@@ -1980,6 +2005,49 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
                     continue
         return None
 
+    def _to_datetime(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time())
+        if isinstance(value, str):
+            candidate = value.strip()
+            if not candidate:
+                return None
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d",
+                "%d/%m/%Y %H:%M:%S",
+                "%d/%m/%Y %H:%M",
+                "%d/%m/%Y",
+                "%Y/%m/%d %H:%M:%S",
+                "%Y/%m/%d",
+            ):
+                try:
+                    return datetime.strptime(candidate, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    def _to_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            if not cleaned:
+                return None
+            if cleaned in {"1", "true", "vrai", "oui", "o", "y", "yes"}:
+                return True
+            if cleaned in {"0", "false", "faux", "non", "n"}:
+                return False
+        return None
     def _to_int(value):
         if value is None:
             return None
@@ -2042,6 +2110,9 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
         defaults["siret"] = siret
         summary = SimpleNamespace(**defaults)
 
+    display_siret = next((candidate for candidate in candidate_sirets if candidate), siret)
+    if getattr(summary, "siret", None) in (None, "") and display_siret:
+        summary.siret = display_siret
     base_event = pv_history[0] if pv_history else None
     latest_invitation = invitations[0] if invitations else None
     pv_c3 = _cycle_event("C3")
@@ -2219,6 +2290,15 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
     if invitations:
         enriched_inv = next((inv for inv in invitations if inv.date_enrichissement is not None), None)
         if enriched_inv:
+            enrichment_dt = _to_datetime(enriched_inv.date_enrichissement)
+            enrichment_raw = enriched_inv.date_enrichissement
+            if enrichment_dt:
+                enrichment_label = enrichment_dt.strftime("%d/%m/%Y %H:%M")
+            elif enrichment_raw:
+                enrichment_label = str(enrichment_raw).strip() or None
+            else:
+                enrichment_label = None
+
             sirene_data = {
                 "denomination": enriched_inv.denomination,
                 "enseigne": enriched_inv.enseigne,
@@ -2229,10 +2309,12 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
                 "libelle_activite": enriched_inv.libelle_activite,
                 "tranche_effectifs": enriched_inv.tranche_effectifs,
                 "effectifs_label": enriched_inv.effectifs_label,
-                "est_siege": enriched_inv.est_siege,
-                "est_actif": enriched_inv.est_actif,
+                "est_siege": _to_bool(enriched_inv.est_siege),
+                "est_actif": _to_bool(enriched_inv.est_actif),
                 "categorie_entreprise": enriched_inv.categorie_entreprise,
-                "date_enrichissement": enriched_inv.date_enrichissement,
+                "date_enrichissement": enrichment_dt,
+                "date_enrichissement_label": enrichment_label,
+                "date_enrichissement_raw": enrichment_raw,
             }
 
     return templates.TemplateResponse(
