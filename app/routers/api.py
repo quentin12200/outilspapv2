@@ -845,3 +845,147 @@ def dashboard_enhanced_stats(db: Session = Depends(get_session)):
         "departements": [{"dep": d[0], "count": d[1]} for d in dep_counts],
         "monthly_evolution": [{"month": m[0], "count": m[1]} for m in monthly_evolution]
     }
+
+@router.get("/siret/{siret}/check")
+def check_siret_exists(siret: str, db: Session = Depends(get_session)):
+    """
+    Vérifie si un SIRET existe dans la base et retourne ses données.
+    Utile pour pré-remplir le formulaire d'ajout PAP.
+    """
+    # Cherche dans SiretSummary
+    summary = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+    
+    # Cherche dans Invitations
+    invitation = db.query(Invitation).filter(Invitation.siret == siret).order_by(Invitation.date_invit.desc()).first()
+    
+    # Cherche dans PVEvent
+    pv_event = db.query(PVEvent).filter(PVEvent.siret == siret).order_by(PVEvent.date_pv.desc()).first()
+    
+    if not summary and not invitation and not pv_event:
+        return {"exists": False, "data": None}
+    
+    # Construit les données depuis les différentes sources
+    data = {
+        "siret": siret,
+        "raison_sociale": None,
+        "ville": None,
+        "code_postal": None,
+        "ud": None,
+        "fd": None,
+        "idcc": None,
+        "effectif": None,
+    }
+    
+    # Priorise SiretSummary pour les données
+    if summary:
+        data["raison_sociale"] = summary.raison_sociale
+        data["ville"] = summary.ville
+        data["code_postal"] = summary.cp
+        data["ud"] = summary.ud_c4 or summary.ud_c3
+        data["fd"] = summary.fd_c4 or summary.fd_c3
+        data["idcc"] = summary.idcc
+        data["effectif"] = summary.effectif_siret
+    
+    # Complète avec Invitation si nécessaire
+    if invitation:
+        if not data["raison_sociale"]:
+            data["raison_sociale"] = invitation.denomination
+        if not data["ville"]:
+            data["ville"] = invitation.commune
+        if not data["code_postal"]:
+            data["code_postal"] = invitation.code_postal
+        if not data["ud"] and invitation.ud:
+            data["ud"] = invitation.ud
+        if not data["fd"] and invitation.fd:
+            data["fd"] = invitation.fd
+        if not data["idcc"] and invitation.idcc:
+            data["idcc"] = invitation.idcc
+        if not data["effectif"] and invitation.effectif_connu:
+            data["effectif"] = invitation.effectif_connu
+    
+    # Complète avec PVEvent si nécessaire
+    if pv_event:
+        if not data["raison_sociale"]:
+            data["raison_sociale"] = pv_event.raison_sociale
+        if not data["ville"]:
+            data["ville"] = pv_event.ville
+        if not data["code_postal"]:
+            data["code_postal"] = pv_event.cp
+        if not data["ud"]:
+            data["ud"] = pv_event.ud
+        if not data["fd"]:
+            data["fd"] = pv_event.fd
+        if not data["idcc"]:
+            data["idcc"] = pv_event.idcc
+        if not data["effectif"]:
+            data["effectif"] = int(pv_event.effectif_siret) if pv_event.effectif_siret else None
+    
+    return {"exists": True, "data": data}
+
+
+@router.post("/invitation/add")
+def add_pap_invitation(
+    siret: str = Query(..., min_length=14, max_length=14),
+    raison_sociale: str = Query(...),
+    ville: str = Query(...),
+    code_postal: str = Query(...),
+    date_invit: str = Query(...),
+    ud: str = Query(None),
+    fd: str = Query(None),
+    idcc: str = Query(None),
+    effectif_connu: int = Query(None),
+    date_reception: str = Query(None),
+    date_election: str = Query(None),
+    source: str = Query("Manuel"),
+    db: Session = Depends(get_session)
+):
+    """
+    Ajoute une nouvelle invitation PAP manuellement.
+    """
+    from datetime import datetime
+    
+    # Parse les dates
+    try:
+        date_invit_parsed = datetime.strptime(date_invit, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format de date_invit invalide (attendu: YYYY-MM-DD)")
+    
+    date_reception_parsed = None
+    if date_reception:
+        try:
+            date_reception_parsed = datetime.strptime(date_reception, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format de date_reception invalide (attendu: YYYY-MM-DD)")
+    
+    date_election_parsed = None
+    if date_election:
+        try:
+            date_election_parsed = datetime.strptime(date_election, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format de date_election invalide (attendu: YYYY-MM-DD)")
+    
+    # Crée la nouvelle invitation
+    nouvelle_invitation = Invitation(
+        siret=siret,
+        date_invit=date_invit_parsed,
+        source=source,
+        denomination=raison_sociale,
+        commune=ville,
+        code_postal=code_postal,
+        ud=ud,
+        fd=fd,
+        idcc=idcc,
+        effectif_connu=effectif_connu,
+        date_reception=date_reception_parsed,
+        date_election=date_election_parsed,
+    )
+    
+    db.add(nouvelle_invitation)
+    db.commit()
+    db.refresh(nouvelle_invitation)
+    
+    return {
+        "success": True,
+        "message": f"Invitation PAP ajoutée pour le SIRET {siret}",
+        "invitation_id": nouvelle_invitation.id
+    }

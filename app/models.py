@@ -186,6 +186,14 @@ class Invitation(Base):
     categorie_entreprise = Column(String(10))                    # PME, ETI, GE...
     date_enrichissement = Column(DateTime)                       # Date du dernier enrichissement
 
+    # Données manuelles pour ajout PAP
+    ud = Column(String(80))                                      # Union départementale
+    fd = Column(String(80))                                      # Fédération
+    idcc = Column(String(20))                                    # Code IDCC
+    effectif_connu = Column(Integer)                             # Effectif connu manuellement
+    date_reception = Column(Date)                                # Date de réception de l'invitation
+    date_election = Column(Date)                                 # Date de l'élection si connue
+
 
 class SiretSummary(Base):
     __tablename__ = "siret_summary"

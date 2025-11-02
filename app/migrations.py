@@ -27,6 +27,16 @@ SIRENE_COLUMNS = [
     ("date_enrichissement", "DATETIME"),
 ]
 
+# Colonnes pour ajout manuel d'invitations PAP
+MANUAL_INVITATION_COLUMNS = [
+    ("ud", "VARCHAR(80)"),
+    ("fd", "VARCHAR(80)"),
+    ("idcc", "VARCHAR(20)"),
+    ("effectif_connu", "INTEGER"),
+    ("date_reception", "DATE"),
+    ("date_election", "DATE"),
+]
+
 # Nouvelles colonnes pour pv_events (v1.0.0 - scores syndicaux complets)
 PV_EVENTS_NEW_COLUMNS = [
     ("id_pv", "VARCHAR(50)"),
@@ -255,6 +265,11 @@ def add_sirene_columns_if_needed():
     add_columns_to_table("invitations", SIRENE_COLUMNS)
 
 
+def add_manual_invitation_columns_if_needed():
+    """Ajoute les colonnes pour l'ajout manuel d'invitations PAP."""
+    add_columns_to_table("invitations", MANUAL_INVITATION_COLUMNS)
+
+
 def add_pv_events_columns_if_needed():
     """Ajoute les nouvelles colonnes v1.0.0 à la table pv_events."""
     add_columns_to_table("pv_events", PV_EVENTS_NEW_COLUMNS)
@@ -476,6 +491,9 @@ def run_migrations():
 
         # Migration Sirene pour invitations
         add_sirene_columns_if_needed()
+
+        # Migration colonnes manuelles pour invitations PAP
+        add_manual_invitation_columns_if_needed()
 
         # Migration données invitations
         fill_invitation_columns_from_raw()
