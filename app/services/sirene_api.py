@@ -123,12 +123,15 @@ class SireneAPI:
         commune: str,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
-        """Recherche des établissements par raison sociale et commune."""
+        """
+        Recherche des établissements par raison sociale et commune.
+        Utilise plusieurs stratégies de recherche pour maximiser les résultats.
+        """
 
         denomination = (denomination or "").strip()
         commune = (commune or "").strip()
 
-        if not denomination or not commune:
+        if not denomination:
             return []
 
         url = f"{SIRENE_API_BASE}/siret"
@@ -140,54 +143,113 @@ class SireneAPI:
             # incohérences d'encodage).
             return " ".join(cleaned.split()).upper()
 
-        # On interroge les champs utilisés par l'API officielle.
-        # "libelleCommuneEtablissement" cible bien la commune de l'établissement
-        # (et non celle du siège) et donne de meilleurs résultats que le champ
-        # générique "commune".
-        query_parts = [
-            f'denominationUniteLegale:"{_sanitize(denomination)}"',
-            f'libelleCommuneEtablissement:"{_sanitize(commune)}"',
-        ]
+        # Stratégies de recherche multiples (de la plus stricte à la plus permissive)
+        search_strategies = []
 
-        params = {
-            "q": " AND ".join(query_parts),
-            "nombre": str(max(1, min(limit, 20))),
-        }
+        if commune:
+            # Stratégie 1: Recherche stricte avec AND
+            search_strategies.append({
+                "name": "strict",
+                "query": f'denominationUniteLegale:"{_sanitize(denomination)}" AND libelleCommuneEtablissement:"{_sanitize(commune)}"'
+            })
 
-        try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                response = await client.get(url, headers=self.headers, params=params)
+            # Stratégie 2: Recherche avec wildcards pour matching partiel
+            den_parts = _sanitize(denomination).split()
+            if len(den_parts) > 1:
+                # Si plusieurs mots, chercher avec wildcards sur chaque mot
+                den_wildcard = " AND ".join([f'denominationUniteLegale:*{part}*' for part in den_parts])
+                search_strategies.append({
+                    "name": "wildcard",
+                    "query": f'({den_wildcard}) AND libelleCommuneEtablissement:*{_sanitize(commune)}*'
+                })
+            else:
+                # Un seul mot
+                search_strategies.append({
+                    "name": "wildcard",
+                    "query": f'denominationUniteLegale:*{_sanitize(denomination)}* AND libelleCommuneEtablissement:*{_sanitize(commune)}*'
+                })
 
-            if response.status_code == 200:
-                data = response.json()
-                etablissements = data.get("etablissements", [])
-                return [self._parse_etablissement(etab) for etab in etablissements]
-            if response.status_code in (400, 404):
-                return []
-            if response.status_code == 401:
-                logger.error("Clé API Sirene absente ou invalide")
-                raise SireneAPIError("Accès refusé par l'API Sirene")
-            if response.status_code == 429:
-                logger.warning("Limite de taux API Sirene atteinte")
-                raise SireneAPIError("Trop de requêtes, veuillez patienter")
+            # Stratégie 3: Recherche par dénomination seule avec filtre ville
+            search_strategies.append({
+                "name": "denomination_only",
+                "query": f'denominationUniteLegale:*{_sanitize(denomination)}*'
+            })
+        else:
+            # Si pas de commune, recherche par dénomination uniquement
+            search_strategies.append({
+                "name": "denomination_only",
+                "query": f'denominationUniteLegale:*{_sanitize(denomination)}*'
+            })
 
-            logger.error(
-                "Erreur API Sirene (%s): %s",
-                response.status_code,
-                response.text,
-            )
-            raise SireneAPIError(f"Erreur API: {response.status_code}")
+        # Essayer chaque stratégie jusqu'à trouver des résultats
+        for strategy in search_strategies:
+            params = {
+                "q": strategy["query"],
+                "nombre": str(max(1, min(limit, 20))),
+            }
 
-        except httpx.TimeoutException:
-            logger.error(
-                "Timeout lors de la recherche Sirene pour %s / %s",
-                denomination,
-                commune,
-            )
-            raise SireneAPIError("Timeout de l'API Sirene")
-        except httpx.RequestError as e:
-            logger.error(f"Erreur réseau API Sirene: {e}")
-            raise SireneAPIError("Erreur de connexion à l'API Sirene")
+            try:
+                async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                    response = await client.get(url, headers=self.headers, params=params)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    etablissements = data.get("etablissements", [])
+
+                    if etablissements:
+                        logger.info(f"Sirene search: {len(etablissements)} résultats avec stratégie '{strategy['name']}'")
+                        results = [self._parse_etablissement(etab) for etab in etablissements]
+
+                        # Si on a une commune et qu'on n'a pas utilisé la stratégie stricte,
+                        # filtrer les résultats pour ne garder que ceux de la bonne ville
+                        if commune and strategy["name"] != "strict":
+                            commune_lower = commune.lower()
+                            results = [
+                                r for r in results
+                                if commune_lower in (r.get("commune") or "").lower()
+                            ]
+
+                        if results:
+                            return results[:limit]
+
+                    # Si pas de résultats avec cette stratégie, essayer la suivante
+                    logger.info(f"Sirene search: aucun résultat avec stratégie '{strategy['name']}', essai suivant...")
+                    continue
+
+                elif response.status_code in (400, 404):
+                    # Erreur de requête, essayer la stratégie suivante
+                    logger.debug(f"Sirene search: erreur {response.status_code} avec stratégie '{strategy['name']}'")
+                    continue
+
+                elif response.status_code == 401:
+                    logger.error("Clé API Sirene absente ou invalide")
+                    raise SireneAPIError("Accès refusé par l'API Sirene")
+
+                elif response.status_code == 429:
+                    logger.warning("Limite de taux API Sirene atteinte")
+                    raise SireneAPIError("Trop de requêtes, veuillez patienter")
+                else:
+                    logger.error(
+                        "Erreur API Sirene (%s): %s",
+                        response.status_code,
+                        response.text,
+                    )
+                    raise SireneAPIError(f"Erreur API: {response.status_code}")
+
+            except httpx.TimeoutException:
+                logger.error(
+                    "Timeout lors de la recherche Sirene pour %s / %s",
+                    denomination,
+                    commune,
+                )
+                raise SireneAPIError("Timeout de l'API Sirene")
+            except httpx.RequestError as e:
+                logger.error(f"Erreur réseau API Sirene: {e}")
+                raise SireneAPIError("Erreur de connexion à l'API Sirene")
+
+        # Aucune stratégie n'a donné de résultats
+        logger.info(f"Sirene search: aucun résultat trouvé pour '{denomination}' / '{commune}'")
+        return []
 
     def _parse_etablissement(self, etab: Dict[str, Any]) -> Dict[str, Any]:
         """
