@@ -91,6 +91,58 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
 def dashboard_stats(db: Session = Depends(get_session)):
     """Retourne les statistiques pour le tableau de bord"""
 
+    def _to_number(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = (
+                value.strip()
+                .replace("\u202f", "")
+                .replace("\xa0", "")
+                .replace(" ", "")
+            )
+            cleaned = cleaned.replace(",", ".")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _parse_date_value(value):
+        if not value:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                try:
+                    return datetime.strptime(cleaned, fmt).date()
+                except ValueError:
+                    continue
+            try:
+                return datetime.fromisoformat(cleaned).date()
+            except ValueError:
+                return None
+        return None
+
+    def _format_date_display(value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+        return None
+
     audience_threshold = 1000
 
     total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
@@ -210,53 +262,6 @@ def dashboard_stats(db: Session = Depends(get_session)):
         )
     else:
         monthly_invitations = []
-
-    def _parse_date_value(value):
-        if not value:
-            return None
-        if isinstance(value, date):
-            return value
-        if isinstance(value, datetime):
-            return value.date()
-        if isinstance(value, str):
-            cleaned = value.strip()
-            if not cleaned:
-                return None
-            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
-                try:
-                    return datetime.strptime(cleaned, fmt).date()
-                except ValueError:
-                    continue
-            try:
-                return datetime.fromisoformat(cleaned).date()
-            except ValueError:
-                return None
-        return None
-
-    def _to_number(value):
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            return float(value)
-        if isinstance(value, str):
-            cleaned = value.strip().replace("\u202f", "").replace("\xa0", "").replace(" ", "")
-            cleaned = cleaned.replace(",", ".")
-            if not cleaned:
-                return None
-            try:
-                return float(cleaned)
-            except ValueError:
-                return None
-        return None
-
-    def _format_date_display(value):
-        if not value:
-            return None
-        if isinstance(value, datetime):
-            value = value.date()
-        if isinstance(value, date):
-            return value.strftime("%d/%m/%Y")
-        return None
 
     today = date.today()
     per_cycle = {}
