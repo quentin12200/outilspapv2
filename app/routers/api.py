@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from typing import List
 from datetime import datetime, timedelta, date
 import re
@@ -249,6 +249,15 @@ def dashboard_stats(db: Session = Depends(get_session)):
                 return None
         return None
 
+    def _format_date_display(value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+        return None
+
     today = date.today()
     per_cycle = {}
 
@@ -279,12 +288,18 @@ def dashboard_stats(db: Session = Depends(get_session)):
             continue
 
         cycle_value = (cycle or "").upper()
-        if "C4" in cycle_value and "C5" not in cycle_value:
-            siret_value = str(siret or "").strip()
-            if siret_value:
-                upcoming_c5_sirets.add(siret_value)
+        siret_value = str(siret or "").strip()
+        if not siret_value:
+            continue
 
-        key = (siret or "", cycle or "")
+        if (
+            "C4" in cycle_value
+            and "C5" not in cycle_value
+            and siret_value in eligible_sirets
+        ):
+            upcoming_c5_sirets.add(siret_value)
+
+        key = (siret_value, cycle_value)
         existing = per_cycle.get(key)
         if existing is None or parsed_date < existing:
             per_cycle[key] = parsed_date
@@ -301,6 +316,92 @@ def dashboard_stats(db: Session = Depends(get_session)):
             quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
         )
     ][:4]
+
+    upcoming_dates = list(per_cycle.values())
+    upcoming_next_date = min(upcoming_dates) if upcoming_dates else None
+
+    c5_upcoming_total = len(upcoming_c5_sirets)
+    c5_upcoming_percent = round(
+        (c5_upcoming_total / audience_siret * 100) if audience_siret > 0 else 0,
+        1,
+    )
+
+    c3_condition = or_(
+        SiretSummary.date_pv_c3.isnot(None),
+        SiretSummary.carence_c3.is_(True),
+    )
+    c4_condition = or_(
+        SiretSummary.date_pv_c4.isnot(None),
+        SiretSummary.carence_c4.is_(True),
+    )
+    possessions_condition = or_(c3_condition, c4_condition)
+
+    autres_possessions_total = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(possessions_condition)
+        .scalar()
+        or 0
+    )
+    autres_possessions_c3 = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(c3_condition)
+        .scalar()
+        or 0
+    )
+    autres_possessions_c4 = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(c4_condition)
+        .scalar()
+        or 0
+    )
+
+    invitations_period_start = date(2025, 1, 1)
+    invitations_period_end = db.query(func.max(Invitation.date_invit)).scalar()
+    invitations_period_total = 0
+    if invitations_period_end:
+        invitations_period_total = (
+            db.query(func.count(Invitation.id))
+            .filter(Invitation.date_invit >= invitations_period_start)
+            .filter(Invitation.date_invit <= invitations_period_end)
+            .scalar()
+            or 0
+        )
+
+    invitations_total = db.query(func.count(Invitation.id)).scalar() or 0
+
+    pv_total = db.query(func.count(PVEvent.id)).scalar() or 0
+    pv_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
+    last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
+    last_invitation_date = invitations_period_end
+
+    pv_sirets_subquery = select(SiretSummary.siret).where(possessions_condition)
+    pap_pv_overlap = (
+        db.query(func.count(func.distinct(Invitation.siret)))
+        .filter(Invitation.siret.in_(pv_sirets_subquery))
+        .scalar()
+        or 0
+    )
+    pap_pv_overlap_percent = round(
+        (pap_pv_overlap / invitations_total * 100) if invitations_total > 0 else 0,
+        1,
+    )
+
+    invitations_period_start_display = _format_date_display(
+        invitations_period_start
+    )
+    invitations_period_end_display = _format_date_display(invitations_period_end)
+
+    global_stats = {
+        "pv_total": pv_total,
+        "pv_sirets": pv_sirets,
+        "summary_total": total_siret,
+        "last_summary": _format_date_display(last_summary_date),
+        "invit_total": invitations_total,
+        "last_invitation": _format_date_display(last_invitation_date),
+        "upcoming_total": len(per_cycle),
+        "upcoming_next": _format_date_display(upcoming_next_date),
+        "upcoming_threshold": audience_threshold,
+    }
 
     # Statistiques par statut PAP sur la cible
     statut_counts: dict[str, int] = {}
@@ -340,13 +441,27 @@ def dashboard_stats(db: Session = Depends(get_session)):
             (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
             1,
         ),
-        "audience_upcoming_c5": len(upcoming_c5_sirets),
+        "audience_upcoming_c5": c5_upcoming_total,
+        "audience_upcoming_c5_percent": c5_upcoming_percent,
+        "autres_possessions_total": autres_possessions_total,
+        "autres_possessions_c3": autres_possessions_c3,
+        "autres_possessions_c4": autres_possessions_c4,
+        "invitations_period_total": invitations_period_total,
+        "invitations_period_start": invitations_period_start.isoformat(),
+        "invitations_period_end": (
+            invitations_period_end.isoformat() if invitations_period_end else None
+        ),
+        "invitations_period_start_display": invitations_period_start_display,
+        "invitations_period_end_display": invitations_period_end_display,
+        "pap_pv_overlap": pap_pv_overlap,
+        "pap_pv_overlap_percent": pap_pv_overlap_percent,
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
         "monthly_invitations": [
             {"month": m[0], "count": m[1]} for m in monthly_invitations
         ],
         "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
+        "global_stats": global_stats,
     }
 
 
