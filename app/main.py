@@ -245,6 +245,12 @@ def _auto_seed_invitations(session: Session) -> None:
                 url,
             )
             return
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code == 404:
+                logger.info("Automatic invitation import: file not found at %s (404)", url)
+            else:
+                logger.exception("Automatic invitation import failed with %s", url)
         except Exception as exc:
             last_error = exc
             logger.exception("Automatic invitation import failed with %s", url)
@@ -256,10 +262,16 @@ def _auto_seed_invitations(session: Session) -> None:
                     pass
 
     if last_error:
-        logger.warning(
-            "Automatic invitation import failed for all candidates; proceeding without seeding: %s",
-            last_error,
-        )
+        if isinstance(last_error, urllib.error.HTTPError) and last_error.code == 404:
+            logger.info(
+                "No invitation files found at inferred URLs; proceeding without automatic seeding. "
+                "This is normal if invitations are manually uploaded."
+            )
+        else:
+            logger.warning(
+                "Automatic invitation import failed for all candidates; proceeding without seeding: %s",
+                last_error,
+            )
 
 # Télécharge/ prépare le fichier AVANT d’importer les routers
 ensure_sqlite_asset()

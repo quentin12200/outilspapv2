@@ -20,8 +20,12 @@ from fastapi.responses import RedirectResponse
 def _month_bucket_expression(db: Session, column):
     """Return a SQL expression that groups dates by month across dialects."""
 
-    bind = db.get_bind()
-    dialect = (bind.dialect.name if bind is not None else "sqlite").lower()
+    try:
+        bind = db.get_bind()
+        dialect = (bind.dialect.name if bind is not None else "sqlite").lower()
+    except Exception:
+        # Fallback to SQLite if we can't determine the dialect
+        dialect = "sqlite"
 
     if dialect == "postgresql":
         return func.to_char(column, "YYYY-MM")
@@ -105,6 +109,18 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
 @router.get("/stats/dashboard")
 def dashboard_stats(db: Session = Depends(get_session)):
     """Retourne les statistiques pour le tableau de bord"""
+
+    try:
+        return _compute_dashboard_stats(db)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Error computing dashboard stats")
+        raise HTTPException(status_code=500, detail=f"Error computing dashboard stats: {str(e)}")
+
+
+def _compute_dashboard_stats(db: Session):
+    """Helper function to compute dashboard statistics"""
 
     def _to_number(value):
         if value is None:
