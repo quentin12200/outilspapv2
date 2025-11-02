@@ -1,8 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from typing import List
-from datetime import datetime
+from typing import List, Any
+from datetime import datetime, timedelta, date
+import re
+
 from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
@@ -13,6 +15,55 @@ from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_sir
 router = APIRouter(prefix="/api", tags=["api"])
 
 from fastapi.responses import RedirectResponse
+
+
+def _to_number(value: Any) -> float | None:
+    """Convertit une valeur vers un nombre flottant si possible."""
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = (
+            value.strip()
+            .replace("\u202f", "")
+            .replace("\xa0", "")
+            .replace(" ", "")
+        )
+        cleaned = cleaned.replace(",", ".")
+        if not cleaned:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_date_value(value: Any) -> date | None:
+    """Normalise différentes représentations de dates en objets date."""
+
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+            try:
+                return datetime.strptime(cleaned, fmt).date()
+            except ValueError:
+                continue
+        try:
+            return datetime.fromisoformat(cleaned).date()
+        except ValueError:
+            return None
+    return None
 
 @router.post("/ingest/pv")
 async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_session)):
@@ -93,118 +144,186 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
     total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
 
-    audience_selected = (
+    #
+    # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
+    # ----------------------------------------------------------------------
+    latest_c4_rows = (
         db.query(
-            SiretSummary.siret.label("siret"),
-            func.coalesce(SiretSummary.inscrits_c4, 0).label("inscrits_c4"),
-            SiretSummary.carence_c4.label("carence_c4"),
+            PVEvent.siret,
+            PVEvent.id,
+            PVEvent.inscrits,
+            PVEvent.cgt_voix,
         )
-        .filter(func.coalesce(SiretSummary.inscrits_c4, 0) >= audience_threshold)
-        .subquery()
-    )
-
-    audience_siret = (
-        db.query(func.count(audience_selected.c.siret))
-        .select_from(audience_selected)
-        .scalar()
-        or 0
-    )
-
-    audience_siret_c4_carence = (
-        db.query(func.count(audience_selected.c.siret))
-        .select_from(audience_selected)
-        .filter(audience_selected.c.carence_c4.is_(True))
-        .scalar()
-        or 0
-    )
-
-    audience_siret_c4_pv = (
-        db.query(func.count(audience_selected.c.siret))
-        .select_from(audience_selected)
-        .filter(
-            or_(
-                audience_selected.c.carence_c4.is_(False),
-                audience_selected.c.carence_c4.is_(None),
-            )
-        )
-        .scalar()
-        or 0
-    )
-
-    audience_inscrits = (
-        db.query(func.sum(audience_selected.c.inscrits_c4))
-        .select_from(audience_selected)
-        .scalar()
-        or 0
-    )
-
-    audience_cgt_implantee = (
-        db.query(func.count(SiretSummary.siret))
-        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
-        .filter(SiretSummary.cgt_implantee == True)  # noqa: E712
-        .scalar()
-        or 0
-    )
-
-    audience_voix_cgt = (
-        db.query(func.sum(func.coalesce(SiretSummary.cgt_voix_c4, 0)))
-        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
-        .scalar()
-        or 0
-    )
-
-    audience_invitations = (
-        db.query(func.count(func.distinct(Invitation.siret)))
-        .join(audience_selected, audience_selected.c.siret == Invitation.siret)
-        .scalar()
-        or 0
-    )
-
-    # Répartition par département (top 10) sur la cible
-    dep_stats = (
-        db.query(
-            SiretSummary.dep,
-            func.count(SiretSummary.siret).label("count"),
-        )
-        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
-        .filter(SiretSummary.dep.isnot(None))
-        .group_by(SiretSummary.dep)
-        .order_by(func.count(SiretSummary.siret).desc())
-        .limit(10)
+        .filter(PVEvent.cycle.isnot(None))
+        .filter(PVEvent.cycle.ilike("%C4%"))
         .all()
     )
 
-    # Évolution mensuelle des invitations (6 derniers mois) pour la cible
-    from datetime import datetime, timedelta
+    latest_per_siret: dict[str, dict[str, float]] = {}
+    for siret_value, pv_id, inscrits_value, cgt_voix_value in latest_c4_rows:
+        siret_str = (siret_value or "").strip()
+        if not siret_str:
+            continue
+
+        try:
+            pv_order = int(pv_id or 0)
+        except (TypeError, ValueError):
+            pv_order = 0
+
+        current = latest_per_siret.get(siret_str)
+        if current and pv_order <= current.get("order", 0):
+            continue
+
+        latest_per_siret[siret_str] = {
+            "order": pv_order,
+            "inscrits": _to_number(inscrits_value) or 0.0,
+            "cgt_voix": _to_number(cgt_voix_value) or 0.0,
+        }
+
+    eligible_sirets = {
+        siret
+        for siret, payload in latest_per_siret.items()
+        if payload.get("inscrits", 0) >= audience_threshold
+    }
+
+    audience_siret = len(eligible_sirets)
+
+    summary_rows = []
+    if eligible_sirets:
+        summary_rows = (
+            db.query(
+                SiretSummary.siret,
+                SiretSummary.dep,
+                SiretSummary.carence_c4,
+                SiretSummary.cgt_implantee,
+                SiretSummary.cgt_voix_c4,
+                SiretSummary.statut_pap,
+                SiretSummary.inscrits_c4,
+            )
+            .filter(SiretSummary.siret.in_(eligible_sirets))
+            .all()
+        )
+
+    audience_siret_c4_carence = sum(1 for row in summary_rows if row.carence_c4)
+    audience_siret_c4_pv = max(audience_siret - audience_siret_c4_carence, 0)
+
+    audience_inscrits = int(
+        sum(latest_per_siret[s]["inscrits"] for s in eligible_sirets)
+    )
+
+    audience_cgt_implantee = sum(1 for row in summary_rows if row.cgt_implantee)
+
+    audience_voix_cgt = 0
+    for row in summary_rows:
+        if row.cgt_voix_c4 is not None:
+            audience_voix_cgt += row.cgt_voix_c4
+        else:
+            audience_voix_cgt += latest_per_siret.get(row.siret, {}).get("cgt_voix", 0) or 0
+    audience_voix_cgt = int(audience_voix_cgt)
+
+    if eligible_sirets:
+        audience_invitations = (
+            db.query(func.count(func.distinct(Invitation.siret)))
+            .filter(Invitation.siret.in_(eligible_sirets))
+            .scalar()
+            or 0
+        )
+    else:
+        audience_invitations = 0
+
+    # Répartition par département (top 10) sur la cible
+    dep_counts: dict[str, int] = {}
+    for row in summary_rows:
+        dep_value = (row.dep or "").strip()
+        if not dep_value:
+            continue
+        dep_counts[dep_value] = dep_counts.get(dep_value, 0) + 1
+
+    dep_stats = sorted(
+        dep_counts.items(), key=lambda item: (-item[1], item[0])
+    )[:10]
 
     six_months_ago = datetime.now() - timedelta(days=180)
 
-    monthly_invitations = (
-        db.query(
-            func.strftime("%Y-%m", Invitation.date_invit).label("month"),
-            func.count(Invitation.id).label("count"),
+    if eligible_sirets:
+        monthly_invitations = (
+            db.query(
+                func.strftime("%Y-%m", Invitation.date_invit).label("month"),
+                func.count(Invitation.id).label("count"),
+            )
+            .filter(Invitation.siret.in_(eligible_sirets))
+            .filter(Invitation.date_invit >= six_months_ago)
+            .group_by(func.strftime("%Y-%m", Invitation.date_invit))
+            .order_by("month")
+            .all()
         )
-        .join(audience_selected, audience_selected.c.siret == Invitation.siret)
-        .filter(Invitation.date_invit >= six_months_ago)
-        .group_by(func.strftime("%Y-%m", Invitation.date_invit))
-        .order_by("month")
+    else:
+        monthly_invitations = []
+
+    today = date.today()
+    per_cycle = {}
+
+    upcoming_rows = (
+        db.query(
+            PVEvent.siret,
+            PVEvent.cycle,
+            PVEvent.date_prochain_scrutin,
+            PVEvent.effectif_siret,
+            PVEvent.inscrits,
+        )
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
         .all()
     )
+
+    upcoming_c5_sirets: set[str] = set()
+
+    for siret, cycle, next_date, effectif_siret, inscrits in upcoming_rows:
+        parsed_date = _parse_date_value(next_date)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        effectif_value = _to_number(effectif_siret)
+        if effectif_value is None:
+            effectif_value = _to_number(inscrits)
+
+        if effectif_value is None or effectif_value < audience_threshold:
+            continue
+
+        cycle_value = (cycle or "").upper()
+        if "C4" in cycle_value and "C5" not in cycle_value:
+            siret_value = str(siret or "").strip()
+            if siret_value:
+                upcoming_c5_sirets.add(siret_value)
+
+        key = (siret or "", cycle or "")
+        existing = per_cycle.get(key)
+        if existing is None or parsed_date < existing:
+            per_cycle[key] = parsed_date
+
+    quarter_counts: dict[tuple[int, int], int] = {}
+    for parsed_date in per_cycle.values():
+        quarter_index = ((parsed_date.month - 1) // 3) + 1
+        key = (parsed_date.year, quarter_index)
+        quarter_counts[key] = quarter_counts.get(key, 0) + 1
+
+    upcoming_quarters = [
+        {"label": f"T{quarter} {year}", "count": count}
+        for (year, quarter), count in sorted(
+            quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
+        )
+    ][:4]
 
     # Statistiques par statut PAP sur la cible
-    statut_stats = (
-        db.query(
-            SiretSummary.statut_pap,
-            func.count(SiretSummary.siret).label("count"),
-        )
-        .join(audience_selected, audience_selected.c.siret == SiretSummary.siret)
-        .filter(SiretSummary.statut_pap.isnot(None))
-        .group_by(SiretSummary.statut_pap)
-        .all()
-    )
+    statut_counts: dict[str, int] = {}
+    for row in summary_rows:
+        statut_value = (row.statut_pap or "").strip()
+        if not statut_value:
+            continue
+        statut_counts[statut_value] = statut_counts.get(statut_value, 0) + 1
 
-    audience_inscrits = int(audience_inscrits or 0)
-    audience_voix_cgt = int(audience_voix_cgt or 0)
+    statut_stats = sorted(
+        statut_counts.items(), key=lambda item: (-item[1], item[0])
+    )
 
     return {
         "audience_threshold": audience_threshold,
@@ -232,10 +351,12 @@ def dashboard_stats(db: Session = Depends(get_session)):
             (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
             1,
         ),
+        "audience_upcoming_c5": len(upcoming_c5_sirets),
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
         "monthly_invitations": [
             {"month": m[0], "count": m[1]} for m in monthly_invitations
         ],
+        "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
     }
 
@@ -244,19 +365,93 @@ def dashboard_stats(db: Session = Depends(get_session)):
 # ENRICHISSEMENT API SIRENE
 # ============================================================================
 
+def _normalise_search_term(value: str) -> str:
+    return re.sub(r"\s+", " ", value or "").strip()
+
+
+def _search_local_siret(db: Session, nom: str, ville: str, limit: int) -> list[dict[str, str]]:
+    """Fallback local en cas d'échec de l'API Sirene."""
+
+    query = db.query(SiretSummary)
+
+    cleaned_name = _normalise_search_term(nom)
+    if cleaned_name:
+        for token in cleaned_name.split():
+            query = query.filter(SiretSummary.raison_sociale.ilike(f"%{token}%"))
+
+    cleaned_city = _normalise_search_term(ville)
+    if cleaned_city:
+        for token in cleaned_city.split():
+            query = query.filter(SiretSummary.ville.ilike(f"%{token}%"))
+
+    if not cleaned_name and not cleaned_city:
+        return []
+
+    rows = (
+        query
+        .order_by(func.coalesce(SiretSummary.inscrits_c4, 0).desc())
+        .limit(limit)
+        .all()
+    )
+
+    results: list[dict[str, str]] = []
+    for row in rows:
+        adresse_parts = [
+            row.cp or "",
+            (row.ville or "").title(),
+        ]
+        adresse = " ".join(part for part in adresse_parts if part).strip()
+
+        fd = row.fd_c4 or row.fd_c3
+        idcc = row.idcc
+        meta_parts = [
+            f"FD {fd}" if fd else "",
+            f"IDCC {idcc}" if idcc else "",
+        ]
+        activite = " • ".join(part for part in meta_parts if part)
+
+        results.append({
+            "siret": row.siret,
+            "siren": row.siren,
+            "denomination": row.raison_sociale or "Raison sociale inconnue",
+            "adresse": adresse,
+            "activite": activite,
+        })
+
+    return results
+
+
 @router.get("/sirene/search")
 async def sirene_search(
     nom: str = Query(..., min_length=2),
     ville: str = Query(..., min_length=2),
     limit: int = Query(10, ge=1, le=20),
+    db: Session = Depends(get_session),
 ):
     """Recherche d'établissements via l'API Sirene."""
 
+    sirene_error: str | None = None
+    results: List[dict] = []
+
     try:
         results = await rechercher_siret(nom, ville, limit)
-        return {"results": results}
     except SireneAPIError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        sirene_error = str(exc)
+
+    if results:
+        return {"results": results, "source": "sirene"}
+
+    fallback = _search_local_siret(db, nom, ville, limit)
+    if fallback:
+        response = {"results": fallback, "source": "local"}
+        if sirene_error:
+            response["warning"] = sirene_error
+        return response
+
+    if sirene_error:
+        raise HTTPException(status_code=502, detail=sirene_error)
+
+    return {"results": [], "source": "sirene"}
 
 
 @router.post("/sirene/enrichir/{siret}")
