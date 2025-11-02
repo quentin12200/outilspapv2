@@ -181,10 +181,33 @@ def _compute_dashboard_stats(db: Session):
     #
     # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
     # ----------------------------------------------------------------------
+    def _normalize_siret(value):
+        if value is None:
+            return None
+
+        if isinstance(value, (bytes, bytearray)):
+            text = value.decode("utf-8", "ignore")
+        else:
+            text = str(value)
+
+        stripped = text.strip()
+        if not stripped:
+            return None
+
+        digits_only = "".join(ch for ch in stripped if ch.isdigit())
+        if len(digits_only) == 14:
+            return digits_only
+
+        if len(stripped) == 14 and stripped.isdigit():
+            return stripped
+
+        return digits_only or stripped or None
+
     latest_c4_rows = (
         db.query(
             PVEvent.siret,
             PVEvent.id,
+            PVEvent.date_pv,
             PVEvent.inscrits,
             PVEvent.cgt_voix,
         )
@@ -194,8 +217,8 @@ def _compute_dashboard_stats(db: Session):
     )
 
     latest_per_siret: dict[str, dict[str, float]] = {}
-    for siret_value, pv_id, inscrits_value, cgt_voix_value in latest_c4_rows:
-        siret_str = (str(siret_value) if siret_value is not None else "").strip()
+    for siret_value, pv_id, pv_date_value, inscrits_value, cgt_voix_value in latest_c4_rows:
+        siret_str = _normalize_siret(siret_value)
         if not siret_str:
             continue
 
@@ -204,12 +227,19 @@ def _compute_dashboard_stats(db: Session):
         except (TypeError, ValueError):
             pv_order = 0
 
+        parsed_pv_date = _parse_date_value(pv_date_value)
+        order_tuple = (
+            parsed_pv_date or date.min,
+            pv_order,
+        )
+
         current = latest_per_siret.get(siret_str)
-        if current and pv_order <= current.get("order", 0):
+        if current and order_tuple <= current.get("order", (date.min, 0)):
             continue
 
         latest_per_siret[siret_str] = {
-            "order": pv_order,
+            "order": order_tuple,
+            "date": parsed_pv_date,
             "inscrits": _to_number(inscrits_value) or 0.0,
             "cgt_voix": _to_number(cgt_voix_value) or 0.0,
         }
@@ -318,17 +348,18 @@ def _compute_dashboard_stats(db: Session):
         if not parsed_date or parsed_date < today:
             continue
 
-        effectif_value = _to_number(effectif_siret)
-        if effectif_value is None:
-            effectif_value = _to_number(inscrits)
-
-        if effectif_value is None or effectif_value < audience_threshold:
-            continue
-
         cycle_value = (cycle or "").upper()
-        siret_value = str(siret or "").strip()
+        siret_value = _normalize_siret(siret)
         if not siret_value:
             continue
+
+        if siret_value not in eligible_sirets:
+            effectif_value = _to_number(effectif_siret)
+            if effectif_value is None:
+                effectif_value = _to_number(inscrits)
+
+            if effectif_value is None or effectif_value < audience_threshold:
+                continue
 
         if (
             "C4" in cycle_value
