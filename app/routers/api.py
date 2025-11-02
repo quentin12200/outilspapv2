@@ -195,7 +195,7 @@ def _compute_dashboard_stats(db: Session):
 
     latest_per_siret: dict[str, dict[str, float]] = {}
     for siret_value, pv_id, inscrits_value, cgt_voix_value in latest_c4_rows:
-        siret_str = (siret_value or "").strip()
+        siret_str = (str(siret_value) if siret_value is not None else "").strip()
         if not siret_str:
             continue
 
@@ -268,7 +268,7 @@ def _compute_dashboard_stats(db: Session):
     # Répartition par département (top 10) sur la cible
     dep_counts: dict[str, int] = {}
     for row in summary_rows:
-        dep_value = (row.dep or "").strip()
+        dep_value = (str(row.dep) if row.dep is not None else "").strip()
         if not dep_value:
             continue
         dep_counts[dep_value] = dep_counts.get(dep_value, 0) + 1
@@ -448,7 +448,7 @@ def _compute_dashboard_stats(db: Session):
     # Statistiques par statut PAP sur la cible
     statut_counts: dict[str, int] = {}
     for row in summary_rows:
-        statut_value = (row.statut_pap or "").strip()
+        statut_value = (str(row.statut_pap) if row.statut_pap is not None else "").strip()
         if not statut_value:
             continue
         statut_counts[statut_value] = statut_counts.get(statut_value, 0) + 1
