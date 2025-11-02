@@ -515,7 +515,13 @@ def _normalise_search_term(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
 
-def _search_local_siret(db: Session, nom: str, ville: str, limit: int) -> list[dict[str, str]]:
+def _search_local_siret(
+    db: Session,
+    nom: str,
+    code_postal: str | None,
+    ville: str | None,
+    limit: int
+) -> list[dict[str, str]]:
     """Fallback local en cas d'échec de l'API Sirene."""
 
     query = db.query(SiretSummary)
@@ -525,12 +531,16 @@ def _search_local_siret(db: Session, nom: str, ville: str, limit: int) -> list[d
         for token in cleaned_name.split():
             query = query.filter(SiretSummary.raison_sociale.ilike(f"%{token}%"))
 
-    cleaned_city = _normalise_search_term(ville)
-    if cleaned_city:
-        for token in cleaned_city.split():
-            query = query.filter(SiretSummary.ville.ilike(f"%{token}%"))
+    # Prioritize postal code over city
+    if code_postal:
+        query = query.filter(SiretSummary.cp.ilike(f"{code_postal}%"))
+    elif ville:
+        cleaned_city = _normalise_search_term(ville)
+        if cleaned_city:
+            for token in cleaned_city.split():
+                query = query.filter(SiretSummary.ville.ilike(f"%{token}%"))
 
-    if not cleaned_name and not cleaned_city:
+    if not cleaned_name and not code_postal and not ville:
         return []
 
     rows = (
@@ -570,7 +580,8 @@ def _search_local_siret(db: Session, nom: str, ville: str, limit: int) -> list[d
 @router.get("/sirene/search")
 async def sirene_search(
     nom: str = Query(..., min_length=2),
-    ville: str = Query(..., min_length=2),
+    code_postal: str | None = Query(None, min_length=5, max_length=5),
+    ville: str | None = Query(None, min_length=2),
     limit: int = Query(10, ge=1, le=20),
     db: Session = Depends(get_session),
 ):
@@ -580,14 +591,14 @@ async def sirene_search(
     results: List[dict] = []
 
     try:
-        results = await rechercher_siret(nom, ville, limit)
+        results = await rechercher_siret(nom, code_postal, ville, limit)
     except SireneAPIError as exc:
         sirene_error = str(exc)
 
     if results:
         return {"results": results, "source": "sirene"}
 
-    fallback = _search_local_siret(db, nom, ville, limit)
+    fallback = _search_local_siret(db, nom, code_postal, ville, limit)
     if fallback:
         response = {"results": fallback, "source": "local"}
         if sirene_error:

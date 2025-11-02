@@ -120,15 +120,18 @@ class SireneAPI:
     async def search_siret(
         self,
         denomination: str,
-        commune: str,
+        code_postal: Optional[str] = None,
+        commune: Optional[str] = None,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
-        Recherche des établissements par raison sociale et commune.
+        Recherche des établissements par raison sociale, code postal et/ou commune.
         Utilise plusieurs stratégies de recherche pour maximiser les résultats.
+        Le code postal est prioritaire sur la commune si les deux sont fournis.
         """
 
         denomination = (denomination or "").strip()
+        code_postal = (code_postal or "").strip()
         commune = (commune or "").strip()
 
         if not denomination:
@@ -146,7 +149,29 @@ class SireneAPI:
         # Stratégies de recherche multiples (de la plus stricte à la plus permissive)
         search_strategies = []
 
-        if commune:
+        # Priorité: code postal > commune
+        if code_postal:
+            # Stratégie 1: Recherche stricte avec code postal
+            search_strategies.append({
+                "name": "strict_postal",
+                "query": f'denominationUniteLegale:"{_sanitize(denomination)}" AND codePostalEtablissement:{code_postal}'
+            })
+
+            # Stratégie 2: Recherche avec wildcards + code postal
+            den_parts = _sanitize(denomination).split()
+            if len(den_parts) > 1:
+                den_wildcard = " AND ".join([f'denominationUniteLegale:*{part}*' for part in den_parts])
+                search_strategies.append({
+                    "name": "wildcard_postal",
+                    "query": f'({den_wildcard}) AND codePostalEtablissement:{code_postal}'
+                })
+            else:
+                search_strategies.append({
+                    "name": "wildcard_postal",
+                    "query": f'denominationUniteLegale:*{_sanitize(denomination)}* AND codePostalEtablissement:{code_postal}'
+                })
+
+        elif commune:
             # Stratégie 1: Recherche stricte avec AND
             search_strategies.append({
                 "name": "strict",
@@ -169,17 +194,11 @@ class SireneAPI:
                     "query": f'denominationUniteLegale:*{_sanitize(denomination)}* AND libelleCommuneEtablissement:*{_sanitize(commune)}*'
                 })
 
-            # Stratégie 3: Recherche par dénomination seule avec filtre ville
-            search_strategies.append({
-                "name": "denomination_only",
-                "query": f'denominationUniteLegale:*{_sanitize(denomination)}*'
-            })
-        else:
-            # Si pas de commune, recherche par dénomination uniquement
-            search_strategies.append({
-                "name": "denomination_only",
-                "query": f'denominationUniteLegale:*{_sanitize(denomination)}*'
-            })
+        # Stratégie finale: Recherche par dénomination seule (fallback)
+        search_strategies.append({
+            "name": "denomination_only",
+            "query": f'denominationUniteLegale:*{_sanitize(denomination)}*'
+        })
 
         # Essayer chaque stratégie jusqu'à trouver des résultats
         for strategy in search_strategies:
@@ -200,14 +219,20 @@ class SireneAPI:
                         logger.info(f"Sirene search: {len(etablissements)} résultats avec stratégie '{strategy['name']}'")
                         results = [self._parse_etablissement(etab) for etab in etablissements]
 
-                        # Si on a une commune et qu'on n'a pas utilisé la stratégie stricte,
-                        # filtrer les résultats pour ne garder que ceux de la bonne ville
-                        if commune and strategy["name"] != "strict":
-                            commune_lower = commune.lower()
-                            results = [
-                                r for r in results
-                                if commune_lower in (r.get("commune") or "").lower()
-                            ]
+                        # Filtrer les résultats selon le contexte
+                        if strategy["name"] == "denomination_only":
+                            # Si stratégie fallback, filtrer par code postal ou commune
+                            if code_postal:
+                                results = [
+                                    r for r in results
+                                    if (r.get("code_postal") or "").startswith(code_postal)
+                                ]
+                            elif commune:
+                                commune_lower = commune.lower()
+                                results = [
+                                    r for r in results
+                                    if commune_lower in (r.get("commune") or "").lower()
+                                ]
 
                         if results:
                             return results[:limit]
@@ -237,10 +262,11 @@ class SireneAPI:
                     raise SireneAPIError(f"Erreur API: {response.status_code}")
 
             except httpx.TimeoutException:
+                location = f"CP:{code_postal}" if code_postal else commune or "N/A"
                 logger.error(
                     "Timeout lors de la recherche Sirene pour %s / %s",
                     denomination,
-                    commune,
+                    location,
                 )
                 raise SireneAPIError("Timeout de l'API Sirene")
             except httpx.RequestError as e:
@@ -248,7 +274,8 @@ class SireneAPI:
                 raise SireneAPIError("Erreur de connexion à l'API Sirene")
 
         # Aucune stratégie n'a donné de résultats
-        logger.info(f"Sirene search: aucun résultat trouvé pour '{denomination}' / '{commune}'")
+        location = f"CP:{code_postal}" if code_postal else commune or "N/A"
+        logger.info(f"Sirene search: aucun résultat trouvé pour '{denomination}' / '{location}'")
         return []
 
     def _parse_etablissement(self, etab: Dict[str, Any]) -> Dict[str, Any]:
@@ -387,17 +414,19 @@ async def enrichir_siret(siret: str) -> Optional[Dict[str, Any]]:
 
 async def rechercher_siret(
     denomination: str,
-    commune: str,
+    code_postal: Optional[str] = None,
+    commune: Optional[str] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
     """Helper pour rechercher des établissements via l'API Sirene."""
 
     try:
-        return await sirene_api.search_siret(denomination, commune, limit)
+        return await sirene_api.search_siret(denomination, code_postal, commune, limit)
     except SireneAPIError as e:
         logger.error(
-            "Erreur recherche Sirene pour %s / %s: %s",
+            "Erreur recherche Sirene pour %s / CP:%s / %s: %s",
             denomination,
+            code_postal,
             commune,
             e,
         )
