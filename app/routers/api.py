@@ -361,7 +361,10 @@ def dashboard_stats(db: Session = Depends(get_session)):
     )
 
     invitations_period_start = date(2025, 1, 1)
-    invitations_period_end = db.query(func.max(Invitation.date_invit)).scalar()
+    invitations_period_end_raw = (
+        db.query(func.max(Invitation.date_invit)).scalar()
+    )
+    invitations_period_end = _parse_date_value(invitations_period_end_raw)
     invitations_period_total = 0
     if invitations_period_end:
         invitations_period_total = (
@@ -376,7 +379,8 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
     pv_total = db.query(func.count(PVEvent.id)).scalar() or 0
     pv_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
-    last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
+    last_summary_date_raw = db.query(func.max(SiretSummary.date_pv_max)).scalar()
+    last_summary_date = _parse_date_value(last_summary_date_raw)
     last_invitation_date = invitations_period_end
 
     pv_sirets_subquery = select(SiretSummary.siret).where(possessions_condition)
