@@ -1132,6 +1132,10 @@ def invitations(
             pv_c5_dates[row[0]] = row[1]
 
     # Récupérer tous les SIRET qui ont un PV C3 ou C4 (reconduction)
+    # DEBUG: Voir tous les cycles distincts dans la base
+    all_cycles = db.query(PVEvent.cycle).distinct().all()
+    print(f"DEBUG - Tous les cycles dans la base: {[c[0] for c in all_cycles if c[0]]}")
+
     sirets_with_previous_pv = set(
         row[0] for row in
         db.query(PVEvent.siret)
@@ -1139,6 +1143,7 @@ def invitations(
         .distinct()
         .all()
     )
+    print(f"DEBUG - Nombre de SIRETs avec PV C3/C4: {len(sirets_with_previous_pv)}")
 
     # Récupérer les dates présumées de prochaine élection (depuis le PV le plus récent)
     # On prend le dernier PV (C4 ou C3) qui a une date_prochain_scrutin
