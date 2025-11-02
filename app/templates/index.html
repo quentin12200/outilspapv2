@@ -87,18 +87,25 @@
           </div>
         </div>
         <div class="w-full lg:w-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Élections C5 programmées</p>
-            <p class="text-3xl font-bold" x-text="stats.audience_upcoming_c5 != null ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '—'">—</p>
-            <p class="text-sm text-white/70">SIRET C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> avec une prochaine élection déclarée</p>
-            <p class="text-xs text-white/60">
-              Couverture de la cible :
-              <span class="font-semibold" x-text="stats.audience_upcoming_c5_percent != null ? stats.audience_upcoming_c5_percent.toLocaleString('fr-FR') + ' %' : '—'"></span>
-            </p>
-            <p class="text-xs text-white/60">
-              Période déclarée :
-              <span x-text="formatUpcomingPeriod(stats.audience_upcoming_period_start_display, stats.audience_upcoming_period_end_display)"></span>
-            </p>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-3">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Aperçu des statuts PAP</p>
+            <template x-if="!stats.statut_stats || stats.statut_stats.length === 0">
+              <p class="text-sm text-white/70">Les statuts seront affichés dès qu'ils seront disponibles.</p>
+            </template>
+            <template x-if="stats.statut_stats && stats.statut_stats.length">
+              <div class="space-y-2">
+                <template x-for="entry in stats.statut_stats.slice(0, 5)" :key="entry.statut || 'inconnu'">
+                  <div class="flex items-center justify-between gap-3 bg-white/10 rounded-xl px-3 py-2">
+                    <span class="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                      <span class="inline-flex items-center justify-center w-2 h-2 rounded-full bg-white/60"></span>
+                      <span x-text="entry.statut || 'Sans statut'"></span>
+                    </span>
+                    <span class="text-sm font-bold text-white/80" x-text="entry.count != null ? entry.count.toLocaleString('fr-FR') : '—'"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <p class="text-xs text-white/60">Top 5 des statuts observés sur la cible ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es.</p>
           </div>
           <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-2">
             <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Autres possessions</p>
