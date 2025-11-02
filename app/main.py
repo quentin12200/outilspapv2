@@ -1116,23 +1116,48 @@ def invitations(
         qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
     )
 
+    def normalize_siret(value: str | None) -> str | None:
+        """Retourne une version canonique (14 chiffres) du SIRET lorsque possible."""
+
+        if not value:
+            return None
+
+        digits_only = "".join(ch for ch in value if ch.isdigit())
+        if len(digits_only) == 14:
+            return digits_only
+
+        stripped = value.strip()
+        if len(stripped) == 14 and stripped.isdigit():
+            return stripped
+
+        # Conserver la meilleure tentative pour ne pas perdre l'information
+        return digits_only or stripped or None
+
     # Récupérer tous les SIRET qui ont un PV C5 pour calculer le statut
-    sirets_with_pv_c5 = set(
-        row[0] for row in
-        db.query(PVEvent.siret)
-        .filter(PVEvent.cycle == "C5")
-        .distinct()
-        .all()
-    )
+    sirets_with_pv_c5 = {
+        normalized
+        for (raw_siret,) in (
+            db.query(PVEvent.siret)
+            .filter(PVEvent.cycle == "C5")
+            .distinct()
+            .all()
+        )
+        if (normalized := normalize_siret(raw_siret))
+    }
 
     # Dictionnaire SIRET -> date PV C5 pour affichage
     pv_c5_dates = {}
     for row in db.query(PVEvent.siret, PVEvent.date_pv).filter(PVEvent.cycle == "C5").all():
-        if row[0] and row[1]:
-            pv_c5_dates[row[0]] = row[1]
+        siret_norm = normalize_siret(row[0])
+        if siret_norm and row[1]:
+            pv_c5_dates[siret_norm] = row[1]
 
     # DEBUG: Effectifs côté invitations PAP
-    pap_sirets = {inv.siret for inv in invitations if inv.siret}
+    pap_sirets = {
+        normalized
+        for inv in invitations
+        if (normalized := normalize_siret(inv.siret))
+    }
     print(f"DEBUG - Invitations PAP chargées: {len(invitations)}")
     print(f"DEBUG - Invitations PAP avec SIRET: {len(pap_sirets)}")
 
@@ -1141,13 +1166,16 @@ def invitations(
     all_cycles = db.query(PVEvent.cycle).distinct().all()
     print(f"DEBUG - Tous les cycles dans la base: {[c[0] for c in all_cycles if c[0]]}")
 
-    sirets_with_previous_pv = set(
-        row[0] for row in
-        db.query(PVEvent.siret)
-        .filter(or_(PVEvent.cycle == "C3", PVEvent.cycle == "C4"))
-        .distinct()
-        .all()
-    )
+    sirets_with_previous_pv = {
+        normalized
+        for (raw_siret,) in (
+            db.query(PVEvent.siret)
+            .filter(or_(PVEvent.cycle == "C3", PVEvent.cycle == "C4"))
+            .distinct()
+            .all()
+        )
+        if (normalized := normalize_siret(raw_siret))
+    }
     print(f"DEBUG - Nombre de SIRETs avec PV C3/C4: {len(sirets_with_previous_pv)}")
     print(
         "DEBUG - Invitations PAP avec PV C3/C4:"
