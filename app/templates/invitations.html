@@ -86,10 +86,8 @@
         </label>
         <select id="statut" name="statut" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
           <option value="">Tous les statuts</option>
-          <option value="reponse_recue" {% if statut == 'reponse_recue' %}selected{% endif %}>🟢 Réponse reçue</option>
-          <option value="election_programmee" {% if statut == 'election_programmee' %}selected{% endif %}>🔵 Élection programmée</option>
-          <option value="en_attente" {% if statut == 'en_attente' %}selected{% endif %}>🟡 En attente</option>
-          <option value="retard" {% if statut == 'retard' %}selected{% endif %}>🔴 Retard</option>
+          <option value="pv_c5_enregistre" {% if statut == 'pv_c5_enregistre' %}selected{% endif %}>🔵 PV C5 enregistré</option>
+          <option value="en_attente" {% if statut == 'en_attente' %}selected{% endif %}>🟡 En attente de PV</option>
         </select>
       </div>
 
@@ -171,8 +169,7 @@
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Département</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ville</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date réception</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date élection</th>
+          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PV C5</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Source</th>
         </tr>
       </thead>
@@ -222,16 +219,9 @@
             <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">{{ dept }}</span>
           </td>
           <td class="px-4 py-3">{{ display_commune or '—' }}</td>
-          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_reception or '' }}">
-            {% if invit.date_reception %}
-              <span class="text-green-700">{{ invit.date_reception }}</span>
-            {% else %}
-              <span class="text-gray-400">—</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_election or '' }}">
-            {% if invit.date_election %}
-              <span class="text-blue-700 font-semibold">{{ invit.date_election }}</span>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_pv_c5 or '' }}">
+            {% if invit.date_pv_c5 %}
+              <span class="text-blue-700 font-semibold">{{ invit.date_pv_c5 }}</span>
             {% else %}
               <span class="text-gray-400">—</span>
             {% endif %}

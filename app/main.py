@@ -1106,28 +1106,30 @@ def invitations(
     if departement:
         qs = qs.filter(Invitation.code_postal.like(f"{departement}%"))
 
-    # Filtre par statut
+    # Filtre par statut (basé sur l'existence d'un PV C5)
     today = date.today()
-    thirty_days_ago = today - timedelta(days=30)
 
-    if statut == "reponse_recue":
-        qs = qs.filter(Invitation.date_reception.isnot(None))
-    elif statut == "election_programmee":
-        qs = qs.filter(Invitation.date_election.isnot(None))
-    elif statut == "en_attente":
-        qs = qs.filter(
-            Invitation.date_reception.is_(None),
-            Invitation.date_invit >= thirty_days_ago
-        )
-    elif statut == "retard":
-        qs = qs.filter(
-            Invitation.date_reception.is_(None),
-            Invitation.date_invit < thirty_days_ago
-        )
+    # On appliquera le filtre après avoir récupéré les invitations
+    # car on doit joindre avec la table PV
 
     invitations = (
         qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
     )
+
+    # Récupérer tous les SIRET qui ont un PV C5 pour calculer le statut
+    sirets_with_pv_c5 = set(
+        row[0] for row in
+        db.query(PVEvent.siret)
+        .filter(PVEvent.cycle == "C5")
+        .distinct()
+        .all()
+    )
+
+    # Dictionnaire SIRET -> date PV C5 pour affichage
+    pv_c5_dates = {}
+    for row in db.query(PVEvent.siret, PVEvent.date_pv).filter(PVEvent.cycle == "C5").all():
+        if row[0] and row[1]:
+            pv_c5_dates[row[0]] = row[1]
 
     def _normalize_raw_key(key: str) -> str:
         normalized = unicodedata.normalize("NFKD", str(key))
@@ -1266,34 +1268,27 @@ def invitations(
             "taille",
         )
 
-        # Calcul du statut
-        inv.statut = "inconnu"
-        inv.statut_badge = "gray"
-        inv.statut_icon = "fa-question"
-        inv.statut_label = "Inconnu"
+        # Calcul du statut basé sur l'existence d'un PV C5
+        inv.statut = "en_attente"
+        inv.statut_badge = "yellow"
+        inv.statut_icon = "fa-clock"
+        inv.statut_label = "En attente de PV"
+        inv.date_pv_c5 = None
 
-        if inv.date_election:
-            inv.statut = "election_programmee"
+        # Si le SIRET a un PV C5 enregistré
+        if inv.siret in sirets_with_pv_c5:
+            inv.statut = "pv_c5_enregistre"
             inv.statut_badge = "blue"
-            inv.statut_icon = "fa-calendar-check"
-            inv.statut_label = "Élection programmée"
-        elif inv.date_reception:
-            inv.statut = "reponse_recue"
-            inv.statut_badge = "green"
             inv.statut_icon = "fa-check-circle"
-            inv.statut_label = "Réponse reçue"
-        elif inv.date_invit:
-            days_since = (today - inv.date_invit).days
-            if days_since > 30:
-                inv.statut = "retard"
-                inv.statut_badge = "red"
-                inv.statut_icon = "fa-exclamation-triangle"
-                inv.statut_label = f"Retard ({days_since}j)"
-            else:
-                inv.statut = "en_attente"
-                inv.statut_badge = "yellow"
-                inv.statut_icon = "fa-clock"
-                inv.statut_label = f"En attente ({days_since}j)"
+            inv.statut_label = "PV C5 enregistré"
+            inv.date_pv_c5 = pv_c5_dates.get(inv.siret)
+
+    # Appliquer le filtre de statut si demandé
+    if statut:
+        if statut == "pv_c5_enregistre":
+            invitations = [inv for inv in invitations if inv.statut == "pv_c5_enregistre"]
+        elif statut == "en_attente":
+            invitations = [inv for inv in invitations if inv.statut == "en_attente"]
 
     # Récupérer les listes pour les filtres
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
