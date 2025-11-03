@@ -212,7 +212,9 @@
           </td>
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit or '' }}">{{ invit.date_invit or '' }}</td>
           <td class="px-4 py-3 whitespace-nowrap">
-            <a href="/siret/{{ invit.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
+            {% set raw_siret_link = invit.siret_normalized or invit.siret %}
+            {% set siret_link = (raw_siret_link | default('', true)) | urlencode %}
+            <a href="/siret/{{ siret_link }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
           </td>
           <td class="px-4 py-3">{{ display_denomination or '—' }}</td>
           <td class="px-4 py-3">{{ invit.ud or '—' }}</td>

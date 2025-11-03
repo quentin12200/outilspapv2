@@ -181,10 +181,34 @@ def _compute_dashboard_stats(db: Session):
     #
     # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
     # ----------------------------------------------------------------------
+    def _normalize_siret(value):
+        """Return a canonical 14-digit SIRET or ``None`` when the value is invalid."""
+        if value is None:
+            return None
+
+        if isinstance(value, (bytes, bytearray)):
+            text = value.decode("utf-8", "ignore")
+        else:
+            text = str(value)
+
+        stripped = text.strip()
+        if not stripped:
+            return None
+
+        digits_only = "".join(ch for ch in stripped if ch.isdigit())
+        if len(digits_only) == 14:
+            return digits_only
+
+        if len(stripped) == 14 and stripped.isdigit():
+            return stripped
+
+        return digits_only or stripped or None
+
     latest_c4_rows = (
         db.query(
             PVEvent.siret,
             PVEvent.id,
+            PVEvent.date_pv,
             PVEvent.inscrits,
             PVEvent.cgt_voix,
         )
@@ -194,8 +218,8 @@ def _compute_dashboard_stats(db: Session):
     )
 
     latest_per_siret: dict[str, dict[str, float]] = {}
-    for siret_value, pv_id, inscrits_value, cgt_voix_value in latest_c4_rows:
-        siret_str = (str(siret_value) if siret_value is not None else "").strip()
+    for siret_value, pv_id, pv_date_value, inscrits_value, cgt_voix_value in latest_c4_rows:
+        siret_str = _normalize_siret(siret_value)
         if not siret_str:
             continue
 
@@ -204,12 +228,19 @@ def _compute_dashboard_stats(db: Session):
         except (TypeError, ValueError):
             pv_order = 0
 
+        parsed_pv_date = _parse_date_value(pv_date_value)
+        order_tuple = (
+            parsed_pv_date or date.min,
+            pv_order,
+        )
+
         current = latest_per_siret.get(siret_str)
-        if current and pv_order <= current.get("order", 0):
+        if current and order_tuple <= current.get("order", (date.min, 0)):
             continue
 
         latest_per_siret[siret_str] = {
-            "order": pv_order,
+            "order": order_tuple,
+            "date": parsed_pv_date,
             "inscrits": _to_number(inscrits_value) or 0.0,
             "cgt_voix": _to_number(cgt_voix_value) or 0.0,
         }
@@ -279,25 +310,20 @@ def _compute_dashboard_stats(db: Session):
 
     six_months_ago = date.today() - timedelta(days=180)
 
-    if eligible_sirets:
-        month_bucket = _month_bucket_expression(db, Invitation.date_invit)
+    month_bucket = _month_bucket_expression(db, Invitation.date_invit)
 
-        monthly_invitations = (
-            db.query(
-                month_bucket.label("month"),
-                func.count(Invitation.id).label("count"),
-            )
-            .filter(Invitation.siret.in_(eligible_sirets))
-            .filter(Invitation.date_invit >= six_months_ago)
-            .group_by(month_bucket)
-            .order_by(month_bucket)
-            .all()
+    monthly_invitations = (
+        db.query(
+            month_bucket.label("month"),
+            func.count(Invitation.id).label("count"),
         )
-    else:
-        monthly_invitations = []
+        .filter(Invitation.date_invit >= six_months_ago)
+        .group_by(month_bucket)
+        .order_by(month_bucket)
+        .all()
+    )
 
     today = date.today()
-    per_cycle = {}
 
     upcoming_rows = (
         db.query(
@@ -306,61 +332,183 @@ def _compute_dashboard_stats(db: Session):
             PVEvent.date_prochain_scrutin,
             PVEvent.effectif_siret,
             PVEvent.inscrits,
+            PVEvent.quadrimestre_scrutin,
         )
         .filter(PVEvent.date_prochain_scrutin.isnot(None))
         .all()
     )
 
-    upcoming_c5_sirets: set[str] = set()
+    cycle5_reference_start = date(2025, 1, 1)
+    cycle5_reference_end = date(2028, 12, 31)
 
-    for siret, cycle, next_date, effectif_siret, inscrits in upcoming_rows:
+    upcoming_entries: list[dict[str, object]] = []
+
+    for (
+        siret,
+        cycle,
+        next_date,
+        effectif_siret,
+        inscrits,
+        quadrimestre,
+    ) in upcoming_rows:
         parsed_date = _parse_date_value(next_date)
-        if not parsed_date or parsed_date < today:
+        if not parsed_date:
+            continue
+
+        if parsed_date < cycle5_reference_start or parsed_date > cycle5_reference_end:
+            continue
+
+        siret_value = _normalize_siret(siret)
+        if not siret_value:
             continue
 
         effectif_value = _to_number(effectif_siret)
         if effectif_value is None:
             effectif_value = _to_number(inscrits)
 
-        if effectif_value is None or effectif_value < audience_threshold:
+        upcoming_entries.append(
+            {
+                "siret": siret_value,
+                "date": parsed_date,
+                "effectif": effectif_value,
+                "cycle_marker": cycle,
+                "quadrimestre": quadrimestre,
+            }
+        )
+
+    missing_effectif_sirets = {
+        entry["siret"]
+        for entry in upcoming_entries
+        if entry.get("effectif") is None
+    }
+
+    summary_lookup: dict[str, dict[str, object]] = {}
+    if missing_effectif_sirets:
+        lookup_rows = (
+            db.query(
+                SiretSummary.siret,
+                SiretSummary.effectif_siret,
+                SiretSummary.inscrits_c4,
+                SiretSummary.inscrits_c3,
+            )
+            .filter(SiretSummary.siret.in_(missing_effectif_sirets))
+            .all()
+        )
+        summary_lookup = {
+            row.siret: {
+                "effectif_siret": row.effectif_siret,
+                "inscrits_c4": row.inscrits_c4,
+                "inscrits_c3": row.inscrits_c3,
+            }
+            for row in lookup_rows
+        }
+
+    for entry in upcoming_entries:
+        if entry.get("effectif") is not None:
             continue
 
-        cycle_value = (cycle or "").upper()
-        siret_value = str(siret or "").strip()
-        if not siret_value:
+        summary_row = summary_lookup.get(entry["siret"])
+        if summary_row:
+            for key in ("effectif_siret", "inscrits_c4", "inscrits_c3"):
+                candidate = _to_number(summary_row.get(key))
+                if candidate:
+                    entry["effectif"] = candidate
+                    break
+
+        if entry.get("effectif") is None:
+            latest_payload = latest_per_siret.get(entry["siret"])
+            if latest_payload:
+                entry["effectif"] = latest_payload.get("inscrits")
+
+        if entry.get("effectif") is None:
+            entry["effectif"] = 0.0
+
+    declared_c5_by_siret: dict[str, dict[str, object]] = {}
+    for entry in upcoming_entries:
+        siret_value = entry["siret"]  # type: ignore[index]
+        parsed_date = entry["date"]  # type: ignore[index]
+        current = declared_c5_by_siret.get(siret_value)
+        if current is None:
+            declared_c5_by_siret[siret_value] = {
+                "date": parsed_date,
+                "effectif": entry.get("effectif") or 0.0,
+            }
             continue
 
-        if (
-            "C4" in cycle_value
-            and "C5" not in cycle_value
-            and siret_value in eligible_sirets
+        current_date = current.get("date")
+        if isinstance(parsed_date, date) and (
+            not isinstance(current_date, date) or parsed_date < current_date
         ):
-            upcoming_c5_sirets.add(siret_value)
-
-        key = (siret_value, cycle_value)
-        existing = per_cycle.get(key)
-        if existing is None or parsed_date < existing:
-            per_cycle[key] = parsed_date
+            declared_c5_by_siret[siret_value] = {
+                "date": parsed_date,
+                "effectif": entry.get("effectif") or 0.0,
+            }
 
     quarter_counts: dict[tuple[int, int], int] = {}
-    for parsed_date in per_cycle.values():
-        quarter_index = ((parsed_date.month - 1) // 3) + 1
-        key = (parsed_date.year, quarter_index)
+    for payload in declared_c5_by_siret.values():
+        declared_date = payload.get("date")
+        if not isinstance(declared_date, date):
+            continue
+        quarter_index = ((declared_date.month - 1) // 3) + 1
+        key = (declared_date.year, quarter_index)
         quarter_counts[key] = quarter_counts.get(key, 0) + 1
 
+    def _iterate_quarters(start: date, end: date):
+        year = start.year
+        quarter = ((start.month - 1) // 3) + 1
+        final_quarter = ((end.month - 1) // 3) + 1
+        while year < end.year or (year == end.year and quarter <= final_quarter):
+            yield year, quarter
+            quarter += 1
+            if quarter > 4:
+                quarter = 1
+                year += 1
+
     upcoming_quarters = [
-        {"label": f"T{quarter} {year}", "count": count}
-        for (year, quarter), count in sorted(
-            quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
+        {
+            "label": f"T{quarter} {year}",
+            "count": quarter_counts.get((year, quarter), 0),
+        }
+        for year, quarter in _iterate_quarters(
+            cycle5_reference_start, cycle5_reference_end
         )
-    ][:4]
+    ]
 
-    upcoming_dates = list(per_cycle.values())
-    upcoming_next_date = min(upcoming_dates) if upcoming_dates else None
+    declared_dates_sorted = sorted(
+        [
+            payload["date"]
+            for payload in declared_c5_by_siret.values()
+            if isinstance(payload.get("date"), date)
+        ]
+    )
+    future_dates = [d for d in declared_dates_sorted if d >= today]
 
-    c5_upcoming_total = len(upcoming_c5_sirets)
-    c5_upcoming_percent = round(
-        (c5_upcoming_total / audience_siret * 100) if audience_siret > 0 else 0,
+    coverage_start_date = declared_dates_sorted[0] if declared_dates_sorted else None
+    coverage_end_date = declared_dates_sorted[-1] if declared_dates_sorted else None
+    upcoming_next_date = future_dates[0] if future_dates else None
+
+    declared_total_all = len(declared_c5_by_siret)
+    declared_total_eligible = sum(
+        1
+        for payload in declared_c5_by_siret.values()
+        if (_to_number(payload.get("effectif")) or 0) >= audience_threshold
+    )
+
+    future_total_all = sum(1 for d in future_dates)
+    future_total_eligible = sum(
+        1
+        for payload in declared_c5_by_siret.values()
+        if isinstance(payload.get("date"), date)
+        and payload["date"] >= today  # type: ignore[index]
+        and (_to_number(payload.get("effectif")) or 0) >= audience_threshold
+    )
+
+    declared_percent = round(
+        (declared_total_eligible / audience_siret * 100) if audience_siret > 0 else 0,
+        1,
+    )
+    future_percent = round(
+        (future_total_eligible / audience_siret * 100) if audience_siret > 0 else 0,
         1,
     )
 
@@ -440,9 +588,19 @@ def _compute_dashboard_stats(db: Session):
         "last_summary": _format_date_display(last_summary_date),
         "invit_total": invitations_total,
         "last_invitation": _format_date_display(last_invitation_date),
-        "upcoming_total": len(per_cycle),
+        "upcoming_total": declared_total_eligible,
         "upcoming_next": _format_date_display(upcoming_next_date),
         "upcoming_threshold": audience_threshold,
+        "upcoming_period_start": cycle5_reference_start.isoformat(),
+        "upcoming_period_end": cycle5_reference_end.isoformat(),
+        "upcoming_period_start_display": _format_date_display(
+            cycle5_reference_start
+        ),
+        "upcoming_period_end_display": _format_date_display(
+            cycle5_reference_end
+        ),
+        "upcoming_total_all": declared_total_all,
+        "upcoming_next_all": _format_date_display(upcoming_next_date),
     }
 
     # Statistiques par statut PAP sur la cible
@@ -483,8 +641,28 @@ def _compute_dashboard_stats(db: Session):
             (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
             1,
         ),
-        "audience_upcoming_c5": c5_upcoming_total,
-        "audience_upcoming_c5_percent": c5_upcoming_percent,
+        "audience_upcoming_c5": future_total_eligible,
+        "audience_upcoming_c5_percent": future_percent,
+        "audience_upcoming_declared_total": declared_total_eligible,
+        "audience_upcoming_declared_percent": declared_percent,
+        "audience_upcoming_future_total": future_total_eligible,
+        "audience_upcoming_future_percent": future_percent,
+        "audience_upcoming_period_start": cycle5_reference_start.isoformat(),
+        "audience_upcoming_period_end": cycle5_reference_end.isoformat(),
+        "audience_upcoming_period_start_display": _format_date_display(
+            cycle5_reference_start
+        ),
+        "audience_upcoming_period_end_display": _format_date_display(
+            cycle5_reference_end
+        ),
+        "audience_upcoming_coverage_start_display": _format_date_display(
+            coverage_start_date
+        ),
+        "audience_upcoming_coverage_end_display": _format_date_display(
+            coverage_end_date
+        ),
+        "audience_upcoming_declared_total_all": declared_total_all,
+        "audience_upcoming_future_total_all": future_total_all,
         "autres_possessions_total": autres_possessions_total,
         "autres_possessions_c3": autres_possessions_c3,
         "autres_possessions_c4": autres_possessions_c4,

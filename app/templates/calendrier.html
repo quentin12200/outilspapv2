@@ -202,11 +202,21 @@
           </tbody>
         </table>
       </div>
-      <div class="px-6 py-4 bg-gray-50 text-sm text-gray-600 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <p>
-          {{ elections|length }} échéance(s) à venir correspond(ent) aux filtres.
+      <div class="px-6 py-4 bg-gray-50 text-sm text-gray-600 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <p class="flex-1">
+          {% if next_election %}
+            Prochain scrutin&nbsp;: <strong>{{ next_election.date_display }}</strong>
+            {% if next_election.raison_sociale %}
+              · {{ next_election.raison_sociale }}
+            {% endif %}
+            {% if next_election.siret %}
+              · SIRET <span class="font-mono">{{ next_election.siret }}</span>
+            {% endif %}
+          {% else %}
+            Aucun scrutin futur ne correspond actuellement aux filtres appliqués.
+          {% endif %}
         </p>
-        <p>
+        <p class="text-gray-500">
           Seuil effectif&nbsp;: <strong>{{ filters.min_effectif }}</strong>
           {% if filters.cycle %} · Cycle <strong>{{ filters.cycle }}</strong>{% endif %}
           {% if filters.institution %} · Type <strong>{{ filters.institution }}</strong>{% endif %}
