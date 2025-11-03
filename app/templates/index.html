@@ -87,14 +87,25 @@
           </div>
         </div>
         <div class="w-full lg:w-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Élections C5 programmées</p>
-            <p class="text-3xl font-bold" x-text="stats.audience_upcoming_c5 != null ? stats.audience_upcoming_c5.toLocaleString('fr-FR') : '—'">—</p>
-            <p class="text-sm text-white/70">SIRET C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> avec une prochaine élection déclarée</p>
-            <p class="text-xs text-white/60">
-              Cible totale : <span class="font-semibold" x-text="stats.audience_siret != null ? stats.audience_siret.toLocaleString('fr-FR') : '—'"></span>
-              (<span x-text="stats.audience_upcoming_c5_percent != null ? stats.audience_upcoming_c5_percent.toLocaleString('fr-FR') + ' %' : '—'"></span>)
-            </p>
+          <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-3">
+            <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Aperçu des statuts PAP</p>
+            <template x-if="!stats.statut_stats || stats.statut_stats.length === 0">
+              <p class="text-sm text-white/70">Les statuts seront affichés dès qu'ils seront disponibles.</p>
+            </template>
+            <template x-if="stats.statut_stats && stats.statut_stats.length">
+              <div class="space-y-2">
+                <template x-for="entry in stats.statut_stats.slice(0, 5)" :key="entry.statut || 'inconnu'">
+                  <div class="flex items-center justify-between gap-3 bg-white/10 rounded-xl px-3 py-2">
+                    <span class="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                      <span class="inline-flex items-center justify-center w-2 h-2 rounded-full bg-white/60"></span>
+                      <span x-text="entry.statut || 'Sans statut'"></span>
+                    </span>
+                    <span class="text-sm font-bold text-white/80" x-text="entry.count != null ? entry.count.toLocaleString('fr-FR') : '—'"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <p class="text-xs text-white/60">Top 5 des statuts observés sur la cible ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es.</p>
           </div>
           <div class="backdrop-blur bg-white/10 border border-white/20 rounded-2xl p-5 space-y-2">
             <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Autres possessions</p>
@@ -170,26 +181,51 @@
       <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-purple-100">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-widest text-purple-600">Élections ≥ <span x-text="stats.global_stats ? (stats.global_stats.upcoming_threshold || 1000).toLocaleString('fr-FR') : 1000"></span></p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-purple-600">Élections C5 ≥ <span x-text="stats.global_stats ? (stats.global_stats.upcoming_threshold || 1000).toLocaleString('fr-FR') : 1000"></span></p>
             <p class="text-2xl font-bold text-gray-900" x-text="stats.global_stats ? (stats.global_stats.upcoming_total || 0).toLocaleString('fr-FR') : '0'"></p>
           </div>
           <span class="w-11 h-11 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl"><i class="fas fa-calendar-day"></i></span>
         </div>
         <p class="text-xs text-gray-600">Prochaine échéance : <span class="font-semibold" x-text="stats.global_stats ? (stats.global_stats.upcoming_next || '—') : '—'"></span></p>
+        <p class="text-xs text-gray-600">Période cycle 5 :
+          <span class="font-semibold"
+                x-text="formatUpcomingPeriod(stats.audience_upcoming_period_start_display, stats.audience_upcoming_period_end_display)"></span>
+        </p>
+        <p class="text-xs text-gray-600">Fenêtre déclarée :
+          <span class="font-semibold"
+                x-text="formatUpcomingPeriod(stats.audience_upcoming_coverage_start_display, stats.audience_upcoming_coverage_end_display)"></span>
+        </p>
+        <p class="text-xs text-gray-600">Part de la cible :
+          <span class="font-semibold"
+                x-text="stats.audience_upcoming_declared_percent != null ? stats.audience_upcoming_declared_percent.toLocaleString('fr-FR') + ' %' : '—'"></span>
+        </p>
       </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Departments Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
-      <div class="mb-4">
-        <h3 class="text-xl font-bold text-gray-800">
-          <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
-          Top 10 départements (C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
-        </h3>
-        <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 • SIRET prioritaires par département
-        </p>
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">
+            <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
+            Top 10 départements (C4 ≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
+          </h3>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-database mr-1"></i><strong>Source :</strong> PV C4 • SIRET prioritaires par département
+          </p>
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-gray-600 hover:text-cgt-red hover:border-cgt-red transition disabled:opacity-40 disabled:cursor-not-allowed"
+          @click="openChartModal('departments')"
+          :disabled="!stats.departments || !stats.departments.length"
+          title="Agrandir le graphique"
+          aria-label="Agrandir le graphique des départements"
+          aria-haspopup="dialog"
+        >
+          <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
       </div>
       <div style="height: 300px; position: relative;">
         <canvas id="departmentsChart"></canvas>
@@ -198,14 +234,27 @@
 
     <!-- Monthly Invitations Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
-      <div class="mb-4">
-        <h3 class="text-xl font-bold text-gray-800">
-          <i class="fas fa-calendar-alt text-cgt-red mr-2"></i>
-          Invitations mensuelles (cible)
-        </h3>
-        <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span>
-        </p>
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">
+            <i class="fas fa-calendar-alt text-cgt-red mr-2"></i>
+            Invitations mensuelles (cible)
+          </h3>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 (toutes entrées)
+          </p>
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-gray-600 hover:text-cgt-red hover:border-cgt-red transition disabled:opacity-40 disabled:cursor-not-allowed"
+          @click="openChartModal('monthly')"
+          :disabled="!stats.monthly_invitations || !stats.monthly_invitations.length"
+          title="Agrandir le graphique"
+          aria-label="Agrandir le graphique des invitations mensuelles"
+          aria-haspopup="dialog"
+        >
+          <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
       </div>
       <div style="height: 300px; position: relative;">
         <canvas id="monthlyChart"></canvas>
@@ -214,20 +263,74 @@
 
     <!-- Upcoming Elections Chart -->
     <div class="bg-white rounded-xl shadow-md p-6">
-      <div class="mb-4">
-        <h3 class="text-xl font-bold text-gray-800">
-          <i class="fas fa-hourglass-half text-cgt-red mr-2"></i>
-          Prochaines élections (4 trimestres)
-        </h3>
-        <p class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-calendar-day mr-1"></i><strong>Source :</strong> Dates prévisionnelles C5 (≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
-        </p>
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">
+            <i class="fas fa-hourglass-half text-cgt-red mr-2"></i>
+            Prochaines élections C5 (2025-2028 · par trimestre)
+          </h3>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-calendar-day mr-1"></i><strong>Source :</strong> Dates prévisionnelles C5 (tous effectifs)
+          </p>
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-gray-600 hover:text-cgt-red hover:border-cgt-red transition disabled:opacity-40 disabled:cursor-not-allowed"
+          @click="openChartModal('quarters')"
+          :disabled="!stats.upcoming_quarters || !stats.upcoming_quarters.length"
+          title="Agrandir le graphique"
+          aria-label="Agrandir le graphique des élections C5"
+          aria-haspopup="dialog"
+        >
+          <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
       </div>
       <div style="height: 300px; position: relative;">
         <canvas id="quartersChart"></canvas>
       </div>
     </div>
   </div>
+
+    <div
+      x-cloak
+      x-show="expandedChart"
+      x-transition.opacity
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4"
+      @keydown.escape.window="closeChartModal()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chartModalTitle"
+      aria-describedby="chartModalSource"
+    >
+      <div class="absolute inset-0" @click="closeChartModal()"></div>
+      <div class="relative z-10 w-full max-w-6xl bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 space-y-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              id="chartModalTitle"
+              class="text-base font-semibold uppercase tracking-widest text-cgt-red"
+              x-text="getChartTitle(expandedChart)"
+            ></h2>
+            <p
+              id="chartModalSource"
+              class="text-xs text-gray-500 mt-1"
+              x-text="getChartSource(expandedChart)"
+            ></p>
+          </div>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 hover:bg-cgt-red hover:text-white transition"
+            @click="closeChartModal()"
+            title="Fermer"
+          >
+            <i class="fas fa-xmark text-lg"></i>
+          </button>
+        </div>
+        <div class="h-[70vh]">
+          <canvas id="expandedChartCanvas"></canvas>
+        </div>
+      </div>
+    </div>
 
     <!-- Statut PAP Stats -->
     <div class="bg-white/90 backdrop-blur rounded-2xl shadow-lg border border-gray-200 p-6 mb-4">
@@ -572,7 +675,11 @@
           {% for r in rows %}
           <tr class="table-row-hover hover:bg-cgt-lightred">
             <td class="px-4 py-3 whitespace-nowrap">
+              {% if r.detail_available %}
               <a href="/siret/{{ r.siret }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ r.siret }}</a>
+              {% else %}
+              <span class="text-gray-400 font-medium" title="Détail indisponible">{{ r.siret }}</span>
+              {% endif %}
             </td>
             <td class="px-4 py-3">{{ r.raison_sociale or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.display_fd or '' }}">{{ r.display_fd or '' }}</td>
@@ -663,47 +770,6 @@
   </div>
 </section>
 
-<!-- API Quick Reference -->
-<section class="bg-gray-100 rounded-xl p-6 mt-8">
-  <details>
-    <summary class="cursor-pointer text-lg font-bold text-gray-800 hover:text-cgt-red transition">
-      <i class="fas fa-code mr-2"></i>API Rapide - Documentation
-    </summary>
-    <div class="mt-4 space-y-2 text-sm">
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
-        <code class="flex-1 text-gray-700">/api/ingest/pv</code>
-        <span class="text-gray-500">Upload Excel PV</span>
-      </div>
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
-        <code class="flex-1 text-gray-700">/api/ingest/invit</code>
-        <span class="text-gray-500">Upload Excel invitations PAP</span>
-      </div>
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold">POST</span>
-        <code class="flex-1 text-gray-700">/api/build/summary</code>
-        <span class="text-gray-500">Recalculer le tableau de synthèse</span>
-      </div>
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
-        <code class="flex-1 text-gray-700">/api/siret?q=...</code>
-        <span class="text-gray-500">Rechercher SIRET</span>
-      </div>
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
-        <code class="flex-1 text-gray-700">/api/siret/{siret}</code>
-        <span class="text-gray-500">Détails d'un SIRET</span>
-      </div>
-      <div class="flex items-start space-x-3 bg-white p-3 rounded-lg">
-        <span class="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">GET</span>
-        <code class="flex-1 text-gray-700">/api/stats/dashboard</code>
-        <span class="text-gray-500">Statistiques du tableau de bord</span>
-      </div>
-    </div>
-  </details>
-</section>
-
 <!-- Alpine.js Dashboard Data -->
 <script>
     function dashboardData() {
@@ -712,6 +778,8 @@
         loading: false,
         loadingProgress: 0,
         progressTimer: null,
+        charts: {},
+        expandedChart: null,
 
         beginProgress() {
           this.loadingProgress = 5;
@@ -747,6 +815,7 @@
             return;
           }
           this.loading = true;
+          this.closeChartModal();
           this.beginProgress();
           try {
             const response = await fetch('/api/stats/dashboard');
@@ -769,116 +838,225 @@
           }
         },
 
-      renderDepartmentsChart() {
-        const ctx = document.getElementById('departmentsChart');
-        if (!ctx || !this.stats.departments) return;
-
-        const threshold = this.stats.audience_threshold || 1000;
-
-        new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: this.stats.departments.map(d => d.dep),
-            datasets: [{
-              label: `SIRET ≥ ${threshold} inscrits`,
-              data: this.stats.departments.map(d => d.count),
-              backgroundColor: '#d5001c',
-              borderColor: '#ab0015',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0
-                }
-              }
+        formatUpcomingPeriod(start, end) {
+          if (start && end) {
+            if (start === end) {
+              return start;
             }
+            return `${start} → ${end}`;
           }
-        });
+          return start || end || '—';
+        },
+
+      renderDepartmentsChart() {
+        const canvas = document.getElementById('departmentsChart');
+        if (!canvas) return;
+
+        if (!this.stats.departments || !this.stats.departments.length) {
+          this.destroyChart('departments');
+          return;
+        }
+
+        const config = this.getChartConfig('departments');
+        this.createOrUpdateChart('departments', canvas, config);
       },
 
       renderMonthlyChart() {
-        const ctx = document.getElementById('monthlyChart');
-        if (!ctx || !this.stats.monthly_invitations) return;
+        const canvas = document.getElementById('monthlyChart');
+        if (!canvas) return;
 
-        const threshold = this.stats.audience_threshold || 1000;
+        if (!this.stats.monthly_invitations || !this.stats.monthly_invitations.length) {
+          this.destroyChart('monthly');
+          return;
+        }
 
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: this.stats.monthly_invitations.map(m => m.month),
-            datasets: [{
-              label: `Invitations (≥ ${threshold})`,
-              data: this.stats.monthly_invitations.map(m => m.count),
-              borderColor: '#d5001c',
-              backgroundColor: 'rgba(213, 0, 28, 0.1)',
-              fill: true,
-              tension: 0.4
-            }]
+        const config = this.getChartConfig('monthly');
+        this.createOrUpdateChart('monthly', canvas, config);
+      },
+
+      renderQuarterChart() {
+        const canvas = document.getElementById('quartersChart');
+        if (!canvas) return;
+
+        if (!this.stats.upcoming_quarters || !this.stats.upcoming_quarters.length) {
+          this.destroyChart('quarters');
+          return;
+        }
+
+        const config = this.getChartConfig('quarters');
+        this.createOrUpdateChart('quarters', canvas, config);
+      },
+
+      createOrUpdateChart(key, canvas, config) {
+        if (!canvas || !config) {
+          return;
+        }
+
+        this.destroyChart(key);
+        this.charts[key] = new Chart(canvas, config);
+      },
+
+      destroyChart(key) {
+        if (this.charts[key]) {
+          this.charts[key].destroy();
+          delete this.charts[key];
+        }
+      },
+
+      getSharedChartOptions() {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0
-                }
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
               }
             }
           }
+        };
+      },
+
+      getChartConfig(key, expanded = false) {
+        if (!this.stats) {
+          return null;
+        }
+
+        const options = this.getSharedChartOptions();
+
+        if (expanded) {
+          options.plugins = options.plugins || {};
+          options.plugins.title = {
+            display: true,
+            text: this.getChartTitle(key),
+            font: {
+              size: 18,
+              weight: 'bold'
+            }
+          };
+        }
+
+        switch (key) {
+          case 'departments': {
+            if (!this.stats.departments || !this.stats.departments.length) {
+              return null;
+            }
+            const threshold = this.stats.audience_threshold || 1000;
+            return {
+              type: 'bar',
+              data: {
+                labels: this.stats.departments.map(d => d.dep),
+                datasets: [{
+                  label: `SIRET ≥ ${threshold} inscrits`,
+                  data: this.stats.departments.map(d => d.count),
+                  backgroundColor: '#d5001c',
+                  borderColor: '#ab0015',
+                  borderWidth: 1
+                }]
+              },
+              options
+            };
+          }
+          case 'monthly': {
+            if (!this.stats.monthly_invitations || !this.stats.monthly_invitations.length) {
+              return null;
+            }
+            return {
+              type: 'line',
+              data: {
+                labels: this.stats.monthly_invitations.map(m => m.month),
+                datasets: [{
+                  label: 'Invitations PAP C5',
+                  data: this.stats.monthly_invitations.map(m => m.count),
+                  borderColor: '#d5001c',
+                  backgroundColor: 'rgba(213, 0, 28, 0.1)',
+                  fill: true,
+                  tension: 0.4
+                }]
+              },
+              options
+            };
+          }
+          case 'quarters': {
+            if (!this.stats.upcoming_quarters || !this.stats.upcoming_quarters.length) {
+              return null;
+            }
+            return {
+              type: 'bar',
+              data: {
+                labels: this.stats.upcoming_quarters.map(q => q.label),
+                datasets: [{
+                  label: "Nombre d'élections C5 déclarées",
+                  data: this.stats.upcoming_quarters.map(q => q.count),
+                  backgroundColor: '#f97316',
+                  borderColor: '#ea580c',
+                  borderWidth: 1
+                }]
+              },
+              options
+            };
+          }
+          default:
+            return null;
+        }
+      },
+
+      openChartModal(key) {
+        const config = this.getChartConfig(key, true);
+        if (!config) {
+          return;
+        }
+
+        this.expandedChart = key;
+        document.body.classList.add('overflow-hidden');
+
+        this.$nextTick(() => {
+          const canvas = document.getElementById('expandedChartCanvas');
+          if (!canvas) {
+            return;
+          }
+          this.createOrUpdateChart('expanded', canvas, config);
         });
       },
-      renderQuarterChart() {
-        const ctx = document.getElementById('quartersChart');
-        if (!ctx || !this.stats.upcoming_quarters || !this.stats.upcoming_quarters.length) return;
 
-        new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: this.stats.upcoming_quarters.map(q => q.label),
-            datasets: [{
-              label: 'Nombre d\'élections à venir',
-              data: this.stats.upcoming_quarters.map(q => q.count),
-              backgroundColor: '#f97316',
-              borderColor: '#ea580c',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0
-                }
-              }
-            }
-          }
-        });
+      closeChartModal() {
+        this.destroyChart('expanded');
+        this.expandedChart = null;
+        document.body.classList.remove('overflow-hidden');
+      },
+
+      getChartTitle(key) {
+        const threshold = this.stats?.audience_threshold || 1000;
+        switch (key) {
+          case 'departments':
+            return `Top 10 départements (C4 ≥ ${threshold} inscrit·es)`;
+          case 'monthly':
+            return 'Invitations mensuelles (toutes PAP C5)';
+          case 'quarters':
+            return 'Déclarations d\'élections C5 (2025-2028)';
+          default:
+            return 'Graphique';
+        }
+      },
+
+      getChartSource(key) {
+        const threshold = this.stats?.audience_threshold || 1000;
+        switch (key) {
+          case 'departments':
+            return 'Source : PV C4 — SIRET prioritaires par département';
+          case 'monthly':
+            return 'Source : Invitations C5 (toutes entrées)';
+          case 'quarters':
+            return 'Source : Dates prévisionnelles C5 (cycle complet)';
+          default:
+            return '';
+        }
       }
     }
   }
