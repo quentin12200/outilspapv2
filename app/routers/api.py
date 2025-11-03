@@ -80,7 +80,11 @@ def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends
             "raison_sociale": r.raison_sociale or "Sans nom",
             "dep": r.dep,
             "ville": r.ville,
-            "date_pap_c5": str(r.date_pap_c5) if r.date_pap_c5 else None,
+            "date_pap_c5": (
+                r.date_pap_c5.strftime("%d/%m/%Y")
+                if isinstance(r.date_pap_c5, (datetime, date))
+                else (str(r.date_pap_c5) if r.date_pap_c5 else None)
+            ),
         }
         for r in results
     ]
@@ -312,7 +316,7 @@ def _compute_dashboard_stats(db: Session):
 
     month_bucket = _month_bucket_expression(db, Invitation.date_invit)
 
-    monthly_invitations = (
+    monthly_rows = (
         db.query(
             month_bucket.label("month"),
             func.count(Invitation.id).label("count"),
@@ -322,6 +326,21 @@ def _compute_dashboard_stats(db: Session):
         .order_by(month_bucket)
         .all()
     )
+
+    monthly_invitations: list[dict[str, object]] = []
+    for month_key, count in monthly_rows:
+        label = None
+        if month_key:
+            try:
+                month_date = datetime.strptime(f"{month_key}-01", "%Y-%m-%d").date()
+                label = month_date.strftime("%d/%m/%Y")
+            except ValueError:
+                label = str(month_key)
+        monthly_invitations.append({
+            "month": month_key,
+            "count": count,
+            "label": label,
+        })
 
     today = date.today()
 
@@ -676,9 +695,7 @@ def _compute_dashboard_stats(db: Session):
         "pap_pv_overlap": pap_pv_overlap,
         "pap_pv_overlap_percent": pap_pv_overlap_percent,
         "departments": [{"dep": d[0], "count": d[1]} for d in dep_stats],
-        "monthly_invitations": [
-            {"month": m[0], "count": m[1]} for m in monthly_invitations
-        ],
+        "monthly_invitations": monthly_invitations,
         "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
         "global_stats": global_stats,

@@ -2427,7 +2427,7 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
             enrichment_dt = _to_datetime(enriched_inv.date_enrichissement)
             enrichment_raw = enriched_inv.date_enrichissement
             if enrichment_dt:
-                enrichment_label = enrichment_dt.strftime("%d/%m/%Y %H:%M")
+                enrichment_label = enrichment_dt.strftime("%d/%m/%Y")
             elif enrichment_raw:
                 enrichment_label = str(enrichment_raw).strip() or None
             else:

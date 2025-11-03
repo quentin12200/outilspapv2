@@ -970,7 +970,7 @@
             return {
               type: 'line',
               data: {
-                labels: this.stats.monthly_invitations.map(m => m.month),
+                labels: this.stats.monthly_invitations.map(m => m.label || m.month),
                 datasets: [{
                   label: 'Invitations PAP C5',
                   data: this.stats.monthly_invitations.map(m => m.count),
