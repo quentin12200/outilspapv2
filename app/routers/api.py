@@ -182,6 +182,7 @@ def _compute_dashboard_stats(db: Session):
     # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
     # ----------------------------------------------------------------------
     def _normalize_siret(value):
+        """Return a canonical 14-digit SIRET or ``None`` when the value is invalid."""
         if value is None:
             return None
 
