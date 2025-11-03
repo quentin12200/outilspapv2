@@ -210,7 +210,7 @@
               </span>
             {% endif %}
           </td>
-          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit or '' }}">{{ invit.date_invit or '' }}</td>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_invit_sort or '' }}">{{ invit.date_invit_display or '—' }}</td>
           <td class="px-4 py-3 whitespace-nowrap">
             {% set raw_siret_link = invit.siret_normalized or invit.siret %}
             {% set siret_link = (raw_siret_link | default('', true)) | urlencode %}
@@ -223,9 +223,9 @@
             <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">{{ dept }}</span>
           </td>
           <td class="px-4 py-3">{{ display_commune or '—' }}</td>
-          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_pv_c5 or '' }}">
-            {% if invit.date_pv_c5 %}
-              <span class="text-blue-700 font-semibold">{{ invit.date_pv_c5 }}</span>
+          <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_pv_c5_sort or '' }}">
+            {% if invit.date_pv_c5_display %}
+              <span class="text-blue-700 font-semibold">{{ invit.date_pv_c5_display }}</span>
             {% else %}
               <span class="text-gray-400">—</span>
             {% endif %}

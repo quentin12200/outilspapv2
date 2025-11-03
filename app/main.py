@@ -662,6 +662,12 @@ def index(
         setattr(r, "date_pap_c5_label", label)
         setattr(r, "date_pap_c5_sort", sort_value)
 
+        for attr in ("date_pv_c3", "date_pv_c4", "date_pv_max"):
+            raw_value = getattr(r, attr, None)
+            label_value, sort_key = _date_display_and_sort(raw_value)
+            setattr(r, f"{attr}_display", label_value)
+            setattr(r, f"{attr}_sort", sort_key)
+
         display_fd = _first_non_empty(r.fd_c4, r.fd_c3)
         display_ud = _resolve_ud_label(r)
         display_idcc = _first_non_empty(r.idcc)
@@ -932,6 +938,23 @@ def _format_date_label(date_value: date | None, raw_value: Any) -> str | None:
     if lowered in {"nan", "nat", "none", "null"}:
         return None
     return text
+
+
+def _date_display_and_sort(value: Any) -> tuple[str | None, str]:
+    """Return a French-formatted label and ISO sort key for a date-like value."""
+
+    parsed = _coerce_date_value(value)
+    if parsed is not None:
+        return parsed.strftime("%d/%m/%Y"), parsed.isoformat()
+
+    if value is None:
+        return None, ""
+
+    text = str(value).strip()
+    if not text:
+        return None, ""
+
+    return text, text
 
 
 def _to_number(value: Any) -> float | None:
@@ -1459,6 +1482,17 @@ def invitations(
                     inv.statut_badge = "yellow"
                     inv.statut_icon = "fa-clock"
                     inv.statut_label = f"En attente ({days_until}j)"
+
+        invit_label, invit_sort = _date_display_and_sort(inv.date_invit)
+        inv.date_invit_display = invit_label
+        inv.date_invit_sort = invit_sort
+
+        pv_c5_label, pv_c5_sort = _date_display_and_sort(inv.date_pv_c5)
+        inv.date_pv_c5_display = pv_c5_label
+        inv.date_pv_c5_sort = pv_c5_sort
+
+        presumee_label, _ = _date_display_and_sort(inv.date_presumee)
+        inv.date_presumee_display = presumee_label
 
     # Appliquer le filtre de statut si demandé
     if statut:

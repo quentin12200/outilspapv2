@@ -685,12 +685,12 @@
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.display_fd or '' }}">{{ r.display_fd or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.display_ud or '' }}">{{ r.display_ud or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.display_idcc or '' }}">{{ r.display_idcc or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c3 or '' }}">{{ r.date_pv_c3 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c3_sort or '' }}">{{ r.date_pv_c3_display or '' }}</td>
             <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c3 if r.inscrits_c3 is not none else '' }}">{{ r.inscrits_c3 or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c4 or '' }}">{{ r.date_pv_c4 or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_c4_sort or '' }}">{{ r.date_pv_c4_display or '' }}</td>
             <td class="px-4 py-3 text-center" data-sort-value="{{ r.inscrits_c4 if r.inscrits_c4 is not none else '' }}">{{ r.inscrits_c4 or '' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">{{ r.statut_pap or '' }}</td>
-            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max or '' }}">{{ r.date_pv_max or '' }}</td>
+            <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ r.date_pv_max_sort or '' }}">{{ r.date_pv_max_display or '' }}</td>
             {% set pap_label = r.date_pap_c5_label %}
             {% set pap_value = r.date_pap_c5_display or r.date_pap_c5 %}
             {% set pap_sort = r.date_pap_c5_sort or '' %}
