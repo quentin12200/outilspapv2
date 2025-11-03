@@ -149,15 +149,16 @@
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date scrutin</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SIRET</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Raison sociale</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entreprise / SIRET</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Implantation</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FD</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IDCC</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UD</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Région</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effectif SIRET</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cycle</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SVE</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participation</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 organisations</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
@@ -166,11 +167,13 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                   {{ item.date_display }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-cgt-red font-mono">
-                  {{ item.siret or "—" }}
-                </td>
                 <td class="px-6 py-4 text-sm text-gray-900">
-                  {{ item.raison_sociale or "—" }}
+                  <div class="font-semibold">{{ item.raison_sociale or "—" }}</div>
+                  <div class="text-xs text-cgt-red font-mono tracking-widest">{{ item.siret or "—" }}</div>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-700">
+                  <div>{{ item.ud or "—" }}</div>
+                  <div class="text-xs text-gray-500">{{ item.region or "—" }}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                   {{ item.fd or "—" }}
@@ -178,24 +181,40 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                   {{ item.idcc or "—" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {{ item.ud or "—" }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {{ item.region or "—" }}
-                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {% if item.effectif is not none %}
-                    {{ "{:,.0f}".format(item.effectif).replace(",", " ") }}
-                  {% else %}
-                    —
-                  {% endif %}
+                  {{ item.effectif_display or "—" }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                   {{ item.cycle or "—" }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {{ item.institution or "—" }}
+                  {% if item.institution == "CAR" %}
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">Carence</span>
+                  {% elif item.institution == "CSE" %}
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CSE</span>
+                  {% else %}
+                    {{ item.institution or "—" }}
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.sve_display or "—" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {{ item.participation_display or "—" }}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-700">
+                  {% if item.top_orgs %}
+                    <ul class="space-y-1">
+                      {% for org in item.top_orgs %}
+                        <li class="flex items-baseline justify-between gap-3">
+                          <span class="font-semibold text-gray-800">{{ org.label }}</span>
+                          <span class="text-sm text-gray-600">{{ org.votes_display or "—" }}{% if org.percent_display %} <span class="text-xs text-gray-500">({{ org.percent_display }})</span>{% endif %}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <span class="text-gray-400">—</span>
+                  {% endif %}
                 </td>
               </tr>
             {% endfor %}
