@@ -132,6 +132,9 @@
           <th class="px-4 py-3 text-center font-semibold text-gray-600">Type</th>
           <th class="px-4 py-3 text-center font-semibold text-gray-600">FD</th>
           <th class="px-4 py-3 text-center font-semibold text-gray-600">IDCC</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">SVE</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-600">Participation</th>
+          <th class="px-4 py-3 text-left font-semibold text-gray-600">Top 3 organisations</th>
           <th class="px-4 py-3 text-left font-semibold text-gray-600">Implantation</th>
         </tr>
       </thead>
@@ -156,6 +159,22 @@
           </td>
           <td class="px-4 py-3 text-center text-gray-700">{{ item.fd or '—' }}</td>
           <td class="px-4 py-3 text-center text-gray-700">{{ item.idcc or '—' }}</td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.sve_display or '—' }}</td>
+          <td class="px-4 py-3 text-center text-gray-700">{{ item.participation_display or '—' }}</td>
+          <td class="px-4 py-3 text-gray-700">
+            {% if item.top_orgs %}
+            <ul class="space-y-1">
+              {% for org in item.top_orgs %}
+              <li class="flex items-baseline justify-between gap-3">
+                <span class="font-semibold text-gray-800">{{ org.label }}</span>
+                <span class="text-sm text-gray-600">{{ org.votes_display or '—' }}{% if org.percent_display %} <span class="text-xs text-gray-500">({{ org.percent_display }})</span>{% endif %}</span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
           <td class="px-4 py-3 text-gray-700">
             <div>{{ item.ud or '—' }}</div>
             <div class="text-xs text-gray-500">{{ item.region or '—' }}</div>

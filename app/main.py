@@ -1069,6 +1069,14 @@ def calendrier_elections(
                 continue
 
         key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        existing = per_siret.get(key)
+        if existing is not None and parsed_date >= existing["date"]:
+            continue
+
+        existing = per_siret.get(key)
+        if existing is not None and parsed_date >= existing["date"]:
+            continue
+
         payload = {
             "siret": row.siret,
             "raison_sociale": row.raison_sociale,
@@ -1673,6 +1681,42 @@ def _format_date(value: date | None) -> str | None:
     return value.strftime("%d/%m/%Y")
 
 
+def _format_int_fr(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            rounded = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None
+    else:
+        try:
+            rounded = int(round(float(str(value).replace(",", "."))))
+        except (TypeError, ValueError):
+            return None
+
+    return f"{rounded:,}".replace(",", "\u202f")
+
+
+def _format_percent_fr(value: float | None, decimals: int = 1) -> str | None:
+    if value is None:
+        return None
+    formatted = f"{value:.{decimals}f}".replace(".", ",")
+    return f"{formatted} %"
+
+
+PV_ORGANISATION_FIELDS: tuple[tuple[str, str], ...] = (
+    ("cgt_voix", "CGT"),
+    ("cfdt_voix", "CFDT"),
+    ("fo_voix", "FO"),
+    ("cftc_voix", "CFTC"),
+    ("cgc_voix", "CFE-CGC"),
+    ("unsa_voix", "UNSA"),
+    ("sud_voix", "Solidaires"),
+    ("autre_voix", "Autre"),
+)
+
+
 def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[dict[str, Any]]:
     today = date.today()
     per_siret: dict[str, dict[str, Any]] = {}
@@ -1690,6 +1734,16 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
             PVEvent.institution,
             PVEvent.fd,
             PVEvent.idcc,
+            PVEvent.sve,
+            PVEvent.tx_participation_pv,
+            PVEvent.cgt_voix,
+            PVEvent.cfdt_voix,
+            PVEvent.fo_voix,
+            PVEvent.cftc_voix,
+            PVEvent.cgc_voix,
+            PVEvent.unsa_voix,
+            PVEvent.sud_voix,
+            PVEvent.autre_voix,
         )
         .filter(PVEvent.date_prochain_scrutin.isnot(None))
         .all()
@@ -1708,6 +1762,10 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
             continue
 
         key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        existing = per_siret.get(key)
+        if existing is not None and parsed_date >= existing["date"]:
+            continue
+
         payload = {
             "siret": row.siret,
             "raison_sociale": row.raison_sociale,
@@ -1722,9 +1780,35 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
             "date_display": parsed_date.strftime("%d/%m/%Y"),
         }
 
-        existing = per_siret.get(key)
-        if existing is None or parsed_date < existing["date"]:
-            per_siret[key] = payload
+        sve_value = _to_number(row.sve)
+        participation_value = _to_number(row.tx_participation_pv)
+
+        payload["sve"] = sve_value
+        payload["sve_display"] = _format_int_fr(sve_value)
+        payload["participation"] = participation_value
+        payload["participation_display"] = _format_percent_fr(participation_value)
+
+        org_scores: list[dict[str, Any]] = []
+        for attr, label in PV_ORGANISATION_FIELDS:
+            votes_value = _to_number(getattr(row, attr, None))
+            if votes_value is None or votes_value <= 0:
+                continue
+
+            percent_value = (votes_value / sve_value * 100) if sve_value else None
+            org_scores.append(
+                {
+                    "code": attr,
+                    "label": label,
+                    "votes": votes_value,
+                    "votes_display": _format_int_fr(votes_value),
+                    "percent": percent_value,
+                    "percent_display": _format_percent_fr(percent_value) if percent_value is not None else None,
+                }
+            )
+
+        payload["top_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)[:3]
+
+        per_siret[key] = payload
 
     return sorted(per_siret.values(), key=lambda item: item["date"])
 
