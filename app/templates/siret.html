@@ -211,7 +211,7 @@
 </div>
 
 <!-- Prochaines élections (Cycle 5) -->
-{% if row.date_pv_c4 %}
+{% if cycle_projection %}
 <section class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-md p-6 mb-8 border-l-4 border-orange-500">
   <div class="flex items-center mb-4">
     <i class="fas fa-calendar-alt text-orange-500 text-3xl mr-4"></i>
@@ -222,62 +222,39 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {% if row.date_pv_c4 %}
     <div class="bg-white p-4 rounded-lg shadow-sm">
       <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
         <i class="fas fa-calendar-day mr-1"></i>
         Date prévue des prochaines élections
       </p>
-      {% if row.date_pv_c4 %}
-        {% set duree = 4 %}  {# Durée par défaut du mandat en années #}
-        {% set date_c4 = row.date_pv_c4 %}
-        {% set annee_c5 = date_c4.year + duree %}
-        {% set date_previsionnelle_c5 = date_c4.replace(year=annee_c5) %}
+      {% if cycle_projection.projected_label %}
         <p class="text-2xl font-bold text-orange-600">
-          {{ date_previsionnelle_c5.strftime('%d/%m/%Y') }}
+          {{ cycle_projection.projected_label }}
         </p>
         <p class="text-xs text-gray-500 mt-1">
-          ({{ duree }} ans après le Cycle 4)
+          ({{ cycle_projection.duration_years }} ans après le Cycle 4)
         </p>
       {% else %}
         <p class="text-lg text-gray-400">Non calculable</p>
       {% endif %}
     </div>
-    {% endif %}
 
     <div class="bg-white p-4 rounded-lg shadow-sm">
       <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
         <i class="fas fa-hourglass-half mr-1"></i>
         Temps restant
       </p>
-      {% if row.date_pv_c4 %}
-        {% set duree = 4 %}
-        {% set date_c4 = row.date_pv_c4 %}
-        {% set annee_c5 = date_c4.year + duree %}
-        {% set date_previsionnelle_c5 = date_c4.replace(year=annee_c5) %}
-        {% set today = now() %}
-        {% set jours_restants = (date_previsionnelle_c5 - today).days %}
-        {% if jours_restants > 0 %}
-          {% set mois_restants = (jours_restants / 30.44)|round|int %}
-          {% set annees_restantes = (jours_restants / 365)|round(1) %}
-          <p class="text-2xl font-bold text-blue-600">
-            {% if jours_restants > 365 %}
-              {{ annees_restantes }} ans
-            {% elif jours_restants > 60 %}
-              {{ mois_restants }} mois
-            {% else %}
-              {{ jours_restants }} jours
-            {% endif %}
-          </p>
-          <p class="text-xs text-gray-500 mt-1">
-            {{ jours_restants }} jours au total
-          </p>
-        {% elif jours_restants > -30 %}
-          <p class="text-lg font-bold text-orange-600">Bientôt !</p>
-          <p class="text-xs text-gray-500 mt-1">Échéance proche</p>
+      {% set countdown = cycle_projection.countdown %}
+      {% if countdown %}
+        {% if countdown.status == 'upcoming' %}
+          <p class="text-2xl font-bold text-blue-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
+        {% elif countdown.status == 'imminent' %}
+          <p class="text-lg font-bold text-orange-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
         {% else %}
-          <p class="text-lg font-bold text-red-600">Dépassé</p>
-          <p class="text-xs text-gray-500 mt-1">de {{ -jours_restants }} jours</p>
+          <p class="text-lg font-bold text-red-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
         {% endif %}
       {% else %}
         <p class="text-lg text-gray-400">Non calculable</p>

@@ -8,6 +8,7 @@ import math
 import re
 import unicodedata
 import tempfile
+import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File
@@ -2106,6 +2107,16 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
             if cleaned in {"0", "false", "faux", "non", "n"}:
                 return False
         return None
+
+    def _add_years(base: date | None, years: int) -> date | None:
+        if base is None:
+            return None
+        target_year = base.year + years
+        try:
+            return base.replace(year=target_year)
+        except ValueError:
+            last_day = calendar.monthrange(target_year, base.month)[1]
+            return date(target_year, base.month, min(base.day, last_day))
     def _to_int(value):
         if value is None:
             return None
@@ -2363,6 +2374,51 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
 
     timeline_events.sort(key=lambda ev: ev["date"] or date.min, reverse=True)
 
+    cycle_projection = None
+    if row is not None:
+        cycle_duration_years = 4
+        base_c4_date = _to_date(getattr(row, "date_pv_c4", None))
+        if base_c4_date:
+            projected_date = _add_years(base_c4_date, cycle_duration_years)
+            if projected_date:
+                countdown_details = None
+                today = date.today()
+                total_days = (projected_date - today).days
+                if total_days is not None:
+                    if total_days > 0:
+                        months_remaining = int(round(total_days / 30.44))
+                        years_remaining = round(total_days / 365, 1)
+                        if total_days > 365:
+                            years_label = f"{years_remaining:.1f}".rstrip("0").rstrip(".")
+                            primary_label = f"{years_label} ans"
+                        elif total_days > 60:
+                            primary_label = f"{months_remaining} mois"
+                        else:
+                            primary_label = f"{total_days} jours"
+                        secondary_label = f"{total_days} jours au total"
+                        status = "upcoming"
+                    elif total_days > -30:
+                        primary_label = "Bientôt !"
+                        secondary_label = "Échéance proche"
+                        status = "imminent"
+                    else:
+                        primary_label = "Dépassé"
+                        secondary_label = f"de {abs(total_days)} jours"
+                        status = "overdue"
+                    countdown_details = {
+                        "total_days": total_days,
+                        "primary_label": primary_label,
+                        "secondary_label": secondary_label,
+                        "status": status,
+                    }
+
+                cycle_projection = {
+                    "projected_date": projected_date,
+                    "projected_label": projected_date.strftime("%d/%m/%Y"),
+                    "duration_years": cycle_duration_years,
+                    "countdown": countdown_details,
+                }
+
     # Informations Sirene -------------------------------------------------------
     sirene_data = None
     if invitations:
@@ -2404,5 +2460,6 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
             "invitations": invitations,
             "timeline_events": timeline_events,
             "sirene_data": sirene_data,
+            "cycle_projection": cycle_projection,
         },
     )
