@@ -181,15 +181,19 @@
       <div class="stat-card bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-purple-100">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-widest text-purple-600">Élections ≥ <span x-text="stats.global_stats ? (stats.global_stats.upcoming_threshold || 1000).toLocaleString('fr-FR') : 1000"></span></p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-purple-600">Élections C5 ≥ <span x-text="stats.global_stats ? (stats.global_stats.upcoming_threshold || 1000).toLocaleString('fr-FR') : 1000"></span></p>
             <p class="text-2xl font-bold text-gray-900" x-text="stats.global_stats ? (stats.global_stats.upcoming_total || 0).toLocaleString('fr-FR') : '0'"></p>
           </div>
           <span class="w-11 h-11 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl"><i class="fas fa-calendar-day"></i></span>
         </div>
         <p class="text-xs text-gray-600">Prochaine échéance : <span class="font-semibold" x-text="stats.global_stats ? (stats.global_stats.upcoming_next || '—') : '—'"></span></p>
-        <p class="text-xs text-gray-600">Couverture cycle 5 :
+        <p class="text-xs text-gray-600">Période cycle 5 :
           <span class="font-semibold"
                 x-text="formatUpcomingPeriod(stats.audience_upcoming_period_start_display, stats.audience_upcoming_period_end_display)"></span>
+        </p>
+        <p class="text-xs text-gray-600">Fenêtre déclarée :
+          <span class="font-semibold"
+                x-text="formatUpcomingPeriod(stats.audience_upcoming_coverage_start_display, stats.audience_upcoming_coverage_end_display)"></span>
         </p>
         <p class="text-xs text-gray-600">Part de la cible :
           <span class="font-semibold"
@@ -237,7 +241,7 @@
             Invitations mensuelles (cible)
           </h3>
           <p class="text-xs text-gray-600 mt-1">
-            <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 • SIRET ≥ <span x-text="stats.audience_threshold || 1000"></span>
+            <i class="fas fa-envelope mr-1"></i><strong>Source :</strong> Invitations C5 (toutes entrées)
           </p>
         </div>
         <button
@@ -263,10 +267,10 @@
         <div>
           <h3 class="text-xl font-bold text-gray-800">
             <i class="fas fa-hourglass-half text-cgt-red mr-2"></i>
-            Prochaines élections C5 (cycle complet · par trimestre)
+            Prochaines élections C5 (2025-2028 · par trimestre)
           </h3>
           <p class="text-xs text-gray-600 mt-1">
-            <i class="fas fa-calendar-day mr-1"></i><strong>Source :</strong> Dates prévisionnelles C5 (≥ <span x-text="stats.audience_threshold || 1000"></span> inscrit·es)
+            <i class="fas fa-calendar-day mr-1"></i><strong>Source :</strong> Dates prévisionnelles C5 (tous effectifs)
           </p>
         </div>
         <button
@@ -1000,13 +1004,12 @@
             if (!this.stats.monthly_invitations || !this.stats.monthly_invitations.length) {
               return null;
             }
-            const threshold = this.stats.audience_threshold || 1000;
             return {
               type: 'line',
               data: {
                 labels: this.stats.monthly_invitations.map(m => m.month),
                 datasets: [{
-                  label: `Invitations (≥ ${threshold})`,
+                  label: 'Invitations PAP C5',
                   data: this.stats.monthly_invitations.map(m => m.count),
                   borderColor: '#d5001c',
                   backgroundColor: 'rgba(213, 0, 28, 0.1)',
@@ -1071,9 +1074,9 @@
           case 'departments':
             return `Top 10 départements (C4 ≥ ${threshold} inscrit·es)`;
           case 'monthly':
-            return `Invitations mensuelles (≥ ${threshold} inscrit·es)`;
+            return 'Invitations mensuelles (toutes PAP C5)';
           case 'quarters':
-            return 'Déclarations d\'élections C5 par trimestre';
+            return 'Déclarations d\'élections C5 (2025-2028)';
           default:
             return 'Graphique';
         }
@@ -1085,9 +1088,9 @@
           case 'departments':
             return 'Source : PV C4 — SIRET prioritaires par département';
           case 'monthly':
-            return `Source : Invitations C5 (≥ ${threshold} inscrit·es)`;
+            return 'Source : Invitations C5 (toutes entrées)';
           case 'quarters':
-            return `Source : Dates prévisionnelles C5 (≥ ${threshold} inscrit·es)`;
+            return 'Source : Dates prévisionnelles C5 (cycle complet)';
           default:
             return '';
         }

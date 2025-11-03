@@ -309,22 +309,18 @@ def _compute_dashboard_stats(db: Session):
 
     six_months_ago = date.today() - timedelta(days=180)
 
-    if eligible_sirets:
-        month_bucket = _month_bucket_expression(db, Invitation.date_invit)
+    month_bucket = _month_bucket_expression(db, Invitation.date_invit)
 
-        monthly_invitations = (
-            db.query(
-                month_bucket.label("month"),
-                func.count(Invitation.id).label("count"),
-            )
-            .filter(Invitation.siret.in_(eligible_sirets))
-            .filter(Invitation.date_invit >= six_months_ago)
-            .group_by(month_bucket)
-            .order_by(month_bucket)
-            .all()
+    monthly_invitations = (
+        db.query(
+            month_bucket.label("month"),
+            func.count(Invitation.id).label("count"),
         )
-    else:
-        monthly_invitations = []
+        .filter(Invitation.date_invit >= six_months_ago)
+        .group_by(month_bucket)
+        .order_by(month_bucket)
+        .all()
+    )
 
     today = date.today()
 
@@ -341,39 +337,10 @@ def _compute_dashboard_stats(db: Session):
         .all()
     )
 
-    def _is_cycle_5(value) -> bool:
-        if value is None:
-            return False
+    cycle5_reference_start = date(2025, 1, 1)
+    cycle5_reference_end = date(2028, 12, 31)
 
-        text = str(value).strip().upper()
-        if not text:
-            return False
-
-        normalized = text.replace("È", "E")
-
-        if re.search(r"\bC\s*5\b", normalized):
-            return True
-
-        if re.search(r"\bCYCLE\s*5\b", normalized):
-            return True
-
-        if re.search(r"\b5\s*(E|EME)\b", normalized):
-            return True
-
-        compact = re.sub(r"[^A-Z0-9]", "", normalized)
-        if not compact:
-            return False
-
-        if "C5" in compact:
-            return True
-        if compact == "5":
-            return True
-
-        return False
-
-    cycle5_reference_start = date(2024, 1, 1)
-
-    declared_c5_dates: dict[str, date] = {}
+    upcoming_entries: list[dict[str, object]] = []
 
     for (
         siret,
@@ -387,6 +354,9 @@ def _compute_dashboard_stats(db: Session):
         if not parsed_date:
             continue
 
+        if parsed_date < cycle5_reference_start or parsed_date > cycle5_reference_end:
+            continue
+
         siret_value = _normalize_siret(siret)
         if not siret_value:
             continue
@@ -395,51 +365,149 @@ def _compute_dashboard_stats(db: Session):
         if effectif_value is None:
             effectif_value = _to_number(inscrits)
 
-        markers = (cycle, quadrimestre)
-        is_cycle5 = any(_is_cycle_5(marker) for marker in markers)
-        if not is_cycle5 and parsed_date >= cycle5_reference_start and siret_value in eligible_sirets:
-            is_cycle5 = True
+        upcoming_entries.append(
+            {
+                "siret": siret_value,
+                "date": parsed_date,
+                "effectif": effectif_value,
+                "cycle_marker": cycle,
+                "quadrimestre": quadrimestre,
+            }
+        )
 
-        if not is_cycle5:
+    missing_effectif_sirets = {
+        entry["siret"]
+        for entry in upcoming_entries
+        if entry.get("effectif") is None
+    }
+
+    summary_lookup: dict[str, dict[str, object]] = {}
+    if missing_effectif_sirets:
+        lookup_rows = (
+            db.query(
+                SiretSummary.siret,
+                SiretSummary.effectif_siret,
+                SiretSummary.inscrits_c4,
+                SiretSummary.inscrits_c3,
+            )
+            .filter(SiretSummary.siret.in_(missing_effectif_sirets))
+            .all()
+        )
+        summary_lookup = {
+            row.siret: {
+                "effectif_siret": row.effectif_siret,
+                "inscrits_c4": row.inscrits_c4,
+                "inscrits_c3": row.inscrits_c3,
+            }
+            for row in lookup_rows
+        }
+
+    for entry in upcoming_entries:
+        if entry.get("effectif") is not None:
             continue
 
-        if siret_value not in eligible_sirets:
-            if effectif_value is None or effectif_value < audience_threshold:
-                continue
+        summary_row = summary_lookup.get(entry["siret"])
+        if summary_row:
+            for key in ("effectif_siret", "inscrits_c4", "inscrits_c3"):
+                candidate = _to_number(summary_row.get(key))
+                if candidate:
+                    entry["effectif"] = candidate
+                    break
 
-        current_date = declared_c5_dates.get(siret_value)
-        if current_date is None or parsed_date < current_date:
-            declared_c5_dates[siret_value] = parsed_date
+        if entry.get("effectif") is None:
+            latest_payload = latest_per_siret.get(entry["siret"])
+            if latest_payload:
+                entry["effectif"] = latest_payload.get("inscrits")
+
+        if entry.get("effectif") is None:
+            entry["effectif"] = 0.0
+
+    declared_c5_by_siret: dict[str, dict[str, object]] = {}
+    for entry in upcoming_entries:
+        siret_value = entry["siret"]  # type: ignore[index]
+        parsed_date = entry["date"]  # type: ignore[index]
+        current = declared_c5_by_siret.get(siret_value)
+        if current is None:
+            declared_c5_by_siret[siret_value] = {
+                "date": parsed_date,
+                "effectif": entry.get("effectif") or 0.0,
+            }
+            continue
+
+        current_date = current.get("date")
+        if isinstance(parsed_date, date) and (
+            not isinstance(current_date, date) or parsed_date < current_date
+        ):
+            declared_c5_by_siret[siret_value] = {
+                "date": parsed_date,
+                "effectif": entry.get("effectif") or 0.0,
+            }
 
     quarter_counts: dict[tuple[int, int], int] = {}
-    for declared_date in declared_c5_dates.values():
+    for payload in declared_c5_by_siret.values():
+        declared_date = payload.get("date")
+        if not isinstance(declared_date, date):
+            continue
         quarter_index = ((declared_date.month - 1) // 3) + 1
         key = (declared_date.year, quarter_index)
         quarter_counts[key] = quarter_counts.get(key, 0) + 1
 
+    def _iterate_quarters(start: date, end: date):
+        year = start.year
+        quarter = ((start.month - 1) // 3) + 1
+        final_quarter = ((end.month - 1) // 3) + 1
+        while year < end.year or (year == end.year and quarter <= final_quarter):
+            yield year, quarter
+            quarter += 1
+            if quarter > 4:
+                quarter = 1
+                year += 1
+
     upcoming_quarters = [
-        {"label": f"T{quarter} {year}", "count": count}
-        for (year, quarter), count in sorted(
-            quarter_counts.items(), key=lambda item: (item[0][0], item[0][1])
+        {
+            "label": f"T{quarter} {year}",
+            "count": quarter_counts.get((year, quarter), 0),
+        }
+        for year, quarter in _iterate_quarters(
+            cycle5_reference_start, cycle5_reference_end
         )
     ]
 
-    declared_dates_sorted = sorted(declared_c5_dates.values())
+    declared_dates_sorted = sorted(
+        [
+            payload["date"]
+            for payload in declared_c5_by_siret.values()
+            if isinstance(payload.get("date"), date)
+        ]
+    )
     future_dates = [d for d in declared_dates_sorted if d >= today]
 
     coverage_start_date = declared_dates_sorted[0] if declared_dates_sorted else None
     coverage_end_date = declared_dates_sorted[-1] if declared_dates_sorted else None
     upcoming_next_date = future_dates[0] if future_dates else None
 
-    declared_total = len(declared_c5_dates)
-    future_total = len({s for s, d in declared_c5_dates.items() if d >= today})
+    declared_total_all = len(declared_c5_by_siret)
+    declared_total_eligible = sum(
+        1
+        for payload in declared_c5_by_siret.values()
+        if (_to_number(payload.get("effectif")) or 0) >= audience_threshold
+    )
+
+    future_total_all = sum(1 for d in future_dates)
+    future_total_eligible = sum(
+        1
+        for payload in declared_c5_by_siret.values()
+        if isinstance(payload.get("date"), date)
+        and payload["date"] >= today  # type: ignore[index]
+        and (_to_number(payload.get("effectif")) or 0) >= audience_threshold
+    )
 
     declared_percent = round(
-        (declared_total / audience_siret * 100) if audience_siret > 0 else 0,
+        (declared_total_eligible / audience_siret * 100) if audience_siret > 0 else 0,
         1,
     )
     future_percent = round(
-        (future_total / audience_siret * 100) if audience_siret > 0 else 0,
+        (future_total_eligible / audience_siret * 100) if audience_siret > 0 else 0,
         1,
     )
 
@@ -519,17 +587,19 @@ def _compute_dashboard_stats(db: Session):
         "last_summary": _format_date_display(last_summary_date),
         "invit_total": invitations_total,
         "last_invitation": _format_date_display(last_invitation_date),
-        "upcoming_total": declared_total,
+        "upcoming_total": declared_total_eligible,
         "upcoming_next": _format_date_display(upcoming_next_date),
         "upcoming_threshold": audience_threshold,
-        "upcoming_period_start": (
-            coverage_start_date.isoformat() if coverage_start_date else None
+        "upcoming_period_start": cycle5_reference_start.isoformat(),
+        "upcoming_period_end": cycle5_reference_end.isoformat(),
+        "upcoming_period_start_display": _format_date_display(
+            cycle5_reference_start
         ),
-        "upcoming_period_end": (
-            coverage_end_date.isoformat() if coverage_end_date else None
+        "upcoming_period_end_display": _format_date_display(
+            cycle5_reference_end
         ),
-        "upcoming_period_start_display": _format_date_display(coverage_start_date),
-        "upcoming_period_end_display": _format_date_display(coverage_end_date),
+        "upcoming_total_all": declared_total_all,
+        "upcoming_next_all": _format_date_display(upcoming_next_date),
     }
 
     # Statistiques par statut PAP sur la cible
@@ -570,24 +640,28 @@ def _compute_dashboard_stats(db: Session):
             (audience_voix_cgt / audience_inscrits * 100) if audience_inscrits > 0 else 0,
             1,
         ),
-        "audience_upcoming_c5": future_total,
+        "audience_upcoming_c5": future_total_eligible,
         "audience_upcoming_c5_percent": future_percent,
-        "audience_upcoming_declared_total": declared_total,
+        "audience_upcoming_declared_total": declared_total_eligible,
         "audience_upcoming_declared_percent": declared_percent,
-        "audience_upcoming_future_total": future_total,
+        "audience_upcoming_future_total": future_total_eligible,
         "audience_upcoming_future_percent": future_percent,
-        "audience_upcoming_period_start": (
-            coverage_start_date.isoformat() if coverage_start_date else None
-        ),
-        "audience_upcoming_period_end": (
-            coverage_end_date.isoformat() if coverage_end_date else None
-        ),
+        "audience_upcoming_period_start": cycle5_reference_start.isoformat(),
+        "audience_upcoming_period_end": cycle5_reference_end.isoformat(),
         "audience_upcoming_period_start_display": _format_date_display(
-            coverage_start_date
+            cycle5_reference_start
         ),
         "audience_upcoming_period_end_display": _format_date_display(
+            cycle5_reference_end
+        ),
+        "audience_upcoming_coverage_start_display": _format_date_display(
+            coverage_start_date
+        ),
+        "audience_upcoming_coverage_end_display": _format_date_display(
             coverage_end_date
         ),
+        "audience_upcoming_declared_total_all": declared_total_all,
+        "audience_upcoming_future_total_all": future_total_all,
         "autres_possessions_total": autres_possessions_total,
         "autres_possessions_c3": autres_possessions_c3,
         "autres_possessions_c4": autres_possessions_c4,
