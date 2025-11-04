@@ -439,6 +439,12 @@ def presentation(request: Request, db: Session = Depends(get_session)):
             "href": "/admin#configuration",
             "description": "Variables d’environnement et téléchargement automatique de la base.",
         },
+        {
+            "title": "Kit ressources C5",
+            "icon": "fa-cloud-arrow-down",
+            "href": "https://cloud.cgt.fr/public.php/dav/files/jXycqmjkMpYbwXr/?accept=zip",
+            "description": "Accéder au dossier partagé (outils, supports et documents de campagne).",
+        },
     ]
 
     faq_entries = [
