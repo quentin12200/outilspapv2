@@ -111,11 +111,15 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
     }
 
 @router.get("/stats/dashboard")
-def dashboard_stats(db: Session = Depends(get_session)):
+def dashboard_stats(request: Request, db: Session = Depends(get_session)):
     """Retourne les statistiques pour le tableau de bord"""
 
+    # Extraire les filtres globaux
+    from ..filters import GlobalFilters
+    global_filters = GlobalFilters.from_request(request)
+
     try:
-        return _compute_dashboard_stats(db)
+        return _compute_dashboard_stats(db, global_filters)
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
