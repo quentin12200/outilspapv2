@@ -1142,6 +1142,7 @@ def add_pap_invitation(
     effectif_connu: int = Query(None),
     date_reception: str = Query(None),
     date_election: str = Query(None),
+    structure_saisie: str = Query(None),
     source: str = Query("Manuel"),
     db: Session = Depends(get_session)
 ):
@@ -1184,6 +1185,7 @@ def add_pap_invitation(
         effectif_connu=effectif_connu,
         date_reception=date_reception_parsed,
         date_election=date_election_parsed,
+        structure_saisie=structure_saisie,
     )
     
     db.add(nouvelle_invitation)

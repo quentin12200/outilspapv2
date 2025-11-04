@@ -193,6 +193,7 @@ class Invitation(Base):
     effectif_connu = Column(Integer)                             # Effectif connu manuellement
     date_reception = Column(Date)                                # Date de réception de l'invitation
     date_election = Column(Date)                                 # Date de l'élection si connue
+    structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
 
 
 class SiretSummary(Base):

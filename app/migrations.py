@@ -35,6 +35,7 @@ MANUAL_INVITATION_COLUMNS = [
     ("effectif_connu", "INTEGER"),
     ("date_reception", "DATE"),
     ("date_election", "DATE"),
+    ("structure_saisie", "TEXT"),
 ]
 
 # Nouvelles colonnes pour pv_events (v1.0.0 - scores syndicaux complets)
