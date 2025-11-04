@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, Request
-from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm import Session, Query as SAQuery
 from sqlalchemy import func, or_
 from typing import List
 from datetime import datetime, timedelta, date
@@ -137,17 +137,17 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     global_filters = global_filters or GlobalFilters()
 
-    def _apply_pv(query: Query) -> Query:
+    def _apply_pv(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_pv_query(query)
         return query
 
-    def _apply_invitation(query: Query) -> Query:
+    def _apply_invitation(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_invitation_query(query)
         return query
 
-    def _apply_summary(query: Query) -> Query:
+    def _apply_summary(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_siret_summary_query(query)
         return query

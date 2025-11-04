@@ -2,7 +2,7 @@
 API pour les statistiques géographiques (carte de France)
 """
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm import Session, Query as SAQuery
 from sqlalchemy import func, and_
 from typing import Dict, List, Any
 from ..db import get_session
@@ -28,7 +28,7 @@ def get_departements_inscrits_stats(
 
     global_filters = GlobalFilters.from_request(request)
 
-    def _apply_pv(query: Query) -> Query:
+    def _apply_pv(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_pv_query(query)
         return query
@@ -138,7 +138,7 @@ def get_top_cibles(
     # On prend le max des inscrits pour chaque SIRET
     global_filters = GlobalFilters.from_request(request)
 
-    def _apply_pv(query: Query) -> Query:
+    def _apply_pv(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_pv_query(query)
         return query
@@ -213,7 +213,7 @@ def get_departements_invitations_pap(
 
     global_filters = GlobalFilters.from_request(request)
 
-    def _apply_invitation(query: Query) -> Query:
+    def _apply_invitation(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_invitation_query(query)
         return query

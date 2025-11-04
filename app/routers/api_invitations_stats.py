@@ -2,7 +2,7 @@
 Endpoint pour les statistiques enrichies des invitations PAP
 """
 from fastapi import Depends, APIRouter, Request
-from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm import Session, Query as SAQuery
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any
@@ -32,7 +32,7 @@ def get_enriched_invitation_stats(
 
     global_filters = GlobalFilters.from_request(request)
 
-    def _apply_invitation(query: Query) -> Query:
+    def _apply_invitation(query: SAQuery) -> SAQuery:
         if global_filters and global_filters.has_filter():
             return global_filters.apply_to_invitation_query(query)
         return query
