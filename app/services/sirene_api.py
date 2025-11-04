@@ -74,6 +74,61 @@ class SireneAPI:
         except (ValueError, AttributeError, TypeError):
             return False
 
+    async def _search_siret_by_number(
+        self,
+        client: httpx.AsyncClient,
+        siret: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Fallback Sirene search that queries the catalogue by SIRET number."""
+
+        params = {
+            "q": f"siret:{siret}",
+            "nombre": "1",
+        }
+
+        response = await client.get(
+            f"{SIRENE_API_BASE}/siret",
+            headers=self.headers,
+            params=params,
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            etablissements = data.get("etablissements") or []
+            if etablissements:
+                logger.info(
+                    "Sirene fallback: SIRET %s trouvé via la recherche par numéro",
+                    siret,
+                )
+                return self._parse_etablissement(etablissements[0])
+            logger.info(
+                "Sirene fallback: aucun établissement retourné pour le SIRET %s",
+                siret,
+            )
+            return None
+
+        if response.status_code == 404:
+            logger.info(
+                "Sirene fallback: SIRET %s absent des résultats de recherche",
+                siret,
+            )
+            return None
+
+        if response.status_code == 429:
+            logger.warning("Limite de taux API Sirene atteinte (fallback)")
+            raise SireneAPIError("Trop de requêtes, veuillez patienter")
+
+        if response.status_code == 401:
+            logger.error("Clé API Sirene absente ou invalide (fallback)")
+            raise SireneAPIError("Accès refusé par l'API Sirene")
+
+        logger.error(
+            "Erreur API Sirene (%s) pendant la recherche fallback: %s",
+            response.status_code,
+            response.text,
+        )
+        raise SireneAPIError(f"Erreur API: {response.status_code}")
+
     async def get_siret(self, siret: str) -> Optional[Dict[str, Any]]:
         """
         Récupère les informations d'un établissement par son SIRET
@@ -100,15 +155,28 @@ class SireneAPI:
                 if response.status_code == 200:
                     data = response.json()
                     return self._parse_etablissement(data.get("etablissement", {}))
-                elif response.status_code == 404:
-                    logger.info(f"SIRET non trouvé: {siret_clean}")
-                    return None
-                elif response.status_code == 429:
+
+                if response.status_code == 404:
+                    logger.info(
+                        "SIRET %s introuvable via l'endpoint direct, tentative fallback",
+                        siret_clean,
+                    )
+                    return await self._search_siret_by_number(client, siret_clean)
+
+                if response.status_code == 401:
+                    logger.error("Clé API Sirene absente ou invalide")
+                    raise SireneAPIError("Accès refusé par l'API Sirene")
+
+                if response.status_code == 429:
                     logger.warning("Limite de taux API Sirene atteinte")
                     raise SireneAPIError("Trop de requêtes, veuillez patienter")
-                else:
-                    logger.error(f"Erreur API Sirene ({response.status_code}): {response.text}")
-                    raise SireneAPIError(f"Erreur API: {response.status_code}")
+
+                logger.error(
+                    "Erreur API Sirene (%s): %s",
+                    response.status_code,
+                    response.text,
+                )
+                raise SireneAPIError(f"Erreur API: {response.status_code}")
 
         except httpx.TimeoutException:
             logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
