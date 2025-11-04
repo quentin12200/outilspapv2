@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
 from typing import List
@@ -127,8 +127,13 @@ def dashboard_stats(request: Request, db: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Error computing dashboard stats: {str(e)}")
 
 
-def _compute_dashboard_stats(db: Session):
-    """Helper function to compute dashboard statistics"""
+def _compute_dashboard_stats(db: Session, global_filters=None):
+    """Helper function to compute dashboard statistics
+
+    Args:
+        db: Database session
+        global_filters: Optional GlobalFilters instance to filter data
+    """
 
     def _to_number(value):
         if value is None:
