@@ -396,20 +396,13 @@ sirene_api = SireneAPI()
 
 
 async def enrichir_siret(siret: str) -> Optional[Dict[str, Any]]:
-    """
-    Fonction helper pour enrichir un SIRET
+    """Retourne les informations enrichies pour un SIRET."""
 
-    Args:
-        siret: Numéro SIRET
-
-    Returns:
-        Dictionnaire avec les infos enrichies ou None
-    """
     try:
         return await sirene_api.get_siret(siret)
     except SireneAPIError as e:
-        logger.error(f"Erreur enrichissement SIRET {siret}: {e}")
-        return None
+        logger.error("Erreur enrichissement SIRET %s: %s", siret, e)
+        raise
 
 
 async def rechercher_siret(

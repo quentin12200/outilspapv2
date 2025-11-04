@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta, date
 import re
 
@@ -1052,37 +1052,38 @@ def dashboard_enhanced_stats(db: Session = Depends(get_session)):
         "monthly_evolution": [{"month": m[0], "count": m[1]} for m in monthly_evolution]
     }
 
-@router.get("/siret/{siret}/check")
-def check_siret_exists(siret: str, db: Session = Depends(get_session)):
-    """
-    Vérifie si un SIRET existe dans la base et retourne ses données.
-    Utile pour pré-remplir le formulaire d'ajout PAP.
-    """
-    # Cherche dans SiretSummary
+def _collect_local_siret_form_data(db: Session, siret: str) -> Optional[dict]:
+    """Construit des données locales pour pré-remplir un formulaire SIRET."""
+
     summary = db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
-    
-    # Cherche dans Invitations
-    invitation = db.query(Invitation).filter(Invitation.siret == siret).order_by(Invitation.date_invit.desc()).first()
-    
-    # Cherche dans PVEvent
-    pv_event = db.query(PVEvent).filter(PVEvent.siret == siret).order_by(PVEvent.date_pv.desc()).first()
-    
+    invitation = (
+        db.query(Invitation)
+        .filter(Invitation.siret == siret)
+        .order_by(Invitation.date_invit.desc())
+        .first()
+    )
+    pv_event = (
+        db.query(PVEvent)
+        .filter(PVEvent.siret == siret)
+        .order_by(PVEvent.date_pv.desc())
+        .first()
+    )
+
     if not summary and not invitation and not pv_event:
-        return {"exists": False, "data": None}
-    
-    # Construit les données depuis les différentes sources
+        return None
+
     data = {
         "siret": siret,
         "raison_sociale": None,
         "ville": None,
         "code_postal": None,
+        "adresse": None,
         "ud": None,
         "fd": None,
         "idcc": None,
         "effectif": None,
     }
-    
-    # Priorise SiretSummary pour les données
+
     if summary:
         data["raison_sociale"] = summary.raison_sociale
         data["ville"] = summary.ville
@@ -1091,8 +1092,7 @@ def check_siret_exists(siret: str, db: Session = Depends(get_session)):
         data["fd"] = summary.fd_c4 or summary.fd_c3
         data["idcc"] = summary.idcc
         data["effectif"] = summary.effectif_siret
-    
-    # Complète avec Invitation si nécessaire
+
     if invitation:
         if not data["raison_sociale"]:
             data["raison_sociale"] = invitation.denomination
@@ -1100,6 +1100,8 @@ def check_siret_exists(siret: str, db: Session = Depends(get_session)):
             data["ville"] = invitation.commune
         if not data["code_postal"]:
             data["code_postal"] = invitation.code_postal
+        if not data["adresse"]:
+            data["adresse"] = invitation.adresse
         if not data["ud"] and invitation.ud:
             data["ud"] = invitation.ud
         if not data["fd"] and invitation.fd:
@@ -1108,8 +1110,7 @@ def check_siret_exists(siret: str, db: Session = Depends(get_session)):
             data["idcc"] = invitation.idcc
         if not data["effectif"] and invitation.effectif_connu:
             data["effectif"] = invitation.effectif_connu
-    
-    # Complète avec PVEvent si nécessaire
+
     if pv_event:
         if not data["raison_sociale"]:
             data["raison_sociale"] = pv_event.raison_sociale
@@ -1123,9 +1124,26 @@ def check_siret_exists(siret: str, db: Session = Depends(get_session)):
             data["fd"] = pv_event.fd
         if not data["idcc"]:
             data["idcc"] = pv_event.idcc
-        if not data["effectif"]:
-            data["effectif"] = int(pv_event.effectif_siret) if pv_event.effectif_siret else None
-    
+        if not data["effectif"] and pv_event.effectif_siret:
+            try:
+                data["effectif"] = int(pv_event.effectif_siret)
+            except (TypeError, ValueError):
+                data["effectif"] = None
+
+    return data
+
+
+@router.get("/siret/{siret}/check")
+def check_siret_exists(siret: str, db: Session = Depends(get_session)):
+    """
+    Vérifie si un SIRET existe dans la base et retourne ses données.
+    Utile pour pré-remplir le formulaire d'ajout PAP.
+    """
+
+    data = _collect_local_siret_form_data(db, siret)
+    if not data:
+        return {"exists": False, "data": None}
+
     return {"exists": True, "data": data}
 
 
@@ -1200,20 +1218,21 @@ def add_pap_invitation(
 
 
 @router.get("/siret/{siret}/enrichir-sirene")
-async def enrichir_siret_from_api(siret: str):
-    """
-    Enrichit un SIRET directement depuis l'API Sirene (sans l'enregistrer).
-    Utile pour pré-remplir le formulaire d'ajout PAP.
-    """
+async def enrichir_siret_from_api(siret: str, db: Session = Depends(get_session)):
+    """Prépare les informations d'un SIRET via l'API Sirene ou, en secours, via la base locale."""
+
+    api_error: Optional[str] = None
+
     try:
         data = await enrichir_siret(siret)
-        
-        if not data:
-            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
-        
-        # Formatte les données pour le formulaire
+    except SireneAPIError as exc:
+        api_error = str(exc)
+        data = None
+
+    if data:
         return {
             "success": True,
+            "source": "sirene",
             "data": {
                 "siret": siret,
                 "raison_sociale": data.get("denomination"),
@@ -1224,7 +1243,23 @@ async def enrichir_siret_from_api(siret: str):
                 "ud": None,
                 "fd": None,
                 "idcc": None,
-            }
+            },
         }
-    except SireneAPIError as e:
-        raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
+
+    fallback_data = _collect_local_siret_form_data(db, siret)
+    if fallback_data:
+        response = {
+            "success": True,
+            "source": "local",
+            "data": fallback_data,
+        }
+        if api_error:
+            response["warning"] = f"Impossible de joindre l'API Sirene ({api_error})"
+        else:
+            response["warning"] = "SIRET indisponible via l'API Sirene, données locales affichées"
+        return response
+
+    if api_error:
+        raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {api_error}")
+
+    raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
