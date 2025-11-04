@@ -522,6 +522,8 @@ function cartographieApp() {
     departements: [],
     departementsPAP: [],
     parUD: [],
+    geojsonData: null,  // Stocker le GeoJSON pour réutilisation
+    mapPAPLoaded: false,  // Flag pour savoir si la carte PAP a été chargée
     stats: {
       total_departements: 0,
       total_cibles_1000plus: 0,
@@ -541,9 +543,29 @@ function cartographieApp() {
     async init() {
       await this.loadDataInscrits();
       await this.loadDataPAP();
+      await this.loadGeoJSON();
       await this.loadMap();
-      await this.loadMapPAP();
       this.loading = false;
+
+      // Watch activeTab pour charger la carte PAP quand nécessaire
+      this.$watch('activeTab', (newTab) => {
+        if (newTab === 'pap' && !this.mapPAPLoaded) {
+          // Attendre que le DOM soit mis à jour avec le nouveau tab visible
+          this.$nextTick(() => {
+            this.loadMapPAP();
+            this.mapPAPLoaded = true;
+          });
+        }
+      });
+    },
+
+    async loadGeoJSON() {
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
+        this.geojsonData = await response.json();
+      } catch (error) {
+        console.error('Erreur chargement GeoJSON:', error);
+      }
     },
 
     async loadDataInscrits() {
@@ -581,23 +603,27 @@ function cartographieApp() {
       }
     },
 
-    async loadMap() {
+    loadMap() {
+      if (!this.geojsonData) {
+        console.error('GeoJSON data not loaded');
+        return;
+      }
       try {
-        const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
-        const geojson = await response.json();
-        this.drawMap(geojson, 'inscrits');
+        this.drawMap(this.geojsonData, 'inscrits');
       } catch (error) {
-        console.error('Erreur chargement carte inscrits:', error);
+        console.error('Erreur dessin carte inscrits:', error);
       }
     },
 
-    async loadMapPAP() {
+    loadMapPAP() {
+      if (!this.geojsonData) {
+        console.error('GeoJSON data not loaded');
+        return;
+      }
       try {
-        const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
-        const geojson = await response.json();
-        this.drawMap(geojson, 'pap');
+        this.drawMap(this.geojsonData, 'pap');
       } catch (error) {
-        console.error('Erreur chargement carte PAP:', error);
+        console.error('Erreur dessin carte PAP:', error);
       }
     },
 
@@ -606,8 +632,20 @@ function cartographieApp() {
       const tooltipId = type === 'inscrits' ? '#map-tooltip' : '#map-tooltip-pap';
       const containerId = type === 'inscrits' ? '#map-container' : '#map-container-pap';
 
+      const container = document.querySelector(containerId);
+      if (!container) {
+        console.error(`Container ${containerId} not found`);
+        return;
+      }
+
       const svg = d3.select(svgId);
-      const width = document.querySelector(containerId).clientWidth;
+      let width = container.clientWidth;
+
+      // Si le conteneur est caché, la largeur sera 0, utiliser une valeur par défaut
+      if (width === 0) {
+        width = 800;  // Largeur par défaut
+      }
+
       const height = 600;
 
       svg.attr('width', width).attr('height', height);
