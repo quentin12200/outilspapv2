@@ -1,20 +1,23 @@
 """
 Endpoint pour les statistiques enrichies des invitations PAP
 """
-from fastapi import Depends, APIRouter
-from sqlalchemy.orm import Session
+from fastapi import Depends, APIRouter, Request
+from sqlalchemy.orm import Session, Query
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any
 
 from ..db import get_session
 from ..models import Invitation
+from ..filters import GlobalFilters
 
 router = APIRouter(prefix="/api/invitations/stats", tags=["invitations_stats"])
 
 
 @router.get("/enriched")
-def get_enriched_invitation_stats(db: Session = Depends(get_session)):
+def get_enriched_invitation_stats(
+    request: Request, db: Session = Depends(get_session)
+):
     """
     Retourne des statistiques enrichies sur les invitations PAP :
     - Comptage par UD/FD/département
@@ -27,13 +30,22 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
     seven_days_ahead = today + timedelta(days=7)
     one_year_ahead = today + timedelta(days=365)
 
+    global_filters = GlobalFilters.from_request(request)
+
+    def _apply_invitation(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_invitation_query(query)
+        return query
+
     # === Comptage par UD ===
     invitations_by_ud = (
-        db.query(
-            Invitation.ud,
-            func.count(Invitation.id).label("count")
+        _apply_invitation(
+            db.query(
+                Invitation.ud,
+                func.count(Invitation.id).label("count")
+            )
+            .filter(Invitation.ud.isnot(None), Invitation.ud != "")
         )
-        .filter(Invitation.ud.isnot(None), Invitation.ud != "")
         .group_by(Invitation.ud)
         .order_by(func.count(Invitation.id).desc())
         .all()
@@ -41,11 +53,13 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # === Comptage par FD ===
     invitations_by_fd = (
-        db.query(
-            Invitation.fd,
-            func.count(Invitation.id).label("count")
+        _apply_invitation(
+            db.query(
+                Invitation.fd,
+                func.count(Invitation.id).label("count")
+            )
+            .filter(Invitation.fd.isnot(None), Invitation.fd != "")
         )
-        .filter(Invitation.fd.isnot(None), Invitation.fd != "")
         .group_by(Invitation.fd)
         .order_by(func.count(Invitation.id).desc())
         .all()
@@ -53,11 +67,13 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # === Comptage par département (extrait du code postal) ===
     invitations_by_dept = (
-        db.query(
-            func.substr(Invitation.code_postal, 1, 2).label("departement"),
-            func.count(Invitation.id).label("count")
+        _apply_invitation(
+            db.query(
+                func.substr(Invitation.code_postal, 1, 2).label("departement"),
+                func.count(Invitation.id).label("count")
+            )
+            .filter(Invitation.code_postal.isnot(None), Invitation.code_postal != "")
         )
-        .filter(Invitation.code_postal.isnot(None), Invitation.code_postal != "")
         .group_by(func.substr(Invitation.code_postal, 1, 2))
         .order_by(func.count(Invitation.id).desc())
         .all()
@@ -65,7 +81,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # === Invitations sans réponse depuis > 30 jours ===
     no_response_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(
             Invitation.date_invit < thirty_days_ago,
             Invitation.date_reception.is_(None)
@@ -75,7 +91,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # Détails des invitations sans réponse (top 10)
     no_response_details = (
-        db.query(Invitation)
+        _apply_invitation(db.query(Invitation))
         .filter(
             Invitation.date_invit < thirty_days_ago,
             Invitation.date_reception.is_(None)
@@ -87,7 +103,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # === Élections programmées dans les 7 prochains jours ===
     upcoming_elections_7days_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(
             Invitation.date_election >= today,
             Invitation.date_election <= seven_days_ahead
@@ -97,7 +113,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # Détails des élections à venir (7 jours)
     upcoming_elections_7days_details = (
-        db.query(Invitation)
+        _apply_invitation(db.query(Invitation))
         .filter(
             Invitation.date_election >= today,
             Invitation.date_election <= seven_days_ahead
@@ -109,7 +125,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # === Élections programmées dans l'année à venir ===
     upcoming_elections_1year_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(
             Invitation.date_election >= today,
             Invitation.date_election <= one_year_ahead
@@ -119,7 +135,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
 
     # Détails des élections dans l'année
     upcoming_elections_1year_details = (
-        db.query(Invitation)
+        _apply_invitation(db.query(Invitation))
         .filter(
             Invitation.date_election >= today,
             Invitation.date_election <= one_year_ahead
@@ -130,25 +146,27 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
     )
 
     # === Statistiques de statut ===
-    total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
+    total_invitations = _apply_invitation(
+        db.query(func.count(Invitation.id))
+    ).scalar() or 0
 
     # Réponse reçue
     response_received_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(Invitation.date_reception.isnot(None))
         .scalar() or 0
     )
 
     # Élection programmée
     election_programmed_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(Invitation.date_election.isnot(None))
         .scalar() or 0
     )
 
     # En attente (pas de réponse, invitation < 30 jours)
     pending_count = (
-        db.query(func.count(Invitation.id))
+        _apply_invitation(db.query(func.count(Invitation.id)))
         .filter(
             Invitation.date_reception.is_(None),
             Invitation.date_invit >= thirty_days_ago
@@ -206,5 +224,7 @@ def get_enriched_invitation_stats(db: Session = Depends(get_session)):
             "election_programmed": election_programmed_count,
             "pending": pending_count,
             "overdue": no_response_count
-        }
+        },
+        "global_filter": global_filters.to_dict(),
     }
+

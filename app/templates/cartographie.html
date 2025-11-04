@@ -71,6 +71,13 @@
     <p class="text-gray-600 text-lg">
       Visualisation géographique des données par département
     </p>
+    <template x-if="$store.globalFilter.hasActiveFilter()">
+      <div class="mt-3 inline-flex items-center gap-2 px-3 py-2 bg-cgt-red/10 border border-cgt-red/30 text-cgt-red font-semibold rounded-full">
+        <i class="fas fa-filter"></i>
+        <span>Filtre appliqué :</span>
+        <span x-text="(globalFilterInfo && globalFilterInfo.label) || $store.globalFilter.getActiveFilterLabel()"></span>
+      </div>
+    </template>
   </div>
 
   <!-- Onglets -->
@@ -536,6 +543,7 @@ function cartographieApp() {
       total_uds: 0,
       moyenne_par_dept: 0
     },
+    globalFilterInfo: null,
     loading: true,
     selectedDeptInscrits: null,
     selectedDeptPAP: null,
@@ -570,7 +578,9 @@ function cartographieApp() {
 
     async loadDataInscrits() {
       try {
-        const response = await fetch('/api/geo/departements/inscrits');
+        const params = Alpine.store('globalFilter').getQueryParams();
+        const url = params ? `/api/geo/departements/inscrits?${params}` : '/api/geo/departements/inscrits';
+        const response = await fetch(url);
         const data = await response.json();
 
         this.departements = data.departements;
@@ -578,6 +588,7 @@ function cartographieApp() {
         this.stats.total_cibles_1000plus = data.total_cibles_1000plus;
         this.stats.total_inscrits_france = data.total_inscrits_france;
         this.stats.moyenne_par_dept = Math.round(data.total_inscrits_france / this.departements.length);
+        this.globalFilterInfo = data.global_filter || null;
       } catch (error) {
         console.error('Erreur chargement données inscrits:', error);
         showToast('Erreur lors du chargement des données inscrits', 'error');
@@ -586,7 +597,9 @@ function cartographieApp() {
 
     async loadDataPAP() {
       try {
-        const response = await fetch('/api/geo/departements/invitations-pap');
+        const params = Alpine.store('globalFilter').getQueryParams();
+        const url = params ? `/api/geo/departements/invitations-pap?${params}` : '/api/geo/departements/invitations-pap';
+        const response = await fetch(url);
         const data = await response.json();
 
         this.departementsPAP = data.par_departement;
@@ -597,6 +610,7 @@ function cartographieApp() {
         this.statsPAP.moyenne_par_dept = data.total_departements > 0
           ? Math.round(data.total_invitations / data.total_departements)
           : 0;
+        this.globalFilterInfo = data.global_filter || this.globalFilterInfo;
       } catch (error) {
         console.error('Erreur chargement données PAP:', error);
         showToast('Erreur lors du chargement des données PAP', 'error');

@@ -75,12 +75,23 @@ class GlobalFilters:
             Query filtrée
         """
         from .models import Invitation
+        from sqlalchemy.orm import aliased
 
         if self.ud:
             query = query.filter(Invitation.ud == self.ud)
         elif self.fd:
             query = query.filter(Invitation.fd == self.fd)
-        # Note: Invitation n'a pas de colonne region, on ne peut pas filtrer par région
+        elif self.region:
+            # Invitation ne possède pas directement la région :
+            # on joint sur SiretSummary pour récupérer la région associée.
+            from .models import SiretSummary
+
+            summary_alias = aliased(SiretSummary)
+            query = query.join(
+                summary_alias,
+                summary_alias.siret == Invitation.siret,
+                isouter=False,
+            ).filter(summary_alias.region == self.region)
 
         return query
 

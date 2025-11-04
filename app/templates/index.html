@@ -71,6 +71,13 @@
           <p class="text-white/80 text-base">
             Visualisez la cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span> inscrit·es, contrôlez les invitations PAP C5 et mesurez les correspondances avec les historiques C3/C4 pour préparer au mieux le cycle 5.
           </p>
+          <template x-if="$store.globalFilter.hasActiveFilter()">
+            <div class="inline-flex items-center gap-2 px-3 py-2 bg-white/20 border border-white/30 rounded-full text-sm font-semibold text-white">
+              <i class="fas fa-filter"></i>
+              <span>Filtre appliqué :</span>
+              <span x-text="stats.global_filter?.label || $store.globalFilter.getActiveFilterLabel()"></span>
+            </div>
+          </template>
           <div class="flex flex-wrap gap-3">
             <a href="/calendrier" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-cgt-red font-semibold shadow-lg hover:bg-gray-100 transition">
               <i class="fas fa-calendar-alt"></i>
@@ -818,7 +825,9 @@
           this.closeChartModal();
           this.beginProgress();
           try {
-            const response = await fetch('/api/stats/dashboard');
+            const params = Alpine.store('globalFilter').getQueryParams();
+            const url = params ? `/api/stats/dashboard?${params}` : '/api/stats/dashboard';
+            const response = await fetch(url);
             if (!response.ok) {
               throw new Error('Réponse invalide du serveur');
             }

@@ -101,6 +101,9 @@
     // Global filter state accessible everywhere
     document.addEventListener('alpine:init', () => {
       Alpine.store('globalFilter', {
+        init() {
+          this.syncCookies();
+        },
         ud: localStorage.getItem('filter_ud') || '',
         fd: localStorage.getItem('filter_fd') || '',
         region: localStorage.getItem('filter_region') || '',
@@ -112,6 +115,7 @@
           localStorage.setItem('filter_ud', value);
           localStorage.removeItem('filter_fd');
           localStorage.removeItem('filter_region');
+          this.syncCookies();
           this.reloadPage();
         },
 
@@ -122,6 +126,7 @@
           localStorage.setItem('filter_fd', value);
           localStorage.removeItem('filter_ud');
           localStorage.removeItem('filter_region');
+          this.syncCookies();
           this.reloadPage();
         },
 
@@ -132,6 +137,7 @@
           localStorage.setItem('filter_region', value);
           localStorage.removeItem('filter_ud');
           localStorage.removeItem('filter_fd');
+          this.syncCookies();
           this.reloadPage();
         },
 
@@ -142,12 +148,19 @@
           localStorage.removeItem('filter_ud');
           localStorage.removeItem('filter_fd');
           localStorage.removeItem('filter_region');
+          this.syncCookies();
           this.reloadPage();
         },
 
         reloadPage() {
-          // Trigger a page reload to apply filter
-          window.location.reload();
+          const params = this.getQueryParams();
+          const url = new URL(window.location.href);
+          if (params) {
+            url.search = params;
+          } else {
+            url.search = '';
+          }
+          window.location.href = url.toString();
         },
 
         getQueryParams() {
@@ -167,6 +180,39 @@
           if (this.fd) return `FD: ${this.fd}`;
           if (this.region) return `Région: ${this.region}`;
           return '';
+        },
+
+        setCookie(name, value) {
+          if (value) {
+            const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+            document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+          } else {
+            this.clearCookie(name);
+          }
+        },
+
+        clearCookie(name) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        },
+
+        syncCookies() {
+          if (this.ud) {
+            this.setCookie('filter_ud', this.ud);
+          } else {
+            this.clearCookie('filter_ud');
+          }
+
+          if (this.fd) {
+            this.setCookie('filter_fd', this.fd);
+          } else {
+            this.clearCookie('filter_fd');
+          }
+
+          if (this.region) {
+            this.setCookie('filter_region', this.region);
+          } else {
+            this.clearCookie('filter_region');
+          }
         }
       });
     });

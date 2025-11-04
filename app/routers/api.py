@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, Query
+from sqlalchemy import func, or_
 from typing import List
 from datetime import datetime, timedelta, date
 import re
@@ -8,6 +8,7 @@ import re
 from ..db import get_session, Base, engine
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
+from ..filters import GlobalFilters
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 
@@ -115,7 +116,6 @@ def dashboard_stats(request: Request, db: Session = Depends(get_session)):
     """Retourne les statistiques pour le tableau de bord"""
 
     # Extraire les filtres globaux
-    from ..filters import GlobalFilters
     global_filters = GlobalFilters.from_request(request)
 
     try:
@@ -134,6 +134,23 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
         db: Database session
         global_filters: Optional GlobalFilters instance to filter data
     """
+
+    global_filters = global_filters or GlobalFilters()
+
+    def _apply_pv(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_pv_query(query)
+        return query
+
+    def _apply_invitation(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_invitation_query(query)
+        return query
+
+    def _apply_summary(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_siret_summary_query(query)
+        return query
 
     def _to_number(value):
         if value is None:
@@ -189,7 +206,8 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     audience_threshold = 1000
 
-    total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    total_siret_query = _apply_summary(db.query(func.count(SiretSummary.siret)))
+    total_siret = total_siret_query.scalar() or 0
 
     #
     # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
@@ -217,7 +235,7 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
         return digits_only or stripped or None
 
-    latest_c4_rows = (
+    latest_c4_query = (
         db.query(
             PVEvent.siret,
             PVEvent.id,
@@ -227,8 +245,8 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
         )
         .filter(PVEvent.cycle.isnot(None))
         .filter(PVEvent.cycle.ilike("%C4%"))
-        .all()
     )
+    latest_c4_rows = _apply_pv(latest_c4_query).all()
 
     latest_per_siret: dict[str, dict[str, float]] = {}
     for siret_value, pv_id, pv_date_value, inscrits_value, cgt_voix_value in latest_c4_rows:
@@ -268,7 +286,7 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     summary_rows = []
     if eligible_sirets:
-        summary_rows = (
+        summary_query = (
             db.query(
                 SiretSummary.siret,
                 SiretSummary.dep,
@@ -278,9 +296,9 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
                 SiretSummary.statut_pap,
                 SiretSummary.inscrits_c4,
             )
-            .filter(SiretSummary.siret.in_(eligible_sirets))
-            .all()
         )
+        summary_query = _apply_summary(summary_query)
+        summary_rows = summary_query.filter(SiretSummary.siret.in_(eligible_sirets)).all()
 
     audience_siret_c4_carence = sum(1 for row in summary_rows if row.carence_c4)
     audience_siret_c4_pv = max(audience_siret - audience_siret_c4_carence, 0)
@@ -300,10 +318,11 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
     audience_voix_cgt = int(audience_voix_cgt)
 
     if eligible_sirets:
-        audience_invitations = (
+        invitations_query = _apply_invitation(
             db.query(func.count(func.distinct(Invitation.siret)))
-            .filter(Invitation.siret.in_(eligible_sirets))
-            .scalar()
+        )
+        audience_invitations = (
+            invitations_query.filter(Invitation.siret.in_(eligible_sirets)).scalar()
             or 0
         )
     else:
@@ -325,7 +344,7 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     month_bucket = _month_bucket_expression(db, Invitation.date_invit)
 
-    monthly_rows = (
+    monthly_query = (
         db.query(
             month_bucket.label("month"),
             func.count(Invitation.id).label("count"),
@@ -333,8 +352,8 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
         .filter(Invitation.date_invit >= six_months_ago)
         .group_by(month_bucket)
         .order_by(month_bucket)
-        .all()
     )
+    monthly_rows = _apply_invitation(monthly_query).all()
 
     monthly_invitations: list[dict[str, object]] = []
     for month_key, count in monthly_rows:
@@ -353,7 +372,7 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     today = date.today()
 
-    upcoming_rows = (
+    upcoming_query = (
         db.query(
             PVEvent.siret,
             PVEvent.cycle,
@@ -363,8 +382,8 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
             PVEvent.quadrimestre_scrutin,
         )
         .filter(PVEvent.date_prochain_scrutin.isnot(None))
-        .all()
     )
+    upcoming_rows = _apply_pv(upcoming_query).all()
 
     cycle5_reference_start = date(2025, 1, 1)
     cycle5_reference_end = date(2028, 12, 31)
@@ -412,15 +431,17 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
 
     summary_lookup: dict[str, dict[str, object]] = {}
     if missing_effectif_sirets:
-        lookup_rows = (
+        lookup_query = (
             db.query(
                 SiretSummary.siret,
                 SiretSummary.effectif_siret,
                 SiretSummary.inscrits_c4,
                 SiretSummary.inscrits_c3,
             )
-            .filter(SiretSummary.siret.in_(missing_effectif_sirets))
-            .all()
+        )
+        lookup_query = _apply_summary(lookup_query)
+        lookup_rows = (
+            lookup_query.filter(SiretSummary.siret.in_(missing_effectif_sirets)).all()
         )
         summary_lookup = {
             row.siret: {
@@ -550,51 +571,60 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
     )
     possessions_condition = or_(c3_condition, c4_condition)
 
-    autres_possessions_total = (
+    autres_possessions_total_query = _apply_summary(
         db.query(func.count(SiretSummary.siret))
-        .filter(possessions_condition)
-        .scalar()
-        or 0
+    )
+    autres_possessions_total = (
+        autres_possessions_total_query.filter(possessions_condition).scalar() or 0
+    )
+    autres_possessions_c3_query = _apply_summary(
+        db.query(func.count(SiretSummary.siret))
     )
     autres_possessions_c3 = (
+        autres_possessions_c3_query.filter(c3_condition).scalar() or 0
+    )
+    autres_possessions_c4_query = _apply_summary(
         db.query(func.count(SiretSummary.siret))
-        .filter(c3_condition)
-        .scalar()
-        or 0
     )
     autres_possessions_c4 = (
-        db.query(func.count(SiretSummary.siret))
-        .filter(c4_condition)
-        .scalar()
-        or 0
+        autres_possessions_c4_query.filter(c4_condition).scalar() or 0
     )
 
     invitations_period_start = date(2025, 1, 1)
-    invitations_period_end_raw = (
-        db.query(func.max(Invitation.date_invit)).scalar()
-    )
+    invitations_period_end_raw = _apply_invitation(
+        db.query(func.max(Invitation.date_invit))
+    ).scalar()
     invitations_period_end = _parse_date_value(invitations_period_end_raw)
     invitations_period_total = 0
     if invitations_period_end:
         invitations_period_total = (
-            db.query(func.count(Invitation.id))
+            _apply_invitation(db.query(func.count(Invitation.id)))
             .filter(Invitation.date_invit >= invitations_period_start)
             .filter(Invitation.date_invit <= invitations_period_end)
             .scalar()
             or 0
         )
 
-    invitations_total = db.query(func.count(Invitation.id)).scalar() or 0
+    invitations_total = _apply_invitation(
+        db.query(func.count(Invitation.id))
+    ).scalar() or 0
 
-    pv_total = db.query(func.count(PVEvent.id)).scalar() or 0
-    pv_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
-    last_summary_date_raw = db.query(func.max(SiretSummary.date_pv_max)).scalar()
+    pv_total = _apply_pv(db.query(func.count(PVEvent.id))).scalar() or 0
+    pv_sirets = _apply_pv(
+        db.query(func.count(func.distinct(PVEvent.siret)))
+    ).scalar() or 0
+    last_summary_date_raw = _apply_summary(
+        db.query(func.max(SiretSummary.date_pv_max))
+    ).scalar()
     last_summary_date = _parse_date_value(last_summary_date_raw)
     last_invitation_date = invitations_period_end
 
-    pv_sirets_subquery = select(SiretSummary.siret).where(possessions_condition)
+    pv_sirets_subquery = (
+        _apply_summary(db.query(SiretSummary.siret).filter(possessions_condition))
+        .subquery()
+    )
     pap_pv_overlap = (
-        db.query(func.count(func.distinct(Invitation.siret)))
+        _apply_invitation(db.query(func.count(func.distinct(Invitation.siret))))
         .filter(Invitation.siret.in_(pv_sirets_subquery))
         .scalar()
         or 0
@@ -708,6 +738,7 @@ def _compute_dashboard_stats(db: Session, global_filters=None):
         "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
         "global_stats": global_stats,
+        "global_filter": global_filters.to_dict(),
     }
 
 

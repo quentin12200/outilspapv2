@@ -1,12 +1,13 @@
 """
 API pour les statistiques géographiques (carte de France)
 """
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session, Query
 from sqlalchemy import func, and_
 from typing import Dict, List, Any
 from ..db import get_session
 from ..models import PVEvent, Invitation
+from ..filters import GlobalFilters
 
 router = APIRouter(
     prefix="/api/geo",
@@ -15,7 +16,9 @@ router = APIRouter(
 
 
 @router.get("/departements/inscrits")
-def get_departements_inscrits_stats(db: Session = Depends(get_session)):
+def get_departements_inscrits_stats(
+    request: Request, db: Session = Depends(get_session)
+):
     """
     Retourne les statistiques d'inscrits par département :
     - Total des inscrits par département
@@ -23,8 +26,15 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     - Liste des établissements avec 1000+ inscrits par département
     """
 
+    global_filters = GlobalFilters.from_request(request)
+
+    def _apply_pv(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_pv_query(query)
+        return query
+
     # Récupérer tous les PV avec leurs inscrits
-    query = db.query(
+    base_query = db.query(
         PVEvent.cp,
         PVEvent.siret,
         PVEvent.raison_sociale,
@@ -35,12 +45,14 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
         PVEvent.cp.isnot(None),
         PVEvent.inscrits.isnot(None),
         PVEvent.inscrits > 0
-    ).all()
+    )
+
+    rows = _apply_pv(base_query).all()
 
     # Dictionnaire pour stocker les stats par département
     dept_stats = {}
 
-    for row in query:
+    for row in rows:
         if not row.cp:
             continue
 
@@ -106,12 +118,14 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     return {
         'departements': result,
         'total_cibles_1000plus': sum(d['nb_cibles_1000plus'] for d in result),
-        'total_inscrits_france': sum(d['total_inscrits'] for d in result)
+        'total_inscrits_france': sum(d['total_inscrits'] for d in result),
+        'global_filter': global_filters.to_dict(),
     }
 
 
 @router.get("/departements/top-cibles")
 def get_top_cibles(
+    request: Request,
     min_inscrits: int = 1000,
     limit: int = 100,
     db: Session = Depends(get_session)
@@ -122,17 +136,26 @@ def get_top_cibles(
 
     # Grouper par SIRET pour éviter les doublons (un SIRET peut avoir plusieurs PV)
     # On prend le max des inscrits pour chaque SIRET
-    subquery = db.query(
+    global_filters = GlobalFilters.from_request(request)
+
+    def _apply_pv(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_pv_query(query)
+        return query
+
+    subquery_base = db.query(
         PVEvent.siret,
         func.max(PVEvent.inscrits).label('max_inscrits')
     ).filter(
         PVEvent.siret.isnot(None),
         PVEvent.inscrits.isnot(None),
         PVEvent.inscrits >= min_inscrits
-    ).group_by(PVEvent.siret).subquery()
+    ).group_by(PVEvent.siret)
+
+    subquery = _apply_pv(subquery_base).subquery()
 
     # Récupérer les infos complètes pour ces SIRETs
-    query = db.query(
+    base_query = db.query(
         PVEvent.siret,
         PVEvent.raison_sociale,
         PVEvent.inscrits,
@@ -149,7 +172,9 @@ def get_top_cibles(
         )
     ).order_by(
         PVEvent.inscrits.desc()
-    ).limit(limit).all()
+    ).limit(limit)
+
+    query = _apply_pv(base_query).all()
 
     result = []
     for row in query:
@@ -170,12 +195,15 @@ def get_top_cibles(
     return {
         'cibles': result,
         'total': len(result),
-        'min_inscrits': min_inscrits
+        'min_inscrits': min_inscrits,
+        'global_filter': global_filters.to_dict(),
     }
 
 
 @router.get("/departements/invitations-pap")
-def get_departements_invitations_pap(db: Session = Depends(get_session)):
+def get_departements_invitations_pap(
+    request: Request, db: Session = Depends(get_session)
+):
     """
     Retourne les statistiques d'invitations PAP par département et par UD :
     - Nombre d'invitations PAP par département (code postal)
@@ -183,10 +211,19 @@ def get_departements_invitations_pap(db: Session = Depends(get_session)):
     - Liste détaillée des invitations par département
     """
 
+    global_filters = GlobalFilters.from_request(request)
+
+    def _apply_invitation(query: Query) -> Query:
+        if global_filters and global_filters.has_filter():
+            return global_filters.apply_to_invitation_query(query)
+        return query
+
     # Récupérer toutes les invitations avec département
-    invitations = db.query(Invitation).filter(
+    invitations_query = db.query(Invitation).filter(
         Invitation.code_postal.isnot(None)
-    ).all()
+    )
+
+    invitations = _apply_invitation(invitations_query).all()
 
     # Stats par département (code postal)
     dept_stats = {}
@@ -256,5 +293,6 @@ def get_departements_invitations_pap(db: Session = Depends(get_session)):
         'par_ud': ud_result,
         'total_invitations': len(invitations),
         'total_departements': len(dept_result),
-        'total_uds': len(ud_result)
+        'total_uds': len(ud_result),
+        'global_filter': global_filters.to_dict(),
     }
