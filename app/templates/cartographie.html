@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+
+{% block title %}Cartographie France · Inscrits{% endblock %}
+
+{% block head %}
+<!-- D3.js for map visualization -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://d3js.org/d3-geo.v3.min.js"></script>
+<script src="https://d3js.org/topojson.v3.min.js"></script>
+
+<style>
+  .department {
+    stroke: #fff;
+    stroke-width: 1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .department:hover {
+    stroke-width: 2;
+    stroke: #d5001c;
+    filter: brightness(0.9);
+  }
+
+  .department-label {
+    font-size: 10px;
+    font-weight: bold;
+    fill: #333;
+    pointer-events: none;
+    text-anchor: middle;
+  }
+
+  .tooltip-map {
+    position: absolute;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    border-radius: 8px;
+    pointer-events: none;
+    font-size: 13px;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .legend-color {
+    width: 30px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="cartographieApp()" x-init="init()">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-4xl font-bold text-gray-900 mb-2 flex items-center space-x-3">
+      <i class="fas fa-map-marked-alt text-cgt-red"></i>
+      <span>Cartographie France · Inscrits</span>
+    </h1>
+    <p class="text-gray-600 text-lg">
+      Visualisation géographique des inscrits par département avec identification des cibles prioritaires (1000+ inscrits)
+    </p>
+  </div>
+
+  <!-- Stats globales -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Total départements</p>
+          <p class="text-3xl font-bold text-gray-900" x-text="stats.total_departements"></p>
+        </div>
+        <i class="fas fa-map text-3xl text-blue-500 opacity-50"></i>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Cibles 1000+ inscrits</p>
+          <p class="text-3xl font-bold text-gray-900" x-text="stats.total_cibles_1000plus"></p>
+        </div>
+        <i class="fas fa-bullseye text-3xl text-green-500 opacity-50"></i>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Total inscrits France</p>
+          <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.total_inscrits_france)"></p>
+        </div>
+        <i class="fas fa-users text-3xl text-purple-500 opacity-50"></i>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Moyenne par département</p>
+          <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.moyenne_par_dept)"></p>
+        </div>
+        <i class="fas fa-chart-bar text-3xl text-cgt-red opacity-50"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div x-show="loading" class="flex items-center justify-center py-20">
+    <div class="text-center">
+      <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
+      <p class="text-gray-600 text-lg">Chargement des données cartographiques...</p>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div x-show="!loading" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Carte de France -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
+          <i class="fas fa-map text-cgt-red"></i>
+          <span>Carte de France par département</span>
+        </h2>
+
+        <!-- Légende -->
+        <div class="mb-6 bg-gray-50 rounded-lg p-4">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Densité d'inscrits</h3>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #f0f0f0;"></div>
+              <span class="text-xs text-gray-600">0 - 1k</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #fee5d9;"></div>
+              <span class="text-xs text-gray-600">1k - 10k</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #fcae91;"></div>
+              <span class="text-xs text-gray-600">10k - 50k</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #fb6a4a;"></div>
+              <span class="text-xs text-gray-600">50k - 100k</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #cb181d;"></div>
+              <span class="text-xs text-gray-600">100k+</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carte SVG -->
+        <div id="map-container" class="w-full" style="min-height: 600px;">
+          <svg id="france-map" width="100%" height="600"></svg>
+        </div>
+
+        <!-- Tooltip -->
+        <div id="map-tooltip" class="tooltip-map"></div>
+      </div>
+    </div>
+
+    <!-- Panneau latéral : Top départements -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-xl shadow-md p-6 sticky top-24">
+        <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
+          <i class="fas fa-trophy text-yellow-500"></i>
+          <span>Top 10 Départements</span>
+        </h2>
+
+        <div class="space-y-3">
+          <template x-for="(dept, index) in topDepartements" :key="dept.dept">
+            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                 @click="selectDepartement(dept)">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
+                   x-text="index + 1"></div>
+              <div class="flex-1">
+                <p class="text-sm font-bold text-gray-900" x-text="dept.dept"></p>
+                <p class="text-xs text-gray-500" x-text="formatNumber(dept.total_inscrits) + ' inscrits'"></p>
+              </div>
+              <div class="text-right">
+                <p class="text-sm font-bold text-cgt-red" x-text="dept.nb_cibles_1000plus"></p>
+                <p class="text-xs text-gray-500">cibles</p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tableau détaillé des départements -->
+  <div x-show="!loading" class="mt-8">
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 flex items-center space-x-2">
+          <i class="fas fa-table text-cgt-red"></i>
+          <span>Données par département</span>
+        </h2>
+
+        <!-- Recherche -->
+        <div class="relative">
+          <input
+            type="text"
+            x-model="searchDept"
+            placeholder="Rechercher un département..."
+            class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+          />
+          <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        </div>
+      </div>
+
+      <!-- Table responsive -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortBy('dept')">
+                Département <i class="fas fa-sort ml-1"></i>
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortBy('total_inscrits')">
+                Total inscrits <i class="fas fa-sort ml-1"></i>
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortBy('nb_cibles_1000plus')">
+                Cibles 1000+ <i class="fas fa-sort ml-1"></i>
+              </th>
+              <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <template x-for="dept in filteredDepartements" :key="dept.dept">
+              <tr class="hover:bg-gray-50 transition">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="text-sm font-medium text-gray-900" x-text="dept.dept"></span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right">
+                  <span class="text-sm text-gray-900" x-text="formatNumber(dept.total_inscrits)"></span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right">
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800"
+                        x-text="dept.nb_cibles_1000plus">
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-center">
+                  <button
+                    @click="selectDepartement(dept)"
+                    class="text-cgt-red hover:text-cgt-darkred font-medium text-sm">
+                    <i class="fas fa-eye mr-1"></i> Voir détails
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal détails département -->
+  <div x-show="selectedDept !== null"
+       x-cloak
+       @click.self="selectedDept = null"
+       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
+      <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
+        <div class="flex items-center justify-between">
+          <h3 class="text-2xl font-bold" x-text="'Département ' + (selectedDept?.dept || '')"></h3>
+          <button @click="selectedDept = null" class="text-white hover:bg-white/20 rounded-full p-2 transition">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p class="opacity-80">Total inscrits</p>
+            <p class="text-2xl font-bold" x-text="formatNumber(selectedDept?.total_inscrits || 0)"></p>
+          </div>
+          <div>
+            <p class="opacity-80">Cibles 1000+</p>
+            <p class="text-2xl font-bold" x-text="selectedDept?.nb_cibles_1000plus || 0"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
+        <h4 class="text-lg font-bold text-gray-900 mb-4">
+          <i class="fas fa-building text-cgt-red mr-2"></i>
+          Établissements avec 1000+ inscrits
+        </h4>
+
+        <template x-if="(selectedDept?.cibles_1000plus || []).length === 0">
+          <p class="text-gray-500 text-center py-8">
+            <i class="fas fa-info-circle text-3xl mb-2"></i><br>
+            Aucune cible avec 1000+ inscrits dans ce département
+          </p>
+        </template>
+
+        <div class="space-y-3">
+          <template x-for="cible in selectedDept?.cibles_1000plus || []" :key="cible.siret">
+            <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <h5 class="font-bold text-gray-900 mb-1" x-text="cible.raison_sociale"></h5>
+                  <p class="text-sm text-gray-600 mb-2">
+                    <i class="fas fa-id-card text-gray-400 mr-1"></i>
+                    <span x-text="'SIRET: ' + cible.siret"></span>
+                  </p>
+                  <p class="text-sm text-gray-600">
+                    <i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>
+                    <span x-text="cible.ville"></span>
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-2xl font-bold text-cgt-red" x-text="formatNumber(cible.inscrits)"></p>
+                  <p class="text-xs text-gray-500">inscrits</p>
+                  <span class="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800"
+                        x-text="cible.cycle"></span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function cartographieApp() {
+  return {
+    departements: [],
+    stats: {
+      total_departements: 0,
+      total_cibles_1000plus: 0,
+      total_inscrits_france: 0,
+      moyenne_par_dept: 0
+    },
+    loading: true,
+    selectedDept: null,
+    searchDept: '',
+    sortField: 'total_inscrits',
+    sortDirection: 'desc',
+
+    async init() {
+      await this.loadData();
+      await this.loadMap();
+    },
+
+    async loadData() {
+      try {
+        const response = await fetch('/api/geo/departements/inscrits');
+        const data = await response.json();
+
+        this.departements = data.departements;
+        this.stats.total_departements = this.departements.length;
+        this.stats.total_cibles_1000plus = data.total_cibles_1000plus;
+        this.stats.total_inscrits_france = data.total_inscrits_france;
+        this.stats.moyenne_par_dept = Math.round(data.total_inscrits_france / this.departements.length);
+
+        this.loading = false;
+      } catch (error) {
+        console.error('Erreur chargement données:', error);
+        this.loading = false;
+        showToast('Erreur lors du chargement des données', 'error');
+      }
+    },
+
+    async loadMap() {
+      // Load France TopoJSON data from external source
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
+        const geojson = await response.json();
+        this.drawMap(geojson);
+      } catch (error) {
+        console.error('Erreur chargement carte:', error);
+      }
+    },
+
+    drawMap(geojson) {
+      const svg = d3.select('#france-map');
+      const width = document.getElementById('map-container').clientWidth;
+      const height = 600;
+
+      svg.attr('width', width).attr('height', height);
+
+      // Create projection
+      const projection = d3.geoConicConformal()
+        .center([2.454071, 46.279229])
+        .scale(2800)
+        .translate([width / 2, height / 2]);
+
+      const path = d3.geoPath().projection(projection);
+
+      // Create color scale
+      const maxInscrits = d3.max(this.departements, d => d.total_inscrits);
+      const colorScale = d3.scaleThreshold()
+        .domain([1000, 10000, 50000, 100000])
+        .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
+
+      // Get department data lookup
+      const deptData = {};
+      this.departements.forEach(d => {
+        deptData[d.dept] = d;
+      });
+
+      const tooltip = d3.select('#map-tooltip');
+
+      // Draw departments
+      svg.selectAll('path')
+        .data(geojson.features)
+        .enter()
+        .append('path')
+        .attr('d', path)
+        .attr('class', 'department')
+        .attr('fill', d => {
+          const code = d.properties.code;
+          const data = deptData[code];
+          return data ? colorScale(data.total_inscrits) : '#f0f0f0';
+        })
+        .on('mouseover', (event, d) => {
+          const code = d.properties.code;
+          const data = deptData[code];
+
+          tooltip.style('opacity', 1)
+            .html(`
+              <div class="font-bold mb-1">${d.properties.nom} (${code})</div>
+              ${data ? `
+                <div class="text-sm">
+                  <div>Inscrits: <strong>${this.formatNumber(data.total_inscrits)}</strong></div>
+                  <div>Cibles 1000+: <strong>${data.nb_cibles_1000plus}</strong></div>
+                </div>
+              ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
+            `)
+            .style('left', (event.pageX + 15) + 'px')
+            .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', () => {
+          tooltip.style('opacity', 0);
+        })
+        .on('click', (event, d) => {
+          const code = d.properties.code;
+          const data = deptData[code];
+          if (data) {
+            this.selectDepartement(data);
+          }
+        });
+
+      // Add department labels
+      svg.selectAll('text')
+        .data(geojson.features)
+        .enter()
+        .append('text')
+        .attr('class', 'department-label')
+        .attr('transform', d => {
+          const centroid = path.centroid(d);
+          return `translate(${centroid[0]}, ${centroid[1]})`;
+        })
+        .text(d => d.properties.code);
+    },
+
+    get topDepartements() {
+      return [...this.departements]
+        .sort((a, b) => b.total_inscrits - a.total_inscrits)
+        .slice(0, 10);
+    },
+
+    get filteredDepartements() {
+      let filtered = this.departements;
+
+      if (this.searchDept) {
+        const search = this.searchDept.toLowerCase();
+        filtered = filtered.filter(d =>
+          d.dept.toLowerCase().includes(search)
+        );
+      }
+
+      return filtered.sort((a, b) => {
+        const aVal = a[this.sortField];
+        const bVal = b[this.sortField];
+        const multiplier = this.sortDirection === 'asc' ? 1 : -1;
+        return (aVal > bVal ? 1 : -1) * multiplier;
+      });
+    },
+
+    sortBy(field) {
+      if (this.sortField === field) {
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortField = field;
+        this.sortDirection = 'desc';
+      }
+    },
+
+    selectDepartement(dept) {
+      this.selectedDept = dept;
+    },
+
+    formatNumber(num) {
+      return new Intl.NumberFormat('fr-FR').format(num);
+    }
+  };
+}
+</script>
+{% endblock %}

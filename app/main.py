@@ -289,10 +289,12 @@ ensure_sqlite_asset()
 # ⚠️ Import des routers APRÈS ensure_sqlite_asset()
 from .routers import api  # noqa: E402
 from .routers import api_invitations_stats  # noqa: E402
+from .routers import api_geo_stats  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
+app.include_router(api_geo_stats.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -1851,6 +1853,17 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
         per_siret[key] = payload
 
     return sorted(per_siret.values(), key=lambda item: item["date"])
+
+
+@app.get("/cartographie", response_class=HTMLResponse)
+def cartographie_page(request: Request, db: Session = Depends(get_session)):
+    """Page de cartographie de France avec statistiques par département"""
+    return templates.TemplateResponse(
+        "cartographie.html",
+        {
+            "request": request
+        }
+    )
 
 
 @app.get("/admin", response_class=HTMLResponse)
