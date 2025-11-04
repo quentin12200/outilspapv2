@@ -41,18 +41,23 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     dept_stats = {}
 
     for row in query:
-        if not row.cp or len(row.cp) < 2:
+        if not row.cp:
+            continue
+
+        # Convertir le code postal en string (peut être un int dans la DB)
+        cp_str = str(row.cp).strip()
+        if len(cp_str) < 2:
             continue
 
         # Extraire le département (2 premiers chiffres du code postal)
-        dept = row.cp[:2]
+        dept = cp_str[:2]
 
         # Cas spéciaux : Corse et DOM-TOM
         if dept in ['20', '2A', '2B']:
-            if len(row.cp) >= 3:
-                if row.cp[2] in ['A', 'a']:
+            if len(cp_str) >= 3:
+                if cp_str[2] in ['A', 'a']:
                     dept = '2A'
-                elif row.cp[2] in ['B', 'b']:
+                elif cp_str[2] in ['B', 'b']:
                     dept = '2B'
                 else:
                     dept = '20'
@@ -147,7 +152,8 @@ def get_top_cibles(
 
     result = []
     for row in query:
-        dept = row.cp[:2] if row.cp and len(row.cp) >= 2 else 'N/C'
+        cp_str = str(row.cp).strip() if row.cp else ''
+        dept = cp_str[:2] if len(cp_str) >= 2 else 'N/C'
         result.append({
             'siret': row.siret,
             'raison_sociale': row.raison_sociale or 'N/C',
@@ -186,18 +192,23 @@ def get_departements_invitations_pap(db: Session = Depends(get_session)):
     ud_stats = {}
 
     for inv in invitations:
-        if not inv.code_postal or len(inv.code_postal) < 2:
+        if not inv.code_postal:
+            continue
+
+        # Convertir le code postal en string (peut être un int dans la DB)
+        cp_str = str(inv.code_postal).strip()
+        if len(cp_str) < 2:
             continue
 
         # Extraire le département (2 premiers chiffres du code postal)
-        dept = inv.code_postal[:2]
+        dept = cp_str[:2]
 
         # Cas spéciaux : Corse et DOM-TOM
         if dept in ['20', '2A', '2B']:
-            if len(inv.code_postal) >= 3:
-                if inv.code_postal[2] in ['A', 'a']:
+            if len(cp_str) >= 3:
+                if cp_str[2] in ['A', 'a']:
                     dept = '2A'
-                elif inv.code_postal[2] in ['B', 'b']:
+                elif cp_str[2] in ['B', 'b']:
                     dept = '2B'
                 else:
                     dept = '20'
