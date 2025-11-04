@@ -44,8 +44,9 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
         if not row.cp:
             continue
 
-        # Convertir le code postal en string (peut être un int dans la DB)
-        cp_str = str(row.cp).strip()
+        # Convertir le code postal en string avec padding de zéros (peut être un int dans la DB)
+        # Ex: 1000 → "01000", 75001 → "75001"
+        cp_str = str(row.cp).strip().zfill(5)
         if len(cp_str) < 2:
             continue
 
@@ -152,7 +153,8 @@ def get_top_cibles(
 
     result = []
     for row in query:
-        cp_str = str(row.cp).strip() if row.cp else ''
+        # Convertir avec padding de zéros pour les départements 01-09
+        cp_str = str(row.cp).strip().zfill(5) if row.cp else ''
         dept = cp_str[:2] if len(cp_str) >= 2 else 'N/C'
         result.append({
             'siret': row.siret,
@@ -195,8 +197,9 @@ def get_departements_invitations_pap(db: Session = Depends(get_session)):
         if not inv.code_postal:
             continue
 
-        # Convertir le code postal en string (peut être un int dans la DB)
-        cp_str = str(inv.code_postal).strip()
+        # Convertir le code postal en string avec padding de zéros (peut être un int dans la DB)
+        # Ex: 1000 → "01000", 75001 → "75001"
+        cp_str = str(inv.code_postal).strip().zfill(5)
         if len(cp_str) < 2:
             continue
 
