@@ -81,53 +81,67 @@ class SireneAPI:
     ) -> Optional[Dict[str, Any]]:
         """Fallback Sirene search that queries the catalogue by SIRET number."""
 
-        params = {
-            "q": f"siret:{siret}",
-            "nombre": "1",
-        }
-
-        response = await client.get(
-            f"{SIRENE_API_BASE}/siret",
-            headers=self.headers,
-            params=params,
+        fallback_queries = (
+            ("siret", {"q": f"siret:{siret}", "nombre": "1"}),
+            ("numeroSiret", {"q": f"numeroSiret:{siret}", "nombre": "1"}),
+            ("numero", {"q": f"numero:{siret}", "nombre": "1"}),
         )
 
-        if response.status_code == 200:
-            data = response.json()
-            etablissements = data.get("etablissements") or []
-            if etablissements:
-                logger.info(
-                    "Sirene fallback: SIRET %s trouvé via la recherche par numéro",
+        for field_name, params in fallback_queries:
+            response = await client.get(
+                f"{SIRENE_API_BASE}/siret",
+                headers=self.headers,
+                params=params,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                etablissements = data.get("etablissements") or []
+                if etablissements:
+                    logger.info(
+                        "Sirene fallback: SIRET %s trouvé via le champ '%s'",
+                        siret,
+                        field_name,
+                    )
+                    return self._parse_etablissement(etablissements[0])
+
+                logger.debug(
+                    "Sirene fallback: champ '%s' sans résultats pour le SIRET %s",
+                    field_name,
                     siret,
                 )
-                return self._parse_etablissement(etablissements[0])
-            logger.info(
-                "Sirene fallback: aucun établissement retourné pour le SIRET %s",
-                siret,
+                continue
+
+            if response.status_code in (400, 404):
+                logger.debug(
+                    "Sirene fallback: champ '%s' non concluant pour le SIRET %s (%s)",
+                    field_name,
+                    siret,
+                    response.status_code,
+                )
+                continue
+
+            if response.status_code == 429:
+                logger.warning("Limite de taux API Sirene atteinte (fallback)")
+                raise SireneAPIError("Trop de requêtes, veuillez patienter")
+
+            if response.status_code == 401:
+                logger.error("Clé API Sirene absente ou invalide (fallback)")
+                raise SireneAPIError("Accès refusé par l'API Sirene")
+
+            logger.error(
+                "Erreur API Sirene (%s) pendant la recherche fallback champ '%s': %s",
+                response.status_code,
+                field_name,
+                response.text,
             )
-            return None
+            raise SireneAPIError(f"Erreur API: {response.status_code}")
 
-        if response.status_code == 404:
-            logger.info(
-                "Sirene fallback: SIRET %s absent des résultats de recherche",
-                siret,
-            )
-            return None
-
-        if response.status_code == 429:
-            logger.warning("Limite de taux API Sirene atteinte (fallback)")
-            raise SireneAPIError("Trop de requêtes, veuillez patienter")
-
-        if response.status_code == 401:
-            logger.error("Clé API Sirene absente ou invalide (fallback)")
-            raise SireneAPIError("Accès refusé par l'API Sirene")
-
-        logger.error(
-            "Erreur API Sirene (%s) pendant la recherche fallback: %s",
-            response.status_code,
-            response.text,
+        logger.info(
+            "Sirene fallback: SIRET %s introuvable après les requêtes alternatives",
+            siret,
         )
-        raise SireneAPIError(f"Erreur API: {response.status_code}")
+        return None
 
     async def get_siret(self, siret: str) -> Optional[Dict[str, Any]]:
         """
