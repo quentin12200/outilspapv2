@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import Dict, List, Any
 from ..db import get_session
-from ..models import PVEvent
+from ..models import PVEvent, Invitation
 
 router = APIRouter(
     prefix="/api/geo",
@@ -163,4 +163,84 @@ def get_top_cibles(
         'cibles': result,
         'total': len(result),
         'min_inscrits': min_inscrits
+    }
+
+
+@router.get("/departements/invitations-pap")
+def get_departements_invitations_pap(db: Session = Depends(get_session)):
+    """
+    Retourne les statistiques d'invitations PAP par département et par UD :
+    - Nombre d'invitations PAP par département (code postal)
+    - Nombre d'invitations PAP par UD (Union Départementale)
+    - Liste détaillée des invitations par département
+    """
+
+    # Récupérer toutes les invitations avec département
+    invitations = db.query(Invitation).filter(
+        Invitation.code_postal.isnot(None)
+    ).all()
+
+    # Stats par département (code postal)
+    dept_stats = {}
+    # Stats par UD
+    ud_stats = {}
+
+    for inv in invitations:
+        if not inv.code_postal or len(inv.code_postal) < 2:
+            continue
+
+        # Extraire le département (2 premiers chiffres du code postal)
+        dept = inv.code_postal[:2]
+
+        # Cas spéciaux : Corse et DOM-TOM
+        if dept in ['20', '2A', '2B']:
+            if len(inv.code_postal) >= 3:
+                if inv.code_postal[2] in ['A', 'a']:
+                    dept = '2A'
+                elif inv.code_postal[2] in ['B', 'b']:
+                    dept = '2B'
+                else:
+                    dept = '20'
+
+        # Initialiser le département si nécessaire
+        if dept not in dept_stats:
+            dept_stats[dept] = {
+                'dept': dept,
+                'nb_invitations': 0,
+                'invitations': []
+            }
+
+        # Compter l'invitation
+        dept_stats[dept]['nb_invitations'] += 1
+        dept_stats[dept]['invitations'].append({
+            'siret': inv.siret,
+            'denomination': inv.denomination or 'N/C',
+            'commune': inv.commune or 'N/C',
+            'date_invit': inv.date_invit.isoformat() if inv.date_invit else None,
+            'ud': inv.ud,
+            'fd': inv.fd
+        })
+
+        # Statistiques par UD
+        if inv.ud:
+            if inv.ud not in ud_stats:
+                ud_stats[inv.ud] = {
+                    'ud': inv.ud,
+                    'nb_invitations': 0
+                }
+            ud_stats[inv.ud]['nb_invitations'] += 1
+
+    # Convertir en listes et trier
+    dept_result = list(dept_stats.values())
+    dept_result.sort(key=lambda x: x['nb_invitations'], reverse=True)
+
+    ud_result = list(ud_stats.values())
+    ud_result.sort(key=lambda x: x['nb_invitations'], reverse=True)
+
+    return {
+        'par_departement': dept_result,
+        'par_ud': ud_result,
+        'total_invitations': len(invitations),
+        'total_departements': len(dept_result),
+        'total_uds': len(ud_result)
     }
