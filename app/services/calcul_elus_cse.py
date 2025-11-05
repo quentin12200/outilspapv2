@@ -3,7 +3,9 @@ Service de calcul du nombre d'élus CSE par organisation syndicale.
 
 Basé sur :
 - Le barème légal du Code du travail (Article R2314-1)
-- La méthode de répartition proportionnelle "plus forte moyenne" (méthode d'Hondt)
+- La méthode de répartition proportionnelle en 2 étapes (Articles R2314-19 et R2314-20) :
+  1. Quotient électoral (R2314-19)
+  2. Plus forte moyenne (R2314-20) pour les sièges restants
 """
 
 from typing import Dict, Any
@@ -91,20 +93,24 @@ def calculer_nombre_elus_cse(effectif: int) -> int:
         return 35
 
 
-def repartir_sieges_plus_forte_moyenne(
+def repartir_sieges_quotient_puis_plus_forte_moyenne(
     voix_par_orga: Dict[str, int],
     nb_sieges_total: int
 ) -> Dict[str, int]:
     """
-    Répartit les sièges entre organisations selon la méthode de la plus forte moyenne.
-
-    Aussi appelée méthode d'Hondt, cette méthode est utilisée pour la répartition
-    proportionnelle des sièges au CSE selon les résultats électoraux.
+    Répartit les sièges selon la méthode légale française (R2314-19 et R2314-20) :
+    ÉTAPE 1 : Quotient électoral (R2314-19)
+    ÉTAPE 2 : Plus forte moyenne (R2314-20) pour les sièges restants
 
     Algorithme :
-    1. Pour chaque organisation, calculer : voix / (sièges_déjà_attribués + 1)
-    2. Attribuer un siège à l'organisation ayant le quotient le plus élevé
-    3. Répéter jusqu'à épuisement des sièges
+    Étape 1 - Quotient électoral :
+        - Quotient = Total des voix / Nombre de sièges
+        - Chaque orga reçoit ⌊ses voix / quotient⌋ sièges (partie entière)
+
+    Étape 2 - Plus forte moyenne (pour les sièges restants) :
+        - Pour chaque orga : moyenne = voix / (sièges_déjà_attribués + 1)
+        - Attribuer le siège à l'orga avec la plus forte moyenne
+        - Répéter jusqu'à épuisement des sièges
 
     Args:
         voix_par_orga: Dictionnaire {nom_organisation: nombre_de_voix}
@@ -114,11 +120,14 @@ def repartir_sieges_plus_forte_moyenne(
         Dictionnaire {nom_organisation: nombre_de_sieges_attribues}
 
     Examples:
-        >>> repartir_sieges_plus_forte_moyenne(
-        ...     {"CGT": 450, "CFDT": 300, "FO": 150, "UNSA": 100},
-        ...     19
+        >>> repartir_sieges_quotient_puis_plus_forte_moyenne(
+        ...     {"A": 500, "B": 270, "C": 120, "D": 110},
+        ...     7
         ... )
-        {'CGT': 9, 'CFDT': 6, 'FO': 3, 'UNSA': 1}
+        {'A': 4, 'B': 2, 'C': 1, 'D': 0}
+
+        # Détail : Quotient=142,86 → A:3, B:1, C:0, D:0 (4 sièges)
+        # Restent 3 → B(135), A(125), C(120) → Final: A:4, B:2, C:1
     """
     # Filtrer les organisations sans voix et initialiser les sièges à 0
     sieges = {
@@ -131,17 +140,36 @@ def repartir_sieges_plus_forte_moyenne(
     if not sieges:
         return {}
 
-    # Attribuer les sièges un par un
-    for _ in range(nb_sieges_total):
-        # Calculer le quotient de chaque organisation
-        quotients = {}
+    # Calculer le total des voix
+    total_voix = sum(voix_par_orga[orga] for orga in sieges.keys())
+
+    if total_voix == 0 or nb_sieges_total == 0:
+        return sieges
+
+    # ÉTAPE 1 : Attribution par quotient électoral (R2314-19)
+    quotient_electoral = total_voix / nb_sieges_total
+
+    sieges_attribues = 0
+    for orga in sieges.keys():
+        voix = voix_par_orga[orga]
+        # Partie entière : nombre de fois que le quotient entre dans les voix
+        nb_sieges_quotient = int(voix / quotient_electoral)
+        sieges[orga] = nb_sieges_quotient
+        sieges_attribues += nb_sieges_quotient
+
+    # ÉTAPE 2 : Sièges restants par plus forte moyenne (R2314-20)
+    sieges_restants = nb_sieges_total - sieges_attribues
+
+    for _ in range(sieges_restants):
+        # Calculer la moyenne de chaque organisation
+        moyennes = {}
         for orga in sieges.keys():
             voix = voix_par_orga[orga]
-            quotients[orga] = voix / (sieges[orga] + 1)
+            moyennes[orga] = voix / (sieges[orga] + 1)
 
-        # Attribuer le siège à l'organisation avec le plus fort quotient
-        if quotients:
-            orga_gagnante = max(quotients, key=quotients.get)
+        # Attribuer le siège à l'organisation avec la plus forte moyenne
+        if moyennes:
+            orga_gagnante = max(moyennes, key=moyennes.get)
             sieges[orga_gagnante] += 1
 
     return sieges
@@ -197,8 +225,8 @@ def calculer_elus_cse_complet(
             "total_voix": 0
         }
 
-    # Répartir les sièges
-    elus_par_orga = repartir_sieges_plus_forte_moyenne(
+    # Répartir les sièges (quotient électoral puis plus forte moyenne)
+    elus_par_orga = repartir_sieges_quotient_puis_plus_forte_moyenne(
         voix_par_orga,
         nb_sieges_total
     )

@@ -29,7 +29,7 @@ from datetime import date, datetime, timedelta
 from .models import Invitation, SiretSummary, PVEvent
 from .services.calcul_elus_cse import (
     calculer_nombre_elus_cse,
-    repartir_sieges_plus_forte_moyenne,
+    repartir_sieges_quotient_puis_plus_forte_moyenne,
     calculer_elus_cse_complet,
     ORGANISATIONS_LABELS
 )
