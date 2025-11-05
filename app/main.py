@@ -27,6 +27,12 @@ from .db import get_session, Base, engine, SessionLocal
 from datetime import date, datetime, timedelta
 
 from .models import Invitation, SiretSummary, PVEvent
+from .services.calcul_elus_cse import (
+    calculer_nombre_elus_cse,
+    repartir_sieges_plus_forte_moyenne,
+    calculer_elus_cse_complet,
+    ORGANISATIONS_LABELS
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -889,6 +895,23 @@ def calendrier_elections(
 
         payload["top_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)[:3]
 
+        # Calcul du nombre d'élus CSE par organisation
+        if effectif_value and effectif_value > 0:
+            # Préparer les voix par organisation pour le calcul
+            voix_pour_calcul = {}
+            for attr, label in PV_ORGANISATION_FIELDS:
+                votes_value = _to_number(getattr(row, attr, None))
+                if votes_value and votes_value > 0:
+                    voix_pour_calcul[label] = int(votes_value)
+
+            # Calculer le nombre d'élus
+            calcul_elus = calculer_elus_cse_complet(int(effectif_value), voix_pour_calcul)
+            payload["nb_sieges_cse"] = calcul_elus["nb_sieges_total"]
+            payload["elus_par_orga"] = calcul_elus["elus_par_orga"]
+        else:
+            payload["nb_sieges_cse"] = None
+            payload["elus_par_orga"] = {}
+
         per_siret[key] = payload
 
     elections_list = sorted(per_siret.values(), key=lambda item: item["date"])
@@ -1082,6 +1105,23 @@ def calendrier_export(
             "org_scores": org_scores[:3],  # Top 3
         }
 
+        # Calcul du nombre d'élus CSE par organisation
+        if effectif_value and effectif_value > 0:
+            # Préparer les voix par organisation pour le calcul
+            voix_pour_calcul = {}
+            for attr, label in PV_ORGANISATION_FIELDS:
+                votes_value = _to_number(getattr(row, attr, None))
+                if votes_value and votes_value > 0:
+                    voix_pour_calcul[label] = int(votes_value)
+
+            # Calculer le nombre d'élus
+            calcul_elus = calculer_elus_cse_complet(int(effectif_value), voix_pour_calcul)
+            payload["nb_sieges_cse"] = calcul_elus["nb_sieges_total"]
+            payload["elus_par_orga"] = calcul_elus["elus_par_orga"]
+        else:
+            payload["nb_sieges_cse"] = None
+            payload["elus_par_orga"] = {}
+
         per_siret[key] = payload
 
     # Trier par date
@@ -1116,6 +1156,15 @@ def calendrier_export(
         "3ème orga",
         "3ème orga - Voix",
         "3ème orga - %",
+        "Nb sièges CSE",
+        "CGT - Élus",
+        "CFDT - Élus",
+        "FO - Élus",
+        "CFTC - Élus",
+        "CGC-CFE - Élus",
+        "UNSA - Élus",
+        "SUD - Élus",
+        "Autres - Élus",
     ]
 
     # Style des en-têtes
@@ -1152,6 +1201,15 @@ def calendrier_export(
     ws.column_dimensions['T'].width = 12  # 3ème orga
     ws.column_dimensions['U'].width = 12  # 3ème orga voix
     ws.column_dimensions['V'].width = 12  # 3ème orga %
+    ws.column_dimensions['W'].width = 15  # Nb sièges CSE
+    ws.column_dimensions['X'].width = 12  # CGT - Élus
+    ws.column_dimensions['Y'].width = 12  # CFDT - Élus
+    ws.column_dimensions['Z'].width = 12  # FO - Élus
+    ws.column_dimensions['AA'].width = 12  # CFTC - Élus
+    ws.column_dimensions['AB'].width = 12  # CGC-CFE - Élus
+    ws.column_dimensions['AC'].width = 12  # UNSA - Élus
+    ws.column_dimensions['AD'].width = 12  # SUD - Élus
+    ws.column_dimensions['AE'].width = 12  # Autres - Élus
 
     # Remplir les données
     for row_num, election in enumerate(elections_list, 2):
@@ -1189,6 +1247,19 @@ def calendrier_export(
             ws.cell(row=row_num, column=20, value=org_scores[2]["label"])
             ws.cell(row=row_num, column=21, value=int(org_scores[2]["votes"]))
             ws.cell(row=row_num, column=22, value=round(org_scores[2]["percent"], 1) if org_scores[2]["percent"] else None)
+
+        # Nombre d'élus CSE par organisation
+        ws.cell(row=row_num, column=23, value=election.get("nb_sieges_cse"))
+
+        elus_par_orga = election.get("elus_par_orga", {})
+        ws.cell(row=row_num, column=24, value=elus_par_orga.get("CGT"))
+        ws.cell(row=row_num, column=25, value=elus_par_orga.get("CFDT"))
+        ws.cell(row=row_num, column=26, value=elus_par_orga.get("FO"))
+        ws.cell(row=row_num, column=27, value=elus_par_orga.get("CFTC"))
+        ws.cell(row=row_num, column=28, value=elus_par_orga.get("CGC-CFE"))
+        ws.cell(row=row_num, column=29, value=elus_par_orga.get("UNSA"))
+        ws.cell(row=row_num, column=30, value=elus_par_orga.get("SUD"))
+        ws.cell(row=row_num, column=31, value=elus_par_orga.get("Autres"))
 
     # Geler la première ligne (en-têtes)
     ws.freeze_panes = "A2"

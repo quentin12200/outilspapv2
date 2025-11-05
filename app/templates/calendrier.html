@@ -297,7 +297,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 11 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 12 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -321,6 +321,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SVE</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Top 3 organisations</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Élus CSE</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
@@ -374,6 +375,25 @@
                         </li>
                       {% endfor %}
                     </ul>
+                  {% else %}
+                    <span class="text-gray-400">—</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-700" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
+                  {% if item.nb_sieges_cse %}
+                    <div class="font-semibold text-gray-900 mb-2">{{ item.nb_sieges_cse }} siège{{ 's' if item.nb_sieges_cse > 1 else '' }}</div>
+                    {% if item.elus_par_orga %}
+                      <ul class="space-y-1 text-xs">
+                        {% for org, count in item.elus_par_orga.items() %}
+                          {% if count and count > 0 %}
+                            <li class="flex items-baseline justify-between gap-2">
+                              <span class="font-medium text-gray-700">{{ org }}:</span>
+                              <span class="text-gray-600">{{ count }}</span>
+                            </li>
+                          {% endif %}
+                        {% endfor %}
+                      </ul>
+                    {% endif %}
                   {% else %}
                     <span class="text-gray-400">—</span>
                   {% endif %}
