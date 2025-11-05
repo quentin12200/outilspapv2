@@ -70,34 +70,40 @@ def calculer_nombre_elus_cse(effectif: int) -> int:
     elif effectif < 1250:
         return 17
     elif effectif < 1500:
-        return 17
+        return 18
     elif effectif < 1750:
-        return 19
+        return 20
     elif effectif < 2000:
         return 21
     elif effectif < 2250:
-        return 23
+        return 22
     elif effectif < 2500:
-        return 24
-    elif effectif < 2750:
-        return 25
+        return 23
     elif effectif < 3000:
+        return 24
+    elif effectif < 3500:
+        return 25
+    elif effectif < 4000:
         return 26
-    elif effectif < 3750:
+    elif effectif < 4250:
+        return 26
+    elif effectif < 4750:
         return 27
-    elif effectif < 4500:
+    elif effectif < 5000:
+        return 28
+    elif effectif < 5750:
         return 29
-    elif effectif < 5250:
-        return 30
     elif effectif < 6000:
+        return 30
+    elif effectif < 7000:
         return 31
-    elif effectif < 6750:
+    elif effectif < 8250:
         return 32
-    elif effectif < 7500:
+    elif effectif < 9000:
         return 33
     elif effectif < 10000:
         return 34
-    else:
+    else:  # 10000+
         return 35
 
 
