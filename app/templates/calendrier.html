@@ -78,6 +78,31 @@
     gap: 0.5rem;
     font-size: 0.875rem;
   }
+
+  /* Styles pour les en-têtes cliquables/triables */
+  .sortable-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.2s ease;
+  }
+
+  .sortable-header:hover {
+    background-color: rgba(213, 0, 28, 0.1) !important;
+  }
+
+  .sortable-header .sort-indicator {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    transition: color 0.2s ease;
+  }
+
+  .sortable-header[data-sort-direction="asc"] .sort-indicator,
+  .sortable-header[data-sort-direction="desc"] .sort-indicator {
+    color: #d5001c;
+    font-weight: bold;
+  }
 </style>
 {% endblock %}
 
@@ -251,7 +276,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuce :</strong> Faites défiler le tableau horizontalement pour voir toutes les colonnes (11 colonnes au total). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 11 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -261,49 +286,49 @@
         <div class="scroll-indicator-right visible" id="scroll-right-indicator"></div>
 
         <div class="overflow-x-auto table-scroll-container px-6 pb-2" id="table-scroll-container">
-        <table id="calendrier-table" class="min-w-full divide-y divide-gray-200">
+        <table id="calendrier-table" class="min-w-full divide-y divide-gray-200" data-sortable="true">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date scrutin</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entreprise / SIRET</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Implantation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FD</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IDCC</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effectif SIRET</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cycle</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SVE</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 organisations</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="date">Date scrutin</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Entreprise / SIRET</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Implantation</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">FD</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">IDCC</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Effectif SIRET</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Cycle</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Type</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SVE</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Top 3 organisations</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
             {% for item in elections %}
               <tr class="hover:bg-gray-50 transition">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900" data-sort-value="{{ item.date.isoformat() if item.date else '' }}">
                   {{ item.date_display }}
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-900">
+                <td class="px-6 py-4 text-sm text-gray-900" data-sort-value="{{ item.raison_sociale or '' }}">
                   <div class="font-semibold">{{ item.raison_sociale or "—" }}</div>
                   <div class="text-xs text-cgt-red font-mono tracking-widest">{{ item.siret or "—" }}</div>
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-700">
+                <td class="px-6 py-4 text-sm text-gray-700" data-sort-value="{{ item.ud or '' }}">
                   <div>{{ item.ud or "—" }}</div>
                   <div class="text-xs text-gray-500">{{ item.region or "—" }}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                   {{ item.fd or "—" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.idcc or 0 }}">
                   {{ item.idcc or "—" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" data-sort-value="{{ item.effectif or 0 }}">
                   {{ item.effectif_display or "—" }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                   {{ item.cycle or "—" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.institution or '' }}">
                   {% if item.institution == "CAR" %}
                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">Carence</span>
                   {% elif item.institution == "CSE" %}
@@ -312,10 +337,10 @@
                     {{ item.institution or "—" }}
                   {% endif %}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.sve or 0 }}">
                   {{ item.sve_display or "—" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.participation or 0 }}">
                   {{ item.participation_display or "—" }}
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-700">
