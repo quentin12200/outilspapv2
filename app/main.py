@@ -731,6 +731,27 @@ def _to_number(value: Any) -> float | None:
     return None
 
 
+def _cycle_priority(cycle_str: str) -> int:
+    """
+    Retourne la priorité d'un cycle pour la déduplication par SIRET.
+    C4 (cycle actuel) a la priorité la plus élevée.
+
+    Returns:
+        3 pour C4 (priorité max)
+        2 pour C5
+        1 pour C3
+        0 pour autres/inconnu
+    """
+    if cycle_str == "C4":
+        return 3
+    elif cycle_str == "C5":
+        return 2
+    elif cycle_str == "C3":
+        return 1
+    else:
+        return 0
+
+
 @app.get("/calendrier", response_class=HTMLResponse)
 def calendrier_elections(
     request: Request,
@@ -845,10 +866,19 @@ def calendrier_elections(
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
 
-        key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        # Une seule ligne par SIRET : prioriser le dernier cycle (C4 > C5 > C3)
+        key = row.siret or 'pv'
         existing = per_siret.get(key)
-        if existing is not None and parsed_date >= existing["date"]:
-            continue
+
+        current_priority = _cycle_priority(row.cycle)
+
+        if existing is not None:
+            existing_priority = _cycle_priority(existing.get("cycle"))
+            # Garder la ligne actuelle si meilleure priorité, ou si même priorité mais date plus ancienne
+            if current_priority < existing_priority:
+                continue
+            elif current_priority == existing_priority and parsed_date >= existing["date"]:
+                continue
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
@@ -1061,10 +1091,19 @@ def calendrier_export(
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
 
-        key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        # Une seule ligne par SIRET : prioriser le dernier cycle (C4 > C5 > C3)
+        key = row.siret or 'pv'
         existing = per_siret.get(key)
-        if existing is not None and parsed_date >= existing["date"]:
-            continue
+
+        current_priority = _cycle_priority(row.cycle)
+
+        if existing is not None:
+            existing_priority = _cycle_priority(existing.get("cycle"))
+            # Garder la ligne actuelle si meilleure priorité, ou si même priorité mais date plus ancienne
+            if current_priority < existing_priority:
+                continue
+            elif current_priority == existing_priority and parsed_date >= existing["date"]:
+                continue
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
