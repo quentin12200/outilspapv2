@@ -885,12 +885,12 @@ def calendrier_elections(
             if votes_value and votes_value > 0:
                 voix_par_orga[label] = votes_value
 
-        # Calculer les élus CSE pour ce collège (uniquement C4 et effectif <= 10 000)
+        # Calculer les élus CSE pour ce collège (uniquement C4, plafonné à 35 sièges pour 10 000+)
         # IMPORTANT: Utiliser l'effectif DU COLLÈGE (inscrits), PAS l'effectif total entreprise (effectif_siret)
         elus_par_orga = {}
         nb_sieges_cse = None
 
-        if row.cycle == "C4" and effectif_college and 0 < effectif_college <= 10000 and voix_par_orga:
+        if row.cycle == "C4" and effectif_college and effectif_college > 0 and voix_par_orga:
             calcul_elus = calculer_elus_cse_complet(
                 int(effectif_college),  # Effectif du collège (inscrits) - JAMAIS effectif_siret !
                 {label: int(v) for label, v in voix_par_orga.items()}
@@ -1183,12 +1183,12 @@ def calendrier_export(
             if votes_value and votes_value > 0:
                 voix_par_orga[label] = votes_value
 
-        # Calculer les élus CSE pour ce collège (uniquement C4 et effectif <= 10 000)
+        # Calculer les élus CSE pour ce collège (uniquement C4, plafonné à 35 sièges pour 10 000+)
         # IMPORTANT: Utiliser l'effectif DU COLLÈGE (inscrits), PAS l'effectif total entreprise (effectif_siret)
         elus_par_orga = {}
         nb_sieges_cse = None
 
-        if row.cycle == "C4" and effectif_college and 0 < effectif_college <= 10000 and voix_par_orga:
+        if row.cycle == "C4" and effectif_college and effectif_college > 0 and voix_par_orga:
             calcul_elus = calculer_elus_cse_complet(
                 int(effectif_college),  # Effectif du collège (inscrits) - JAMAIS effectif_siret !
                 {label: int(v) for label, v in voix_par_orga.items()}
@@ -1361,7 +1361,7 @@ def calendrier_export(
     # Note d'avertissement en haut de la feuille
     from openpyxl.styles import Font as OpenpyxlFont, PatternFill as OpenpyxlFill, Alignment as OpenpyxlAlignment
 
-    warning_cell = ws.cell(row=1, column=1, value="⚠️ MOYENNE HAUTE (≤ 10 000 inscrits) : Les élus CSE sont calculés en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges à pourvoir). Le nombre réel d'élus peut être inférieur. Non calculé au-delà de 10 000 inscrits par collège.")
+    warning_cell = ws.cell(row=1, column=1, value="⚠️ MOYENNE HAUTE (max 35 sièges) : Les élus CSE sont calculés en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges à pourvoir). Plafonné à 35 sièges maximum pour les collèges de 10 000+ inscrits. Le nombre réel d'élus peut être inférieur.")
     warning_cell.font = OpenpyxlFont(bold=True, color="FF6B35", size=11)
     warning_cell.fill = OpenpyxlFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
     warning_cell.alignment = OpenpyxlAlignment(wrap_text=True, vertical="center")

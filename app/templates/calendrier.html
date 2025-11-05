@@ -328,8 +328,8 @@
                   <span class="relative group cursor-help">
                     <i class="fas fa-info-circle text-gray-400 text-xs"></i>
                     <div class="hidden group-hover:block absolute z-10 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg -left-24 top-6">
-                      <strong>Moyenne haute (≤ 10 000 inscrits)</strong><br>
-                      Calcul en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges). Le nombre réel d'élus peut être inférieur. Non calculé au-delà de 10 000 inscrits.
+                      <strong>Moyenne haute (max 35 sièges)</strong><br>
+                      Calcul en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges). Plafonné à 35 sièges maximum pour 10 000+ inscrits. Le nombre réel d'élus peut être inférieur.
                     </div>
                   </span>
                 </div>
@@ -423,7 +423,7 @@
                       </button>
                       <div x-show="showDetails" x-cloak class="mt-2 space-y-2 text-xs bg-gray-50 p-2 rounded">
                         <div class="mb-2 p-2 bg-amber-50 border-l-2 border-amber-400 text-amber-700">
-                          <i class="fas fa-info-circle"></i> <strong>Moyenne haute (≤ 10 000 inscrits)</strong> : calcul en supposant que chaque organisation a présenté une liste complète. Non calculé au-delà de 10 000 inscrits.
+                          <i class="fas fa-info-circle"></i> <strong>Moyenne haute (max 35 sièges)</strong> : calcul en supposant que chaque organisation a présenté une liste complète. Plafonné à 35 sièges pour 10 000+ inscrits.
                         </div>
                         {% for college in item.colleges_details %}
                         <div class="border-l-2 border-blue-300 pl-2">
