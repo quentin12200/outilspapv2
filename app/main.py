@@ -896,7 +896,8 @@ def calendrier_elections(
         payload["top_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)[:3]
 
         # Calcul du nombre d'élus CSE par organisation
-        if effectif_value and effectif_value > 0:
+        # IMPORTANT: Ne calculer que pour le cycle C4 (élections actuelles)
+        if row.cycle == "C4" and effectif_value and effectif_value > 0:
             # Préparer les voix par organisation pour le calcul
             voix_pour_calcul = {}
             for attr, label in PV_ORGANISATION_FIELDS:
@@ -1106,7 +1107,8 @@ def calendrier_export(
         }
 
         # Calcul du nombre d'élus CSE par organisation
-        if effectif_value and effectif_value > 0:
+        # IMPORTANT: Ne calculer que pour le cycle C4 (élections actuelles)
+        if row.cycle == "C4" and effectif_value and effectif_value > 0:
             # Préparer les voix par organisation pour le calcul
             voix_pour_calcul = {}
             for attr, label in PV_ORGANISATION_FIELDS:
