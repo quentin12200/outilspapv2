@@ -10,17 +10,17 @@ notamment les bases de données issues des PV retenus.
 
 ## 🧭 Découvrir la plateforme
 
-La page `/presentation` résume la vocation de l’outil « PAP/CSE · Tableau de bord » :
+La page d’accueil `/` rassemble désormais la vocation de l’outil « PAP/CSE · Tableau de bord » :
 
-- **Héros introductif** pour rappeler le suivi ciblage PAP et les publics visés.
-- **Cartes de fonctionnalités** décrivant les modules principaux (Tableau de bord, Invitations PAP,
+- **Héros introductif** mettant en avant les actions principales (calendrier +1000, recherche SIRET,
+  administration) pour engager rapidement les équipes.
+- **Cartes de fonctionnalités** décrivant les modules clés (Tableau de bord, Invitations PAP,
   Ciblages, Recherche SIRET) avec des liens directs.
-- **Boucle PAP → PV** et **calendrier C5** pour visualiser la continuité entre invitations,
+- **Parcours PAP → PV** et **calendrier C5** pour visualiser la continuité entre invitations,
   votes et échéances à venir.
-- **Guide de démarrage** listant les étapes essentielles (connexion, chargement de ciblages,
-  exploration des KPI).
+- **Ressources et FAQ** centralisées pour accompagner l’import des données et la maintenance.
 
-👉 Accédez-y depuis la navigation principale ou directement via `https://<votre-instance>/presentation`.
+👉 L’ancienne URL `/presentation` redirige automatiquement vers cette page consolidée.
 
 📦 **Téléchargement direct :**
 [👉 Télécharger la dernière version (.db)](https://github.com/quentin12200/outilspapv2/releases/latest)

@@ -327,8 +327,38 @@ def on_startup():
 def health():
     return {"status": "ok"}
 
-@app.get("/presentation", response_class=HTMLResponse)
-def presentation(request: Request, db: Session = Depends(get_session)):
+@app.get("/presentation", include_in_schema=False)
+def presentation_redirect():
+    """Ancienne URL conservée pour compatibilité : redirige vers l'accueil."""
+
+    return RedirectResponse(url="/", status_code=307)
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(
+    request: Request,
+    q: str = "",
+    sort: str = "date_pap_c5",
+    fd: str = "",
+    dep: str = "",
+    ud: str = "",
+    idcc: str = "",
+    statut: str = "",
+    cgt_implantee: str = "",
+    page: int = 1,
+    db: Session = Depends(get_session)
+):
+    latest_inv_subq = (
+        db.query(
+            Invitation.siret.label("siret"),
+            func.max(Invitation.date_invit).label("latest_date"),
+        )
+        .group_by(Invitation.siret)
+        .subquery()
+    )
+
+    qs = db.query(SiretSummary)
+
     total_sirets = db.query(func.count(SiretSummary.siret)).scalar() or 0
     invitations_total = db.query(func.count(Invitation.id)).scalar() or 0
     pap_sirets = (
@@ -463,48 +493,6 @@ def presentation(request: Request, db: Session = Depends(get_session)):
             "answer": "Lancez une recherche Sirene depuis la fiche SIRET ou utilisez l’onglet 'Recherche SIRET' pour enrichir automatiquement l’établissement.",
         },
     ]
-
-    return templates.TemplateResponse(
-        "presentation.html",
-        {
-            "request": request,
-            "total_sirets": total_sirets,
-            "invitations_total": invitations_total,
-            "pap_sirets": pap_sirets,
-            "c4_carence": c4_carence,
-            "capability_cards": capability_cards,
-            "journey_steps": journey_steps,
-            "module_links": module_links,
-            "resource_links": resource_links,
-            "faq_entries": faq_entries,
-        },
-    )
-
-
-@app.get("/", response_class=HTMLResponse)
-def index(
-    request: Request,
-    q: str = "",
-    sort: str = "date_pap_c5",
-    fd: str = "",
-    dep: str = "",
-    ud: str = "",
-    idcc: str = "",
-    statut: str = "",
-    cgt_implantee: str = "",
-    page: int = 1,
-    db: Session = Depends(get_session)
-):
-    latest_inv_subq = (
-        db.query(
-            Invitation.siret.label("siret"),
-            func.max(Invitation.date_invit).label("latest_date"),
-        )
-        .group_by(Invitation.siret)
-        .subquery()
-    )
-
-    qs = db.query(SiretSummary)
 
     # Recherche textuelle
     if q:
@@ -804,6 +792,15 @@ def index(
         "end_index": end_index,
         "build_query": build_query,
         "build_url": build_url,
+        "total_sirets": total_sirets,
+        "invitations_total": invitations_total,
+        "pap_sirets": pap_sirets,
+        "c4_carence": c4_carence,
+        "capability_cards": capability_cards,
+        "journey_steps": journey_steps,
+        "module_links": module_links,
+        "resource_links": resource_links,
+        "faq_entries": faq_entries,
     })
 
 
