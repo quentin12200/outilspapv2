@@ -867,90 +867,139 @@ def calendrier_elections(
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
 
-        # Une seule ligne par SIRET : prioriser le dernier cycle (C4 > C5 > C3)
-        key = row.siret or 'pv'
-        existing = per_siret.get(key)
-
-        current_priority = _cycle_priority(row.cycle)
-
-        if existing is not None:
-            existing_priority = _cycle_priority(existing.get("cycle"))
-            # Garder la ligne actuelle si meilleure priorité, ou si même priorité mais date plus ancienne
-            if current_priority < existing_priority:
-                continue
-            elif current_priority == existing_priority and parsed_date >= existing["date"]:
-                continue
+        # ÉTAPE 1 : Calculer pour CHAQUE collège/PV (ne pas dédupliquer encore)
+        # On va créer une entrée par collège, puis agréger par SIRET après
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
         nb_college_value = _to_number(getattr(row, "nb_college_siret", None))
 
-        payload = {
+        # Calculer les voix par organisation pour ce collège
+        voix_par_orga = {}
+        for attr, label in PV_ORGANISATION_FIELDS:
+            votes_value = _to_number(getattr(row, attr, None))
+            if votes_value and votes_value > 0:
+                voix_par_orga[label] = votes_value
+
+        # Calculer les élus CSE pour ce collège (uniquement C4)
+        elus_par_orga = {}
+        nb_sieges_cse = None
+        if row.cycle == "C4" and effectif_value and effectif_value > 0:
+            calcul_elus = calculer_elus_cse_complet(int(effectif_value), {label: int(v) for label, v in voix_par_orga.items()})
+            nb_sieges_cse = calcul_elus["nb_sieges_total"]
+            elus_par_orga = calcul_elus["elus_par_orga"]
+
+        # Créer une clé unique par collège pour garder tous les collèges
+        # On va agréger par SIRET après
+        college_key = f"{row.siret or 'pv'}_{row.cycle or 'na'}_{id(row)}"
+
+        per_siret[college_key] = {
             "siret": row.siret,
             "raison_sociale": row.raison_sociale,
             "ud": row.ud,
             "region": row.region,
             "effectif": int(effectif_value) if effectif_value is not None else None,
-            "effectif_display": _format_int_fr(effectif_value) if effectif_value is not None else None,
             "cycle": row.cycle,
             "date": parsed_date,
-            "date_display": parsed_date.strftime("%d/%m/%Y"),
             "date_pv": _parse_date(row.date_pv),
             "institution": row.institution,
             "fd": row.fd,
             "idcc": row.idcc,
-            "sve": sve_value,
-            "sve_display": _format_int_fr(sve_value),
-            "participation": participation_value,
-            "participation_display": _format_percent_fr(participation_value),
             "nb_college": int(nb_college_value) if nb_college_value is not None else None,
-            "nb_college_display": _format_int_fr(nb_college_value) if nb_college_value is not None else None,
+            # Données à agréger
+            "sve": sve_value or 0,
+            "participation": participation_value,
+            "voix_par_orga": voix_par_orga,
+            "elus_par_orga": elus_par_orga,
+            "nb_sieges_cse": nb_sieges_cse or 0,
         }
 
-        org_scores: list[dict[str, Any]] = []
-        for attr, label in PV_ORGANISATION_FIELDS:
-            votes_value = _to_number(getattr(row, attr, None))
-            if votes_value is None or votes_value <= 0:
-                continue
+    # ÉTAPE 2 & 3 : Agréger par SIRET (additionner tous les collèges d'un même SIRET)
+    from collections import defaultdict
 
-            percent_value = (votes_value / sve_value * 100) if sve_value else None
-            org_scores.append(
-                {
-                    "code": attr,
-                    "label": label,
-                    "votes": votes_value,
-                    "votes_display": _format_int_fr(votes_value),
-                    "percent": percent_value,
-                    "percent_display": _format_percent_fr(percent_value)
-                    if percent_value is not None
-                    else None,
-                }
-            )
+    siret_aggregated = {}
+    for college_data in per_siret.values():
+        siret = college_data["siret"]
 
-        # Afficher toutes les organisations (pas seulement top 3)
-        payload["all_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)
+        if siret not in siret_aggregated:
+            # Première fois qu'on voit ce SIRET : initialiser
+            siret_aggregated[siret] = {
+                "siret": siret,
+                "raison_sociale": college_data["raison_sociale"],
+                "ud": college_data["ud"],
+                "region": college_data["region"],
+                "effectif": college_data["effectif"],
+                "cycle": college_data["cycle"],  # On garde le cycle du premier collège vu
+                "date": college_data["date"],
+                "date_display": college_data["date"].strftime("%d/%m/%Y"),
+                "date_pv": college_data["date_pv"],
+                "institution": college_data["institution"],
+                "fd": college_data["fd"],
+                "idcc": college_data["idcc"],
+                # Champs à sommer
+                "sve": 0,
+                "nb_sieges_cse": 0,
+                "nb_college": college_data["nb_college"],
+                "voix_par_orga": defaultdict(float),
+                "elus_par_orga": defaultdict(int),
+            }
 
-        # Calcul du nombre d'élus CSE par organisation
-        # IMPORTANT: Ne calculer que pour le cycle C4 (élections actuelles)
-        if row.cycle == "C4" and effectif_value and effectif_value > 0:
-            # Préparer les voix par organisation pour le calcul
-            voix_pour_calcul = {}
-            for attr, label in PV_ORGANISATION_FIELDS:
-                votes_value = _to_number(getattr(row, attr, None))
-                if votes_value and votes_value > 0:
-                    voix_pour_calcul[label] = int(votes_value)
+        # Additionner les valeurs de ce collège aux totaux du SIRET
+        siret_aggregated[siret]["sve"] += college_data["sve"]
+        siret_aggregated[siret]["nb_sieges_cse"] += college_data["nb_sieges_cse"]
 
-            # Calculer le nombre d'élus
-            calcul_elus = calculer_elus_cse_complet(int(effectif_value), voix_pour_calcul)
-            payload["nb_sieges_cse"] = calcul_elus["nb_sieges_total"]
-            payload["elus_par_orga"] = calcul_elus["elus_par_orga"]
-        else:
-            payload["nb_sieges_cse"] = None
-            payload["elus_par_orga"] = {}
+        for orga, voix in college_data["voix_par_orga"].items():
+            siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
-        per_siret[key] = payload
+        for orga, elus in college_data["elus_par_orga"].items():
+            siret_aggregated[siret]["elus_par_orga"][orga] += elus
 
-    elections_list = sorted(per_siret.values(), key=lambda item: item["date"])
+    # Formater les données agrégées pour l'affichage
+    elections_list = []
+    for siret_data in siret_aggregated.values():
+        # Convertir voix_par_orga en all_orgs pour l'affichage
+        sve_total = siret_data["sve"]
+        all_orgs = []
+        for orga, voix in siret_data["voix_par_orga"].items():
+            if voix > 0:
+                percent = (voix / sve_total * 100) if sve_total > 0 else None
+                all_orgs.append({
+                    "label": orga,
+                    "votes": voix,
+                    "votes_display": _format_int_fr(voix),
+                    "percent": percent,
+                    "percent_display": _format_percent_fr(percent) if percent is not None else None,
+                })
+
+        # Calculer participation moyenne (on ne peut pas vraiment sommer des %, donc on recalcule)
+        # Pour l'instant on met None, il faudrait avoir inscrits et votants agrégés
+
+        elections_list.append({
+            "siret": siret_data["siret"],
+            "raison_sociale": siret_data["raison_sociale"],
+            "ud": siret_data["ud"],
+            "region": siret_data["region"],
+            "effectif": siret_data["effectif"],
+            "effectif_display": _format_int_fr(siret_data["effectif"]) if siret_data["effectif"] else None,
+            "cycle": siret_data["cycle"],
+            "date": siret_data["date"],
+            "date_display": siret_data["date_display"],
+            "date_pv": siret_data["date_pv"],
+            "institution": siret_data["institution"],
+            "fd": siret_data["fd"],
+            "idcc": siret_data["idcc"],
+            "sve": siret_data["sve"],
+            "sve_display": _format_int_fr(siret_data["sve"]),
+            "participation": None,  # TODO: recalculer si on a inscrits/votants agrégés
+            "participation_display": "—",
+            "nb_college": siret_data["nb_college"],
+            "nb_college_display": _format_int_fr(siret_data["nb_college"]) if siret_data["nb_college"] else None,
+            "all_orgs": sorted(all_orgs, key=lambda x: x["votes"], reverse=True),
+            "nb_sieges_cse": siret_data["nb_sieges_cse"] if siret_data["nb_sieges_cse"] > 0 else None,
+            "elus_par_orga": dict(siret_data["elus_par_orga"]),
+        })
+
+    elections_list = sorted(elections_list, key=lambda item: item["date"])
 
     # Pagination
     total_elections = len(elections_list)
