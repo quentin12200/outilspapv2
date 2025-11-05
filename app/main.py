@@ -839,9 +839,13 @@ def calendrier_elections(
         if parsed_date:
             options["years"].add(str(parsed_date.year))
 
+        # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
             effectif_value = _to_number(row.inscrits)
+
+        # Pour le calcul CSE : TOUJOURS utiliser inscrits (effectif du collège)
+        effectif_college = _to_number(row.inscrits)
 
         if min_effectif and (effectif_value is None or effectif_value < min_effectif):
             continue
@@ -882,13 +886,13 @@ def calendrier_elections(
                 voix_par_orga[label] = votes_value
 
         # Calculer les élus CSE pour ce collège (uniquement C4)
-        # Utiliser l'effectif DU COLLÈGE (inscrits), pas l'effectif total entreprise
+        # IMPORTANT: Utiliser l'effectif DU COLLÈGE (inscrits), PAS l'effectif total entreprise (effectif_siret)
         elus_par_orga = {}
         nb_sieges_cse = None
 
-        if row.cycle == "C4" and effectif_value and effectif_value > 0 and voix_par_orga:
+        if row.cycle == "C4" and effectif_college and effectif_college > 0 and voix_par_orga:
             calcul_elus = calculer_elus_cse_complet(
-                int(effectif_value),  # Effectif du collège (inscrits)
+                int(effectif_college),  # Effectif du collège (inscrits) - JAMAIS effectif_siret !
                 {label: int(v) for label, v in voix_par_orga.items()}
             )
             nb_sieges_cse = calcul_elus["nb_sieges_total"]
@@ -1124,11 +1128,11 @@ def calendrier_export(
         if not parsed_date or parsed_date < today:
             continue
 
-        # Pour le filtre effectif : utiliser effectif_siret ou inscrits comme référence
+        # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
         effectif_siret_value = _to_number(row.effectif_siret)
-        effectif_value = _to_number(row.inscrits)  # Effectif du collège
+        effectif_college = _to_number(row.inscrits)  # Effectif du collège
 
-        filter_effectif = effectif_siret_value if effectif_siret_value is not None else effectif_value
+        filter_effectif = effectif_siret_value if effectif_siret_value is not None else effectif_college
 
         if min_effectif and (filter_effectif is None or filter_effectif < min_effectif):
             continue
@@ -1166,13 +1170,13 @@ def calendrier_export(
                 voix_par_orga[label] = votes_value
 
         # Calculer les élus CSE pour ce collège (uniquement C4)
-        # Utiliser l'effectif DU COLLÈGE (inscrits), pas l'effectif total entreprise
+        # IMPORTANT: Utiliser l'effectif DU COLLÈGE (inscrits), PAS l'effectif total entreprise (effectif_siret)
         elus_par_orga = {}
         nb_sieges_cse = None
 
-        if row.cycle == "C4" and effectif_value and effectif_value > 0 and voix_par_orga:
+        if row.cycle == "C4" and effectif_college and effectif_college > 0 and voix_par_orga:
             calcul_elus = calculer_elus_cse_complet(
-                int(effectif_value),  # Effectif du collège (inscrits)
+                int(effectif_college),  # Effectif du collège (inscrits) - JAMAIS effectif_siret !
                 {label: int(v) for label, v in voix_par_orga.items()}
             )
             nb_sieges_cse = calcul_elus["nb_sieges_total"]
@@ -1187,7 +1191,7 @@ def calendrier_export(
             "ud": row.ud,
             "region": row.region,
             "effectif_siret": effectif_siret_value or 0,
-            "effectif_college": effectif_value or 0,
+            "effectif_college": effectif_college or 0,
             "cycle": row.cycle,
             "date": parsed_date,
             "date_pv": _parse_date(row.date_pv),
