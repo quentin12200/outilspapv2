@@ -481,6 +481,18 @@ def presentation(request: Request, db: Session = Depends(get_session)):
     )
 
 
+@app.get("/stats", response_class=HTMLResponse)
+def stats(request: Request):
+    """Page dédiée aux visualisations statistiques du tableau de bord."""
+
+    return templates.TemplateResponse(
+        "stats.html",
+        {
+            "request": request,
+        },
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
