@@ -951,6 +951,8 @@ def calendrier_elections(
                 "nb_college": college_data["nb_college"],
                 "voix_par_orga": defaultdict(float),
                 "elus_par_orga": defaultdict(int),
+                # DEBUG: garder le détail des collèges pour affichage
+                "colleges_details": [],
             }
 
         # Additionner les valeurs de ce collège aux totaux du SIRET
@@ -962,6 +964,16 @@ def calendrier_elections(
 
         for orga, elus in college_data["elus_par_orga"].items():
             siret_aggregated[siret]["elus_par_orga"][orga] += elus
+
+        # DEBUG: ajouter les détails de ce collège
+        siret_aggregated[siret]["colleges_details"].append({
+            "effectif": college_data["effectif"],
+            "cycle": college_data["cycle"],
+            "sve": college_data["sve"],
+            "nb_sieges": college_data["nb_sieges_cse"],
+            "voix_par_orga": dict(college_data["voix_par_orga"]),
+            "elus_par_orga": dict(college_data["elus_par_orga"]),
+        })
 
     # Formater les données agrégées pour l'affichage
     elections_list = []
@@ -1006,6 +1018,8 @@ def calendrier_elections(
             "all_orgs": sorted(all_orgs, key=lambda x: x["votes"], reverse=True),
             "nb_sieges_cse": siret_data["nb_sieges_cse"] if siret_data["nb_sieges_cse"] > 0 else None,
             "elus_par_orga": dict(siret_data["elus_par_orga"]),
+            # DEBUG: détail des collèges
+            "colleges_details": siret_data["colleges_details"],
         })
 
     elections_list = sorted(elections_list, key=lambda item: item["date"])
