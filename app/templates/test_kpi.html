@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test KPI API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d5001c;
+            border-bottom: 3px solid #d5001c;
+            padding-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .kpi-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #d5001c;
+        }
+        .kpi-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .kpi-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #d5001c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #a00015;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Test API KPI - /api/stats/enriched</h1>
+
+        <div id="status" class="status loading">
+            ⏳ Chargement des KPIs...
+        </div>
+
+        <button onclick="loadKPIs()">🔄 Recharger</button>
+
+        <div id="kpi-display" class="kpi-grid"></div>
+
+        <h2>Réponse API brute :</h2>
+        <pre id="raw-response">En attente...</pre>
+
+        <h2>Logs :</h2>
+        <pre id="logs"></pre>
+    </div>
+
+    <script>
+        const logsEl = document.getElementById('logs');
+        const statusEl = document.getElementById('status');
+        const kpiDisplayEl = document.getElementById('kpi-display');
+        const rawResponseEl = document.getElementById('raw-response');
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logsEl.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        async function loadKPIs() {
+            log('🔄 Début du chargement des KPIs...');
+            statusEl.className = 'status loading';
+            statusEl.textContent = '⏳ Chargement des KPIs...';
+            kpiDisplayEl.innerHTML = '';
+            rawResponseEl.textContent = 'En attente...';
+
+            try {
+                log('📡 Appel de /api/stats/enriched');
+                const response = await fetch('/api/stats/enriched');
+
+                log(`📥 Réponse reçue - Status: ${response.status} ${response.statusText}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                log('✅ JSON parsé avec succès');
+                log(`📊 Données: ${JSON.stringify(data, null, 2)}`);
+
+                // Afficher les KPIs
+                rawResponseEl.textContent = JSON.stringify(data, null, 2);
+
+                // Créer les cartes KPI
+                const kpis = [
+                    { label: 'Invitations PAP C5', value: data.total_invitations },
+                    { label: 'Seuil audience', value: data.audience_threshold },
+                    { label: 'Couverture PAP ↔ PV', value: data.pap_pv_overlap_percent + '%' },
+                    { label: 'CGT implantée', value: data.cgt_implanted_count },
+                    { label: 'CGT implantée %', value: data.cgt_implanted_percent + '%' },
+                    { label: 'Élections 30j', value: data.elections_next_30_days }
+                ];
+
+                kpis.forEach(kpi => {
+                    const card = document.createElement('div');
+                    card.className = 'kpi-card';
+                    card.innerHTML = `
+                        <div class="kpi-label">${kpi.label}</div>
+                        <div class="kpi-value">${kpi.value}</div>
+                    `;
+                    kpiDisplayEl.appendChild(card);
+                });
+
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ KPIs chargés avec succès !';
+                log('✅ Affichage terminé');
+
+            } catch (error) {
+                log(`❌ ERREUR: ${error.message}`);
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ Erreur: ${error.message}`;
+                rawResponseEl.textContent = `ERREUR:\n${error.stack}`;
+            }
+        }
+
+        // Charger automatiquement au démarrage
+        window.addEventListener('DOMContentLoaded', loadKPIs);
+    </script>
+</body>
+</html>

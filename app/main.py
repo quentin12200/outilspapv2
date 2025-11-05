@@ -493,6 +493,12 @@ def stats(request: Request):
     )
 
 
+@app.get("/test-kpi", response_class=HTMLResponse)
+def test_kpi(request: Request):
+    """Page de test pour l'endpoint /api/stats/enriched"""
+    return templates.TemplateResponse("test_kpi.html", {"request": request})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
