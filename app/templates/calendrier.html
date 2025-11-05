@@ -322,7 +322,18 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Nb Collèges</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Organisations</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Élus CSE</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div class="flex items-center gap-1">
+                  <span>Élus CSE</span>
+                  <span class="relative group cursor-help">
+                    <i class="fas fa-info-circle text-gray-400 text-xs"></i>
+                    <div class="hidden group-hover:block absolute z-10 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg -left-24 top-6">
+                      <strong>Calcul théorique maximum</strong><br>
+                      Suppose que chaque organisation a présenté suffisamment de candidats. Le nombre réel d'élus peut être inférieur.
+                    </div>
+                  </span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
@@ -397,9 +408,12 @@
                           {% endif %}
                         {% endfor %}
                       </ul>
+                      <div class="mt-2 text-xs text-amber-600 italic">
+                        <i class="fas fa-exclamation-triangle text-xs"></i> Calcul théorique
+                      </div>
                     {% endif %}
 
-                    <!-- DEBUG: Détail par collège -->
+                    <!-- Détail par collège -->
                     {% if item.colleges_details and item.colleges_details|length > 1 %}
                     <div x-data="{ showDetails: false }" class="mt-3 pt-2 border-t border-gray-200">
                       <button @click="showDetails = !showDetails"
@@ -408,6 +422,9 @@
                         <span x-show="showDetails" x-cloak>▼ Masquer détail</span>
                       </button>
                       <div x-show="showDetails" x-cloak class="mt-2 space-y-2 text-xs bg-gray-50 p-2 rounded">
+                        <div class="mb-2 p-2 bg-amber-50 border-l-2 border-amber-400 text-amber-700">
+                          <i class="fas fa-info-circle"></i> Les élus affichés sont un <strong>calcul théorique maximum</strong> supposant que chaque organisation a présenté suffisamment de candidats.
+                        </div>
                         {% for college in item.colleges_details %}
                         <div class="border-l-2 border-blue-300 pl-2">
                           <div class="font-semibold text-gray-700">Collège {{ loop.index }} ({{ college.effectif }} inscrits) - {{ college.nb_sieges }} sièges</div>

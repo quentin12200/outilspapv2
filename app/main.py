@@ -1346,25 +1346,35 @@ def calendrier_export(
         "Solidaires - %",
         "Autre - Voix",
         "Autre - %",
-        # Élus CSE
-        "Nb sièges CSE",
-        "CGT - Élus",
-        "CFDT - Élus",
-        "FO - Élus",
-        "CFTC - Élus",
-        "CFE-CGC - Élus",
-        "UNSA - Élus",
-        "Solidaires - Élus",
-        "Autre - Élus",
+        # Élus CSE (calcul théorique)
+        "Nb sièges CSE (théorique)",
+        "CGT - Élus (théorique)",
+        "CFDT - Élus (théorique)",
+        "FO - Élus (théorique)",
+        "CFTC - Élus (théorique)",
+        "CFE-CGC - Élus (théorique)",
+        "UNSA - Élus (théorique)",
+        "Solidaires - Élus (théorique)",
+        "Autre - Élus (théorique)",
     ]
 
+    # Note d'avertissement en haut de la feuille
+    from openpyxl.styles import Font as OpenpyxlFont, PatternFill as OpenpyxlFill, Alignment as OpenpyxlAlignment
+
+    warning_cell = ws.cell(row=1, column=1, value="⚠️ IMPORTANT: Les élus CSE affichés sont un calcul théorique maximum supposant que chaque organisation a présenté suffisamment de candidats. Le nombre réel d'élus peut être inférieur.")
+    warning_cell.font = OpenpyxlFont(bold=True, color="FF6B35", size=11)
+    warning_cell.fill = OpenpyxlFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+    warning_cell.alignment = OpenpyxlAlignment(wrap_text=True, vertical="center")
+    ws.merge_cells('A1:AM1')  # Fusionner sur toutes les colonnes
+    ws.row_dimensions[1].height = 40
+
     # Style des en-têtes
-    header_fill = PatternFill(start_color="D5001C", end_color="D5001C", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF")
-    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    header_fill = OpenpyxlFill(start_color="D5001C", end_color="D5001C", fill_type="solid")
+    header_font = OpenpyxlFont(bold=True, color="FFFFFF")
+    header_alignment = OpenpyxlAlignment(horizontal="center", vertical="center", wrap_text=True)
 
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
+        cell = ws.cell(row=2, column=col_num, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = header_alignment
@@ -1412,8 +1422,8 @@ def calendrier_export(
     ws.column_dimensions['AL'].width = 13  # Solidaires Élus
     ws.column_dimensions['AM'].width = 12  # Autre Élus
 
-    # Remplir les données
-    for row_num, election in enumerate(elections_list, 2):
+    # Remplir les données (commence à la ligne 3, car ligne 1 = avertissement, ligne 2 = en-têtes)
+    for row_num, election in enumerate(elections_list, 3):
         ws.cell(row=row_num, column=1, value=election["siret"])
         ws.cell(row=row_num, column=2, value=election["raison_sociale"])
         ws.cell(row=row_num, column=3, value=election["ud"])
@@ -1487,8 +1497,8 @@ def calendrier_export(
         ws.cell(row=row_num, column=38, value=elus_par_orga.get("Solidaires"))
         ws.cell(row=row_num, column=39, value=elus_par_orga.get("Autre"))
 
-    # Geler la première ligne (en-têtes)
-    ws.freeze_panes = "A2"
+    # Geler les 2 premières lignes (avertissement + en-têtes)
+    ws.freeze_panes = "A3"
 
     # Sauvegarder dans un buffer
     excel_buffer = BytesIO()
