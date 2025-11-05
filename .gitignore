@@ -48,3 +48,7 @@ env/
 
 # Static files
 app/static/last_ciblage.csv
+
+# Backup files
+*_backup.*
+*_old_backup.*
