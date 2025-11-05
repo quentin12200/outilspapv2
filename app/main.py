@@ -882,10 +882,15 @@ def calendrier_elections(
                 voix_par_orga[label] = votes_value
 
         # Calculer les élus CSE pour ce collège (uniquement C4)
+        # Utiliser l'effectif DU COLLÈGE (inscrits), pas l'effectif total entreprise
         elus_par_orga = {}
         nb_sieges_cse = None
-        if row.cycle == "C4" and effectif_value and effectif_value > 0:
-            calcul_elus = calculer_elus_cse_complet(int(effectif_value), {label: int(v) for label, v in voix_par_orga.items()})
+
+        if row.cycle == "C4" and effectif_value and effectif_value > 0 and voix_par_orga:
+            calcul_elus = calculer_elus_cse_complet(
+                int(effectif_value),  # Effectif du collège (inscrits)
+                {label: int(v) for label, v in voix_par_orga.items()}
+            )
             nb_sieges_cse = calcul_elus["nb_sieges_total"]
             elus_par_orga = calcul_elus["elus_par_orga"]
 
