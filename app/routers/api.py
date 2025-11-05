@@ -979,6 +979,80 @@ def stats_enrichissement(db: Session = Depends(get_session)):
     }
 
 
+@router.get("/stats/enriched")
+def enriched_kpi_stats(db: Session = Depends(get_session)):
+    """
+    Retourne les KPIs simplifiés pour la homepage dashboard.
+    """
+    # Total des invitations
+    total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
+
+    # Seuil d'audience (fixe)
+    audience_threshold = 1000
+
+    # Calcul du PAP ↔ PV overlap
+    # D'abord, récupère les SIRET qui ont des PV (via SiretSummary)
+    c3_condition = or_(
+        SiretSummary.date_pv_c3.isnot(None),
+        SiretSummary.carence_c3.is_(True),
+    )
+    c4_condition = or_(
+        SiretSummary.date_pv_c4.isnot(None),
+        SiretSummary.carence_c4.is_(True),
+    )
+    possessions_condition = or_(c3_condition, c4_condition)
+
+    pv_sirets_subquery = select(SiretSummary.siret).where(possessions_condition)
+    pap_pv_overlap = (
+        db.query(func.count(func.distinct(Invitation.siret)))
+        .filter(Invitation.siret.in_(pv_sirets_subquery))
+        .scalar()
+        or 0
+    )
+    pap_pv_overlap_percent = round(
+        (pap_pv_overlap / total_invitations * 100) if total_invitations > 0 else 0,
+        1,
+    )
+
+    # CGT implantée - compte les SIRET avec cgt_implantee = True
+    cgt_implanted_count = (
+        db.query(func.count(SiretSummary.siret))
+        .filter(SiretSummary.cgt_implantee.is_(True))
+        .scalar()
+        or 0
+    )
+
+    # Total SIRET pour calculer le pourcentage
+    total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    cgt_implanted_percent = round(
+        (cgt_implanted_count / total_siret * 100) if total_siret > 0 else 0,
+        1,
+    )
+
+    # Elections dans les 30 prochains jours
+    today = date.today()
+    thirty_days_later = today + timedelta(days=30)
+
+    # Compte les PVEvents avec date_prochain_scrutin dans les 30 jours
+    elections_next_30_days = (
+        db.query(func.count(func.distinct(PVEvent.siret)))
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+        .filter(PVEvent.date_prochain_scrutin >= today)
+        .filter(PVEvent.date_prochain_scrutin <= thirty_days_later)
+        .scalar()
+        or 0
+    )
+
+    return {
+        "total_invitations": total_invitations,
+        "audience_threshold": audience_threshold,
+        "pap_pv_overlap_percent": pap_pv_overlap_percent,
+        "cgt_implanted_count": cgt_implanted_count,
+        "cgt_implanted_percent": cgt_implanted_percent,
+        "elections_next_30_days": elections_next_30_days,
+    }
+
+
 @router.get("/stats/dashboard-enhanced")
 def dashboard_enhanced_stats(db: Session = Depends(get_session)):
     """
