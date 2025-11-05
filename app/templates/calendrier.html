@@ -297,7 +297,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 12 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 13 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -319,8 +319,9 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Cycle</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Type</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SVE</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Nb Collèges</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Top 3 organisations</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Organisations</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Élus CSE</th>
             </tr>
           </thead>
@@ -362,13 +363,16 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.sve or 0 }}">
                   {{ item.sve_display or "—" }}
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.nb_college or 0 }}">
+                  {{ item.nb_college_display or "—" }}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.participation or 0 }}">
                   {{ item.participation_display or "—" }}
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-700">
-                  {% if item.top_orgs %}
+                  {% if item.all_orgs %}
                     <ul class="space-y-1">
-                      {% for org in item.top_orgs %}
+                      {% for org in item.all_orgs %}
                         <li class="flex items-baseline justify-between gap-3">
                           <span class="font-semibold text-gray-800">{{ org.label }}</span>
                           <span class="text-sm text-gray-600">{{ org.votes_display or "—" }}{% if org.percent_display %} <span class="text-xs text-gray-500">({{ org.percent_display }})</span>{% endif %}</span>

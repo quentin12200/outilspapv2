@@ -786,6 +786,7 @@ def calendrier_elections(
             PVEvent.idcc,
             PVEvent.sve,
             PVEvent.tx_participation_pv,
+            PVEvent.nb_college_siret,
             PVEvent.cgt_voix,
             PVEvent.cfdt_voix,
             PVEvent.fo_voix,
@@ -882,6 +883,7 @@ def calendrier_elections(
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
+        nb_college_value = _to_number(getattr(row, "nb_college_siret", None))
 
         payload = {
             "siret": row.siret,
@@ -901,6 +903,8 @@ def calendrier_elections(
             "sve_display": _format_int_fr(sve_value),
             "participation": participation_value,
             "participation_display": _format_percent_fr(participation_value),
+            "nb_college": int(nb_college_value) if nb_college_value is not None else None,
+            "nb_college_display": _format_int_fr(nb_college_value) if nb_college_value is not None else None,
         }
 
         org_scores: list[dict[str, Any]] = []
@@ -923,7 +927,8 @@ def calendrier_elections(
                 }
             )
 
-        payload["top_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)[:3]
+        # Afficher toutes les organisations (pas seulement top 3)
+        payload["all_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)
 
         # Calcul du nombre d'élus CSE par organisation
         # IMPORTANT: Ne calculer que pour le cycle C4 (élections actuelles)
@@ -1036,6 +1041,7 @@ def calendrier_export(
             PVEvent.idcc,
             PVEvent.sve,
             PVEvent.tx_participation_pv,
+            PVEvent.nb_college_siret,
             PVEvent.cgt_voix,
             PVEvent.cfdt_voix,
             PVEvent.fo_voix,
@@ -1187,25 +1193,35 @@ def calendrier_export(
         "FD",
         "IDCC",
         "SVE",
+        "Nb Collèges",
         "Participation (%)",
-        "1ère orga",
-        "1ère orga - Voix",
-        "1ère orga - %",
-        "2ème orga",
-        "2ème orga - Voix",
-        "2ème orga - %",
-        "3ème orga",
-        "3ème orga - Voix",
-        "3ème orga - %",
+        # Toutes les organisations (voix + %)
+        "CGT - Voix",
+        "CGT - %",
+        "CFDT - Voix",
+        "CFDT - %",
+        "FO - Voix",
+        "FO - %",
+        "CFTC - Voix",
+        "CFTC - %",
+        "CFE-CGC - Voix",
+        "CFE-CGC - %",
+        "UNSA - Voix",
+        "UNSA - %",
+        "Solidaires - Voix",
+        "Solidaires - %",
+        "Autre - Voix",
+        "Autre - %",
+        # Élus CSE
         "Nb sièges CSE",
         "CGT - Élus",
         "CFDT - Élus",
         "FO - Élus",
         "CFTC - Élus",
-        "CGC-CFE - Élus",
+        "CFE-CGC - Élus",
         "UNSA - Élus",
-        "SUD - Élus",
-        "Autres - Élus",
+        "Solidaires - Élus",
+        "Autre - Élus",
     ]
 
     # Style des en-têtes
@@ -1232,25 +1248,35 @@ def calendrier_export(
     ws.column_dimensions['J'].width = 10  # FD
     ws.column_dimensions['K'].width = 10  # IDCC
     ws.column_dimensions['L'].width = 12  # SVE
-    ws.column_dimensions['M'].width = 15  # Participation
-    ws.column_dimensions['N'].width = 12  # 1ère orga
-    ws.column_dimensions['O'].width = 12  # 1ère orga voix
-    ws.column_dimensions['P'].width = 12  # 1ère orga %
-    ws.column_dimensions['Q'].width = 12  # 2ème orga
-    ws.column_dimensions['R'].width = 12  # 2ème orga voix
-    ws.column_dimensions['S'].width = 12  # 2ème orga %
-    ws.column_dimensions['T'].width = 12  # 3ème orga
-    ws.column_dimensions['U'].width = 12  # 3ème orga voix
-    ws.column_dimensions['V'].width = 12  # 3ème orga %
-    ws.column_dimensions['W'].width = 15  # Nb sièges CSE
-    ws.column_dimensions['X'].width = 12  # CGT - Élus
-    ws.column_dimensions['Y'].width = 12  # CFDT - Élus
-    ws.column_dimensions['Z'].width = 12  # FO - Élus
-    ws.column_dimensions['AA'].width = 12  # CFTC - Élus
-    ws.column_dimensions['AB'].width = 12  # CGC-CFE - Élus
-    ws.column_dimensions['AC'].width = 12  # UNSA - Élus
-    ws.column_dimensions['AD'].width = 12  # SUD - Élus
-    ws.column_dimensions['AE'].width = 12  # Autres - Élus
+    ws.column_dimensions['M'].width = 12  # Nb Collèges
+    ws.column_dimensions['N'].width = 15  # Participation
+    # Organisations (8 x 2 colonnes)
+    ws.column_dimensions['O'].width = 12  # CGT Voix
+    ws.column_dimensions['P'].width = 10  # CGT %
+    ws.column_dimensions['Q'].width = 12  # CFDT Voix
+    ws.column_dimensions['R'].width = 10  # CFDT %
+    ws.column_dimensions['S'].width = 12  # FO Voix
+    ws.column_dimensions['T'].width = 10  # FO %
+    ws.column_dimensions['U'].width = 12  # CFTC Voix
+    ws.column_dimensions['V'].width = 10  # CFTC %
+    ws.column_dimensions['W'].width = 12  # CFE-CGC Voix
+    ws.column_dimensions['X'].width = 10  # CFE-CGC %
+    ws.column_dimensions['Y'].width = 12  # UNSA Voix
+    ws.column_dimensions['Z'].width = 10  # UNSA %
+    ws.column_dimensions['AA'].width = 13  # Solidaires Voix
+    ws.column_dimensions['AB'].width = 10  # Solidaires %
+    ws.column_dimensions['AC'].width = 12  # Autre Voix
+    ws.column_dimensions['AD'].width = 10  # Autre %
+    # Élus CSE
+    ws.column_dimensions['AE'].width = 15  # Nb sièges CSE
+    ws.column_dimensions['AF'].width = 12  # CGT Élus
+    ws.column_dimensions['AG'].width = 12  # CFDT Élus
+    ws.column_dimensions['AH'].width = 12  # FO Élus
+    ws.column_dimensions['AI'].width = 12  # CFTC Élus
+    ws.column_dimensions['AJ'].width = 12  # CFE-CGC Élus
+    ws.column_dimensions['AK'].width = 12  # UNSA Élus
+    ws.column_dimensions['AL'].width = 13  # Solidaires Élus
+    ws.column_dimensions['AM'].width = 12  # Autre Élus
 
     # Remplir les données
     for row_num, election in enumerate(elections_list, 2):
@@ -1266,41 +1292,66 @@ def calendrier_export(
         ws.cell(row=row_num, column=10, value=election["fd"])
         ws.cell(row=row_num, column=11, value=election["idcc"])
         ws.cell(row=row_num, column=12, value=int(election["sve"]) if election["sve"] else None)
-        ws.cell(row=row_num, column=13, value=round(election["participation"], 1) if election["participation"] else None)
+        ws.cell(row=row_num, column=13, value=int(election["nb_college"]) if election["nb_college"] else None)
+        ws.cell(row=row_num, column=14, value=round(election["participation"], 1) if election["participation"] else None)
 
-        # Top 3 organisations
-        org_scores = election.get("org_scores", [])
+        # Toutes les organisations (8 x 2 colonnes)
+        all_orgs = election.get("all_orgs", [])
+        # Créer un dictionnaire pour accès rapide par label
+        orgs_dict = {org["label"]: org for org in all_orgs}
 
-        # 1ère organisation
-        if len(org_scores) >= 1:
-            ws.cell(row=row_num, column=14, value=org_scores[0]["label"])
-            ws.cell(row=row_num, column=15, value=int(org_scores[0]["votes"]))
-            ws.cell(row=row_num, column=16, value=round(org_scores[0]["percent"], 1) if org_scores[0]["percent"] else None)
+        # CGT (colonnes 15-16)
+        cgt = orgs_dict.get("CGT", {})
+        ws.cell(row=row_num, column=15, value=int(cgt["votes"]) if cgt.get("votes") else None)
+        ws.cell(row=row_num, column=16, value=round(cgt["percent"], 1) if cgt.get("percent") else None)
 
-        # 2ème organisation
-        if len(org_scores) >= 2:
-            ws.cell(row=row_num, column=17, value=org_scores[1]["label"])
-            ws.cell(row=row_num, column=18, value=int(org_scores[1]["votes"]))
-            ws.cell(row=row_num, column=19, value=round(org_scores[1]["percent"], 1) if org_scores[1]["percent"] else None)
+        # CFDT (colonnes 17-18)
+        cfdt = orgs_dict.get("CFDT", {})
+        ws.cell(row=row_num, column=17, value=int(cfdt["votes"]) if cfdt.get("votes") else None)
+        ws.cell(row=row_num, column=18, value=round(cfdt["percent"], 1) if cfdt.get("percent") else None)
 
-        # 3ème organisation
-        if len(org_scores) >= 3:
-            ws.cell(row=row_num, column=20, value=org_scores[2]["label"])
-            ws.cell(row=row_num, column=21, value=int(org_scores[2]["votes"]))
-            ws.cell(row=row_num, column=22, value=round(org_scores[2]["percent"], 1) if org_scores[2]["percent"] else None)
+        # FO (colonnes 19-20)
+        fo = orgs_dict.get("FO", {})
+        ws.cell(row=row_num, column=19, value=int(fo["votes"]) if fo.get("votes") else None)
+        ws.cell(row=row_num, column=20, value=round(fo["percent"], 1) if fo.get("percent") else None)
 
-        # Nombre d'élus CSE par organisation
-        ws.cell(row=row_num, column=23, value=election.get("nb_sieges_cse"))
+        # CFTC (colonnes 21-22)
+        cftc = orgs_dict.get("CFTC", {})
+        ws.cell(row=row_num, column=21, value=int(cftc["votes"]) if cftc.get("votes") else None)
+        ws.cell(row=row_num, column=22, value=round(cftc["percent"], 1) if cftc.get("percent") else None)
+
+        # CFE-CGC (colonnes 23-24)
+        cfe = orgs_dict.get("CFE-CGC", {})
+        ws.cell(row=row_num, column=23, value=int(cfe["votes"]) if cfe.get("votes") else None)
+        ws.cell(row=row_num, column=24, value=round(cfe["percent"], 1) if cfe.get("percent") else None)
+
+        # UNSA (colonnes 25-26)
+        unsa = orgs_dict.get("UNSA", {})
+        ws.cell(row=row_num, column=25, value=int(unsa["votes"]) if unsa.get("votes") else None)
+        ws.cell(row=row_num, column=26, value=round(unsa["percent"], 1) if unsa.get("percent") else None)
+
+        # Solidaires (colonnes 27-28)
+        solidaires = orgs_dict.get("Solidaires", {})
+        ws.cell(row=row_num, column=27, value=int(solidaires["votes"]) if solidaires.get("votes") else None)
+        ws.cell(row=row_num, column=28, value=round(solidaires["percent"], 1) if solidaires.get("percent") else None)
+
+        # Autre (colonnes 29-30)
+        autre = orgs_dict.get("Autre", {})
+        ws.cell(row=row_num, column=29, value=int(autre["votes"]) if autre.get("votes") else None)
+        ws.cell(row=row_num, column=30, value=round(autre["percent"], 1) if autre.get("percent") else None)
+
+        # Nombre d'élus CSE par organisation (colonnes 31-39)
+        ws.cell(row=row_num, column=31, value=election.get("nb_sieges_cse"))
 
         elus_par_orga = election.get("elus_par_orga", {})
-        ws.cell(row=row_num, column=24, value=elus_par_orga.get("CGT"))
-        ws.cell(row=row_num, column=25, value=elus_par_orga.get("CFDT"))
-        ws.cell(row=row_num, column=26, value=elus_par_orga.get("FO"))
-        ws.cell(row=row_num, column=27, value=elus_par_orga.get("CFTC"))
-        ws.cell(row=row_num, column=28, value=elus_par_orga.get("CGC-CFE"))
-        ws.cell(row=row_num, column=29, value=elus_par_orga.get("UNSA"))
-        ws.cell(row=row_num, column=30, value=elus_par_orga.get("SUD"))
-        ws.cell(row=row_num, column=31, value=elus_par_orga.get("Autres"))
+        ws.cell(row=row_num, column=32, value=elus_par_orga.get("CGT"))
+        ws.cell(row=row_num, column=33, value=elus_par_orga.get("CFDT"))
+        ws.cell(row=row_num, column=34, value=elus_par_orga.get("FO"))
+        ws.cell(row=row_num, column=35, value=elus_par_orga.get("CFTC"))
+        ws.cell(row=row_num, column=36, value=elus_par_orga.get("CFE-CGC"))
+        ws.cell(row=row_num, column=37, value=elus_par_orga.get("UNSA"))
+        ws.cell(row=row_num, column=38, value=elus_par_orga.get("Solidaires"))
+        ws.cell(row=row_num, column=39, value=elus_par_orga.get("Autre"))
 
     # Geler la première ligne (en-têtes)
     ws.freeze_panes = "A2"
@@ -2024,7 +2075,8 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
                 }
             )
 
-        payload["top_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)[:3]
+        # Afficher toutes les organisations (pas seulement top 3)
+        payload["all_orgs"] = sorted(org_scores, key=lambda entry: entry["votes"], reverse=True)
 
         per_siret[key] = payload
 
