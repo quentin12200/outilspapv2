@@ -328,8 +328,8 @@
                   <span class="relative group cursor-help">
                     <i class="fas fa-info-circle text-gray-400 text-xs"></i>
                     <div class="hidden group-hover:block absolute z-10 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg -left-24 top-6">
-                      <strong>Calcul théorique maximum</strong><br>
-                      Suppose que chaque organisation a présenté suffisamment de candidats. Le nombre réel d'élus peut être inférieur.
+                      <strong>Moyenne haute</strong><br>
+                      Calcul en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges). Le nombre réel d'élus peut être inférieur.
                     </div>
                   </span>
                 </div>
@@ -409,7 +409,7 @@
                         {% endfor %}
                       </ul>
                       <div class="mt-2 text-xs text-amber-600 italic">
-                        <i class="fas fa-exclamation-triangle text-xs"></i> Calcul théorique
+                        <i class="fas fa-exclamation-triangle text-xs"></i> Moyenne haute (liste complète)
                       </div>
                     {% endif %}
 
@@ -423,7 +423,7 @@
                       </button>
                       <div x-show="showDetails" x-cloak class="mt-2 space-y-2 text-xs bg-gray-50 p-2 rounded">
                         <div class="mb-2 p-2 bg-amber-50 border-l-2 border-amber-400 text-amber-700">
-                          <i class="fas fa-info-circle"></i> Les élus affichés sont un <strong>calcul théorique maximum</strong> supposant que chaque organisation a présenté suffisamment de candidats.
+                          <i class="fas fa-info-circle"></i> <strong>Moyenne haute</strong> : calcul en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges à pourvoir).
                         </div>
                         {% for college in item.colleges_details %}
                         <div class="border-l-2 border-blue-300 pl-2">

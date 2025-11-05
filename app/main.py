@@ -1346,22 +1346,22 @@ def calendrier_export(
         "Solidaires - %",
         "Autre - Voix",
         "Autre - %",
-        # Élus CSE (calcul théorique)
-        "Nb sièges CSE (théorique)",
-        "CGT - Élus (théorique)",
-        "CFDT - Élus (théorique)",
-        "FO - Élus (théorique)",
-        "CFTC - Élus (théorique)",
-        "CFE-CGC - Élus (théorique)",
-        "UNSA - Élus (théorique)",
-        "Solidaires - Élus (théorique)",
-        "Autre - Élus (théorique)",
+        # Élus CSE (moyenne haute - liste complète)
+        "Nb sièges CSE (moy. haute)",
+        "CGT - Élus (moy. haute)",
+        "CFDT - Élus (moy. haute)",
+        "FO - Élus (moy. haute)",
+        "CFTC - Élus (moy. haute)",
+        "CFE-CGC - Élus (moy. haute)",
+        "UNSA - Élus (moy. haute)",
+        "Solidaires - Élus (moy. haute)",
+        "Autre - Élus (moy. haute)",
     ]
 
     # Note d'avertissement en haut de la feuille
     from openpyxl.styles import Font as OpenpyxlFont, PatternFill as OpenpyxlFill, Alignment as OpenpyxlAlignment
 
-    warning_cell = ws.cell(row=1, column=1, value="⚠️ IMPORTANT: Les élus CSE affichés sont un calcul théorique maximum supposant que chaque organisation a présenté suffisamment de candidats. Le nombre réel d'élus peut être inférieur.")
+    warning_cell = ws.cell(row=1, column=1, value="⚠️ MOYENNE HAUTE : Les élus CSE sont calculés en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges à pourvoir). Le nombre réel d'élus peut être inférieur.")
     warning_cell.font = OpenpyxlFont(bold=True, color="FF6B35", size=11)
     warning_cell.fill = OpenpyxlFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
     warning_cell.alignment = OpenpyxlAlignment(wrap_text=True, vertical="center")
