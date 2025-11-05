@@ -148,16 +148,35 @@
 </section>
 
 <section class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-  <div class="flex items-center justify-between mb-4">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
     <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
       <i class="fas fa-list"></i>
       Liste des invitations
     </h2>
-    <button onclick="toggleFullscreenTable('invitations-table')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
-      <i class="fas fa-expand mr-2"></i>
-      Plein écran
-    </button>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-2">
+        <label for="per_page" class="text-sm font-semibold text-gray-700">Lignes par page:</label>
+        <select id="per_page" name="per_page" onchange="changePerPage(this.value)" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-sm">
+          <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+          <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+          <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+          <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+          <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
+        </select>
+      </div>
+      <button onclick="toggleFullscreenTable('invitations-table')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm">
+        <i class="fas fa-expand mr-2"></i>
+        Plein écran
+      </button>
+    </div>
   </div>
+
+  <!-- Info pagination -->
+  <div class="mb-4 text-sm text-gray-600">
+    Affichage de <strong>{{ ((page - 1) * per_page + 1) }}</strong> à <strong>{{ [page * per_page, total_invitations]|min }}</strong> sur <strong>{{ total_invitations }}</strong> invitations
+  </div>
+
   {% if invitations %}
   <div class="overflow-x-auto rounded-lg border border-gray-200">
     <table id="invitations-table" class="min-w-full divide-y divide-gray-200" data-sortable="true">
@@ -236,8 +255,92 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Navigation pagination -->
+  {% if total_pages > 1 %}
+  <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="text-sm text-gray-600">
+      Page <strong>{{ page }}</strong> sur <strong>{{ total_pages }}</strong>
+    </div>
+    <nav class="flex items-center gap-2">
+      <!-- Première page -->
+      {% if page > 1 %}
+      <a href="?page=1&per_page={{ per_page }}{% if q %}&q={{ q }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if est_actif %}&est_actif={{ est_actif }}{% endif %}{% if est_siege %}&est_siege={{ est_siege }}{% endif %}{% if ud %}&ud={{ ud }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if departement %}&departement={{ departement }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+        <i class="fas fa-angles-left"></i>
+      </a>
+      {% else %}
+      <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+        <i class="fas fa-angles-left"></i>
+      </span>
+      {% endif %}
+
+      <!-- Page précédente -->
+      {% if page > 1 %}
+      <a href="?page={{ page - 1 }}&per_page={{ per_page }}{% if q %}&q={{ q }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if est_actif %}&est_actif={{ est_actif }}{% endif %}{% if est_siege %}&est_siege={{ est_siege }}{% endif %}{% if ud %}&ud={{ ud }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if departement %}&departement={{ departement }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+        <i class="fas fa-angle-left"></i>
+      </a>
+      {% else %}
+      <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+        <i class="fas fa-angle-left"></i>
+      </span>
+      {% endif %}
+
+      <!-- Numéros de pages -->
+      {% set start_page = [1, page - 2]|max %}
+      {% set end_page = [total_pages, page + 2]|min %}
+
+      {% if start_page > 1 %}
+        <span class="px-2 text-gray-500">...</span>
+      {% endif %}
+
+      {% for p in range(start_page, end_page + 1) %}
+        {% if p == page %}
+          <span class="px-4 py-2 rounded-lg bg-cgt-red text-white font-semibold text-sm">{{ p }}</span>
+        {% else %}
+          <a href="?page={{ p }}&per_page={{ per_page }}{% if q %}&q={{ q }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if est_actif %}&est_actif={{ est_actif }}{% endif %}{% if est_siege %}&est_siege={{ est_siege }}{% endif %}{% if ud %}&ud={{ ud }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if departement %}&departement={{ departement }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if end_page < total_pages %}
+        <span class="px-2 text-gray-500">...</span>
+      {% endif %}
+
+      <!-- Page suivante -->
+      {% if page < total_pages %}
+      <a href="?page={{ page + 1 }}&per_page={{ per_page }}{% if q %}&q={{ q }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if est_actif %}&est_actif={{ est_actif }}{% endif %}{% if est_siege %}&est_siege={{ est_siege }}{% endif %}{% if ud %}&ud={{ ud }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if departement %}&departement={{ departement }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+        <i class="fas fa-angle-right"></i>
+      </a>
+      {% else %}
+      <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+        <i class="fas fa-angle-right"></i>
+      </span>
+      {% endif %}
+
+      <!-- Dernière page -->
+      {% if page < total_pages %}
+      <a href="?page={{ total_pages }}&per_page={{ per_page }}{% if q %}&q={{ q }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if est_actif %}&est_actif={{ est_actif }}{% endif %}{% if est_siege %}&est_siege={{ est_siege }}{% endif %}{% if ud %}&ud={{ ud }}{% endif %}{% if fd %}&fd={{ fd }}{% endif %}{% if departement %}&departement={{ departement }}{% endif %}{% if statut %}&statut={{ statut }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+        <i class="fas fa-angles-right"></i>
+      </a>
+      {% else %}
+      <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+        <i class="fas fa-angles-right"></i>
+      </span>
+      {% endif %}
+    </nav>
+  </div>
+  {% endif %}
+
   {% else %}
   <p class="text-sm text-gray-500">Aucune invitation n'a encore été importée.</p>
   {% endif %}
 </section>
+
+<script>
+function changePerPage(perPage) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', perPage);
+  url.searchParams.set('page', '1'); // Reset to first page
+  window.location.href = url.toString();
+}
+</script>
 {% endblock %}

@@ -144,6 +144,24 @@
 
   <div class="bg-white shadow-lg rounded-2xl border border-gray-200 overflow-hidden">
     {% if elections %}
+      <!-- Info et contrôles pagination -->
+      <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="text-sm text-gray-600">
+          Affichage de <strong>{{ ((page - 1) * per_page + 1) }}</strong> à <strong>{{ [page * per_page, total_elections]|min }}</strong> sur <strong>{{ total_elections }}</strong> élections
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="per_page_cal" class="text-sm font-semibold text-gray-700">Lignes par page:</label>
+          <select id="per_page_cal" name="per_page" onchange="changePerPageCal(this.value)" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-sm">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+            <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+            <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
+          </select>
+        </div>
+      </div>
+
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
@@ -221,6 +239,81 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Navigation pagination -->
+      {% if total_pages > 1 %}
+      <div class="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="text-sm text-gray-600">
+          Page <strong>{{ page }}</strong> sur <strong>{{ total_pages }}</strong>
+        </div>
+        <nav class="flex items-center gap-2">
+          <!-- Première page -->
+          {% if page > 1 %}
+          <a href="?page=1&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+            <i class="fas fa-angles-left"></i>
+          </a>
+          {% else %}
+          <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+            <i class="fas fa-angles-left"></i>
+          </span>
+          {% endif %}
+
+          <!-- Page précédente -->
+          {% if page > 1 %}
+          <a href="?page={{ page - 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+            <i class="fas fa-angle-left"></i>
+          </a>
+          {% else %}
+          <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+            <i class="fas fa-angle-left"></i>
+          </span>
+          {% endif %}
+
+          <!-- Numéros de pages -->
+          {% set start_page = [1, page - 2]|max %}
+          {% set end_page = [total_pages, page + 2]|min %}
+
+          {% if start_page > 1 %}
+            <span class="px-2 text-gray-500">...</span>
+          {% endif %}
+
+          {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+              <span class="px-4 py-2 rounded-lg bg-cgt-red text-white font-semibold text-sm">{{ p }}</span>
+            {% else %}
+              <a href="?page={{ p }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">{{ p }}</a>
+            {% endif %}
+          {% endfor %}
+
+          {% if end_page < total_pages %}
+            <span class="px-2 text-gray-500">...</span>
+          {% endif %}
+
+          <!-- Page suivante -->
+          {% if page < total_pages %}
+          <a href="?page={{ page + 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+            <i class="fas fa-angle-right"></i>
+          </a>
+          {% else %}
+          <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+            <i class="fas fa-angle-right"></i>
+          </span>
+          {% endif %}
+
+          <!-- Dernière page -->
+          {% if page < total_pages %}
+          <a href="?page={{ total_pages }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
+            <i class="fas fa-angles-right"></i>
+          </a>
+          {% else %}
+          <span class="px-3 py-2 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed text-sm">
+            <i class="fas fa-angles-right"></i>
+          </span>
+          {% endif %}
+        </nav>
+      </div>
+      {% endif %}
+
       <div class="px-6 py-4 bg-gray-50 text-sm text-gray-600 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <p class="flex-1">
           {% if next_election %}
@@ -250,4 +343,13 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+function changePerPageCal(perPage) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', perPage);
+  url.searchParams.set('page', '1'); // Reset to first page
+  window.location.href = url.toString();
+}
+</script>
 {% endblock %}

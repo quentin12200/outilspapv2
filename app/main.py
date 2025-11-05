@@ -1004,6 +1004,8 @@ def calendrier_elections(
     idcc: str = "",
     ud: str = "",
     region: str = "",
+    page: int = 1,
+    per_page: int = 50,
     db: Session = Depends(get_session),
 ):
     today = date.today()
@@ -1152,11 +1154,30 @@ def calendrier_elections(
 
     elections_list = sorted(per_siret.values(), key=lambda item: item["date"])
 
+    # Pagination
+    total_elections = len(elections_list)
+
+    # Valider et limiter per_page
+    per_page = max(10, min(per_page, 500))  # Entre 10 et 500 lignes
+    page = max(1, page)  # Au moins page 1
+
+    # Calculer le nombre total de pages
+    import math
+    total_pages = math.ceil(total_elections / per_page) if total_elections > 0 else 1
+
+    # Ajuster la page si elle dépasse le total
+    if page > total_pages:
+        page = total_pages
+
+    # Calculer l'offset et extraire la page demandée
+    offset = (page - 1) * per_page
+    elections_page = elections_list[offset:offset + per_page]
+
     return templates.TemplateResponse(
         "calendrier.html",
         {
             "request": request,
-            "elections": elections_list,
+            "elections": elections_page,
             "next_election": elections_list[0] if elections_list else None,
             "filters": {
                 "min_effectif": min_effectif,
@@ -1176,6 +1197,10 @@ def calendrier_elections(
                 "uds": sorted(options["uds"]),
                 "regions": sorted(options["regions"]),
             },
+            "total_elections": total_elections,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
         },
     )
 
@@ -1191,6 +1216,8 @@ def invitations(
     fd: str = "",
     departement: str = "",
     statut: str = "",
+    page: int = 1,
+    per_page: int = 50,
     db: Session = Depends(get_session),
 ):
     qs = db.query(Invitation)
@@ -1576,11 +1603,30 @@ def invitations(
     all_depts_raw = db.query(func.substr(Invitation.code_postal, 1, 2)).distinct().all()
     all_depts = sorted([row[0] for row in all_depts_raw if row[0] and row[0].isdigit()])
 
+    # Pagination
+    total_invitations = len(invitations)
+
+    # Valider et limiter per_page
+    per_page = max(10, min(per_page, 500))  # Entre 10 et 500 lignes
+    page = max(1, page)  # Au moins page 1
+
+    # Calculer le nombre total de pages
+    import math
+    total_pages = math.ceil(total_invitations / per_page) if total_invitations > 0 else 1
+
+    # Ajuster la page si elle dépasse le total
+    if page > total_pages:
+        page = total_pages
+
+    # Calculer l'offset et extraire la page demandée
+    offset = (page - 1) * per_page
+    invitations_page = invitations[offset:offset + per_page]
+
     return templates.TemplateResponse(
         "invitations.html",
         {
             "request": request,
-            "invitations": invitations,
+            "invitations": invitations_page,
             "q": q,
             "source": source,
             "sources": sources,
@@ -1593,7 +1639,10 @@ def invitations(
             "all_uds": all_uds,
             "all_fds": all_fds,
             "all_depts": all_depts,
-            "total_invitations": len(invitations),
+            "total_invitations": total_invitations,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
         },
     )
 
