@@ -2855,7 +2855,7 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
         else (str(pap_display) if pap_display else None)
     )
 
-    # Indicateur d'implantation CGT --------------------------------------------
+    # Indicateur d'implantation CGT (C4 uniquement) ---------------------------
     if getattr(summary, "cgt_implantee", None) is None:
         def _truthy_flag(value) -> bool:
             if value is None:
@@ -2865,6 +2865,9 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
 
         cgt_present = False
         for pv in pv_history:
+            # Ne compter que le cycle C4
+            if getattr(pv, "cycle", None) != "C4":
+                continue
             if _to_int(pv.cgt_voix) and _to_int(pv.cgt_voix) > 0:
                 cgt_present = True
                 break

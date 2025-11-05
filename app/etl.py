@@ -452,8 +452,8 @@ def build_siret_summary(session: Session) -> int:
     base["date_pv_c4"] = pd.to_datetime(base["date_pv_c4"], errors="coerce")
     base["date_pv_max"] = base[["date_pv_c3","date_pv_c4"]].max(axis=1)
 
-    # Implantation CGT si voix > 0
-    base["cgt_implantee"] = ((base["cgt_voix_c3"].fillna(0) > 0) | (base["cgt_voix_c4"].fillna(0) > 0))
+    # Implantation CGT si voix > 0 en C4 uniquement
+    base["cgt_implantee"] = (base["cgt_voix_c4"].fillna(0) > 0)
 
     # Joindre invitations
     base = base.merge(inv_latest, on="siret", how="left")
