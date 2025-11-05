@@ -123,8 +123,32 @@
 
           <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @focusin="open = true" @focusout="open = false" @keydown.escape.window="open = false">
             <button type="button" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2" @click="open = !open">
-              <i class="fas fa-database"></i>
-              <span>Données PAP</span>
+              <i class="fas fa-compass"></i>
+              <span>Découvrir</span>
+              <i class="fas fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-cloak x-show="open" x-transition class="absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-3">
+              <a href="/presentation" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
+                <i class="fas fa-person-chalkboard text-cgt-red"></i>
+                <span>Présentation PAP</span>
+              </a>
+              <a href="/cartographie" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
+                <i class="fas fa-map-location-dot text-cgt-red"></i>
+                <span>Cartographie France</span>
+              </a>
+              <a href="https://cloud.cgt.fr/public.php/dav/files/jXycqmjkMpYbwXr/?accept=zip"
+                 class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2"
+                 target="_blank" rel="noopener">
+                <i class="fas fa-toolbox text-cgt-red"></i>
+                <span>Kit ressources C5</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @focusin="open = true" @focusout="open = false" @keydown.escape.window="open = false">
+            <button type="button" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2" @click="open = !open">
+              <i class="fas fa-handshake-angle"></i>
+              <span>Agir</span>
               <i class="fas fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-cloak x-show="open" x-transition class="absolute right-0 mt-3 w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-3">
@@ -133,7 +157,7 @@
                 <span>Invitations PAP</span>
               </a>
               <a href="/calendrier" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
-                <i class="fas fa-calendar-alt text-cgt-red"></i>
+                <i class="fas fa-calendar-check text-cgt-red"></i>
                 <span>Calendrier +1000</span>
               </a>
             </div>
@@ -141,54 +165,35 @@
 
           <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @focusin="open = true" @focusout="open = false" @keydown.escape.window="open = false">
             <button type="button" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2" @click="open = !open">
-              <i class="fas fa-chart-line"></i>
-              <span>Analyses &amp; ciblage</span>
+              <i class="fas fa-chart-pie"></i>
+              <span>Analyser</span>
               <i class="fas fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-cloak x-show="open" x-transition class="absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-3">
               <a href="/recherche-siret" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
-                <i class="fas fa-search text-cgt-red"></i>
+                <i class="fas fa-magnifying-glass text-cgt-red"></i>
                 <span>Recherche SIRET</span>
               </a>
               <a href="/ciblage" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
                 <i class="fas fa-crosshairs text-cgt-red"></i>
                 <span>Outil de ciblage</span>
               </a>
-              <a href="/cartographie" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
-                <i class="fas fa-map-marked-alt text-cgt-red"></i>
-                <span>Cartographie France</span>
-              </a>
             </div>
           </div>
 
           <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @focusin="open = true" @focusout="open = false" @keydown.escape.window="open = false">
             <button type="button" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2" @click="open = !open">
-              <i class="fas fa-book-open"></i>
-              <span>Ressources</span>
+              <i class="fas fa-user-gear"></i>
+              <span>Administration</span>
               <i class="fas fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-cloak x-show="open" x-transition class="absolute right-0 mt-3 w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-3">
-              <a href="/presentation" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
-                <i class="fas fa-bullseye text-cgt-red"></i>
-                <span>Présentation cible PAP</span>
-              </a>
               <a href="/admin" class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2">
-                <i class="fas fa-cog text-cgt-red"></i>
+                <i class="fas fa-screwdriver-wrench text-cgt-red"></i>
                 <span>Espace administration</span>
-              </a>
-              <a href="https://cloud.cgt.fr/public.php/dav/files/jXycqmjkMpYbwXr/?accept=zip"
-                 class="block px-5 py-2 text-sm text-gray-700 hover:bg-gray-100/80 flex items-center space-x-2"
-                 target="_blank" rel="noopener">
-                <i class="fas fa-cloud-arrow-down text-cgt-red"></i>
-                <span>Kit ressources C5</span>
               </a>
             </div>
           </div>
-
-          <a href="/calendrier" class="px-4 py-2 rounded-lg bg-white text-cgt-red font-semibold shadow hover:bg-gray-100 transition flex items-center space-x-2">
-            <i class="fas fa-calendar-check"></i>
-            <span>Calendrier +1000</span>
-          </a>
         </div>
 
         <!-- Mobile menu button -->
@@ -212,60 +217,65 @@
 
         <button type="button"
                 class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
-                @click="openSection = openSection === 'donnees' ? '' : 'donnees'">
-          <span><i class="fas fa-database mr-2"></i> Données PAP</span>
-          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'donnees' ? 'rotate-180' : ''"></i>
+                @click="openSection = openSection === 'decouvrir' ? '' : 'decouvrir'">
+          <span><i class="fas fa-compass mr-2"></i> Découvrir</span>
+          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'decouvrir' ? 'rotate-180' : ''"></i>
         </button>
-        <div x-cloak x-show="openSection === 'donnees'" x-transition class="ml-6 mb-2 space-y-1">
-          <a href="/invitations" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-envelope-open-text mr-2"></i> Invitations PAP
-          </a>
-          <a href="/calendrier" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-calendar-alt mr-2"></i> Calendrier +1000
-          </a>
-        </div>
-
-        <button type="button"
-                class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
-                @click="openSection = openSection === 'analyses' ? '' : 'analyses'">
-          <span><i class="fas fa-chart-line mr-2"></i> Analyses &amp; ciblage</span>
-          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'analyses' ? 'rotate-180' : ''"></i>
-        </button>
-        <div x-cloak x-show="openSection === 'analyses'" x-transition class="ml-6 mb-2 space-y-1">
-          <a href="/recherche-siret" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-search mr-2"></i> Recherche SIRET
-          </a>
-          <a href="/ciblage" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-crosshairs mr-2"></i> Outil de ciblage
+        <div x-cloak x-show="openSection === 'decouvrir'" x-transition class="ml-6 mb-2 space-y-1">
+          <a href="/presentation" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-person-chalkboard mr-2"></i> Présentation PAP
           </a>
           <a href="/cartographie" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-map-marked-alt mr-2"></i> Cartographie France
-          </a>
-        </div>
-
-        <button type="button"
-                class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
-                @click="openSection = openSection === 'ressources' ? '' : 'ressources'">
-          <span><i class="fas fa-book-open mr-2"></i> Ressources</span>
-          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'ressources' ? 'rotate-180' : ''"></i>
-        </button>
-        <div x-cloak x-show="openSection === 'ressources'" x-transition class="ml-6 mb-2 space-y-1">
-          <a href="/presentation" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-bullseye mr-2"></i> Présentation
-          </a>
-          <a href="/admin" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
-            <i class="fas fa-cog mr-2"></i> Administration
+            <i class="fas fa-map-location-dot mr-2"></i> Cartographie France
           </a>
           <a href="https://cloud.cgt.fr/public.php/dav/files/jXycqmjkMpYbwXr/?accept=zip"
              class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition"
              target="_blank" rel="noopener" @click="mobileMenuOpen = false">
-            <i class="fas fa-cloud-arrow-down mr-2"></i> Kit ressources C5
+            <i class="fas fa-toolbox mr-2"></i> Kit ressources C5
           </a>
         </div>
 
-        <a href="/calendrier" class="block px-3 py-3 mt-2 rounded-md bg-white text-cgt-red font-semibold shadow hover:bg-gray-100 transition" @click="mobileMenuOpen = false">
-          <i class="fas fa-calendar-check mr-2"></i> Calendrier +1000
-        </a>
+        <button type="button"
+                class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
+                @click="openSection = openSection === 'agir' ? '' : 'agir'">
+          <span><i class="fas fa-handshake-angle mr-2"></i> Agir</span>
+          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'agir' ? 'rotate-180' : ''"></i>
+        </button>
+        <div x-cloak x-show="openSection === 'agir'" x-transition class="ml-6 mb-2 space-y-1">
+          <a href="/invitations" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-envelope-open-text mr-2"></i> Invitations PAP
+          </a>
+          <a href="/calendrier" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-calendar-check mr-2"></i> Calendrier +1000
+          </a>
+        </div>
+
+        <button type="button"
+                class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
+                @click="openSection = openSection === 'analyser' ? '' : 'analyser'">
+          <span><i class="fas fa-chart-pie mr-2"></i> Analyser</span>
+          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'analyser' ? 'rotate-180' : ''"></i>
+        </button>
+        <div x-cloak x-show="openSection === 'analyser'" x-transition class="ml-6 mb-2 space-y-1">
+          <a href="/recherche-siret" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-magnifying-glass mr-2"></i> Recherche SIRET
+          </a>
+          <a href="/ciblage" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-crosshairs mr-2"></i> Outil de ciblage
+          </a>
+        </div>
+
+        <button type="button"
+                class="w-full flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition"
+                @click="openSection = openSection === 'administration' ? '' : 'administration'">
+          <span><i class="fas fa-user-gear mr-2"></i> Administration</span>
+          <i class="fas fa-chevron-down text-white/70 transition-transform" :class="openSection === 'administration' ? 'rotate-180' : ''"></i>
+        </button>
+        <div x-cloak x-show="openSection === 'administration'" x-transition class="ml-6 mb-2 space-y-1">
+          <a href="/admin" class="block px-3 py-2 rounded-md text-white/90 hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-screwdriver-wrench mr-2"></i> Espace administration
+          </a>
+        </div>
       </div>
     </div>
   </nav>
