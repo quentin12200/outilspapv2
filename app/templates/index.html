@@ -74,6 +74,18 @@
     Indicateurs clés
   </h2>
 
+  <!-- Error message si chargement échoue -->
+  <div x-show="error" class="mb-6 p-4 rounded-lg bg-red-100 border border-red-300 text-red-800">
+    <div class="flex items-center gap-2">
+      <i class="fas fa-exclamation-triangle text-xl"></i>
+      <div>
+        <p class="font-semibold">Erreur de chargement des indicateurs</p>
+        <p class="text-sm mt-1" x-text="error"></p>
+        <p class="text-sm mt-2">Vérifiez que le serveur FastAPI est démarré et accessible.</p>
+      </div>
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <!-- KPI 1: Total Invitations PAP C5 -->
     <div class="kpi-card bg-white rounded-2xl shadow-md border border-gray-200 p-6">
@@ -88,7 +100,7 @@
       <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
         Invitations PAP C5
       </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.total_invitations || '—'">—</p>
+      <p class="text-3xl font-black text-gray-900" x-text="kpis.total_invitations !== undefined ? kpis.total_invitations : '—'">—</p>
       <p class="text-sm text-gray-500 mt-2">
         Cible ≥ <span x-text="kpis.audience_threshold || 1000">1000</span> inscrits
       </p>
@@ -108,7 +120,7 @@
         Couverture PAP ↔ PV
       </h3>
       <p class="text-3xl font-black text-gray-900">
-        <span x-text="kpis.pap_pv_overlap_percent != null ? kpis.pap_pv_overlap_percent.toFixed(1) : '—'">—</span><span class="text-2xl">%</span>
+        <span x-text="kpis.pap_pv_overlap_percent !== undefined ? kpis.pap_pv_overlap_percent.toFixed(1) : '—'">—</span><span class="text-2xl">%</span>
       </p>
       <p class="text-sm text-gray-500 mt-2">
         Des invitations ont un PV C5
@@ -128,9 +140,9 @@
       <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
         CGT Implantée
       </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.cgt_implanted_count || '—'">—</p>
+      <p class="text-3xl font-black text-gray-900" x-text="kpis.cgt_implanted_count !== undefined ? kpis.cgt_implanted_count : '—'">—</p>
       <p class="text-sm text-gray-500 mt-2">
-        <span x-text="kpis.cgt_implanted_percent != null ? kpis.cgt_implanted_percent.toFixed(1) + '%' : '—'">—</span> de la cible
+        <span x-text="kpis.cgt_implanted_percent !== undefined ? kpis.cgt_implanted_percent.toFixed(1) + '%' : '—'">—</span> de la cible
       </p>
     </div>
 
@@ -147,7 +159,7 @@
       <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
         Élections +1000 (30j)
       </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.elections_next_30_days || '—'">—</p>
+      <p class="text-3xl font-black text-gray-900" x-text="kpis.elections_next_30_days !== undefined ? kpis.elections_next_30_days : '—'">—</p>
       <p class="text-sm text-gray-500 mt-2">
         Scrutins à venir
       </p>
