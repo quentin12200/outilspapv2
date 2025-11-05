@@ -224,6 +224,19 @@
               {% endfor %}
             </select>
           </label>
+
+          <label class="block text-sm font-semibold text-gray-700">
+            Année
+            <select
+              name="year"
+              class="mt-1 w-full rounded-lg border-gray-300 focus:ring-cgt-red focus:border-cgt-red"
+            >
+              <option value="">Toutes</option>
+              {% for value in options.years %}
+                <option value="{{ value }}" {% if filters.year == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
         </div>
 
         <div class="mt-4 flex flex-wrap gap-3">

@@ -733,6 +733,7 @@ def calendrier_elections(
     idcc: str = "",
     ud: str = "",
     region: str = "",
+    year: str = "",
     page: int = 1,
     per_page: int = 50,
     db: Session = Depends(get_session),
@@ -774,6 +775,7 @@ def calendrier_elections(
     idcc_filter = idcc.strip()
     ud_filter = ud.strip()
     region_filter = region.strip()
+    year_filter = year.strip()
 
     options = {
         "cycles": set(),
@@ -782,6 +784,7 @@ def calendrier_elections(
         "idccs": set(),
         "uds": set(),
         "regions": set(),
+        "years": set(),
     }
 
     per_siret: dict[str, dict[str, Any]] = {}
@@ -802,6 +805,8 @@ def calendrier_elections(
             options["uds"].add(row.ud)
         if row.region:
             options["regions"].add(row.region)
+        if parsed_date:
+            options["years"].add(str(parsed_date.year))
 
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
@@ -821,6 +826,8 @@ def calendrier_elections(
         if ud_filter and (row.ud or "") != ud_filter:
             continue
         if region_filter and (row.region or "") != region_filter:
+            continue
+        if year_filter and str(parsed_date.year) != year_filter:
             continue
 
         if search_term:
@@ -917,6 +924,7 @@ def calendrier_elections(
                 "idcc": idcc_filter,
                 "ud": ud_filter,
                 "region": region_filter,
+                "year": year_filter,
             },
             "options": {
                 "cycles": sorted(options["cycles"]),
@@ -925,6 +933,7 @@ def calendrier_elections(
                 "idccs": sorted(options["idccs"]),
                 "uds": sorted(options["uds"]),
                 "regions": sorted(options["regions"]),
+                "years": sorted(options["years"], reverse=True),
             },
             "total_elections": total_elections,
             "page": page,
