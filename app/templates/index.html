@@ -533,14 +533,33 @@ function dashboardKPIs() {
   return {
     loading: true,
     kpis: {},
+    error: null,
     async loadKPIs() {
       this.loading = true;
+      this.error = null;
       try {
+        console.log('Chargement des KPIs depuis /api/stats/enriched...');
         const response = await fetch('/api/stats/enriched');
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
         const data = await response.json();
+        console.log('KPIs chargés:', data);
         this.kpis = data;
       } catch (error) {
         console.error('Erreur chargement KPIs:', error);
+        this.error = error.message;
+        // Valeurs par défaut si erreur
+        this.kpis = {
+          total_invitations: 0,
+          audience_threshold: 1000,
+          pap_pv_overlap_percent: 0,
+          cgt_implanted_count: 0,
+          cgt_implanted_percent: 0,
+          elections_next_30_days: 0
+        };
       } finally {
         this.loading = false;
       }
