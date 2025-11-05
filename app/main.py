@@ -13,11 +13,14 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import Any, Mapping
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from io import BytesIO
 
 # --- Imports bas niveau (engine/Base) d'abord ---
 from .db import get_session, Base, engine, SessionLocal
@@ -940,6 +943,268 @@ def calendrier_elections(
             "per_page": per_page,
             "total_pages": total_pages,
         },
+    )
+
+
+@app.get("/calendrier/export")
+def calendrier_export(
+    request: Request,
+    min_effectif: int = 1000,
+    q: str = "",
+    cycle: str = "",
+    institution: str = "",
+    fd: str = "",
+    idcc: str = "",
+    ud: str = "",
+    region: str = "",
+    year: str = "",
+    db: Session = Depends(get_session),
+):
+    """
+    Export Excel de la sélection filtrée du calendrier +1000.
+    Une colonne par information, une ligne par SIRET.
+    """
+    today = date.today()
+
+    stmt = (
+        db.query(
+            PVEvent.siret,
+            PVEvent.raison_sociale,
+            PVEvent.ud,
+            PVEvent.region,
+            PVEvent.effectif_siret,
+            PVEvent.inscrits,
+            PVEvent.cycle,
+            PVEvent.date_prochain_scrutin,
+            PVEvent.date_pv,
+            PVEvent.institution,
+            PVEvent.fd,
+            PVEvent.idcc,
+            PVEvent.sve,
+            PVEvent.tx_participation_pv,
+            PVEvent.cgt_voix,
+            PVEvent.cfdt_voix,
+            PVEvent.fo_voix,
+            PVEvent.cftc_voix,
+            PVEvent.cgc_voix,
+            PVEvent.unsa_voix,
+            PVEvent.sud_voix,
+            PVEvent.autre_voix,
+        )
+        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+    )
+
+    search_term = q.strip().lower()
+    cycle_filter = cycle.strip()
+    institution_filter = institution.strip()
+    fd_filter = fd.strip()
+    idcc_filter = idcc.strip()
+    ud_filter = ud.strip()
+    region_filter = region.strip()
+    year_filter = year.strip()
+
+    per_siret: dict[str, dict[str, Any]] = {}
+    for row in stmt:
+        parsed_date = _parse_date(row.date_prochain_scrutin)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        effectif_value = _to_number(row.effectif_siret)
+        if effectif_value is None:
+            effectif_value = _to_number(row.inscrits)
+
+        if min_effectif and (effectif_value is None or effectif_value < min_effectif):
+            continue
+
+        if cycle_filter and (row.cycle or "") != cycle_filter:
+            continue
+        if institution_filter and (row.institution or "") != institution_filter:
+            continue
+        if fd_filter and (row.fd or "") != fd_filter:
+            continue
+        if idcc_filter and (str(row.idcc or "")) != idcc_filter:
+            continue
+        if ud_filter and (row.ud or "") != ud_filter:
+            continue
+        if region_filter and (row.region or "") != region_filter:
+            continue
+        if year_filter and str(parsed_date.year) != year_filter:
+            continue
+
+        if search_term:
+            siret_value = str(row.siret or "")
+            raison = (row.raison_sociale or "").lower()
+            if search_term not in siret_value.lower() and search_term not in raison:
+                continue
+
+        key = f"{row.siret or 'pv'}-{row.cycle or 'na'}"
+        existing = per_siret.get(key)
+        if existing is not None and parsed_date >= existing["date"]:
+            continue
+
+        sve_value = _to_number(getattr(row, "sve", None))
+        participation_value = _to_number(getattr(row, "tx_participation_pv", None))
+
+        # Calculer les scores des organisations
+        org_scores: list[dict[str, Any]] = []
+        for attr, label in PV_ORGANISATION_FIELDS:
+            votes_value = _to_number(getattr(row, attr, None))
+            if votes_value is None or votes_value <= 0:
+                continue
+
+            percent_value = (votes_value / sve_value * 100) if sve_value else None
+            org_scores.append(
+                {
+                    "code": attr,
+                    "label": label,
+                    "votes": votes_value,
+                    "percent": percent_value,
+                }
+            )
+
+        # Trier par nombre de voix décroissant
+        org_scores.sort(key=lambda x: x["votes"], reverse=True)
+
+        payload = {
+            "siret": row.siret,
+            "raison_sociale": row.raison_sociale,
+            "ud": row.ud,
+            "region": row.region,
+            "effectif": int(effectif_value) if effectif_value is not None else None,
+            "cycle": row.cycle,
+            "date": parsed_date,
+            "date_pv": _parse_date(row.date_pv),
+            "institution": row.institution,
+            "fd": row.fd,
+            "idcc": row.idcc,
+            "sve": sve_value,
+            "participation": participation_value,
+            "org_scores": org_scores[:3],  # Top 3
+        }
+
+        per_siret[key] = payload
+
+    # Trier par date
+    elections_list = sorted(per_siret.values(), key=lambda x: x["date"])
+
+    # Créer le workbook Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Calendrier Elections"
+
+    # En-têtes avec style
+    headers = [
+        "SIRET",
+        "Raison sociale",
+        "UD",
+        "Région",
+        "Effectif",
+        "Cycle",
+        "Date élection",
+        "Date PV",
+        "Institution",
+        "FD",
+        "IDCC",
+        "SVE",
+        "Participation (%)",
+        "1ère orga",
+        "1ère orga - Voix",
+        "1ère orga - %",
+        "2ème orga",
+        "2ème orga - Voix",
+        "2ème orga - %",
+        "3ème orga",
+        "3ème orga - Voix",
+        "3ème orga - %",
+    ]
+
+    # Style des en-têtes
+    header_fill = PatternFill(start_color="D5001C", end_color="D5001C", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    # Ajuster les largeurs de colonnes
+    ws.column_dimensions['A'].width = 15  # SIRET
+    ws.column_dimensions['B'].width = 40  # Raison sociale
+    ws.column_dimensions['C'].width = 12  # UD
+    ws.column_dimensions['D'].width = 20  # Région
+    ws.column_dimensions['E'].width = 12  # Effectif
+    ws.column_dimensions['F'].width = 10  # Cycle
+    ws.column_dimensions['G'].width = 12  # Date élection
+    ws.column_dimensions['H'].width = 12  # Date PV
+    ws.column_dimensions['I'].width = 12  # Institution
+    ws.column_dimensions['J'].width = 10  # FD
+    ws.column_dimensions['K'].width = 10  # IDCC
+    ws.column_dimensions['L'].width = 12  # SVE
+    ws.column_dimensions['M'].width = 15  # Participation
+    ws.column_dimensions['N'].width = 12  # 1ère orga
+    ws.column_dimensions['O'].width = 12  # 1ère orga voix
+    ws.column_dimensions['P'].width = 12  # 1ère orga %
+    ws.column_dimensions['Q'].width = 12  # 2ème orga
+    ws.column_dimensions['R'].width = 12  # 2ème orga voix
+    ws.column_dimensions['S'].width = 12  # 2ème orga %
+    ws.column_dimensions['T'].width = 12  # 3ème orga
+    ws.column_dimensions['U'].width = 12  # 3ème orga voix
+    ws.column_dimensions['V'].width = 12  # 3ème orga %
+
+    # Remplir les données
+    for row_num, election in enumerate(elections_list, 2):
+        ws.cell(row=row_num, column=1, value=election["siret"])
+        ws.cell(row=row_num, column=2, value=election["raison_sociale"])
+        ws.cell(row=row_num, column=3, value=election["ud"])
+        ws.cell(row=row_num, column=4, value=election["region"])
+        ws.cell(row=row_num, column=5, value=election["effectif"])
+        ws.cell(row=row_num, column=6, value=election["cycle"])
+        ws.cell(row=row_num, column=7, value=election["date"].strftime("%d/%m/%Y") if election["date"] else "")
+        ws.cell(row=row_num, column=8, value=election["date_pv"].strftime("%d/%m/%Y") if election["date_pv"] else "")
+        ws.cell(row=row_num, column=9, value=election["institution"])
+        ws.cell(row=row_num, column=10, value=election["fd"])
+        ws.cell(row=row_num, column=11, value=election["idcc"])
+        ws.cell(row=row_num, column=12, value=int(election["sve"]) if election["sve"] else None)
+        ws.cell(row=row_num, column=13, value=round(election["participation"], 1) if election["participation"] else None)
+
+        # Top 3 organisations
+        org_scores = election.get("org_scores", [])
+
+        # 1ère organisation
+        if len(org_scores) >= 1:
+            ws.cell(row=row_num, column=14, value=org_scores[0]["label"])
+            ws.cell(row=row_num, column=15, value=int(org_scores[0]["votes"]))
+            ws.cell(row=row_num, column=16, value=round(org_scores[0]["percent"], 1) if org_scores[0]["percent"] else None)
+
+        # 2ème organisation
+        if len(org_scores) >= 2:
+            ws.cell(row=row_num, column=17, value=org_scores[1]["label"])
+            ws.cell(row=row_num, column=18, value=int(org_scores[1]["votes"]))
+            ws.cell(row=row_num, column=19, value=round(org_scores[1]["percent"], 1) if org_scores[1]["percent"] else None)
+
+        # 3ème organisation
+        if len(org_scores) >= 3:
+            ws.cell(row=row_num, column=20, value=org_scores[2]["label"])
+            ws.cell(row=row_num, column=21, value=int(org_scores[2]["votes"]))
+            ws.cell(row=row_num, column=22, value=round(org_scores[2]["percent"], 1) if org_scores[2]["percent"] else None)
+
+    # Geler la première ligne (en-têtes)
+    ws.freeze_panes = "A2"
+
+    # Sauvegarder dans un buffer
+    excel_buffer = BytesIO()
+    wb.save(excel_buffer)
+    excel_buffer.seek(0)
+
+    # Nom du fichier avec timestamp
+    filename = f"calendrier_elections_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    return StreamingResponse(
+        excel_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
