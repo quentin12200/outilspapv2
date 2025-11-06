@@ -1,15 +1,16 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
 from typing import List
 from datetime import datetime, timedelta, date
 import re
 
-from ..db import get_session, Base, engine
+from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
+from ..background_tasks import task_tracker, run_build_siret_summary
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -46,9 +47,62 @@ async def ingest_invit(file: UploadFile = File(...), db: Session = Depends(get_s
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/build/summary")
-def build_summary(db: Session = Depends(get_session)):
-    n = etl.build_siret_summary(db)
-    return RedirectResponse(url="/?retour=1", status_code=303)
+def build_summary(background_tasks: BackgroundTasks):
+    """
+    Lance la reconstruction de la table siret_summary en arrière-plan.
+    Retourne immédiatement avec un statut "en cours".
+    Utiliser GET /api/build/summary/status pour suivre la progression.
+    """
+    # Vérifier si une tâche est déjà en cours
+    task_id = "build_siret_summary"
+    current_status = task_tracker.get_task_status(task_id)
+
+    if current_status and current_status["status"] == "running":
+        return {
+            "status": "already_running",
+            "message": "Une reconstruction est déjà en cours",
+            "task_id": task_id,
+            "started_at": current_status["started_at"].isoformat(),
+        }
+
+    # Lancer la tâche en arrière-plan
+    background_tasks.add_task(run_build_siret_summary, SessionLocal)
+
+    return {
+        "status": "started",
+        "message": "La reconstruction de la table siret_summary a été lancée en arrière-plan",
+        "task_id": task_id,
+        "check_status_url": "/api/build/summary/status"
+    }
+
+
+@router.get("/build/summary/status")
+def get_build_summary_status():
+    """
+    Récupère le statut de la tâche de reconstruction de siret_summary.
+    """
+    task_id = "build_siret_summary"
+    status = task_tracker.get_task_status(task_id)
+
+    if not status:
+        return {
+            "status": "not_found",
+            "message": "Aucune tâche de reconstruction en cours ou récente"
+        }
+
+    response = {
+        "status": status["status"],
+        "description": status["description"],
+        "started_at": status["started_at"].isoformat() if status["started_at"] else None,
+        "completed_at": status["completed_at"].isoformat() if status["completed_at"] else None,
+    }
+
+    if status["status"] == "completed":
+        response["result"] = status["result"]
+    elif status["status"] == "failed":
+        response["error"] = status["error"]
+
+    return response
 
 @router.get("/siret", response_model=List[SiretSummaryOut])
 def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):

@@ -379,18 +379,28 @@ def on_startup():
     from .migrations import run_migrations
     run_migrations()
 
-    # Si le résumé SIRET est vide, le reconstruire automatiquement afin que
-    # le tableau de bord ne s'affiche pas avec des compteurs à zéro lors du
+    # Si le résumé SIRET est vide, le reconstruire automatiquement (ou non selon config)
+    # afin que le tableau de bord ne s'affiche pas avec des compteurs à zéro lors du
     # premier démarrage (base préremplie).
     try:
         with SessionLocal() as session:
             _auto_seed_invitations(session)
             total_summary = session.query(func.count(SiretSummary.siret)).scalar() or 0
-            if total_summary == 0:
-                from . import etl
 
-                generated = etl.build_siret_summary(session)
-                logger.info("Siret summary rebuilt at startup (%s rows)", generated)
+            if total_summary == 0:
+                from .config import AUTO_BUILD_SUMMARY_ON_STARTUP
+
+                if AUTO_BUILD_SUMMARY_ON_STARTUP:
+                    # Mode synchrone : reconstruction immédiate au démarrage (peut causer timeout)
+                    from . import etl
+                    generated = etl.build_siret_summary(session)
+                    logger.info("Siret summary rebuilt at startup (%s rows)", generated)
+                else:
+                    # Mode recommandé : log seulement, l'admin doit lancer manuellement via API
+                    logger.warning(
+                        "⚠️  siret_summary table is empty. "
+                        "Please trigger rebuild manually via POST /api/build/summary"
+                    )
     except Exception:  # pragma: no cover - protection démarrage
         logger.exception("Unable to rebuild siret_summary at startup")
 
