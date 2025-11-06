@@ -311,37 +311,44 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
-    from sqlalchemy import inspect
+    from sqlalchemy import inspect, text
 
-    try:
-        inspector = inspect(engine)
-        if not inspector.has_table('siret_summary'):
-            return  # Table n'existe pas, sera créée par create_all
+    inspector = inspect(engine)
+    if not inspector.has_table('siret_summary'):
+        logger.info("Table siret_summary does not exist yet, will be created by create_all")
+        return  # Table n'existe pas, sera créée par create_all
 
-        existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
-        required_columns = {col.name for col in SiretSummary.__table__.columns}
+    existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
+    required_columns = {col.name for col in SiretSummary.__table__.columns}
 
-        missing = required_columns - existing_columns
-        if missing:
-            logger.warning(
-                "Schema mismatch detected: siret_summary is missing %d columns: %s",
-                len(missing),
-                ", ".join(sorted(missing)[:5])  # Montrer seulement les 5 premières
-            )
-            logger.info("Recreating siret_summary table with new schema...")
-            SiretSummary.__table__.drop(bind=engine, checkfirst=True)
-            SiretSummary.__table__.create(bind=engine)
-            logger.info("siret_summary table recreated successfully")
-    except Exception:
-        logger.exception("Failed to check/fix schema for siret_summary")
+    missing = required_columns - existing_columns
+    if not missing:
+        logger.info("✓ siret_summary schema is up to date")
+        return
+
+    # Schema mismatch - on doit recréer la table
+    logger.warning(
+        "⚠️  Schema mismatch: siret_summary is missing %d columns: %s",
+        len(missing),
+        ", ".join(sorted(missing)[:10])
+    )
+    logger.info("🔧 Dropping and recreating siret_summary table...")
+
+    # Utiliser une connexion raw pour le DROP
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS siret_summary"))
+        conn.commit()
+
+    logger.info("✓ Old table dropped, will be recreated by create_all")
 
 @app.on_event("startup")
 def on_startup():
+    # Vérifier et corriger le schéma de siret_summary AVANT create_all
+    # pour éviter que create_all ne "verrouille" l'ancien schéma
+    _check_and_fix_schema()
+
     # Création des tables après que le fichier .db soit prêt
     Base.metadata.create_all(bind=engine)
-
-    # Vérifier et corriger le schéma de siret_summary si nécessaire
-    _check_and_fix_schema()
 
     # Exécute les migrations pour ajouter les colonnes Sirene si nécessaire
     from .migrations import run_migrations
