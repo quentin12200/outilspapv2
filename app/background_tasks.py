@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ def run_build_siret_summary(session_factory):
         task_tracker.fail_task(task_id, error_msg)
 
 
-async def run_enrichir_invitations_idcc():
+def run_enrichir_invitations_idcc():
     """
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
     """
@@ -137,8 +138,9 @@ async def run_enrichir_invitations_idcc():
 
             for i, invitation in enumerate(invitations):
                 try:
-                    # Récupérer les données depuis l'API SIRENE
-                    data = await enrichir_siret(invitation.siret)
+                    # Récupérer les données depuis l'API SIRENE (fonction async)
+                    # Utiliser asyncio.run() pour l'exécuter dans une fonction synchrone
+                    data = asyncio.run(enrichir_siret(invitation.siret))
 
                     if data and data.get("idcc"):
                         # Mettre à jour l'IDCC
