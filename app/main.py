@@ -311,35 +311,60 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
+    print("🔍 [STARTUP] Checking siret_summary schema...")
+    logger.info("🔍 [STARTUP] Checking siret_summary schema...")
+
     from sqlalchemy import inspect, text
 
-    inspector = inspect(engine)
-    if not inspector.has_table('siret_summary'):
-        logger.info("Table siret_summary does not exist yet, will be created by create_all")
-        return  # Table n'existe pas, sera créée par create_all
+    try:
+        print("🔍 [STARTUP] Creating inspector...")
+        inspector = inspect(engine)
 
-    existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
-    required_columns = {col.name for col in SiretSummary.__table__.columns}
+        print("🔍 [STARTUP] Checking if table exists...")
+        if not inspector.has_table('siret_summary'):
+            msg = "✓ Table siret_summary does not exist yet, will be created by create_all"
+            print(msg)
+            logger.info(msg)
+            return
 
-    missing = required_columns - existing_columns
-    if not missing:
-        logger.info("✓ siret_summary schema is up to date")
-        return
+        print("🔍 [STARTUP] Getting existing columns...")
+        existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
+        print(f"🔍 [STARTUP] Found {len(existing_columns)} existing columns")
 
-    # Schema mismatch - on doit recréer la table
-    logger.warning(
-        "⚠️  Schema mismatch: siret_summary is missing %d columns: %s",
-        len(missing),
-        ", ".join(sorted(missing)[:10])
-    )
-    logger.info("🔧 Dropping and recreating siret_summary table...")
+        print("🔍 [STARTUP] Getting required columns...")
+        required_columns = {col.name for col in SiretSummary.__table__.columns}
+        print(f"🔍 [STARTUP] Need {len(required_columns)} required columns")
 
-    # Utiliser une connexion raw pour le DROP
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS siret_summary"))
-        conn.commit()
+        missing = required_columns - existing_columns
+        if not missing:
+            msg = "✓ siret_summary schema is up to date"
+            print(msg)
+            logger.info(msg)
+            return
 
-    logger.info("✓ Old table dropped, will be recreated by create_all")
+        # Schema mismatch - on doit recréer la table
+        msg = f"⚠️  Schema mismatch: siret_summary is missing {len(missing)} columns: {', '.join(sorted(missing)[:10])}"
+        print(msg)
+        logger.warning(msg)
+
+        msg = "🔧 Dropping and recreating siret_summary table..."
+        print(msg)
+        logger.info(msg)
+
+        # Utiliser une connexion raw pour le DROP
+        print("🔍 [STARTUP] Executing DROP TABLE...")
+        with engine.connect() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS siret_summary"))
+            conn.commit()
+
+        msg = "✓ Old table dropped, will be recreated by create_all"
+        print(msg)
+        logger.info(msg)
+    except Exception as e:
+        msg = f"❌ ERROR in _check_and_fix_schema: {e}"
+        print(msg)
+        logger.exception(msg)
+        raise
 
 @app.on_event("startup")
 def on_startup():
