@@ -556,48 +556,13 @@ def build_siret_summary(session: Session) -> int:
         if col_c4 in base.columns:
             base[col_c4] = _normalize_numeric_series(base[col_c4])
 
-    # Calculer les sièges pour C3 et C4 en utilisant le quotient électoral
-    def calc_sieges_for_row(row, cycle_suffix):
-        """Calcule les sièges pour un cycle donné (c3 ou c4)"""
-        inscrits = row.get(f"inscrits_{cycle_suffix}")
-        votants = row.get(f"votants_{cycle_suffix}")
-        sve = row.get(f"sve_{cycle_suffix}")
-
-        if pd.isna(inscrits) or pd.isna(votants):
-            return {f"{org}_siege_{cycle_suffix}": None for org in ["cgt", "cfdt", "fo", "cftc", "cgc", "unsa", "sud", "autre"]}
-
-        # Calculer blancs_nuls à partir de votants et sve
-        if pd.notna(sve):
-            blancs_nuls = int(votants - sve)
-        else:
-            blancs_nuls = 0
-
-        # Récupérer les voix par organisation
-        voix_par_orga = {
-            "cgt": row.get(f"cgt_voix_{cycle_suffix}"),
-            "cfdt": row.get(f"cfdt_voix_{cycle_suffix}"),
-            "fo": row.get(f"fo_voix_{cycle_suffix}"),
-            "cftc": row.get(f"cftc_voix_{cycle_suffix}"),
-            "cgc": row.get(f"cgc_voix_{cycle_suffix}"),
-            "unsa": row.get(f"unsa_voix_{cycle_suffix}"),
-            "sud": row.get(f"sud_voix_{cycle_suffix}") or row.get(f"solidaire_voix_{cycle_suffix}"),
-            "autre": row.get(f"autre_voix_{cycle_suffix}"),
-        }
-
-        # Convertir les NaN en 0
-        voix_par_orga = {org: (0 if pd.isna(v) else int(v)) for org, v in voix_par_orga.items()}
-
-        # Calculer la répartition des sièges
-        sieges = calcul_repartition_sieges(int(inscrits), int(votants), blancs_nuls, voix_par_orga)
-
-        # Retourner les sièges avec les bons noms de colonnes
-        return {f"{org}_siege_{cycle_suffix}": s for org, s in sieges.items()}
-
-    # Appliquer le calcul pour C3 et C4
+    # TODO: Calculer les sièges pour C3 et C4 en utilisant le quotient électoral
+    # TEMPORAIREMENT DÉSACTIVÉ car trop lent sur 126k lignes (cause timeout/OOM)
+    # On initialisera les colonnes à None pour l'instant
+    logger.warning("⚠️  Seat calculation temporarily disabled (performance issue with 126k+ rows)")
     for cycle in ["c3", "c4"]:
-        sieges_cols = base.apply(lambda row: calc_sieges_for_row(row, cycle), axis=1, result_type='expand')
-        for col in sieges_cols.columns:
-            base[col] = sieges_cols[col]
+        for org in ["cgt", "cfdt", "fo", "cftc", "cgc", "unsa", "sud", "autre"]:
+            base[f"{org}_siege_{cycle}"] = None
 
     def _series_or_empty(name: str):
         if name in base.columns:
