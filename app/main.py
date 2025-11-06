@@ -973,6 +973,10 @@ def calendrier_elections(
         # On va agréger par SIRET après
         college_key = f"{row.siret or 'pv'}_{row.cycle or 'na'}_{id(row)}"
 
+        # Récupérer aussi votants et inscrits pour l'agrégation de la participation
+        votants_college = _to_number(getattr(row, "votants", None)) or 0
+        inscrits_college = _to_number(row.inscrits) or 0
+
         per_siret[college_key] = {
             "siret": row.siret,
             "raison_sociale": row.raison_sociale,
@@ -988,6 +992,8 @@ def calendrier_elections(
             "nb_college": int(nb_college_value) if nb_college_value is not None else None,
             # Données à agréger
             "sve": sve_value or 0,
+            "votants": votants_college,
+            "inscrits": inscrits_college,
             "participation": participation_value,
             "voix_par_orga": voix_par_orga,
             "elus_par_orga": elus_par_orga,
@@ -1018,6 +1024,8 @@ def calendrier_elections(
                 "idcc": college_data["idcc"],
                 # Champs à sommer
                 "sve": 0,
+                "votants": 0,
+                "inscrits": 0,
                 "nb_sieges_cse": 0,
                 "nb_college": college_data["nb_college"],
                 "voix_par_orga": defaultdict(float),
@@ -1028,6 +1036,8 @@ def calendrier_elections(
 
         # Additionner les valeurs de ce collège aux totaux du SIRET
         siret_aggregated[siret]["sve"] += college_data["sve"]
+        siret_aggregated[siret]["votants"] += college_data["votants"]
+        siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
         siret_aggregated[siret]["nb_sieges_cse"] += college_data["nb_sieges_cse"]
 
         for orga, voix in college_data["voix_par_orga"].items():
@@ -1102,8 +1112,10 @@ def calendrier_elections(
                 if orga in code_map:
                     orgs_data[code_map[orga]] = org_info
 
-        # Calculer participation moyenne (on ne peut pas vraiment sommer des %, donc on recalcule)
-        # Pour l'instant on met None, il faudrait avoir inscrits et votants agrégés
+        # Calculer participation au niveau SIRET à partir des totaux agrégés
+        participation_siret = None
+        if siret_data["inscrits"] > 0 and siret_data["votants"] > 0:
+            participation_siret = (siret_data["votants"] / siret_data["inscrits"]) * 100
 
         elections_list.append({
             "siret": siret_data["siret"],
@@ -1121,8 +1133,8 @@ def calendrier_elections(
             "idcc": siret_data["idcc"],
             "sve": siret_data["sve"],
             "sve_display": _format_int_fr(siret_data["sve"]),
-            "participation": None,  # TODO: recalculer si on a inscrits/votants agrégés
-            "participation_display": "—",
+            "participation": participation_siret,
+            "participation_display": _format_percent_fr(participation_siret) if participation_siret is not None else "—",
             "nb_college": siret_data["nb_college"],
             "nb_college_display": _format_int_fr(siret_data["nb_college"]) if siret_data["nb_college"] else None,
             "all_orgs": sorted(all_orgs, key=lambda x: x["votes"], reverse=True),
@@ -1319,6 +1331,10 @@ def calendrier_export(
         # Créer une clé unique par collège pour garder tous les collèges
         college_key = f"{row.siret or 'pv'}_{row.cycle or 'na'}_{id(row)}"
 
+        # Récupérer aussi votants et inscrits pour l'agrégation de la participation
+        votants_college = _to_number(getattr(row, "votants", None)) or 0
+        inscrits_college = _to_number(row.inscrits) or 0
+
         per_siret[college_key] = {
             "siret": row.siret,
             "raison_sociale": row.raison_sociale,
@@ -1333,6 +1349,8 @@ def calendrier_export(
             "fd": row.fd,
             "idcc": row.idcc,
             "sve": sve_value or 0,
+            "votants": votants_college,
+            "inscrits": inscrits_college,
             "participation": participation_value,
             "nb_college": nb_college_value,
             "voix_par_orga": voix_par_orga,
@@ -1363,15 +1381,17 @@ def calendrier_export(
                 "idcc": college_data["idcc"],
                 "nb_college": college_data["nb_college"],
                 "sve": 0,
+                "votants": 0,
+                "inscrits": 0,
                 "nb_sieges_cse": 0,
                 "voix_par_orga": defaultdict(float),
                 "elus_par_orga": defaultdict(int),
-                "participation_sum": 0,
-                "participation_count": 0,
             }
 
         # Additionner les valeurs de ce collège aux totaux du SIRET
         siret_aggregated[siret]["sve"] += college_data["sve"]
+        siret_aggregated[siret]["votants"] += college_data["votants"]
+        siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
         siret_aggregated[siret]["nb_sieges_cse"] += college_data["nb_sieges_cse"]
 
         for orga, voix in college_data["voix_par_orga"].items():
@@ -1380,11 +1400,6 @@ def calendrier_export(
         # NOTE: Ne pas sommer les élus des collèges !
         # Les élus seront calculés une seule fois au niveau SIRET
         # après agrégation de tous les votes.
-
-        # Pour la participation : faire la moyenne
-        if college_data["participation"] is not None:
-            siret_aggregated[siret]["participation_sum"] += college_data["participation"]
-            siret_aggregated[siret]["participation_count"] += 1
 
     # Calculer les élus au niveau SIRET en utilisant les votes agrégés
     # + Plafonner à 35 sièges maximum si nécessaire
@@ -1410,10 +1425,10 @@ def calendrier_export(
     # Formater les données agrégées pour l'export Excel
     elections_list = []
     for siret_data in siret_aggregated.values():
-        # Calculer la participation moyenne
-        participation_avg = None
-        if siret_data["participation_count"] > 0:
-            participation_avg = siret_data["participation_sum"] / siret_data["participation_count"]
+        # Calculer la participation au niveau SIRET à partir des totaux agrégés
+        participation_siret = None
+        if siret_data["inscrits"] > 0 and siret_data["votants"] > 0:
+            participation_siret = (siret_data["votants"] / siret_data["inscrits"]) * 100
 
         # Convertir voix_par_orga en all_orgs pour l'affichage
         sve_total = siret_data["sve"]
@@ -1440,7 +1455,7 @@ def calendrier_export(
             "fd": siret_data["fd"],
             "idcc": siret_data["idcc"],
             "sve": siret_data["sve"],
-            "participation": participation_avg,
+            "participation": participation_siret,
             "nb_college": siret_data["nb_college"],
             "all_orgs": all_orgs,
             "nb_sieges_cse": siret_data["nb_sieges_cse"] if siret_data["nb_sieges_cse"] > 0 else None,
