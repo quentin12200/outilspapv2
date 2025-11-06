@@ -189,6 +189,73 @@ def repartir_sieges_quotient_puis_plus_forte_moyenne(
     return sieges
 
 
+def repartir_sieges_quotient_seul(
+    voix_par_orga: Dict[str, int],
+    nb_sieges_total: int
+) -> Dict[str, int]:
+    """
+    Répartit les sièges UNIQUEMENT par quotient électoral (sans plus forte moyenne).
+    Méthode plus conservatrice qui reflète mieux la réalité quand les organisations
+    ne présentent pas toujours de listes complètes.
+
+    Cette méthode donne généralement moins de sièges que la "moyenne haute" car
+    elle ne distribue pas les sièges restants. C'est plus proche de la réalité
+    électorale.
+
+    Algorithme :
+        - Quotient = Total des voix / Nombre de sièges
+        - Chaque orga reçoit ⌊ses voix / quotient⌋ sièges (partie entière)
+        - Les sièges restants ne sont PAS attribués
+
+    Args:
+        voix_par_orga: Dictionnaire {nom_organisation: nombre_de_voix}
+        nb_sieges_total: Nombre total de sièges à répartir
+
+    Returns:
+        Dictionnaire {nom_organisation: nombre_de_sieges_attribues}
+
+    Examples:
+        >>> repartir_sieges_quotient_seul(
+        ...     {"CGT": 450, "CFDT": 300, "FO": 150},
+        ...     19
+        ... )
+        {'CGT': 9, 'CFDT': 6, 'FO': 3}
+
+        # Total voix: 900, Quotient: 900/19 = 47.37
+        # CGT: 450/47.37 = 9.5 → 9 sièges
+        # CFDT: 300/47.37 = 6.3 → 6 sièges
+        # FO: 150/47.37 = 3.1 → 3 sièges
+        # Total attribué: 18 sièges (1 siège non attribué)
+    """
+    # Filtrer les organisations sans voix et initialiser les sièges à 0
+    sieges = {
+        orga: 0
+        for orga, voix in voix_par_orga.items()
+        if voix and voix > 0
+    }
+
+    # Si aucune organisation n'a de voix, retourner vide
+    if not sieges:
+        return {}
+
+    # Calculer le total des voix
+    total_voix = sum(voix_par_orga[orga] for orga in sieges.keys())
+
+    if total_voix == 0 or nb_sieges_total == 0:
+        return sieges
+
+    # Attribution par quotient électoral UNIQUEMENT
+    quotient_electoral = total_voix / nb_sieges_total
+
+    for orga in sieges.keys():
+        voix = voix_par_orga[orga]
+        # Partie entière : nombre de fois que le quotient entre dans les voix
+        nb_sieges_quotient = int(voix / quotient_electoral)
+        sieges[orga] = nb_sieges_quotient
+
+    return sieges
+
+
 def calculer_elus_cse_complet(
     effectif: int,
     voix_par_orga: Dict[str, int]
@@ -239,8 +306,10 @@ def calculer_elus_cse_complet(
             "total_voix": 0
         }
 
-    # Répartir les sièges (quotient électoral puis plus forte moyenne)
-    elus_par_orga = repartir_sieges_quotient_puis_plus_forte_moyenne(
+    # Répartir les sièges avec QUOTIENT SEUL (méthode plus réaliste)
+    # Cette méthode est plus conservatrice car elle ne suppose pas que toutes
+    # les organisations présentent des listes complètes
+    elus_par_orga = repartir_sieges_quotient_seul(
         voix_par_orga,
         nb_sieges_total
     )

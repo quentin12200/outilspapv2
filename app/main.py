@@ -30,6 +30,7 @@ from .models import Invitation, SiretSummary, PVEvent
 from .services.calcul_elus_cse import (
     calculer_nombre_elus_cse,
     repartir_sieges_quotient_puis_plus_forte_moyenne,
+    repartir_sieges_quotient_seul,
     calculer_elus_cse_complet,
     ORGANISATIONS_LABELS
 )
@@ -962,8 +963,9 @@ def calendrier_elections(
         for orga, voix in college_data["voix_par_orga"].items():
             siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
-        for orga, elus in college_data["elus_par_orga"].items():
-            siret_aggregated[siret]["elus_par_orga"][orga] += elus
+        # NOTE: Ne pas sommer les élus des collèges !
+        # Les élus seront calculés une seule fois au niveau SIRET
+        # après agrégation de tous les votes.
 
         # DEBUG: ajouter les détails de ce collège
         siret_aggregated[siret]["colleges_details"].append({
@@ -975,18 +977,26 @@ def calendrier_elections(
             "elus_par_orga": dict(college_data["elus_par_orga"]),
         })
 
-    # Plafonner à 35 sièges maximum par SIRET et recalculer la répartition si nécessaire
+    # Calculer les élus au niveau SIRET en utilisant les votes agrégés
+    # + Plafonner à 35 sièges maximum si nécessaire
     for siret, data in siret_aggregated.items():
-        if data["nb_sieges_cse"] > 35:
-            # Si plus de 35 sièges au total, plafonner à 35 et recalculer
-            # la répartition avec le total des voix du SIRET
-            voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
-            if voix_siret:
-                # CORRECTION: Utiliser directement la fonction de répartition avec 35 SIÈGES
-                # (et non calculer_elus_cse_complet qui attend un EFFECTIF)
-                elus_recalcules = repartir_sieges_quotient_puis_plus_forte_moyenne(voix_siret, 35)
-                data["nb_sieges_cse"] = 35
-                data["elus_par_orga"] = defaultdict(int, elus_recalcules)
+        # Récupérer le nombre de sièges et les voix agrégées
+        nb_sieges = data["nb_sieges_cse"]
+        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+
+        # Plafonner à 35 sièges si nécessaire
+        if nb_sieges > 35:
+            nb_sieges = 35
+            data["nb_sieges_cse"] = 35
+
+        # Calculer la répartition des élus au niveau SIRET avec les votes agrégés
+        # Utiliser la méthode QUOTIENT SEUL (plus conservatrice et réaliste)
+        # au lieu de "moyenne haute" qui suppose des listes complètes
+        if voix_siret and nb_sieges > 0:
+            elus_recalcules = repartir_sieges_quotient_seul(voix_siret, nb_sieges)
+            data["elus_par_orga"] = defaultdict(int, elus_recalcules)
+        else:
+            data["elus_par_orga"] = defaultdict(int)
 
     # Formater les données agrégées pour l'affichage
     elections_list = []
@@ -1288,26 +1298,35 @@ def calendrier_export(
         for orga, voix in college_data["voix_par_orga"].items():
             siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
-        for orga, elus in college_data["elus_par_orga"].items():
-            siret_aggregated[siret]["elus_par_orga"][orga] += elus
+        # NOTE: Ne pas sommer les élus des collèges !
+        # Les élus seront calculés une seule fois au niveau SIRET
+        # après agrégation de tous les votes.
 
         # Pour la participation : faire la moyenne
         if college_data["participation"] is not None:
             siret_aggregated[siret]["participation_sum"] += college_data["participation"]
             siret_aggregated[siret]["participation_count"] += 1
 
-    # Plafonner à 35 sièges maximum par SIRET et recalculer la répartition si nécessaire
+    # Calculer les élus au niveau SIRET en utilisant les votes agrégés
+    # + Plafonner à 35 sièges maximum si nécessaire
     for siret, data in siret_aggregated.items():
-        if data["nb_sieges_cse"] > 35:
-            # Si plus de 35 sièges au total, plafonner à 35 et recalculer
-            # la répartition avec le total des voix du SIRET
-            voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
-            if voix_siret:
-                # CORRECTION: Utiliser directement la fonction de répartition avec 35 SIÈGES
-                # (et non calculer_elus_cse_complet qui attend un EFFECTIF)
-                elus_recalcules = repartir_sieges_quotient_puis_plus_forte_moyenne(voix_siret, 35)
-                data["nb_sieges_cse"] = 35
-                data["elus_par_orga"] = defaultdict(int, elus_recalcules)
+        # Récupérer le nombre de sièges et les voix agrégées
+        nb_sieges = data["nb_sieges_cse"]
+        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+
+        # Plafonner à 35 sièges si nécessaire
+        if nb_sieges > 35:
+            nb_sieges = 35
+            data["nb_sieges_cse"] = 35
+
+        # Calculer la répartition des élus au niveau SIRET avec les votes agrégés
+        # Utiliser la méthode QUOTIENT SEUL (plus conservatrice et réaliste)
+        # au lieu de "moyenne haute" qui suppose des listes complètes
+        if voix_siret and nb_sieges > 0:
+            elus_recalcules = repartir_sieges_quotient_seul(voix_siret, nb_sieges)
+            data["elus_par_orga"] = defaultdict(int, elus_recalcules)
+        else:
+            data["elus_par_orga"] = defaultdict(int)
 
     # Formater les données agrégées pour l'export Excel
     elections_list = []
