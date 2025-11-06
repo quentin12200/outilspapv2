@@ -17,13 +17,14 @@ router = APIRouter(
 @router.get("/departements/inscrits")
 def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     """
-    Retourne les statistiques d'inscrits par département :
+    Retourne les statistiques d'inscrits par département (cycle C4 uniquement) :
     - Total des inscrits par département
     - Nombre de cibles avec 1000+ inscrits
     - Liste des établissements avec 1000+ inscrits par département
+    - Nombre d'entreprises (SIRET) en C4
     """
 
-    # Récupérer tous les PV avec leurs inscrits
+    # Récupérer tous les PV C4 avec leurs inscrits
     query = db.query(
         PVEvent.cp,
         PVEvent.siret,
@@ -34,11 +35,14 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     ).filter(
         PVEvent.cp.isnot(None),
         PVEvent.inscrits.isnot(None),
-        PVEvent.inscrits > 0
+        PVEvent.inscrits > 0,
+        PVEvent.cycle == 'C4'  # Filtre C4 uniquement
     ).all()
 
     # Dictionnaire pour stocker les stats par département
     dept_stats = {}
+    # Set pour compter les SIRET uniques en C4
+    sirets_c4 = set()
 
     for row in query:
         if not row.cp:
@@ -76,6 +80,10 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
         inscrits_val = float(row.inscrits) if row.inscrits else 0
         dept_stats[dept]['total_inscrits'] += inscrits_val
 
+        # Ajouter le SIRET au set des entreprises C4
+        if row.siret:
+            sirets_c4.add(row.siret)
+
         # Si 1000+ inscrits, ajouter aux cibles importantes
         if inscrits_val >= 1000:
             # Vérifier si ce SIRET n'est pas déjà dans la liste
@@ -106,7 +114,8 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
     return {
         'departements': result,
         'total_cibles_1000plus': sum(d['nb_cibles_1000plus'] for d in result),
-        'total_inscrits_france': sum(d['total_inscrits'] for d in result)
+        'total_inscrits_france': sum(d['total_inscrits'] for d in result),
+        'total_entreprises_c4': len(sirets_c4)  # Nombre d'entreprises (SIRET uniques) en C4
     }
 
 
