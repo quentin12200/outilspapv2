@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON
-from sqlalchemy.orm import synonym
+from sqlalchemy.orm import synonym, deferred
 from .db import Base
 
 
@@ -65,14 +65,16 @@ class PVEvent(Base):
     score_autre = synonym("autre_voix")
 
     # Sièges obtenus par chaque organisation (calculés via quotient électoral)
-    cgt_siege = Column("siege_CGT", Integer)
-    cfdt_siege = Column("siege_CFDT", Integer)
-    fo_siege = Column("siege_FO", Integer)
-    cftc_siege = Column("siege_CFTC", Integer)
-    cgc_siege = Column("siege_CGC", Integer)
-    unsa_siege = Column("siege_UNSA", Integer)
-    sud_siege = Column("siege_SOLIDAIRE", Integer)
-    autre_siege = Column("siege_AUTRE", Integer)
+    # NOTE: Ces colonnes peuvent ne pas exister dans toutes les versions de la base
+    # Utilisation de deferred() pour ne les charger que si explicitement demandées
+    cgt_siege = deferred(Column("siege_CGT", Integer, nullable=True))
+    cfdt_siege = deferred(Column("siege_CFDT", Integer, nullable=True))
+    fo_siege = deferred(Column("siege_FO", Integer, nullable=True))
+    cftc_siege = deferred(Column("siege_CFTC", Integer, nullable=True))
+    cgc_siege = deferred(Column("siege_CGC", Integer, nullable=True))
+    unsa_siege = deferred(Column("siege_UNSA", Integer, nullable=True))
+    sud_siege = deferred(Column("siege_SOLIDAIRE", Integer, nullable=True))
+    autre_siege = deferred(Column("siege_AUTRE", Integer, nullable=True))
 
     # Présence syndicats au PV
     controle = Column("Contrôle", String(50))
