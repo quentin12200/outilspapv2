@@ -1048,7 +1048,8 @@ def calendrier_elections(
         siret_aggregated[siret]["sve"] += college_data["sve"]
         siret_aggregated[siret]["votants"] += college_data["votants"]
         siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-        siret_aggregated[siret]["nb_sieges_cse"] += college_data["nb_sieges_cse"]
+        # NOTE: Ne pas sommer nb_sieges_cse des collèges !
+        # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
 
         for orga, voix in college_data["voix_par_orga"].items():
             siret_aggregated[siret]["voix_par_orga"][orga] += voix
@@ -1070,14 +1071,19 @@ def calendrier_elections(
     # Calculer les élus au niveau SIRET en utilisant les votes agrégés
     # + Plafonner à 35 sièges maximum si nécessaire
     for siret, data in siret_aggregated.items():
-        # Récupérer le nombre de sièges et les voix agrégées
-        nb_sieges = data["nb_sieges_cse"]
-        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+        # Calculer le nombre de sièges au niveau SIRET en fonction de l'effectif total
+        effectif = data.get("effectif", 0)
+        nb_sieges = calculer_nombre_elus_cse(effectif) if effectif > 0 else 0
 
         # Plafonner à 35 sièges si nécessaire
         if nb_sieges > 35:
             nb_sieges = 35
-            data["nb_sieges_cse"] = 35
+
+        # Mettre à jour le nombre de sièges dans les données
+        data["nb_sieges_cse"] = nb_sieges
+
+        # Récupérer les voix agrégées
+        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
 
         # Calculer la répartition des élus au niveau SIRET avec les votes agrégés
         # Utiliser la méthode QUOTIENT SEUL (plus conservatrice et réaliste)
@@ -1402,7 +1408,8 @@ def calendrier_export(
         siret_aggregated[siret]["sve"] += college_data["sve"]
         siret_aggregated[siret]["votants"] += college_data["votants"]
         siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-        siret_aggregated[siret]["nb_sieges_cse"] += college_data["nb_sieges_cse"]
+        # NOTE: Ne pas sommer nb_sieges_cse des collèges !
+        # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
 
         for orga, voix in college_data["voix_par_orga"].items():
             siret_aggregated[siret]["voix_par_orga"][orga] += voix
@@ -1414,14 +1421,19 @@ def calendrier_export(
     # Calculer les élus au niveau SIRET en utilisant les votes agrégés
     # + Plafonner à 35 sièges maximum si nécessaire
     for siret, data in siret_aggregated.items():
-        # Récupérer le nombre de sièges et les voix agrégées
-        nb_sieges = data["nb_sieges_cse"]
-        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+        # Calculer le nombre de sièges au niveau SIRET en fonction de l'effectif total
+        effectif = data.get("effectif_siret", 0)
+        nb_sieges = calculer_nombre_elus_cse(effectif) if effectif > 0 else 0
 
         # Plafonner à 35 sièges si nécessaire
         if nb_sieges > 35:
             nb_sieges = 35
-            data["nb_sieges_cse"] = 35
+
+        # Mettre à jour le nombre de sièges dans les données
+        data["nb_sieges_cse"] = nb_sieges
+
+        # Récupérer les voix agrégées
+        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
 
         # Calculer la répartition des élus au niveau SIRET avec les votes agrégés
         # Utiliser la méthode QUOTIENT SEUL (plus conservatrice et réaliste)
