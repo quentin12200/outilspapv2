@@ -179,18 +179,27 @@ def run_enrichir_invitations_idcc():
     """
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
     """
-    # Log immédiat pour vérifier que la fonction est appelée
-    logger.info("=" * 80)
-    logger.info("run_enrichir_invitations_idcc() CALLED - Function entry point")
-    logger.info("=" * 80)
+    import sys
+    try:
+        # Écrire directement dans stderr ET logger
+        msg = "=" * 80 + "\nrun_enrichir_invitations_idcc() CALLED\n" + "=" * 80
+        print(msg, file=sys.stderr, flush=True)
+        logger.error(msg)  # Utiliser ERROR pour être sûr que ça s'affiche
 
-    from .models import Invitation
-    from .db import SessionLocal
+        from .models import Invitation
+        from .db import SessionLocal
 
-    task_id = "enrichir_invitations_idcc"
-    logger.info(f"Creating task tracker for {task_id}")
-    task_tracker.start_task(task_id, "Enrichissement des IDCC manquants via API SIRENE")
-    logger.info(f"Task tracker started for {task_id}")
+        task_id = "enrichir_invitations_idcc"
+        logger.error(f"Creating task tracker for {task_id}")
+        task_tracker.start_task(task_id, "Enrichissement des IDCC manquants via API SIRENE")
+        logger.error(f"Task tracker started for {task_id}")
+    except Exception as e:
+        error_msg = f"CRITICAL ERROR AT START: {type(e).__name__}: {str(e)}"
+        print(error_msg, file=sys.stderr, flush=True)
+        logger.error(error_msg)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
 
     try:
         session = SessionLocal()
