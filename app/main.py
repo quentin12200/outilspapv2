@@ -309,10 +309,39 @@ app.include_router(api_geo_stats.router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+def _check_and_fix_schema():
+    """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
+    from sqlalchemy import inspect
+
+    try:
+        inspector = inspect(engine)
+        if not inspector.has_table('siret_summary'):
+            return  # Table n'existe pas, sera créée par create_all
+
+        existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
+        required_columns = {col.name for col in SiretSummary.__table__.columns}
+
+        missing = required_columns - existing_columns
+        if missing:
+            logger.warning(
+                "Schema mismatch detected: siret_summary is missing %d columns: %s",
+                len(missing),
+                ", ".join(sorted(missing)[:5])  # Montrer seulement les 5 premières
+            )
+            logger.info("Recreating siret_summary table with new schema...")
+            SiretSummary.__table__.drop(bind=engine, checkfirst=True)
+            SiretSummary.__table__.create(bind=engine)
+            logger.info("siret_summary table recreated successfully")
+    except Exception:
+        logger.exception("Failed to check/fix schema for siret_summary")
+
 @app.on_event("startup")
 def on_startup():
     # Création des tables après que le fichier .db soit prêt
     Base.metadata.create_all(bind=engine)
+
+    # Vérifier et corriger le schéma de siret_summary si nécessaire
+    _check_and_fix_schema()
 
     # Exécute les migrations pour ajouter les colonnes Sirene si nécessaire
     from .migrations import run_migrations
