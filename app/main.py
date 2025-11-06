@@ -2273,6 +2273,7 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
             PVEvent.idcc,
             PVEvent.sve,
             PVEvent.tx_participation_pv,
+            PVEvent.votants,
             PVEvent.cgt_voix,
             PVEvent.cfdt_voix,
             PVEvent.fo_voix,
@@ -2319,6 +2320,13 @@ def _collect_upcoming_for_admin(db: Session, min_effectif: int = 1000) -> list[d
 
         sve_value = _to_number(row.sve)
         participation_value = _to_number(row.tx_participation_pv)
+
+        # Si tx_participation_pv est vide, calculer à partir de votants/inscrits
+        if participation_value is None:
+            votants_value = _to_number(row.votants)
+            inscrits_value = _to_number(row.inscrits)
+            if votants_value is not None and inscrits_value is not None and inscrits_value > 0:
+                participation_value = (votants_value / inscrits_value) * 100
 
         payload["sve"] = sve_value
         payload["sve_display"] = _format_int_fr(sve_value)
