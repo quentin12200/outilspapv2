@@ -297,7 +297,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (20 au total : 8 voix par organisation). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (28 au total : 8 voix + 8 élus par organisation + total sièges). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -354,8 +354,7 @@
                 <div class="text-xs font-normal">Voix</div>
               </th>
 
-              {# Colonnes pour les ÉLUS par organisation - MASQUÉES TEMPORAIREMENT #}
-              <!--
+              {# Colonnes pour les ÉLUS par organisation #}
               <th class="px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider bg-blue-600 border-l-2 border-r-2 border-blue-600" data-sort-type="numeric">
                 <div>CGT</div>
                 <div class="text-xs font-normal">Élus</div>
@@ -388,9 +387,7 @@
                 <div>Autre</div>
                 <div class="text-xs font-normal">Élus</div>
               </th>
-              -->
 
-              <!--
               <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
                 <div class="flex items-center justify-center gap-1">
                   <span>Total</span>
@@ -403,7 +400,6 @@
                   </span>
                 </div>
               </th>
-              -->
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
@@ -547,8 +543,7 @@
                   {% endif %}
                 </td>
 
-                {# ÉLUS - MASQUÉS TEMPORAIREMENT #}
-                <!--
+                {# ÉLUS par organisation #}
                 {# ÉLUS - CGT avec fond bleu foncé #}
                 <td class="px-3 py-2 text-center text-sm bg-blue-100 border-l-2 border-r-2 border-blue-600" data-sort-value="{{ item.elus_par_orga.get('CGT', 0) }}">
                   {% if item.elus_par_orga.get('CGT') %}
@@ -620,9 +615,7 @@
                     <span class="text-gray-300">—</span>
                   {% endif %}
                 </td>
-                -->
 
-                <!--
                 <td class="px-4 py-2 text-sm text-center font-bold text-gray-900" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
                   {% if item.nb_sieges_cse %}
                     <div class="text-lg">{{ item.nb_sieges_cse }}</div>
@@ -631,7 +624,6 @@
                     <span class="text-gray-400">—</span>
                   {% endif %}
                 </td>
-                -->
               </tr>
             {% endfor %}
           </tbody>
