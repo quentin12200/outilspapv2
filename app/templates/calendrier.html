@@ -297,7 +297,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir les 13 colonnes. Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (20 au total, dont 8 pour les organisations syndicales). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -321,7 +321,14 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SVE</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Nb Collèges</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="string">Organisations</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-cgt-red uppercase tracking-wider bg-red-50" data-sort-type="numeric">CGT</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CFDT</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">FO</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CFTC</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CGC</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">UNSA</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SUD</th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Autre</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
                 <div class="flex items-center gap-1">
                   <span>Élus CSE</span>
@@ -380,20 +387,103 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.participation or 0 }}">
                   {{ item.participation_display or "—" }}
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-700">
-                  {% if item.all_orgs %}
-                    <ul class="space-y-1">
-                      {% for org in item.all_orgs %}
-                        <li class="flex items-baseline justify-between gap-3">
-                          <span class="font-semibold text-gray-800">{{ org.label }}</span>
-                          <span class="text-sm text-gray-600">{{ org.votes_display or "—" }}{% if org.percent_display %} <span class="text-xs text-gray-500">({{ org.percent_display }})</span>{% endif %}</span>
-                        </li>
-                      {% endfor %}
-                    </ul>
+
+                {# CGT - Colonne avec fond rouge clair #}
+                <td class="px-3 py-3 text-center text-sm bg-red-50" data-sort-value="{{ item.orgs_data.cgt_voix.votes if item.orgs_data and item.orgs_data.cgt_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.cgt_voix %}
+                    <div class="font-bold text-cgt-red">{{ item.orgs_data.cgt_voix.votes_display }}</div>
+                    {% if item.orgs_data.cgt_voix.percent_display %}
+                      <div class="text-xs text-gray-600">{{ item.orgs_data.cgt_voix.percent_display }}</div>
+                    {% endif %}
                   {% else %}
-                    <span class="text-gray-400">—</span>
+                    <span class="text-gray-300">—</span>
                   {% endif %}
                 </td>
+
+                {# CFDT #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.cfdt_voix.votes if item.orgs_data and item.orgs_data.cfdt_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.cfdt_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.cfdt_voix.votes_display }}</div>
+                    {% if item.orgs_data.cfdt_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.cfdt_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# FO #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.fo_voix.votes if item.orgs_data and item.orgs_data.fo_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.fo_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.fo_voix.votes_display }}</div>
+                    {% if item.orgs_data.fo_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.fo_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# CFTC #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.cftc_voix.votes if item.orgs_data and item.orgs_data.cftc_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.cftc_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.cftc_voix.votes_display }}</div>
+                    {% if item.orgs_data.cftc_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.cftc_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# CGC #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.cgc_voix.votes if item.orgs_data and item.orgs_data.cgc_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.cgc_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.cgc_voix.votes_display }}</div>
+                    {% if item.orgs_data.cgc_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.cgc_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# UNSA #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.unsa_voix.votes if item.orgs_data and item.orgs_data.unsa_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.unsa_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.unsa_voix.votes_display }}</div>
+                    {% if item.orgs_data.unsa_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.unsa_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# SUD / Solidaires #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.sud_voix.votes if item.orgs_data and item.orgs_data.sud_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.sud_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.sud_voix.votes_display }}</div>
+                    {% if item.orgs_data.sud_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.sud_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# Autre #}
+                <td class="px-3 py-3 text-center text-sm" data-sort-value="{{ item.orgs_data.autre_voix.votes if item.orgs_data and item.orgs_data.autre_voix else 0 }}">
+                  {% if item.orgs_data and item.orgs_data.autre_voix %}
+                    <div class="font-semibold text-gray-800">{{ item.orgs_data.autre_voix.votes_display }}</div>
+                    {% if item.orgs_data.autre_voix.percent_display %}
+                      <div class="text-xs text-gray-500">{{ item.orgs_data.autre_voix.percent_display }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
                 <td class="px-6 py-4 text-sm text-gray-700" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
                   {% if item.nb_sieges_cse %}
                     <div class="font-semibold text-gray-900 mb-2">{{ item.nb_sieges_cse }} siège{{ 's' if item.nb_sieges_cse > 1 else '' }}</div>

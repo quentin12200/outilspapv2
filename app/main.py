@@ -992,16 +992,33 @@ def calendrier_elections(
         # Convertir voix_par_orga en all_orgs pour l'affichage
         sve_total = siret_data["sve"]
         all_orgs = []
+        orgs_data = {}  # Dictionnaire pour accès direct par code organisation
+
         for orga, voix in siret_data["voix_par_orga"].items():
             if voix > 0:
                 percent = (voix / sve_total * 100) if sve_total > 0 else None
-                all_orgs.append({
+                org_info = {
                     "label": orga,
                     "votes": voix,
                     "votes_display": _format_int_fr(voix),
                     "percent": percent,
                     "percent_display": _format_percent_fr(percent) if percent is not None else None,
-                })
+                }
+                all_orgs.append(org_info)
+
+                # Mapping des noms vers les codes (pour compatibilité avec le template)
+                code_map = {
+                    "CGT": "cgt_voix",
+                    "CFDT": "cfdt_voix",
+                    "FO": "fo_voix",
+                    "CFTC": "cftc_voix",
+                    "CGC": "cgc_voix",
+                    "UNSA": "unsa_voix",
+                    "SUD": "sud_voix",
+                    "Autre": "autre_voix",
+                }
+                if orga in code_map:
+                    orgs_data[code_map[orga]] = org_info
 
         # Calculer participation moyenne (on ne peut pas vraiment sommer des %, donc on recalcule)
         # Pour l'instant on met None, il faudrait avoir inscrits et votants agrégés
@@ -1027,6 +1044,7 @@ def calendrier_elections(
             "nb_college": siret_data["nb_college"],
             "nb_college_display": _format_int_fr(siret_data["nb_college"]) if siret_data["nb_college"] else None,
             "all_orgs": sorted(all_orgs, key=lambda x: x["votes"], reverse=True),
+            "orgs_data": orgs_data,  # Dictionnaire pour accès direct par code
             "nb_sieges_cse": siret_data["nb_sieges_cse"] if siret_data["nb_sieges_cse"] > 0 else None,
             "elus_par_orga": dict(siret_data["elus_par_orga"]),
             # DEBUG: détail des collèges
