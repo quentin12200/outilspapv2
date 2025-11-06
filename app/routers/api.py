@@ -10,7 +10,7 @@ from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
-from ..background_tasks import task_tracker, run_build_siret_summary
+from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -115,6 +115,78 @@ def get_build_summary_status():
         response["error"] = status["error"]
 
     return response
+
+
+@router.post("/enrichir/idcc")
+def enrichir_idcc(background_tasks: BackgroundTasks):
+    """
+    Lance l'enrichissement des IDCC manquants en arrière-plan via l'API SIRENE.
+    Retourne immédiatement avec un statut "en cours".
+    Utiliser GET /api/enrichir/idcc/status pour suivre la progression.
+    """
+    # Vérifier si une tâche est déjà en cours
+    task_id = "enrichir_invitations_idcc"
+    current_status = task_tracker.get_task_status(task_id)
+
+    if current_status and current_status["status"] == "running":
+        return {
+            "status": "already_running",
+            "message": "Un enrichissement IDCC est déjà en cours",
+            "task_id": task_id,
+            "started_at": current_status["started_at"].isoformat(),
+        }
+
+    # Lancer la tâche en arrière-plan
+    background_tasks.add_task(run_enrichir_invitations_idcc)
+
+    return {
+        "status": "started",
+        "message": "L'enrichissement des IDCC a été lancé en arrière-plan",
+        "task_id": task_id,
+        "check_status_url": "/api/enrichir/idcc/status"
+    }
+
+
+@router.get("/enrichir/idcc/status")
+def get_enrichir_idcc_status():
+    """
+    Récupère le statut de la tâche d'enrichissement IDCC.
+    """
+    from datetime import datetime
+
+    task_id = "enrichir_invitations_idcc"
+    status = task_tracker.get_task_status(task_id)
+
+    if not status:
+        return {
+            "status": "not_found",
+            "message": "Aucune tâche d'enrichissement IDCC en cours ou récente"
+        }
+
+    response = {
+        "status": status["status"],
+        "description": status["description"],
+        "started_at": status["started_at"].isoformat() if status["started_at"] else None,
+        "completed_at": status["completed_at"].isoformat() if status["completed_at"] else None,
+    }
+
+    # Ajouter le temps écoulé pour les tâches en cours
+    if status["status"] == "running" and status["started_at"]:
+        elapsed = (datetime.now() - status["started_at"]).total_seconds()
+        response["elapsed_seconds"] = elapsed
+
+    # Ajouter la durée totale pour les tâches terminées
+    if status["completed_at"] and status["started_at"]:
+        duration = (status["completed_at"] - status["started_at"]).total_seconds()
+        response["duration_seconds"] = duration
+
+    if status["status"] == "completed":
+        response["result"] = status["result"]
+    elif status["status"] == "failed":
+        response["error"] = status["error"]
+
+    return response
+
 
 @router.get("/siret", response_model=List[SiretSummaryOut])
 def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
