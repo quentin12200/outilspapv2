@@ -64,6 +64,16 @@ class PVEvent(Base):
     autre_voix = Column("score_AUTRE", Float)
     score_autre = synonym("autre_voix")
 
+    # Sièges obtenus par chaque organisation (calculés via quotient électoral)
+    cgt_siege = Column("siege_CGT", Integer)
+    cfdt_siege = Column("siege_CFDT", Integer)
+    fo_siege = Column("siege_FO", Integer)
+    cftc_siege = Column("siege_CFTC", Integer)
+    cgc_siege = Column("siege_CGC", Integer)
+    unsa_siege = Column("siege_UNSA", Integer)
+    sud_siege = Column("siege_SOLIDAIRE", Integer)
+    autre_siege = Column("siege_AUTRE", Integer)
+
     # Présence syndicats au PV
     controle = Column("Contrôle", String(50))
     presence_cgt_pv = Column("Présence_CGT_PV", String(10))
@@ -229,6 +239,16 @@ class SiretSummary(Base):
     solidaire_voix_c3 = Column(Integer)
     autre_voix_c3 = Column(Integer)
 
+    # Cycle 3 - Sièges obtenus
+    cgt_siege_c3 = Column(Integer)
+    cfdt_siege_c3 = Column(Integer)
+    fo_siege_c3 = Column(Integer)
+    cftc_siege_c3 = Column(Integer)
+    cgc_siege_c3 = Column(Integer)
+    unsa_siege_c3 = Column(Integer)
+    sud_siege_c3 = Column(Integer)
+    autre_siege_c3 = Column(Integer)
+
     # Cycle 4 - CGT
     date_pv_c4 = Column(Date)
     carence_c4 = Column(Boolean)
@@ -245,6 +265,16 @@ class SiretSummary(Base):
     sud_voix_c4 = Column(Integer)
     solidaire_voix_c4 = Column(Integer)
     autre_voix_c4 = Column(Integer)
+
+    # Cycle 4 - Sièges obtenus
+    cgt_siege_c4 = Column(Integer)
+    cfdt_siege_c4 = Column(Integer)
+    fo_siege_c4 = Column(Integer)
+    cftc_siege_c4 = Column(Integer)
+    cgc_siege_c4 = Column(Integer)
+    unsa_siege_c4 = Column(Integer)
+    sud_siege_c4 = Column(Integer)
+    autre_siege_c4 = Column(Integer)
 
     # Informations agrégées SIRET
     effectif_siret = Column(Integer)

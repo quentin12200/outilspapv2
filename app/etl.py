@@ -89,6 +89,130 @@ def _norm_cycle(x: str) -> str:
     if "C4" in s or re.search(r"\b4\b", s): return "C4"
     return s
 
+def get_nombre_sieges(effectif: int) -> int:
+    """
+    Retourne le nombre de sièges titulaires au CSE selon l'effectif,
+    conformément au tableau officiel du Code du travail.
+    """
+    if effectif is None:
+        return None
+
+    # Tableau officiel : (effectif_min, effectif_max, nb_sieges)
+    tranches = [
+        (11, 24, 1),
+        (25, 49, 2),
+        (50, 74, 4),
+        (75, 99, 5),
+        (100, 124, 6),
+        (125, 149, 7),
+        (150, 174, 8),
+        (175, 199, 9),
+        (200, 249, 10),
+        (250, 299, 11),
+        (300, 399, 11),
+        (400, 499, 12),
+        (500, 599, 13),
+        (600, 699, 13),
+        (700, 799, 14),
+        (800, 899, 14),
+        (900, 999, 15),
+        (1000, 1249, 15),
+        (1250, 1499, 17),
+        (1500, 1749, 18),
+        (1750, 1999, 19),
+        (2000, 2249, 20),
+        (2250, 2499, 21),
+        (2500, 2749, 22),
+        (2750, 2999, 22),
+        (3000, 3249, 23),
+        (3250, 3499, 23),
+        (3500, 3749, 24),
+        (3750, 3999, 24),
+        (4000, 4249, 24),
+        (4250, 4499, 25),
+        (4500, 4749, 25),
+        (4750, 4999, 25),
+        (5000, 5499, 26),
+        (5500, 5999, 26),
+        (6000, 6499, 27),
+        (6500, 6999, 27),
+        (7000, 7499, 28),
+        (7500, 7999, 29),
+        (8000, 8499, 29),
+        (8500, 8999, 30),
+        (9000, 9999, 34),
+    ]
+
+    # Si effectif >= 10000, retourner 35 sièges
+    if effectif >= 10000:
+        return 35
+
+    # Recherche dans les tranches
+    for min_eff, max_eff, sieges in tranches:
+        if min_eff <= effectif <= max_eff:
+            return sieges
+
+    # Si effectif < 11, pas de CSE
+    return None
+
+def calcul_repartition_sieges(inscrits: int, votants: int, blancs_nuls: int, voix_par_orga: dict) -> dict:
+    """
+    Calcule la répartition des sièges selon le système du quotient électoral
+    et de la plus forte moyenne (méthode officielle).
+
+    Args:
+        inscrits: Nombre d'inscrits
+        votants: Nombre de votants
+        blancs_nuls: Nombre de votes blancs et nuls
+        voix_par_orga: Dictionnaire {organisation: nombre_de_voix}
+
+    Returns:
+        Dictionnaire {organisation: nombre_de_sieges}
+    """
+    # Initialiser les sièges à 0 pour toutes les organisations
+    sieges_par_orga = {orga: 0 for orga in voix_par_orga.keys()}
+
+    # Filtrer les listes qui ont des voix
+    listes_actives = {orga: voix for orga, voix in voix_par_orga.items() if voix and voix > 0}
+
+    if not listes_actives:
+        return sieges_par_orga
+
+    # Déterminer le nombre total de sièges à pourvoir
+    nb_sieges_total = get_nombre_sieges(inscrits)
+    if nb_sieges_total is None or nb_sieges_total == 0:
+        return sieges_par_orga
+
+    # Calculer les suffrages valablement exprimés (SVE)
+    sve = votants - (blancs_nuls or 0)
+    if sve <= 0:
+        return sieges_par_orga
+
+    # Calculer le quotient électoral
+    quotient = sve / nb_sieges_total
+
+    # ÉTAPE 1: Attribution directe au quotient
+    for orga, voix in listes_actives.items():
+        sieges = int(voix / quotient)  # Partie entière
+        sieges_par_orga[orga] = sieges
+
+    # ÉTAPE 2: Répartition des sièges restants à la plus forte moyenne
+    sieges_attribues = sum(sieges_par_orga.values())
+    sieges_restants = nb_sieges_total - sieges_attribues
+
+    while sieges_restants > 0:
+        # Calculer la moyenne pour chaque liste si elle recevait un siège supplémentaire
+        moyennes = {}
+        for orga, voix in listes_actives.items():
+            moyennes[orga] = voix / (sieges_par_orga[orga] + 1)
+
+        # Attribuer le siège à la liste avec la plus forte moyenne
+        orga_gagnante = max(moyennes, key=moyennes.get)
+        sieges_par_orga[orga_gagnante] += 1
+        sieges_restants -= 1
+
+    return sieges_par_orga
+
 # -------- Ingestion PV --------
 def ingest_pv_excel(session: Session, file_like) -> int:
     xls = pd.ExcelFile(file_like)
@@ -299,6 +423,7 @@ def build_siret_summary(session: Session) -> int:
         PVEvent.ville.label("ville"),
         PVEvent.inscrits.label("inscrits"),
         PVEvent.votants.label("votants"),
+        PVEvent.sve.label("sve"),
         PVEvent.cgt_voix.label("cgt_voix"),
         PVEvent.cfdt_voix.label("cfdt_voix"),
         PVEvent.fo_voix.label("fo_voix"),
@@ -318,6 +443,7 @@ def build_siret_summary(session: Session) -> int:
     numeric_columns = [
         "inscrits",
         "votants",
+        "sve",
         "cgt_voix",
         "cfdt_voix",
         "fo_voix",
@@ -411,6 +537,7 @@ def build_siret_summary(session: Session) -> int:
     numeric_suffixes = [
         "inscrits",
         "votants",
+        "sve",
         "cgt_voix",
         "cfdt_voix",
         "fo_voix",
@@ -428,6 +555,49 @@ def build_siret_summary(session: Session) -> int:
             base[col_c3] = _normalize_numeric_series(base[col_c3])
         if col_c4 in base.columns:
             base[col_c4] = _normalize_numeric_series(base[col_c4])
+
+    # Calculer les sièges pour C3 et C4 en utilisant le quotient électoral
+    def calc_sieges_for_row(row, cycle_suffix):
+        """Calcule les sièges pour un cycle donné (c3 ou c4)"""
+        inscrits = row.get(f"inscrits_{cycle_suffix}")
+        votants = row.get(f"votants_{cycle_suffix}")
+        sve = row.get(f"sve_{cycle_suffix}")
+
+        if pd.isna(inscrits) or pd.isna(votants):
+            return {f"{org}_siege_{cycle_suffix}": None for org in ["cgt", "cfdt", "fo", "cftc", "cgc", "unsa", "sud", "autre"]}
+
+        # Calculer blancs_nuls à partir de votants et sve
+        if pd.notna(sve):
+            blancs_nuls = int(votants - sve)
+        else:
+            blancs_nuls = 0
+
+        # Récupérer les voix par organisation
+        voix_par_orga = {
+            "cgt": row.get(f"cgt_voix_{cycle_suffix}"),
+            "cfdt": row.get(f"cfdt_voix_{cycle_suffix}"),
+            "fo": row.get(f"fo_voix_{cycle_suffix}"),
+            "cftc": row.get(f"cftc_voix_{cycle_suffix}"),
+            "cgc": row.get(f"cgc_voix_{cycle_suffix}"),
+            "unsa": row.get(f"unsa_voix_{cycle_suffix}"),
+            "sud": row.get(f"sud_voix_{cycle_suffix}") or row.get(f"solidaire_voix_{cycle_suffix}"),
+            "autre": row.get(f"autre_voix_{cycle_suffix}"),
+        }
+
+        # Convertir les NaN en 0
+        voix_par_orga = {org: (0 if pd.isna(v) else int(v)) for org, v in voix_par_orga.items()}
+
+        # Calculer la répartition des sièges
+        sieges = calcul_repartition_sieges(int(inscrits), int(votants), blancs_nuls, voix_par_orga)
+
+        # Retourner les sièges avec les bons noms de colonnes
+        return {f"{org}_siege_{cycle_suffix}": s for org, s in sieges.items()}
+
+    # Appliquer le calcul pour C3 et C4
+    for cycle in ["c3", "c4"]:
+        sieges_cols = base.apply(lambda row: calc_sieges_for_row(row, cycle), axis=1, result_type='expand')
+        for col in sieges_cols.columns:
+            base[col] = sieges_cols[col]
 
     def _series_or_empty(name: str):
         if name in base.columns:
@@ -534,6 +704,22 @@ def build_siret_summary(session: Session) -> int:
         "solidaire_voix_c4": base.get("solidaire_voix_c4"),
         "autre_voix_c3": base.get("autre_voix_c3"),
         "autre_voix_c4": base.get("autre_voix_c4"),
+        "cgt_siege_c3": base.get("cgt_siege_c3"),
+        "cgt_siege_c4": base.get("cgt_siege_c4"),
+        "cfdt_siege_c3": base.get("cfdt_siege_c3"),
+        "cfdt_siege_c4": base.get("cfdt_siege_c4"),
+        "fo_siege_c3": base.get("fo_siege_c3"),
+        "fo_siege_c4": base.get("fo_siege_c4"),
+        "cftc_siege_c3": base.get("cftc_siege_c3"),
+        "cftc_siege_c4": base.get("cftc_siege_c4"),
+        "cgc_siege_c3": base.get("cgc_siege_c3"),
+        "cgc_siege_c4": base.get("cgc_siege_c4"),
+        "unsa_siege_c3": base.get("unsa_siege_c3"),
+        "unsa_siege_c4": base.get("unsa_siege_c4"),
+        "sud_siege_c3": base.get("sud_siege_c3"),
+        "sud_siege_c4": base.get("sud_siege_c4"),
+        "autre_siege_c3": base.get("autre_siege_c3"),
+        "autre_siege_c4": base.get("autre_siege_c4"),
         "statut_pap": base["statut_pap"],
         "date_pv_max": safe_pv_max,
         "date_pap_c5": base.get("date_pap_c5"),
@@ -566,6 +752,22 @@ def build_siret_summary(session: Session) -> int:
         "solidaire_voix_c4",
         "autre_voix_c3",
         "autre_voix_c4",
+        "cgt_siege_c3",
+        "cgt_siege_c4",
+        "cfdt_siege_c3",
+        "cfdt_siege_c4",
+        "fo_siege_c3",
+        "fo_siege_c4",
+        "cftc_siege_c3",
+        "cftc_siege_c4",
+        "cgc_siege_c3",
+        "cgc_siege_c4",
+        "unsa_siege_c3",
+        "unsa_siege_c4",
+        "sud_siege_c3",
+        "sud_siege_c4",
+        "autre_siege_c3",
+        "autre_siege_c4",
     ]
     for col in int_columns:
         if col in out.columns:
