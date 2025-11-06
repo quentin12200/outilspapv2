@@ -3,9 +3,11 @@ Gestionnaire de tâches de fond pour les opérations lourdes
 """
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
 import logging
-import asyncio
+import httpx
+import os
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -108,14 +110,77 @@ def run_build_siret_summary(session_factory):
         task_tracker.fail_task(task_id, error_msg)
 
 
+def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
+    """
+    Récupère les informations d'un SIRET via l'API SIRENE de manière SYNCHRONE.
+    Version simplifiée pour les tâches de fond.
+    """
+    SIRENE_API_BASE = "https://api.insee.fr/entreprises/sirene/V3"
+
+    # Configuration de l'authentification
+    bearer_token = (os.getenv("SIRENE_API_TOKEN") or "").strip()
+    integration_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+
+    headers = {"Accept": "application/json"}
+    if bearer_token:
+        headers["Authorization"] = f"Bearer {bearer_token}"
+    elif integration_key:
+        # Vérifier si c'est un UUID (clé d'intégration)
+        try:
+            uuid.UUID(integration_key)
+            headers["X-INSEE-Api-Key-Integration"] = integration_key
+        except (ValueError, AttributeError):
+            pass
+
+    # Nettoyer le SIRET
+    siret_clean = siret.strip().replace(" ", "")
+    if len(siret_clean) != 14 or not siret_clean.isdigit():
+        logger.warning(f"SIRET invalide: {siret}")
+        return None
+
+    url = f"{SIRENE_API_BASE}/siret/{siret_clean}"
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(url, headers=headers)
+
+            if response.status_code == 200:
+                data = response.json()
+                etablissement = data.get("etablissement", {})
+                unite_legale = etablissement.get("uniteLegale", {})
+
+                # Extraire l'IDCC
+                idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
+
+                if idcc:
+                    return {"idcc": idcc}
+                else:
+                    return None
+
+            elif response.status_code == 404:
+                logger.debug(f"SIRET non trouvé: {siret_clean}")
+                return None
+            elif response.status_code == 429:
+                logger.warning("Limite de taux API Sirene atteinte")
+                return None
+            else:
+                logger.error(f"Erreur API Sirene ({response.status_code})")
+                return None
+
+    except httpx.TimeoutException:
+        logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
+        return None
+    except Exception as e:
+        logger.error(f"Erreur lors de l'appel API SIRENE: {e}")
+        return None
+
+
 def run_enrichir_invitations_idcc():
     """
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
     """
     from .models import Invitation
     from .db import SessionLocal
-    from .services.sirene_api import enrichir_siret, SireneAPIError
-    from datetime import datetime
 
     task_id = "enrichir_invitations_idcc"
     task_tracker.start_task(task_id, "Enrichissement des IDCC manquants via API SIRENE")
@@ -138,9 +203,8 @@ def run_enrichir_invitations_idcc():
 
             for i, invitation in enumerate(invitations):
                 try:
-                    # Récupérer les données depuis l'API SIRENE (fonction async)
-                    # Utiliser asyncio.run() pour l'exécuter dans une fonction synchrone
-                    data = asyncio.run(enrichir_siret(invitation.siret))
+                    # Récupérer les données depuis l'API SIRENE (version synchrone)
+                    data = _get_siret_sync(invitation.siret)
 
                     if data and data.get("idcc"):
                         # Mettre à jour l'IDCC
@@ -155,7 +219,7 @@ def run_enrichir_invitations_idcc():
                     else:
                         erreurs += 1
 
-                except (SireneAPIError, Exception) as e:
+                except Exception as e:
                     logger.warning(f"Error enriching SIRET {invitation.siret}: {e}")
                     erreurs += 1
                     continue
