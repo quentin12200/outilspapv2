@@ -579,10 +579,10 @@
                   {% endif %}
                 </td>
 
-                {# ÉLUS - CGC #}
-                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('CGC', 0) }}">
-                  {% if item.elus_par_orga.get('CGC') %}
-                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['CGC'] }}</div>
+                {# ÉLUS - CFE-CGC #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('CFE-CGC', 0) }}">
+                  {% if item.elus_par_orga.get('CFE-CGC') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['CFE-CGC'] }}</div>
                   {% else %}
                     <span class="text-gray-300">—</span>
                   {% endif %}
@@ -597,10 +597,10 @@
                   {% endif %}
                 </td>
 
-                {# ÉLUS - SUD #}
-                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('SUD', 0) }}">
-                  {% if item.elus_par_orga.get('SUD') %}
-                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['SUD'] }}</div>
+                {# ÉLUS - Solidaires #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('Solidaires', 0) }}">
+                  {% if item.elus_par_orga.get('Solidaires') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['Solidaires'] }}</div>
                   {% else %}
                     <span class="text-gray-300">—</span>
                   {% endif %}
