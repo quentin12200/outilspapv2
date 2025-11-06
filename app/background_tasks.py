@@ -141,8 +141,10 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     url = f"{SIRENE_API_BASE}/siret/{siret_clean}"
 
     try:
+        logger.error(f"Calling API SIRENE for SIRET {siret_clean}...")  # LOG AJOUTÉ
         with httpx.Client(timeout=10.0) as client:
             response = client.get(url, headers=headers)
+            logger.error(f"API Response for {siret_clean}: status={response.status_code}")  # LOG AJOUTÉ
 
             if response.status_code == 200:
                 data = response.json()
@@ -153,15 +155,17 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
                 idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
 
                 if idcc:
+                    logger.error(f"IDCC found for {siret_clean}: {idcc}")  # LOG AJOUTÉ
                     return {"idcc": idcc}
                 else:
+                    logger.error(f"No IDCC for {siret_clean}")  # LOG AJOUTÉ
                     return None
 
             elif response.status_code == 404:
-                logger.debug(f"SIRET non trouvé: {siret_clean}")
+                logger.error(f"SIRET non trouvé: {siret_clean}")
                 return None
             elif response.status_code == 429:
-                logger.warning("Limite de taux API Sirene atteinte")
+                logger.error("Limite de taux API Sirene atteinte")
                 return None
             else:
                 logger.error(f"Erreur API Sirene ({response.status_code})")
@@ -204,7 +208,7 @@ def run_enrichir_invitations_idcc():
     try:
         session = SessionLocal()
         try:
-            logger.info("Starting enrichir_invitations_idcc in background...")
+            logger.error("Starting enrichir_invitations_idcc in background...")
 
             # Récupérer toutes les invitations sans IDCC
             invitations = session.query(Invitation).filter(
@@ -215,7 +219,7 @@ def run_enrichir_invitations_idcc():
             enrichis = 0
             erreurs = 0
 
-            logger.info(f"Found {total} invitations without IDCC")
+            logger.error(f"Found {total} invitations without IDCC")
 
             for i, invitation in enumerate(invitations):
                 try:
@@ -231,12 +235,12 @@ def run_enrichir_invitations_idcc():
                         # Commit tous les 50 pour éviter de perdre tout en cas d'erreur
                         if (i + 1) % 50 == 0:
                             session.commit()
-                            logger.info(f"Progress: {i + 1}/{total} processed ({enrichis} enriched)")
+                            logger.error(f"Progress: {i + 1}/{total} processed ({enrichis} enriched)")
                     else:
                         erreurs += 1
 
                 except Exception as e:
-                    logger.warning(f"Error enriching SIRET {invitation.siret}: {e}")
+                    logger.error(f"Error enriching SIRET {invitation.siret}: {e}")
                     erreurs += 1
                     continue
 
@@ -249,7 +253,7 @@ def run_enrichir_invitations_idcc():
                 "erreurs": erreurs
             }
             task_tracker.complete_task(task_id, result)
-            logger.info(f"enrichir_invitations_idcc completed: {enrichis}/{total} enriched, {erreurs} errors")
+            logger.error(f"enrichir_invitations_idcc completed: {enrichis}/{total} enriched, {erreurs} errors")
 
         finally:
             session.close()
