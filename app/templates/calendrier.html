@@ -103,6 +103,36 @@
     color: #d5001c;
     font-weight: bold;
   }
+
+  /* Styles pour le mode plein écran */
+  .fullscreen-active {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    padding: 2rem !important;
+    background: white !important;
+  }
+
+  /* Barre de défilement verticale en mode plein écran */
+  .fullscreen-active::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .fullscreen-active::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 6px;
+  }
+
+  .fullscreen-active::-webkit-scrollbar-thumb {
+    background: #d5001c;
+    border-radius: 6px;
+  }
+
+  .fullscreen-active::-webkit-scrollbar-thumb:hover {
+    background: #a00015;
+  }
 </style>
 {% endblock %}
 

@@ -10,12 +10,37 @@ function toggleFullscreenTable(tableId) {
     tbl = document.querySelector('article > table, article section > table');
   }
   if (!tbl) return;
+
+  // Trouver le conteneur scrollable parent (pour permettre le scroll vertical en plein écran)
+  let container = tbl.closest('.table-scroll-container') || tbl.closest('.overflow-x-auto') || tbl.parentElement;
+
   if (!document.fullscreenElement) {
-    tbl.requestFullscreen?.();
+    // Mettre le conteneur en plein écran (pas juste la table)
+    if (container && container.requestFullscreen) {
+      container.requestFullscreen();
+      // Ajouter une classe pour le style plein écran
+      container.classList.add('fullscreen-active');
+    }
   } else {
     document.exitFullscreen?.();
+    // Retirer la classe au retour
+    if (container) {
+      container.classList.remove('fullscreen-active');
+    }
   }
 }
+
+// Écouter les changements de mode plein écran (pour nettoyer quand on sort avec Escape)
+document.addEventListener('fullscreenchange', function() {
+  if (!document.fullscreenElement) {
+    // On est sorti du mode plein écran
+    const containers = document.querySelectorAll('.fullscreen-active');
+    containers.forEach(container => {
+      container.classList.remove('fullscreen-active');
+    });
+  }
+});
+
 window.toggleFullscreenTable = toggleFullscreenTable;
 
 // Tri générique pour les tableaux
