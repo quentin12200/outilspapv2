@@ -566,8 +566,10 @@ async function checkStatus() {
     const response = await fetch('/api/build/summary/status');
     const data = await response.json();
 
-    if (!data.task_id) {
-      // No task has been run yet
+    if (data.status === 'not_found') {
+      // No task has been run yet - hide status display
+      const statusDiv = document.getElementById('rebuild-status');
+      statusDiv.classList.add('hidden');
       return;
     }
 

@@ -81,6 +81,8 @@ def get_build_summary_status():
     """
     Récupère le statut de la tâche de reconstruction de siret_summary.
     """
+    from datetime import datetime
+
     task_id = "build_siret_summary"
     status = task_tracker.get_task_status(task_id)
 
@@ -96,6 +98,16 @@ def get_build_summary_status():
         "started_at": status["started_at"].isoformat() if status["started_at"] else None,
         "completed_at": status["completed_at"].isoformat() if status["completed_at"] else None,
     }
+
+    # Ajouter le temps écoulé pour les tâches en cours
+    if status["status"] == "running" and status["started_at"]:
+        elapsed = (datetime.now() - status["started_at"]).total_seconds()
+        response["elapsed_seconds"] = elapsed
+
+    # Ajouter la durée totale pour les tâches terminées
+    if status["completed_at"] and status["started_at"]:
+        duration = (status["completed_at"] - status["started_at"]).total_seconds()
+        response["duration_seconds"] = duration
 
     if status["status"] == "completed":
         response["result"] = status["result"]
