@@ -902,6 +902,7 @@ async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
         invitation.est_siege = data.get("est_siege")
         invitation.est_actif = data.get("est_actif")
         invitation.categorie_entreprise = data.get("categorie_entreprise")
+        invitation.idcc = data.get("idcc")  # Convention collective
         invitation.date_enrichissement = datetime.now()
 
         db.commit()
@@ -963,6 +964,7 @@ async def enrichir_toutes_invitations(
                 invitation.est_siege = data.get("est_siege")
                 invitation.est_actif = data.get("est_actif")
                 invitation.categorie_entreprise = data.get("categorie_entreprise")
+                invitation.idcc = data.get("idcc")  # Convention collective
                 invitation.date_enrichissement = datetime.now()
                 enrichis += 1
             else:

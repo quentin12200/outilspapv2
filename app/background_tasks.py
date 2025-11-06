@@ -105,3 +105,73 @@ def run_build_siret_summary(session_factory):
         error_msg = f"Error in build_siret_summary: {str(e)}"
         logger.exception(error_msg)
         task_tracker.fail_task(task_id, error_msg)
+
+
+async def run_enrichir_invitations_idcc():
+    """
+    Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
+    """
+    from .models import Invitation
+    from .database import SessionLocal
+    from .services.sirene_api import enrichir_siret, SireneAPIError
+    from datetime import datetime
+
+    task_id = "enrichir_invitations_idcc"
+    task_tracker.start_task(task_id, "Enrichissement des IDCC manquants via API SIRENE")
+
+    try:
+        session = SessionLocal()
+        try:
+            logger.info("Starting enrichir_invitations_idcc in background...")
+
+            # Récupérer toutes les invitations sans IDCC
+            invitations = session.query(Invitation).filter(
+                (Invitation.idcc.is_(None)) | (Invitation.idcc == "")
+            ).all()
+
+            total = len(invitations)
+            enrichis = 0
+            erreurs = 0
+
+            logger.info(f"Found {total} invitations without IDCC")
+
+            for i, invitation in enumerate(invitations):
+                try:
+                    # Récupérer les données depuis l'API SIRENE
+                    data = await enrichir_siret(invitation.siret)
+
+                    if data and data.get("idcc"):
+                        # Mettre à jour l'IDCC
+                        invitation.idcc = data.get("idcc")
+                        invitation.date_enrichissement = datetime.now()
+                        enrichis += 1
+
+                        # Commit tous les 50 pour éviter de perdre tout en cas d'erreur
+                        if (i + 1) % 50 == 0:
+                            session.commit()
+                            logger.info(f"Progress: {i + 1}/{total} processed ({enrichis} enriched)")
+                    else:
+                        erreurs += 1
+
+                except (SireneAPIError, Exception) as e:
+                    logger.warning(f"Error enriching SIRET {invitation.siret}: {e}")
+                    erreurs += 1
+                    continue
+
+            # Commit final
+            session.commit()
+
+            result = {
+                "total": total,
+                "enrichis": enrichis,
+                "erreurs": erreurs
+            }
+            task_tracker.complete_task(task_id, result)
+            logger.info(f"enrichir_invitations_idcc completed: {enrichis}/{total} enriched, {erreurs} errors")
+
+        finally:
+            session.close()
+    except Exception as e:
+        error_msg = f"Error in enrichir_invitations_idcc: {str(e)}"
+        logger.exception(error_msg)
+        task_tracker.fail_task(task_id, error_msg)

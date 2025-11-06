@@ -327,6 +327,9 @@ class SireneAPI:
         etat_admin = periode_actuelle.get("etatAdministratifEtablissement", "A")
         est_actif = etat_admin == "A"
 
+        # IDCC (convention collective)
+        idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
+
         return {
             "siret": etab.get("siret"),
             "siren": etab.get("siren"),
@@ -343,6 +346,7 @@ class SireneAPI:
             "est_actif": est_actif,
             "date_creation": etab.get("dateCreationEtablissement"),
             "categorie_entreprise": unite_legale.get("categorieEntreprise"),
+            "idcc": idcc,  # Convention collective
         }
 
     def _get_effectifs_label(self, tranche: Optional[str]) -> str:
