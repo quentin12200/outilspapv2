@@ -1044,15 +1044,28 @@ def calendrier_elections(
                 "colleges_details": [],
             }
 
-        # Additionner les valeurs de ce collège aux totaux du SIRET
-        siret_aggregated[siret]["sve"] += college_data["sve"]
-        siret_aggregated[siret]["votants"] += college_data["votants"]
-        siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-        # NOTE: Ne pas sommer nb_sieges_cse des collèges !
-        # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
+        # Vérifier le quorum du collège AVANT d'agréger ses votes
+        # Le quorum est atteint si : SVE >= (inscrits / 2) + 1
+        # Si le quorum n'est pas atteint, ce collège n'a pas d'élus et ses voix ne comptent pas
+        college_inscrits = college_data["inscrits"]
+        college_sve = college_data["sve"]
+        quorum_atteint = False
 
-        for orga, voix in college_data["voix_par_orga"].items():
-            siret_aggregated[siret]["voix_par_orga"][orga] += voix
+        if college_inscrits > 0:
+            quorum_requis = (college_inscrits / 2) + 1
+            quorum_atteint = college_sve >= quorum_requis
+
+        # Additionner les valeurs de ce collège aux totaux du SIRET
+        # UNIQUEMENT si le quorum est atteint
+        if quorum_atteint:
+            siret_aggregated[siret]["sve"] += college_data["sve"]
+            siret_aggregated[siret]["votants"] += college_data["votants"]
+            siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
+            # NOTE: Ne pas sommer nb_sieges_cse des collèges !
+            # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
+
+            for orga, voix in college_data["voix_par_orga"].items():
+                siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
         # NOTE: Ne pas sommer les élus des collèges !
         # Les élus seront calculés une seule fois au niveau SIRET
@@ -1404,15 +1417,28 @@ def calendrier_export(
                 "elus_par_orga": defaultdict(int),
             }
 
-        # Additionner les valeurs de ce collège aux totaux du SIRET
-        siret_aggregated[siret]["sve"] += college_data["sve"]
-        siret_aggregated[siret]["votants"] += college_data["votants"]
-        siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-        # NOTE: Ne pas sommer nb_sieges_cse des collèges !
-        # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
+        # Vérifier le quorum du collège AVANT d'agréger ses votes
+        # Le quorum est atteint si : SVE >= (inscrits / 2) + 1
+        # Si le quorum n'est pas atteint, ce collège n'a pas d'élus et ses voix ne comptent pas
+        college_inscrits = college_data["inscrits"]
+        college_sve = college_data["sve"]
+        quorum_atteint = False
 
-        for orga, voix in college_data["voix_par_orga"].items():
-            siret_aggregated[siret]["voix_par_orga"][orga] += voix
+        if college_inscrits > 0:
+            quorum_requis = (college_inscrits / 2) + 1
+            quorum_atteint = college_sve >= quorum_requis
+
+        # Additionner les valeurs de ce collège aux totaux du SIRET
+        # UNIQUEMENT si le quorum est atteint
+        if quorum_atteint:
+            siret_aggregated[siret]["sve"] += college_data["sve"]
+            siret_aggregated[siret]["votants"] += college_data["votants"]
+            siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
+            # NOTE: Ne pas sommer nb_sieges_cse des collèges !
+            # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
+
+            for orga, voix in college_data["voix_par_orga"].items():
+                siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
         # NOTE: Ne pas sommer les élus des collèges !
         # Les élus seront calculés une seule fois au niveau SIRET
