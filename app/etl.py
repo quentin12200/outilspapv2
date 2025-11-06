@@ -1,10 +1,13 @@
 import pandas as pd, numpy as np, re, unicodedata
+import logging
 from dateutil.parser import parse as dtparse
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from .models import PVEvent, Invitation, SiretSummary
+
+logger = logging.getLogger(__name__)
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
