@@ -62,8 +62,8 @@ class SireneAPI:
         if self.bearer_token:
             self.headers["Authorization"] = f"Bearer {self.bearer_token}"
         if self.integration_key:
-            # Les clés d'intégration Sirene attendent un header dédié (pas de Bearer)
-            self.headers["X-INSEE-Api-Key-Integration"] = self.integration_key
+            # Nouveau portail INSEE 2025 : utiliser X-API-KEY
+            self.headers["X-API-KEY"] = self.integration_key
 
     @staticmethod
     def _looks_like_integration_key(value: str) -> bool:

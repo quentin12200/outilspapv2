@@ -117,20 +117,14 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     """
     SIRENE_API_BASE = "https://api.insee.fr/entreprises/sirene/V3"
 
-    # Configuration de l'authentification
-    bearer_token = (os.getenv("SIRENE_API_TOKEN") or "").strip()
-    integration_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+    # Configuration de l'authentification (nouveau portail INSEE 2025)
+    api_key = (os.getenv("SIRENE_API_KEY") or "").strip()
 
     headers = {"Accept": "application/json"}
-    if bearer_token:
-        headers["Authorization"] = f"Bearer {bearer_token}"
-    elif integration_key:
-        # Vérifier si c'est un UUID (clé d'intégration)
-        try:
-            uuid.UUID(integration_key)
-            headers["X-INSEE-Api-Key-Integration"] = integration_key
-        except (ValueError, AttributeError):
-            pass
+    if api_key:
+        # Nouveau portail INSEE : utiliser X-API-KEY
+        headers["X-API-KEY"] = api_key
+        logger.error(f"Using API key: {api_key[:8]}...{api_key[-4:]}")  # Log partiel pour debug
 
     # Nettoyer le SIRET
     siret_clean = siret.strip().replace(" ", "")
