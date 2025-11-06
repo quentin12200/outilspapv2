@@ -179,11 +179,18 @@ def run_enrichir_invitations_idcc():
     """
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
     """
+    # Log immédiat pour vérifier que la fonction est appelée
+    logger.info("=" * 80)
+    logger.info("run_enrichir_invitations_idcc() CALLED - Function entry point")
+    logger.info("=" * 80)
+
     from .models import Invitation
     from .db import SessionLocal
 
     task_id = "enrichir_invitations_idcc"
+    logger.info(f"Creating task tracker for {task_id}")
     task_tracker.start_task(task_id, "Enrichissement des IDCC manquants via API SIRENE")
+    logger.info(f"Task tracker started for {task_id}")
 
     try:
         session = SessionLocal()
