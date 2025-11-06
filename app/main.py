@@ -848,6 +848,7 @@ def calendrier_elections(
             PVEvent.idcc,
             PVEvent.sve,
             PVEvent.tx_participation_pv,
+            PVEvent.votants,
             PVEvent.nb_college_siret,
             PVEvent.cgt_voix,
             PVEvent.cfdt_voix,
@@ -938,6 +939,14 @@ def calendrier_elections(
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
+
+        # Si tx_participation_pv est vide, calculer à partir de votants/inscrits
+        if participation_value is None:
+            votants_value = _to_number(getattr(row, "votants", None))
+            inscrits_value = _to_number(row.inscrits)
+            if votants_value is not None and inscrits_value is not None and inscrits_value > 0:
+                participation_value = (votants_value / inscrits_value) * 100
+
         nb_college_value = _to_number(getattr(row, "nb_college_siret", None))
 
         # Calculer les voix par organisation pour ce collège
@@ -1215,6 +1224,7 @@ def calendrier_export(
             PVEvent.idcc,
             PVEvent.sve,
             PVEvent.tx_participation_pv,
+            PVEvent.votants,
             PVEvent.nb_college_siret,
             PVEvent.cgt_voix,
             PVEvent.cfdt_voix,
@@ -1276,6 +1286,14 @@ def calendrier_export(
 
         sve_value = _to_number(getattr(row, "sve", None))
         participation_value = _to_number(getattr(row, "tx_participation_pv", None))
+
+        # Si tx_participation_pv est vide, calculer à partir de votants/inscrits
+        if participation_value is None:
+            votants_value = _to_number(getattr(row, "votants", None))
+            inscrits_value = _to_number(row.inscrits)
+            if votants_value is not None and inscrits_value is not None and inscrits_value > 0:
+                participation_value = (votants_value / inscrits_value) * 100
+
         nb_college_value = _to_number(getattr(row, "nb_college_siret", None))
 
         # Calculer les voix par organisation pour ce collège
