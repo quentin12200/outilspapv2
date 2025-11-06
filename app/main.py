@@ -975,6 +975,17 @@ def calendrier_elections(
             "elus_par_orga": dict(college_data["elus_par_orga"]),
         })
 
+    # Plafonner à 35 sièges maximum par SIRET et recalculer la répartition si nécessaire
+    for siret, data in siret_aggregated.items():
+        if data["nb_sieges_cse"] > 35:
+            # Si plus de 35 sièges au total, plafonner à 35 et recalculer
+            # la répartition avec le total des voix du SIRET
+            voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+            if voix_siret:
+                calcul_recalcule = calculer_elus_cse_complet(35, voix_siret)
+                data["nb_sieges_cse"] = 35
+                data["elus_par_orga"] = defaultdict(int, calcul_recalcule["elus_par_orga"])
+
     # Formater les données agrégées pour l'affichage
     elections_list = []
     for siret_data in siret_aggregated.values():
@@ -1264,6 +1275,17 @@ def calendrier_export(
         if college_data["participation"] is not None:
             siret_aggregated[siret]["participation_sum"] += college_data["participation"]
             siret_aggregated[siret]["participation_count"] += 1
+
+    # Plafonner à 35 sièges maximum par SIRET et recalculer la répartition si nécessaire
+    for siret, data in siret_aggregated.items():
+        if data["nb_sieges_cse"] > 35:
+            # Si plus de 35 sièges au total, plafonner à 35 et recalculer
+            # la répartition avec le total des voix du SIRET
+            voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
+            if voix_siret:
+                calcul_recalcule = calculer_elus_cse_complet(35, voix_siret)
+                data["nb_sieges_cse"] = 35
+                data["elus_par_orga"] = defaultdict(int, calcul_recalcule["elus_par_orga"])
 
     # Formater les données agrégées pour l'export Excel
     elections_list = []
