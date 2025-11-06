@@ -982,9 +982,11 @@ def calendrier_elections(
             # la répartition avec le total des voix du SIRET
             voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
             if voix_siret:
-                calcul_recalcule = calculer_elus_cse_complet(35, voix_siret)
+                # CORRECTION: Utiliser directement la fonction de répartition avec 35 SIÈGES
+                # (et non calculer_elus_cse_complet qui attend un EFFECTIF)
+                elus_recalcules = repartir_sieges_quotient_puis_plus_forte_moyenne(voix_siret, 35)
                 data["nb_sieges_cse"] = 35
-                data["elus_par_orga"] = defaultdict(int, calcul_recalcule["elus_par_orga"])
+                data["elus_par_orga"] = defaultdict(int, elus_recalcules)
 
     # Formater les données agrégées pour l'affichage
     elections_list = []
@@ -1301,9 +1303,11 @@ def calendrier_export(
             # la répartition avec le total des voix du SIRET
             voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
             if voix_siret:
-                calcul_recalcule = calculer_elus_cse_complet(35, voix_siret)
+                # CORRECTION: Utiliser directement la fonction de répartition avec 35 SIÈGES
+                # (et non calculer_elus_cse_complet qui attend un EFFECTIF)
+                elus_recalcules = repartir_sieges_quotient_puis_plus_forte_moyenne(voix_siret, 35)
                 data["nb_sieges_cse"] = 35
-                data["elus_par_orga"] = defaultdict(int, calcul_recalcule["elus_par_orga"])
+                data["elus_par_orga"] = defaultdict(int, elus_recalcules)
 
     # Formater les données agrégées pour l'export Excel
     elections_list = []

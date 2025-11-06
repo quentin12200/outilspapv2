@@ -297,7 +297,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (20 au total, dont 8 pour les organisations syndicales). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (28 au total : 8 voix + 8 élus par organisation). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -321,22 +321,81 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SVE</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Nb Collèges</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Participation</th>
-              <th class="px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider bg-cgt-red border-l-2 border-r-2 border-cgt-red" data-sort-type="numeric">CGT</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CFDT</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">FO</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CFTC</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">CGC</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">UNSA</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">SUD</th>
-              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">Autre</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
-                <div class="flex items-center gap-1">
-                  <span>Élus CSE</span>
+              <th class="px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider bg-cgt-red border-l-2 border-r-2 border-cgt-red" data-sort-type="numeric" colspan="1">
+                <div>CGT</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>CFDT</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>FO</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>CFTC</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>CGC</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>UNSA</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>SUD</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div>Autre</div>
+                <div class="text-xs font-normal">Voix</div>
+              </th>
+
+              {# Colonnes pour les ÉLUS par organisation #}
+              <th class="px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider bg-blue-600 border-l-2 border-r-2 border-blue-600" data-sort-type="numeric">
+                <div>CGT</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>CFDT</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>FO</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>CFTC</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>CGC</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>UNSA</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>SUD</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+              <th class="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50" data-sort-type="numeric">
+                <div>Autre</div>
+                <div class="text-xs font-normal">Élus</div>
+              </th>
+
+              <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
+                <div class="flex items-center justify-center gap-1">
+                  <span>Total</span>
                   <span class="relative group cursor-help">
                     <i class="fas fa-info-circle text-gray-400 text-xs"></i>
                     <div class="hidden group-hover:block absolute z-10 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg -left-24 top-6">
-                      <strong>Moyenne haute (max 35 sièges)</strong><br>
-                      Calcul en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges). Plafonné à 35 sièges maximum pour 10 000+ inscrits. Le nombre réel d'élus peut être inférieur.
+                      <strong>Total des sièges CSE (max 35)</strong><br>
+                      Nombre total de sièges à répartir selon le barème légal. Plafonné à 35 sièges maximum pour 10 000+ inscrits.
                     </div>
                   </span>
                 </div>
@@ -484,51 +543,82 @@
                   {% endif %}
                 </td>
 
-                <td class="px-4 py-2 text-sm text-gray-700" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
-                  {% if item.nb_sieges_cse %}
-                    <div class="font-bold text-gray-900 text-center mb-1">{{ item.nb_sieges_cse }} siège{{ 's' if item.nb_sieges_cse > 1 else '' }}</div>
-                    {% if item.elus_par_orga %}
-                      <div class="text-xs text-gray-600 space-y-0.5">
-                        {% for org, count in item.elus_par_orga.items() %}
-                          {% if count and count > 0 %}
-                            <div class="flex items-center justify-between gap-1">
-                              <span class="{% if org == 'CGT' %}font-bold text-cgt-red{% else %}font-medium{% endif %}">{{ org }}:</span>
-                              <span class="{% if org == 'CGT' %}font-bold text-cgt-red{% else %}font-medium{% endif %}">{{ count }}</span>
-                            </div>
-                          {% endif %}
-                        {% endfor %}
-                      </div>
-                    {% endif %}
+                {# ÉLUS - CGT avec fond bleu foncé #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-100 border-l-2 border-r-2 border-blue-600" data-sort-value="{{ item.elus_par_orga.get('CGT', 0) }}">
+                  {% if item.elus_par_orga.get('CGT') %}
+                    <div class="font-extrabold text-blue-900 text-lg">{{ item.elus_par_orga['CGT'] }}</div>
+                  {% else %}
+                    <span class="text-gray-400">—</span>
+                  {% endif %}
+                </td>
 
-                    <!-- Bouton détail collège (compact) -->
-                    {% if item.colleges_details and item.colleges_details|length > 1 %}
-                    <div x-data="{ showDetails: false }" class="mt-1">
-                      <button @click="showDetails = !showDetails"
-                              class="text-xs text-blue-600 hover:text-blue-800 underline">
-                        <span x-show="!showDetails">▶ Détail</span>
-                        <span x-show="showDetails" x-cloak>▼ Masquer</span>
-                      </button>
-                      <div x-show="showDetails" x-cloak class="mt-1 text-xs bg-gray-50 p-1 rounded border border-gray-200">
-                        {% for college in item.colleges_details %}
-                        <div class="mb-1 pb-1 {% if not loop.last %}border-b border-gray-200{% endif %}">
-                          <div class="font-semibold text-gray-700 text-xs">C{{ loop.index }}: {{ college.nb_sieges }} sièges</div>
-                          {% if college.elus_par_orga %}
-                            <div class="text-xs text-gray-600">
-                              {% for org, count in college.elus_par_orga.items() %}
-                                {% if count and count > 0 %}
-                                  <span class="{% if org == 'CGT' %}font-bold text-cgt-red{% endif %}">{{ org }}:{{ count }}{% if not loop.last %}, {% endif %}</span>
-                                {% endif %}
-                              {% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        {% endfor %}
-                        <div class="text-xs text-amber-600 italic mt-1">
-                          <i class="fas fa-info-circle text-xs"></i> Moyenne haute
-                        </div>
-                      </div>
-                    </div>
-                    {% endif %}
+                {# ÉLUS - CFDT #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('CFDT', 0) }}">
+                  {% if item.elus_par_orga.get('CFDT') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['CFDT'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - FO #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('FO', 0) }}">
+                  {% if item.elus_par_orga.get('FO') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['FO'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - CFTC #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('CFTC', 0) }}">
+                  {% if item.elus_par_orga.get('CFTC') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['CFTC'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - CGC #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('CGC', 0) }}">
+                  {% if item.elus_par_orga.get('CGC') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['CGC'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - UNSA #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('UNSA', 0) }}">
+                  {% if item.elus_par_orga.get('UNSA') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['UNSA'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - SUD #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('SUD', 0) }}">
+                  {% if item.elus_par_orga.get('SUD') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['SUD'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                {# ÉLUS - Autre #}
+                <td class="px-3 py-2 text-center text-sm bg-blue-50" data-sort-value="{{ item.elus_par_orga.get('Autre', 0) }}">
+                  {% if item.elus_par_orga.get('Autre') %}
+                    <div class="font-bold text-gray-800">{{ item.elus_par_orga['Autre'] }}</div>
+                  {% else %}
+                    <span class="text-gray-300">—</span>
+                  {% endif %}
+                </td>
+
+                <td class="px-4 py-2 text-sm text-center font-bold text-gray-900" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
+                  {% if item.nb_sieges_cse %}
+                    <div class="text-lg">{{ item.nb_sieges_cse }}</div>
+                    <div class="text-xs text-gray-500 font-normal">sièges</div>
                   {% else %}
                     <span class="text-gray-400">—</span>
                   {% endif %}
