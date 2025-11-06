@@ -112,7 +112,7 @@ async def run_enrichir_invitations_idcc():
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
     """
     from .models import Invitation
-    from .database import SessionLocal
+    from .db import SessionLocal
     from .services.sirene_api import enrichir_siret, SireneAPIError
     from datetime import datetime
 
