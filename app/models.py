@@ -202,6 +202,7 @@ class Invitation(Base):
     ud = Column(String(80))                                      # Union départementale
     fd = Column(String(80))                                      # Fédération
     idcc = Column(String(20))                                    # Code IDCC
+    idcc_url = Column(Text)                                      # URL Legifrance de la convention collective
     effectif_connu = Column(Integer)                             # Effectif connu manuellement
     date_reception = Column(Date)                                # Date de réception de l'invitation
     date_election = Column(Date)                                 # Date de l'élection si connue

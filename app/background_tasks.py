@@ -163,9 +163,10 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
                         for conv in conventions:
                             if conv.get("active", False) and conv.get("nature") == "IDCC":
                                 idcc = conv.get("num")
+                                idcc_url = conv.get("url")
                                 if idcc:
-                                    logger.error(f"IDCC found for {siret_clean}: {idcc}")
-                                    return {"idcc": idcc, "success": True}
+                                    logger.error(f"IDCC found for {siret_clean}: {idcc} - URL: {idcc_url}")
+                                    return {"idcc": idcc, "idcc_url": idcc_url, "success": True}
 
                         # Pas de convention active trouvée
                         logger.error(f"No active IDCC for {siret_clean} (API OK, but no IDCC in database)")
@@ -260,6 +261,7 @@ def run_enrichir_invitations_idcc():
                     if data and data.get("success"):
                         # API a répondu avec succès
                         idcc_value = data.get("idcc")
+                        idcc_url_value = data.get("idcc_url")
 
                         # Marquer la date d'enrichissement dans tous les cas
                         invitation.date_enrichissement = datetime.now()
@@ -267,10 +269,11 @@ def run_enrichir_invitations_idcc():
                         if idcc_value:
                             # IDCC trouvé : on le met à jour
                             invitation.idcc = idcc_value
+                            invitation.idcc_url = idcc_url_value
                             enrichis += 1
                             # Récupérer aussi la dénomination pour un log plus lisible
                             denom = invitation.denomination or invitation.siret
-                            logger.error(f"✓ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → IDCC: {idcc_value}")
+                            logger.error(f"✓ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → IDCC: {idcc_value} | URL: {idcc_url_value}")
                         else:
                             # API OK mais pas d'IDCC : on marque quand même l'enrichissement
                             # pour éviter de réessayer indéfiniment
