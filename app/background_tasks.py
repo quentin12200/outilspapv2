@@ -8,6 +8,7 @@ import logging
 import httpx
 import os
 import uuid
+from .rate_limiter import sirene_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,9 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
 
     for attempt in range(max_retries):
         try:
+            # Respecter le rate limit (30 req/min pour accès public gratuit)
+            sirene_rate_limiter.wait_if_needed()
+
             logger.error(f"Calling API SIRENE for SIRET {siret_clean} (attempt {attempt + 1}/{max_retries})...")
             with httpx.Client(timeout=10.0) as client:
                 response = client.get(url, headers=headers)

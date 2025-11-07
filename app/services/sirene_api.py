@@ -6,11 +6,18 @@ Documentation: https://www.data.gouv.fr/dataservices/api-sirene-open-data/
 import os
 import uuid
 import httpx
+import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Import du rate limiter (sera utilisé de manière synchrone même dans les fonctions async)
+try:
+    from ..rate_limiter import sirene_rate_limiter
+except ImportError:
+    from app.rate_limiter import sirene_rate_limiter
 
 # URL de base de l'API Sirene (version 3.11)
 # Documentation: https://api.insee.fr/catalogue/
@@ -101,6 +108,9 @@ class SireneAPI:
         url = f"{SIRENE_API_BASE}/siret/{siret_clean}"
 
         try:
+            # Respecter le rate limit (30 req/min pour accès public gratuit)
+            await asyncio.to_thread(sirene_rate_limiter.wait_if_needed)
+
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 response = await client.get(url, headers=self.headers)
 
@@ -215,6 +225,9 @@ class SireneAPI:
             }
 
             try:
+                # Respecter le rate limit avant chaque recherche
+                await asyncio.to_thread(sirene_rate_limiter.wait_if_needed)
+
                 async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                     response = await client.get(url, headers=self.headers, params=params)
 
