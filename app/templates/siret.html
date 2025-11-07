@@ -171,13 +171,20 @@
         Convention collective
       </p>
       <p class="font-bold text-gray-800">IDCC {{ sirene_data.idcc }}</p>
-      {% if sirene_data.idcc_url %}
-      <a href="{{ sirene_data.idcc_url }}" target="_blank" rel="noopener noreferrer"
-         class="inline-flex items-center mt-2 text-sm text-indigo-600 hover:text-indigo-800 hover:underline">
-        <i class="fas fa-external-link-alt mr-1"></i>
-        Consulter sur Legifrance
-      </a>
-      {% endif %}
+      <div class="mt-2 space-y-1">
+        {% if sirene_data.idcc_url %}
+        <a href="{{ sirene_data.idcc_url }}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 hover:underline">
+          <i class="fas fa-balance-scale mr-1"></i>
+          Texte officiel sur Legifrance
+        </a>
+        {% endif %}
+        <a href="https://code.travail.gouv.fr/outils/convention-collective" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline block">
+          <i class="fas fa-book mr-1"></i>
+          Code du travail numérique
+        </a>
+      </div>
     </div>
     {% endif %}
   </div>
