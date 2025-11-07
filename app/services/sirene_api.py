@@ -12,8 +12,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# URL de base de l'API Sirene
-SIRENE_API_BASE = "https://api.insee.fr/entreprises/sirene/V3"
+# URL de base de l'API Sirene (version 3.11)
+# Documentation: https://api.insee.fr/catalogue/
+SIRENE_API_BASE = "https://api.insee.fr/api-sirene/3.11"
 
 # Timeout pour les requêtes (secondes)
 REQUEST_TIMEOUT = 10.0
@@ -37,7 +38,7 @@ class SireneAPI:
         """
         provided = (api_key or "").strip()
         env_token = (os.getenv("SIRENE_API_TOKEN") or "").strip()
-        env_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+        env_key = (os.getenv("SIRENE_API_KEY") or os.getenv("API_SIRENE_KEY") or "").strip()
 
         self.bearer_token: Optional[str] = None
         self.integration_key: Optional[str] = None
@@ -62,8 +63,8 @@ class SireneAPI:
         if self.bearer_token:
             self.headers["Authorization"] = f"Bearer {self.bearer_token}"
         if self.integration_key:
-            # Nouveau portail INSEE 2025 : utiliser X-API-KEY
-            self.headers["X-API-KEY"] = self.integration_key
+            # API Sirene 3.11 : utiliser X-INSEE-Api-Key-Integration
+            self.headers["X-INSEE-Api-Key-Integration"] = self.integration_key
 
     @staticmethod
     def _looks_like_integration_key(value: str) -> bool:

@@ -17,9 +17,11 @@ Ajoutez simplement votre clé Sirene :
 
 ```env
 SIRENE_API_KEY=ffba7659-46eb-48b2-ba76-5946ebe8b21c
+# ou
+API_SIRENE_KEY=ffba7659-46eb-48b2-ba76-5946ebe8b21c
 ```
 
-> ℹ️ Les anciennes intégrations via `SIRENE_API_TOKEN` (OAuth) sont toujours supportées, mais l'en-tête attendu par l'API INSEE est désormais `X-INSEE-Api-Key-Integration` lorsque vous utilisez `SIRENE_API_KEY`.
+> ℹ️ **API Sirene 3.11** : Utilise l'endpoint `https://api.insee.fr/api-sirene/3.11/` avec l'en-tête `X-INSEE-Api-Key-Integration`. Les anciennes intégrations via `SIRENE_API_TOKEN` (OAuth) sont toujours supportées mais obsolètes.
 
 ### 🔧 Comment ça fonctionne
 
@@ -100,7 +102,7 @@ Ouvrez votre application et testez :
 **Cause** : Problème avec l'API INSEE ou les données
 **Solution** :
 1. Vérifiez les logs Railway pour plus de détails
-2. Testez l'API INSEE directement : https://api.insee.fr/entreprises/sirene/V3/siret/VOTRE_SIRET
+2. Testez l'API INSEE directement : https://api.insee.fr/api-sirene/3.11/siret/VOTRE_SIRET avec l'en-tête `X-INSEE-Api-Key-Integration: VOTRE_CLE`
 
 ### Les colonnes Sirene ne s'affichent pas
 

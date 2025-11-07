@@ -115,15 +115,15 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     Récupère les informations d'un SIRET via l'API SIRENE de manière SYNCHRONE.
     Version simplifiée pour les tâches de fond.
     """
-    SIRENE_API_BASE = "https://api.insee.fr/entreprises/sirene/V3"
+    SIRENE_API_BASE = "https://api.insee.fr/api-sirene/3.11"
 
-    # Configuration de l'authentification (nouveau portail INSEE 2025)
-    api_key = (os.getenv("SIRENE_API_KEY") or "").strip()
+    # Configuration de l'authentification (API Sirene 3.11)
+    api_key = (os.getenv("SIRENE_API_KEY") or os.getenv("API_SIRENE_KEY") or "").strip()
 
     headers = {"Accept": "application/json"}
     if api_key:
-        # Nouveau portail INSEE : utiliser X-API-KEY
-        headers["X-API-KEY"] = api_key
+        # API Sirene 3.11 : utiliser X-INSEE-Api-Key-Integration
+        headers["X-INSEE-Api-Key-Integration"] = api_key
         logger.error(f"Using API key: {api_key[:8]}...{api_key[-4:]}")  # Log partiel pour debug
 
     # Nettoyer le SIRET
