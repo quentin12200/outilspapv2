@@ -366,6 +366,21 @@ def ingest_invit_excel(session: Session, file_like) -> int:
                     return value
             return None
 
+        def pick_int(*keys: str) -> int | None:
+            value = pick(*keys)
+            if value is None:
+                return None
+            try:
+                return int(float(str(value).replace(",", ".").strip()))
+            except:
+                return None
+
+        def pick_date(*keys: str) -> date | None:
+            value = pick(*keys)
+            if value is None:
+                return None
+            return _todate(value)
+
         inv = Invitation(
             siret=siret,
             date_invit=date_invit,
@@ -402,6 +417,14 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             ),
             est_actif=pick_bool("est_actif", "actif", "etat_etablissement", "etat"),
             est_siege=pick_bool("est_siege", "siege", "siege_social"),
+            # Colonnes manuelles pour ajout PAP
+            ud=pick_first_truthy("ud", "union_departementale", "union departementale", "departement", "dep"),
+            fd=pick_first_truthy("fd", "federation", "fédération"),
+            idcc=pick_first_truthy("idcc", "code_idcc", "convention_collective"),
+            effectif_connu=pick_int("effectif_connu", "effectif connu", "effectif_manuel", "effectif manuel"),
+            date_reception=pick_date("date_reception", "date reception", "date_de_reception", "date de reception"),
+            date_election=pick_date("date_election", "date election", "date_des_elections", "date des elections", "date_scrutin", "date scrutin"),
+            structure_saisie=pick_first_truthy("structure_saisie", "structure saisie", "structure", "organisation"),
         )
         session.add(inv)
         inserted += 1

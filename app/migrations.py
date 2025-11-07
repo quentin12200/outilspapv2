@@ -358,8 +358,9 @@ def fill_invitation_columns_from_raw():
             raw = inv.raw or {}
             updated = False
 
-            # Si les colonnes importantes sont déjà remplies, on skip
-            if inv.denomination and inv.commune and inv.code_postal:
+            # Si les colonnes importantes sont déjà remplies ET les colonnes manuelles aussi, on skip
+            if (inv.denomination and inv.commune and inv.code_postal and
+                inv.fd and inv.ud and inv.idcc):
                 skipped_already_filled += 1
                 continue
 
@@ -462,6 +463,36 @@ def fill_invitation_columns_from_raw():
             if inv.est_siege is None:
                 inv.est_siege = _pick_bool_from_raw(raw, "est_siege", "siege", "siege_social")
                 if inv.est_siege is not None:
+                    updated = True
+
+            # Colonnes manuelles pour ajout PAP
+            if not inv.ud:
+                inv.ud = _pick_from_raw(raw, "ud", "union_departementale", "union departementale", "departement", "dep")
+                if inv.ud:
+                    updated = True
+
+            if not inv.fd:
+                inv.fd = _pick_from_raw(raw, "fd", "federation", "fédération")
+                if inv.fd:
+                    updated = True
+
+            if not inv.idcc:
+                inv.idcc = _pick_from_raw(raw, "idcc", "code_idcc", "convention_collective")
+                if inv.idcc:
+                    updated = True
+
+            if not inv.effectif_connu:
+                effectif_str = _pick_from_raw(raw, "effectif_connu", "effectif connu", "effectif_manuel", "effectif manuel")
+                if effectif_str:
+                    try:
+                        inv.effectif_connu = int(float(str(effectif_str).replace(",", ".").strip()))
+                        updated = True
+                    except:
+                        pass
+
+            if not inv.structure_saisie:
+                inv.structure_saisie = _pick_from_raw(raw, "structure_saisie", "structure saisie", "structure", "organisation")
+                if inv.structure_saisie:
                     updated = True
 
             if updated:
