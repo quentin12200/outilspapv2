@@ -242,6 +242,13 @@ def run_enrichir_invitations_idcc():
             erreurs = 0
 
             logger.error(f"Found {total} invitations without IDCC")
+            logger.error(f"Starting enrichment process with rate limit: {sirene_rate_limiter.max_requests} req/{sirene_rate_limiter.time_window}s")
+            logger.error(f"Estimated time: ~{(total * 2.5):.0f} seconds ({(total * 2.5 / 60):.1f} minutes)")
+
+            if total == 0:
+                logger.error("No invitations to enrich. Task completed.")
+                task_tracker.complete_task(task_id, {"total": 0, "message": "No invitations to process"})
+                return
 
             for i, invitation in enumerate(invitations):
                 try:
@@ -259,23 +266,29 @@ def run_enrichir_invitations_idcc():
                             # IDCC trouvé : on le met à jour
                             invitation.idcc = idcc_value
                             enrichis += 1
-                            logger.error(f"✓ SIRET {invitation.siret}: IDCC={idcc_value}")
+                            # Récupérer aussi la dénomination pour un log plus lisible
+                            denom = invitation.denomination or invitation.siret
+                            logger.error(f"✓ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → IDCC: {idcc_value}")
                         else:
                             # API OK mais pas d'IDCC : on marque quand même l'enrichissement
                             # pour éviter de réessayer indéfiniment
-                            logger.error(f"○ SIRET {invitation.siret}: Pas d'IDCC dans la base Sirene")
+                            denom = invitation.denomination or invitation.siret
+                            logger.error(f"○ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → Pas d'IDCC dans la base Sirene")
 
-                        # Commit tous les 50 pour éviter de perdre tout en cas d'erreur
-                        if (i + 1) % 50 == 0:
+                        # Commit tous les 10 pour un affichage plus rapide des données dans l'interface
+                        if (i + 1) % 10 == 0:
                             session.commit()
-                            logger.error(f"Progress: {i + 1}/{total} processed ({enrichis} with IDCC)")
+                            progress_pct = ((i + 1) / total * 100)
+                            logger.error(f"Progress: {i + 1}/{total} ({progress_pct:.1f}%) - {enrichis} IDCC found - Data committed and visible in database")
                     else:
                         # Erreur API (404, timeout, etc.)
                         erreurs += 1
-                        logger.error(f"✗ SIRET {invitation.siret}: Erreur API")
+                        denom = invitation.denomination or invitation.siret
+                        logger.error(f"✗ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → Erreur API ou SIRET non trouvé")
 
                 except Exception as e:
-                    logger.error(f"✗ Error enriching SIRET {invitation.siret}: {e}")
+                    denom = invitation.denomination or invitation.siret
+                    logger.error(f"✗ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → Exception: {e}")
                     erreurs += 1
                     continue
 
