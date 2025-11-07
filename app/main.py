@@ -3205,6 +3205,8 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
                 "est_siege": _to_bool(enriched_inv.est_siege),
                 "est_actif": _to_bool(enriched_inv.est_actif),
                 "categorie_entreprise": enriched_inv.categorie_entreprise,
+                "idcc": enriched_inv.idcc,
+                "idcc_url": enriched_inv.idcc_url,
                 "date_enrichissement": enrichment_dt,
                 "date_enrichissement_label": enrichment_label,
                 "date_enrichissement_raw": enrichment_raw,
