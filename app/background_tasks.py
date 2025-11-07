@@ -115,6 +115,11 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     """
     Récupère les informations d'un SIRET via l'API SIRENE de manière SYNCHRONE.
     Version simplifiée pour les tâches de fond.
+
+    Returns:
+        - {"idcc": "XXXX", "success": True} si IDCC trouvé
+        - {"idcc": None, "success": True} si API OK mais pas d'IDCC
+        - None si erreur API ou SIRET invalide
     """
     SIRENE_API_BASE = "https://api.insee.fr/api-sirene/3.11"
 
@@ -163,10 +168,10 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
 
                     if idcc:
                         logger.error(f"IDCC found for {siret_clean}: {idcc}")
-                        return {"idcc": idcc}
+                        return {"idcc": idcc, "success": True}
                     else:
-                        logger.error(f"No IDCC for {siret_clean}")
-                        return None
+                        logger.error(f"No IDCC for {siret_clean} (API OK, but no IDCC in database)")
+                        return {"idcc": None, "success": True}
 
                 elif response.status_code == 404:
                     logger.error(f"SIRET non trouvé: {siret_clean}")
@@ -243,34 +248,52 @@ def run_enrichir_invitations_idcc():
                     # Récupérer les données depuis l'API SIRENE (version synchrone)
                     data = _get_siret_sync(invitation.siret)
 
-                    if data and data.get("idcc"):
-                        # Mettre à jour l'IDCC
-                        invitation.idcc = data.get("idcc")
+                    if data and data.get("success"):
+                        # API a répondu avec succès
+                        idcc_value = data.get("idcc")
+
+                        # Marquer la date d'enrichissement dans tous les cas
                         invitation.date_enrichissement = datetime.now()
-                        enrichis += 1
+
+                        if idcc_value:
+                            # IDCC trouvé : on le met à jour
+                            invitation.idcc = idcc_value
+                            enrichis += 1
+                            logger.error(f"✓ SIRET {invitation.siret}: IDCC={idcc_value}")
+                        else:
+                            # API OK mais pas d'IDCC : on marque quand même l'enrichissement
+                            # pour éviter de réessayer indéfiniment
+                            logger.error(f"○ SIRET {invitation.siret}: Pas d'IDCC dans la base Sirene")
 
                         # Commit tous les 50 pour éviter de perdre tout en cas d'erreur
                         if (i + 1) % 50 == 0:
                             session.commit()
-                            logger.error(f"Progress: {i + 1}/{total} processed ({enrichis} enriched)")
+                            logger.error(f"Progress: {i + 1}/{total} processed ({enrichis} with IDCC)")
                     else:
+                        # Erreur API (404, timeout, etc.)
                         erreurs += 1
+                        logger.error(f"✗ SIRET {invitation.siret}: Erreur API")
 
                 except Exception as e:
-                    logger.error(f"Error enriching SIRET {invitation.siret}: {e}")
+                    logger.error(f"✗ Error enriching SIRET {invitation.siret}: {e}")
                     erreurs += 1
                     continue
 
             # Commit final
             session.commit()
 
+            # Calculer le nombre de SIRETs traités avec succès (avec ou sans IDCC)
+            traites_avec_succes = total - erreurs
+
             result = {
                 "total": total,
-                "enrichis": enrichis,
+                "traites_avec_succes": traites_avec_succes,
+                "idcc_trouves": enrichis,
+                "sans_idcc": traites_avec_succes - enrichis,
                 "erreurs": erreurs
             }
             task_tracker.complete_task(task_id, result)
-            logger.error(f"enrichir_invitations_idcc completed: {enrichis}/{total} enriched, {erreurs} errors")
+            logger.error(f"enrichir_invitations_idcc completed: {enrichis} IDCC trouvés / {traites_avec_succes} traités avec succès / {erreurs} erreurs / {total} total")
 
         finally:
             session.close()
