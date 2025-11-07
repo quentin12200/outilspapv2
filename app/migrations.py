@@ -32,6 +32,7 @@ MANUAL_INVITATION_COLUMNS = [
     ("ud", "VARCHAR(80)"),
     ("fd", "VARCHAR(80)"),
     ("idcc", "VARCHAR(20)"),
+    ("idcc_url", "TEXT"),
     ("effectif_connu", "INTEGER"),
     ("date_reception", "DATE"),
     ("date_election", "DATE"),
