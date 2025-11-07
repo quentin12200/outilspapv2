@@ -111,22 +111,70 @@ Ces mécanismes sont utilisés :
 Pour appliquer le fix sur un environnement :
 
 1. **Déployer le code** avec les modifications
-2. **Exécuter la migration** :
-   ```bash
-   python3 scripts/clean_nan_values.py
+2. **Exécuter le nettoyage** (3 méthodes disponibles) :
+
+### Méthode 1 : Interface Web (★ RECOMMANDÉ ★)
+
+La méthode la plus simple ! Une fois l'application déployée :
+
+1. Ouvrez votre navigateur
+2. Accédez à : **`https://votre-domaine.com/admin/clean-nan`**
+3. Cliquez sur le bouton "🚀 Lancer le nettoyage"
+4. Les statistiques s'afficheront automatiquement
+
+### Méthode 2 : Script Python
+
+Si vous avez accès à un terminal avec la base de données :
+
+```bash
+python3 scripts/clean_nan_values.py
+```
+
+### Méthode 3 : API curl
+
+Si vous préférez utiliser curl :
+
+```bash
+curl -X POST https://votre-domaine.com/admin/clean-nan/execute
+```
+
+3. **Vérifier le résultat** - Vous recevrez une réponse JSON avec les statistiques :
+   ```json
+   {
+     "success": true,
+     "message": "✅ Nettoyage terminé avec succès! 46 valeurs 'nan' nettoyées.",
+     "total_cleaned": 46,
+     "tables": {
+       "Invitation": {
+         "fd": 15,
+         "ud": 23,
+         "idcc": 8,
+         "total": 46
+       },
+       "PVEvent": { ... },
+       "SiretSummary": { ... }
+     }
+   }
    ```
-3. **Redémarrer l'application** (les templates mis à jour seront automatiquement utilisés)
+
+4. **Redémarrer l'application** (les templates mis à jour seront automatiquement utilisés)
 
 ## 📝 Fichiers modifiés
 
 | Fichier | Modification |
 |---------|-------------|
-| `scripts/clean_nan_values.py` | ✨ Nouveau - Script de migration |
-| `app/main.py` | ➕ Ajout du filtre Jinja2 `clean_nan` |
+| `scripts/clean_nan_values.py` | ✨ Nouveau - Script de migration CLI |
+| `app/main.py` (lignes 18, 312-323) | ➕ Import `update`, filtre Jinja2 `clean_nan` |
+| `app/main.py` (lignes 2776-3144) | ✨ Nouveaux endpoints API `/admin/clean-nan` |
 | `app/templates/invitations.html` | 🔧 Utilisation du filtre pour FD, UD, IDCC |
 | `app/templates/admin.html` | 🔧 Utilisation du filtre pour FD, UD |
 | `app/templates/calendrier.html` | 🔧 Utilisation du filtre pour FD, UD, IDCC |
 | `app/templates/siret.html` | 🔧 Utilisation du filtre pour FD, UD, IDCC (Cycles 3 et 4) |
+
+### Nouveaux endpoints
+
+- **`GET /admin/clean-nan`** : Interface web avec bouton pour lancer le nettoyage
+- **`POST /admin/clean-nan/execute`** : Endpoint API qui exécute le nettoyage et retourne du JSON
 
 ## 🔍 Vérification
 
