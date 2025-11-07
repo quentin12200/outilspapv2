@@ -164,9 +164,10 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
                             if conv.get("active", False) and conv.get("nature") == "IDCC":
                                 idcc = conv.get("num")
                                 idcc_url = conv.get("url")
+                                idcc_title = conv.get("title") or conv.get("shortTitle")
                                 if idcc:
                                     logger.error(f"IDCC found for {siret_clean}: {idcc} - URL: {idcc_url}")
-                                    return {"idcc": idcc, "idcc_url": idcc_url, "success": True}
+                                    return {"idcc": idcc, "idcc_url": idcc_url, "idcc_title": idcc_title, "success": True}
 
                         # Pas de convention active trouvée
                         logger.error(f"No active IDCC for {siret_clean} (API OK, but no IDCC in database)")
@@ -204,6 +205,58 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     return None  # Si toutes les tentatives échouent
 
 
+def _build_idcc_to_fd_mapping(session) -> dict:
+    """
+    Construit une table de correspondance IDCC → FD à partir de la base de données PV.
+
+    Cette fonction analyse tous les PV (Tous_PV) qui ont à la fois un IDCC et une FD renseignés,
+    et crée un dictionnaire de correspondance. En cas de conflit (même IDCC avec plusieurs FD),
+    on garde la FD la plus fréquente.
+
+    Args:
+        session: Session SQLAlchemy
+
+    Returns:
+        Dictionnaire {idcc: fd}
+    """
+    from .models import PVEvent
+    from collections import Counter
+
+    logger.info("Construction de la table de correspondance IDCC → FD à partir de la base PV...")
+
+    # Récupérer tous les PV ayant un IDCC et une FD non vides
+    pvs = session.query(PVEvent.idcc, PVEvent.fd).filter(
+        PVEvent.idcc.isnot(None),
+        PVEvent.idcc != "",
+        PVEvent.fd.isnot(None),
+        PVEvent.fd != ""
+    ).all()
+
+    # Compter les occurrences de chaque couple (IDCC, FD)
+    idcc_fd_pairs = [(pv.idcc.strip(), pv.fd.strip()) for pv in pvs if pv.idcc and pv.fd]
+
+    # Grouper par IDCC et compter les FD
+    idcc_to_fds = {}
+    for idcc, fd in idcc_fd_pairs:
+        if idcc not in idcc_to_fds:
+            idcc_to_fds[idcc] = []
+        idcc_to_fds[idcc].append(fd)
+
+    # Pour chaque IDCC, choisir la FD la plus fréquente
+    idcc_to_fd_mapping = {}
+    for idcc, fds in idcc_to_fds.items():
+        fd_counter = Counter(fds)
+        most_common_fd, count = fd_counter.most_common(1)[0]
+        idcc_to_fd_mapping[idcc] = most_common_fd
+
+        if len(fd_counter) > 1:
+            # Plusieurs FD pour le même IDCC : log un avertissement
+            logger.warning(f"IDCC {idcc} a plusieurs FD possibles: {dict(fd_counter)}. Choix de '{most_common_fd}' (la plus fréquente)")
+
+    logger.info(f"Table de correspondance IDCC → FD construite avec {len(idcc_to_fd_mapping)} entrées")
+    return idcc_to_fd_mapping
+
+
 def run_enrichir_invitations_idcc():
     """
     Fonction à exécuter en arrière-plan pour enrichir les invitations avec IDCC via l'API SIRENE.
@@ -235,6 +288,9 @@ def run_enrichir_invitations_idcc():
         try:
             logger.error("Starting enrichir_invitations_idcc in background...")
 
+            # Construire la table de correspondance IDCC → FD à partir de la base PV
+            idcc_to_fd_mapping = _build_idcc_to_fd_mapping(session)
+
             # Récupérer toutes les invitations sans IDCC
             invitations = session.query(Invitation).filter(
                 (Invitation.idcc.is_(None)) | (Invitation.idcc == "")
@@ -242,6 +298,7 @@ def run_enrichir_invitations_idcc():
 
             total = len(invitations)
             enrichis = 0
+            fds_deduits = 0
             erreurs = 0
 
             logger.error(f"Found {total} invitations without IDCC")
@@ -271,9 +328,19 @@ def run_enrichir_invitations_idcc():
                             invitation.idcc = idcc_value
                             invitation.idcc_url = idcc_url_value
                             enrichis += 1
+
+                            # Essayer de déduire la FD à partir de l'IDCC
+                            if idcc_value in idcc_to_fd_mapping:
+                                fd_deduit = idcc_to_fd_mapping[idcc_value]
+                                if not invitation.fd or invitation.fd.strip() == "":
+                                    invitation.fd = fd_deduit
+                                    fds_deduits += 1
+                                    logger.info(f"FD '{fd_deduit}' déduite pour IDCC {idcc_value}")
+
                             # Récupérer aussi la dénomination pour un log plus lisible
                             denom = invitation.denomination or invitation.siret
-                            logger.error(f"✓ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → IDCC: {idcc_value} | URL: {idcc_url_value}")
+                            fd_info = f" | FD: {invitation.fd}" if invitation.fd else ""
+                            logger.error(f"✓ [{i+1}/{total}] SIRET {invitation.siret} ({denom[:40]}...) → IDCC: {idcc_value}{fd_info}")
                         else:
                             # API OK mais pas d'IDCC : on marque quand même l'enrichissement
                             # pour éviter de réessayer indéfiniment
@@ -307,11 +374,12 @@ def run_enrichir_invitations_idcc():
                 "total": total,
                 "traites_avec_succes": traites_avec_succes,
                 "idcc_trouves": enrichis,
+                "fds_deduits": fds_deduits,
                 "sans_idcc": traites_avec_succes - enrichis,
                 "erreurs": erreurs
             }
             task_tracker.complete_task(task_id, result)
-            logger.error(f"enrichir_invitations_idcc completed: {enrichis} IDCC trouvés / {traites_avec_succes} traités avec succès / {erreurs} erreurs / {total} total")
+            logger.error(f"enrichir_invitations_idcc completed: {enrichis} IDCC trouvés / {fds_deduits} FD déduits / {traites_avec_succes} traités avec succès / {erreurs} erreurs / {total} total")
 
         finally:
             session.close()
