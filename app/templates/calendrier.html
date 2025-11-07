@@ -497,7 +497,16 @@
                 </td>
                 <td class="px-4 py-2 text-sm text-gray-900" data-sort-value="{{ item.raison_sociale or '' }}">
                   <div class="font-semibold">{{ item.raison_sociale or "—" }}</div>
-                  <div class="text-xs text-cgt-red font-mono tracking-widest">{{ item.siret or "—" }}</div>
+                  {% if item.siret %}
+                  <a href="/siret/{{ item.siret }}"
+                     class="group inline-flex items-center gap-2 text-xs text-cgt-red font-mono tracking-widest hover:text-cgt-darkred hover:underline transition-all"
+                     title="Voir les détails du SIRET {{ item.siret }}">
+                    <i class="fas fa-external-link-alt text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    <span class="group-hover:font-bold">{{ item.siret }}</span>
+                  </a>
+                  {% else %}
+                  <div class="text-xs text-gray-400 font-mono">—</div>
+                  {% endif %}
                 </td>
                 <td class="px-4 py-2 text-sm text-gray-700" data-sort-value="{{ item.ud or '' }}">
                   <div>{{ item.ud or "—" }}</div>
