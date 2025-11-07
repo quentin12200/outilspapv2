@@ -113,27 +113,19 @@ def run_build_siret_summary(session_factory):
 
 def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     """
-    Récupère les informations d'un SIRET via l'API SIRENE de manière SYNCHRONE.
-    Version simplifiée pour les tâches de fond.
+    Récupère l'IDCC d'un SIRET via l'API Siret2IDCC de manière SYNCHRONE.
+
+    Note: L'API Sirene de l'INSEE NE CONTIENT PAS les IDCC !
+    Les IDCC proviennent des déclarations DSN, pas du registre Sirene.
+
+    Utilise l'API Siret2IDCC : https://siret2idcc.fabrique.social.gouv.fr/api/v2/{siret}
 
     Returns:
         - {"idcc": "XXXX", "success": True} si IDCC trouvé
         - {"idcc": None, "success": True} si API OK mais pas d'IDCC
         - None si erreur API ou SIRET invalide
     """
-    SIRENE_API_BASE = "https://api.insee.fr/api-sirene/3.11"
-
-    # Configuration de l'authentification (API Sirene 3.11)
-    api_key = (os.getenv("SIRENE_API_KEY") or os.getenv("API_SIRENE_KEY") or "").strip()
-
-    headers = {"Accept": "application/json"}
-    if api_key:
-        # API Sirene 3.11 : utiliser X-INSEE-Api-Key-Integration
-        headers["X-INSEE-Api-Key-Integration"] = api_key
-        logger.error(f"[SIRENE AUTH] Using API key: {api_key[:8]}...{api_key[-4:]} (length: {len(api_key)})")
-        logger.error(f"[SIRENE AUTH] Header name: X-INSEE-Api-Key-Integration")
-    else:
-        logger.error("[SIRENE AUTH] ⚠️ NO API KEY FOUND - Using public access (limited rate)")
+    SIRET2IDCC_API_BASE = "https://siret2idcc.fabrique.social.gouv.fr/api/v2"
 
     # Nettoyer le SIRET
     siret_clean = siret.strip().replace(" ", "")
@@ -141,7 +133,7 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
         logger.warning(f"SIRET invalide: {siret}")
         return None
 
-    url = f"{SIRENE_API_BASE}/siret/{siret_clean}"
+    url = f"{SIRET2IDCC_API_BASE}/{siret_clean}"
 
     # Retry avec backoff pour gérer les 429
     import time
@@ -150,32 +142,42 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
 
     for attempt in range(max_retries):
         try:
-            # Respecter le rate limit (30 req/min pour accès public gratuit)
+            # Respecter le rate limit
             sirene_rate_limiter.wait_if_needed()
 
-            logger.error(f"Calling API SIRENE for SIRET {siret_clean} (attempt {attempt + 1}/{max_retries})...")
+            logger.error(f"Calling API Siret2IDCC for SIRET {siret_clean} (attempt {attempt + 1}/{max_retries})...")
             with httpx.Client(timeout=10.0) as client:
-                response = client.get(url, headers=headers)
+                response = client.get(url, headers={"Accept": "application/json"})
                 logger.error(f"API Response for {siret_clean}: status={response.status_code}")
 
                 if response.status_code == 200:
                     data = response.json()
-                    etablissement = data.get("etablissement", {})
-                    unite_legale = etablissement.get("uniteLegale", {})
 
-                    # Extraire l'IDCC
-                    idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
+                    # La réponse est un tableau avec un objet contenant le SIRET et ses conventions
+                    # [{"siret": "...", "conventions": [...]}]
+                    if data and len(data) > 0:
+                        siret_data = data[0]
+                        conventions = siret_data.get("conventions", [])
 
-                    if idcc:
-                        logger.error(f"IDCC found for {siret_clean}: {idcc}")
-                        return {"idcc": idcc, "success": True}
+                        # Chercher une convention active
+                        for conv in conventions:
+                            if conv.get("active", False) and conv.get("nature") == "IDCC":
+                                idcc = conv.get("num")
+                                if idcc:
+                                    logger.error(f"IDCC found for {siret_clean}: {idcc}")
+                                    return {"idcc": idcc, "success": True}
+
+                        # Pas de convention active trouvée
+                        logger.error(f"No active IDCC for {siret_clean} (API OK, but no IDCC in database)")
+                        return {"idcc": None, "success": True}
                     else:
-                        logger.error(f"No IDCC for {siret_clean} (API OK, but no IDCC in database)")
+                        logger.error(f"Empty response for {siret_clean}")
                         return {"idcc": None, "success": True}
 
                 elif response.status_code == 404:
-                    logger.error(f"SIRET non trouvé: {siret_clean}")
-                    return None
+                    logger.error(f"SIRET non trouvé dans Siret2IDCC: {siret_clean}")
+                    # 404 n'est pas une erreur critique - l'entreprise peut simplement ne pas avoir d'IDCC
+                    return {"idcc": None, "success": True}
 
                 elif response.status_code == 429:
                     if attempt < max_retries - 1:
@@ -188,14 +190,14 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
                         return None
 
                 else:
-                    logger.error(f"Erreur API Sirene ({response.status_code})")
+                    logger.error(f"Erreur API Siret2IDCC ({response.status_code})")
                     return None
 
         except httpx.TimeoutException:
             logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
             return None
         except Exception as e:
-            logger.error(f"Erreur lors de l'appel API SIRENE: {e}")
+            logger.error(f"Erreur lors de l'appel API Siret2IDCC: {e}")
             return None
 
     return None  # Si toutes les tentatives échouent
