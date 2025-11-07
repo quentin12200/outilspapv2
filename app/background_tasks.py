@@ -124,7 +124,10 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
     if api_key:
         # API Sirene 3.11 : utiliser X-INSEE-Api-Key-Integration
         headers["X-INSEE-Api-Key-Integration"] = api_key
-        logger.error(f"Using API key: {api_key[:8]}...{api_key[-4:]}")  # Log partiel pour debug
+        logger.error(f"[SIRENE AUTH] Using API key: {api_key[:8]}...{api_key[-4:]} (length: {len(api_key)})")
+        logger.error(f"[SIRENE AUTH] Header name: X-INSEE-Api-Key-Integration")
+    else:
+        logger.error("[SIRENE AUTH] ⚠️ NO API KEY FOUND - Using public access (limited rate)")
 
     # Nettoyer le SIRET
     siret_clean = siret.strip().replace(" ", "")
@@ -134,43 +137,59 @@ def _get_siret_sync(siret: str) -> Optional[Dict[str, Any]]:
 
     url = f"{SIRENE_API_BASE}/siret/{siret_clean}"
 
-    try:
-        logger.error(f"Calling API SIRENE for SIRET {siret_clean}...")  # LOG AJOUTÉ
-        with httpx.Client(timeout=10.0) as client:
-            response = client.get(url, headers=headers)
-            logger.error(f"API Response for {siret_clean}: status={response.status_code}")  # LOG AJOUTÉ
+    # Retry avec backoff pour gérer les 429
+    import time
+    max_retries = 3
+    retry_delay = 2  # secondes
 
-            if response.status_code == 200:
-                data = response.json()
-                etablissement = data.get("etablissement", {})
-                unite_legale = etablissement.get("uniteLegale", {})
+    for attempt in range(max_retries):
+        try:
+            logger.error(f"Calling API SIRENE for SIRET {siret_clean} (attempt {attempt + 1}/{max_retries})...")
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                logger.error(f"API Response for {siret_clean}: status={response.status_code}")
 
-                # Extraire l'IDCC
-                idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
+                if response.status_code == 200:
+                    data = response.json()
+                    etablissement = data.get("etablissement", {})
+                    unite_legale = etablissement.get("uniteLegale", {})
 
-                if idcc:
-                    logger.error(f"IDCC found for {siret_clean}: {idcc}")  # LOG AJOUTÉ
-                    return {"idcc": idcc}
-                else:
-                    logger.error(f"No IDCC for {siret_clean}")  # LOG AJOUTÉ
+                    # Extraire l'IDCC
+                    idcc = unite_legale.get("identifiantConventionCollectiveRenseignee")
+
+                    if idcc:
+                        logger.error(f"IDCC found for {siret_clean}: {idcc}")
+                        return {"idcc": idcc}
+                    else:
+                        logger.error(f"No IDCC for {siret_clean}")
+                        return None
+
+                elif response.status_code == 404:
+                    logger.error(f"SIRET non trouvé: {siret_clean}")
                     return None
 
-            elif response.status_code == 404:
-                logger.error(f"SIRET non trouvé: {siret_clean}")
-                return None
-            elif response.status_code == 429:
-                logger.error("Limite de taux API Sirene atteinte")
-                return None
-            else:
-                logger.error(f"Erreur API Sirene ({response.status_code})")
-                return None
+                elif response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limit atteint (429). Retry dans {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue  # Retry
+                    else:
+                        logger.error("Rate limit atteint - Nombre max de retries atteint")
+                        return None
 
-    except httpx.TimeoutException:
-        logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
-        return None
-    except Exception as e:
-        logger.error(f"Erreur lors de l'appel API SIRENE: {e}")
-        return None
+                else:
+                    logger.error(f"Erreur API Sirene ({response.status_code})")
+                    return None
+
+        except httpx.TimeoutException:
+            logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
+            return None
+        except Exception as e:
+            logger.error(f"Erreur lors de l'appel API SIRENE: {e}")
+            return None
+
+    return None  # Si toutes les tentatives échouent
 
 
 def run_enrichir_invitations_idcc():

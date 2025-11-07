@@ -62,9 +62,15 @@ class SireneAPI:
         }
         if self.bearer_token:
             self.headers["Authorization"] = f"Bearer {self.bearer_token}"
+            logger.info(f"[SIRENE API] Using Bearer token (OAuth): {self.bearer_token[:8]}...{self.bearer_token[-4:]}")
         if self.integration_key:
             # API Sirene 3.11 : utiliser X-INSEE-Api-Key-Integration
             self.headers["X-INSEE-Api-Key-Integration"] = self.integration_key
+            logger.info(f"[SIRENE API] Using Integration Key: {self.integration_key[:8]}...{self.integration_key[-4:]} (length: {len(self.integration_key)})")
+            logger.info(f"[SIRENE API] Header: X-INSEE-Api-Key-Integration")
+
+        if not self.bearer_token and not self.integration_key:
+            logger.warning("[SIRENE API] ⚠️ NO API KEY configured - Using public access (30 req/min limit)")
 
     @staticmethod
     def _looks_like_integration_key(value: str) -> bool:
