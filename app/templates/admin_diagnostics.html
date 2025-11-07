@@ -84,6 +84,75 @@
 
 </div>
 
+<!-- Statistiques FD/UD/IDCC -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+    <i class="fas fa-columns text-cgt-red"></i>
+    Colonnes FD / UD / IDCC
+  </h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Avec champ RAW</p>
+      <p class="text-2xl font-bold text-gray-800">{{ with_raw }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (with_raw * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if fd_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">FD remplie</p>
+      <p class="text-2xl font-bold {% if fd_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ fd_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (fd_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if ud_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">UD remplie</p>
+      <p class="text-2xl font-bold {% if ud_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ ud_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (ud_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if idcc_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">IDCC remplie</p>
+      <p class="text-2xl font-bold {% if idcc_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ idcc_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (idcc_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+  </div>
+
+  {% if fd_filled == 0 and ud_filled == 0 and idcc_filled == 0 %}
+  <div class="p-4 bg-red-50 border-l-4 border-red-500 rounded-lg mb-4">
+    <div class="flex items-start">
+      <i class="fas fa-exclamation-triangle text-red-500 text-2xl mr-3 mt-1"></i>
+      <div class="flex-1">
+        <h3 class="text-lg font-bold text-red-800 mb-2">Problème : Toutes les colonnes FD/UD/IDCC sont vides !</h3>
+        <p class="text-red-700 mb-2">Causes possibles :</p>
+        <ul class="list-disc list-inside text-red-700 mb-3 space-y-1 text-sm">
+          <li>Le fichier Excel importé ne contient pas ces colonnes</li>
+          <li>Les colonnes ont des noms différents dans l'Excel</li>
+          <li>Le champ 'raw' ne contient pas les données ({{ with_raw }} invitations avec raw)</li>
+        </ul>
+        <p class="text-red-700 text-sm mb-2"><strong>Clés disponibles dans le champ RAW (exemple) :</strong></p>
+        {% if sample_raw_keys %}
+        <div class="bg-white p-3 rounded border border-red-200 text-xs font-mono text-gray-700 max-h-32 overflow-y-auto">
+          {{ sample_raw_keys|join(', ') }}
+        </div>
+        {% else %}
+        <p class="text-red-700 text-sm italic">Aucune clé disponible (raw vide)</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% elif fd_filled > 0 or ud_filled > 0 or idcc_filled > 0 %}
+  <div class="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+    <div class="flex items-center">
+      <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+      <div>
+        <h3 class="text-lg font-bold text-green-800">Des données FD/UD/IDCC sont présentes</h3>
+        <p class="text-green-700 text-sm">Si certaines invitations n'ont pas ces colonnes, utilisez le bouton "Remplir les colonnes" ci-dessous.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
 <!-- Alerte si doublons -->
 {% if has_duplicates %}
 <div class="mb-8 p-6 bg-red-50 border-l-4 border-red-500 rounded-lg">

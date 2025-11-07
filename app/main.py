@@ -2571,6 +2571,27 @@ def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
             "dates": dates_str
         })
 
+    # Statistiques FD/UD/IDCC
+    with_raw = db.query(func.count(Invitation.id)).filter(Invitation.raw.isnot(None)).scalar() or 0
+
+    fd_filled = db.query(func.count(Invitation.id)).filter(
+        Invitation.fd.isnot(None), Invitation.fd != ""
+    ).scalar() or 0
+
+    ud_filled = db.query(func.count(Invitation.id)).filter(
+        Invitation.ud.isnot(None), Invitation.ud != ""
+    ).scalar() or 0
+
+    idcc_filled = db.query(func.count(Invitation.id)).filter(
+        Invitation.idcc.isnot(None), Invitation.idcc != ""
+    ).scalar() or 0
+
+    # Exemple d'invitation avec raw pour debug
+    sample_with_raw = db.query(Invitation).filter(Invitation.raw.isnot(None)).first()
+    sample_raw_keys = []
+    if sample_with_raw and sample_with_raw.raw:
+        sample_raw_keys = sorted(sample_with_raw.raw.keys())[:20]  # Limité à 20 clés
+
     return templates.TemplateResponse("admin_diagnostics.html", {
         "request": request,
         "total": total,
@@ -2578,7 +2599,12 @@ def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
         "duplicates": duplicates,
         "sources": sources_data,
         "top_duplicates": top_duplicates,
-        "has_duplicates": duplicates > 0
+        "has_duplicates": duplicates > 0,
+        "with_raw": with_raw,
+        "fd_filled": fd_filled,
+        "ud_filled": ud_filled,
+        "idcc_filled": idcc_filled,
+        "sample_raw_keys": sample_raw_keys
     })
 
 @app.post("/admin/diagnostics/remove-duplicates")
