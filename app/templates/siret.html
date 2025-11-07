@@ -41,7 +41,7 @@
           <h1 class="text-3xl font-bold">{{ row.raison_sociale or '(raison manquante)' }}</h1>
           <p class="text-red-100 text-sm mt-1">
             <i class="fas fa-hashtag mr-1"></i>SIRET {{ row.siret }}
-            {% if row.idcc %} • IDCC {{ row.idcc }}{% endif %}
+            {% if row.idcc | clean_nan %} • IDCC {{ row.idcc | clean_nan }}{% endif %}
           </p>
         </div>
       </div>
@@ -164,13 +164,13 @@
     </div>
 
     <!-- Convention Collective (IDCC) -->
-    {% if sirene_data.idcc %}
+    {% if sirene_data.idcc | clean_nan %}
     <div class="bg-white p-4 rounded-lg shadow-sm">
       <p class="text-xs font-semibold text-gray-500 uppercase mb-1">
         <i class="fas fa-file-contract text-indigo-500 mr-1"></i>
         Convention collective
       </p>
-      <p class="font-bold text-gray-800">IDCC {{ sirene_data.idcc }}</p>
+      <p class="font-bold text-gray-800">IDCC {{ sirene_data.idcc | clean_nan }}</p>
       <div class="mt-2 space-y-1">
         {% if sirene_data.idcc_url %}
         <a href="{{ sirene_data.idcc_url }}" target="_blank" rel="noopener noreferrer"
@@ -330,7 +330,7 @@
           <i class="fas fa-sitemap w-5 mr-2"></i>
           FD / UD
         </span>
-        <span class="font-bold text-gray-800">{{ row.fd_c3 or '–' }} / {{ row.ud_c3 or '–' }}</span>
+        <span class="font-bold text-gray-800">{{ row.fd_c3 | clean_nan or '–' }} / {{ row.ud_c3 | clean_nan or '–' }}</span>
       </div>
 
       <!-- Inscrits / Votants -->
@@ -403,7 +403,7 @@
           <i class="fas fa-sitemap w-5 mr-2"></i>
           FD / UD
         </span>
-        <span class="font-bold text-gray-800">{{ row.fd_c4 or '–' }} / {{ row.ud_c4 or '–' }}</span>
+        <span class="font-bold text-gray-800">{{ row.fd_c4 | clean_nan or '–' }} / {{ row.ud_c4 | clean_nan or '–' }}</span>
       </div>
 
       <!-- Inscrits / Votants -->

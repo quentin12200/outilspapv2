@@ -499,15 +499,15 @@
                   <div class="font-semibold">{{ item.raison_sociale or "—" }}</div>
                   <div class="text-xs text-cgt-red font-mono tracking-widest">{{ item.siret or "—" }}</div>
                 </td>
-                <td class="px-4 py-2 text-sm text-gray-700" data-sort-value="{{ item.ud or '' }}">
-                  <div>{{ item.ud or "—" }}</div>
+                <td class="px-4 py-2 text-sm text-gray-700" data-sort-value="{{ item.ud | clean_nan or '' }}">
+                  <div>{{ item.ud | clean_nan or "—" }}</div>
                   <div class="text-xs text-gray-500">{{ item.region or "—" }}</div>
                 </td>
                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">
-                  {{ item.fd or "—" }}
+                  {{ item.fd | clean_nan or "—" }}
                 </td>
-                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.idcc or 0 }}">
-                  {{ item.idcc or "—" }}
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700" data-sort-value="{{ item.idcc | clean_nan or 0 }}">
+                  {{ item.idcc | clean_nan or "—" }}
                 </td>
                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900" data-sort-value="{{ item.effectif or 0 }}">
                   {{ item.effectif_display or "—" }}

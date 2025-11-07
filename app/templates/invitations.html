@@ -238,21 +238,21 @@
           <td class="px-4 py-3">{{ display_denomination or '—' }}</td>
           <td class="px-4 py-3 text-center">
             {# Afficher UD si renseigné, sinon le département calculé depuis le CP #}
-            {% if invit.ud %}
-              <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">{{ invit.ud }}</span>
+            {% if invit.ud | clean_nan %}
+              <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">{{ invit.ud | clean_nan }}</span>
             {% else %}
               <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">{{ dept }}</span>
             {% endif %}
           </td>
           <td class="px-4 py-3 text-center">
             {# Afficher IDCC avec badge ou "—" si manquant #}
-            {% if invit.idcc %}
-              <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">{{ invit.idcc }}</span>
+            {% if invit.idcc | clean_nan %}
+              <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">{{ invit.idcc | clean_nan }}</span>
             {% else %}
               <span class="text-gray-400">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-3">{{ invit.fd or '—' }}</td>
+          <td class="px-4 py-3">{{ invit.fd | clean_nan or '—' }}</td>
           <td class="px-4 py-3">{{ display_commune or '—' }}</td>
           <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{{ invit.date_pv_c5_sort or '' }}">
             {% if invit.date_pv_c5_display %}

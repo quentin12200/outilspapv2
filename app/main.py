@@ -309,6 +309,19 @@ app.include_router(api_geo_stats.router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+# Ajouter un filtre Jinja2 personnalisé pour nettoyer les valeurs "nan"
+def clean_nan_filter(value):
+    """Filtre Jinja2 pour convertir 'nan' en None ou valeur par défaut."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        # Vérifier si la valeur est "nan" (insensible à la casse)
+        if value.strip().lower() in {'nan', 'none', 'null'}:
+            return None
+    return value
+
+templates.env.filters["clean_nan"] = clean_nan_filter
+
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
     print("🔍 [STARTUP] Checking siret_summary schema...")
