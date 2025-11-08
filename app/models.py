@@ -314,6 +314,9 @@ class SiretSummary(Base):
     pres_siret_sud = Column(Boolean)
     pres_siret_autre = Column(Boolean)
 
+    # Indicateur CGT implantée (CGT a obtenu des voix au cycle 4)
+    cgt_implantee = Column(Boolean)
+
     # Informations SIREN (groupe)
     siren = Column(String(9))
     effectif_siren = Column(Integer)
