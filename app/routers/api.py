@@ -4,6 +4,7 @@ from sqlalchemy import func, or_, select
 from typing import List
 from datetime import datetime, timedelta, date
 import re
+import logging
 
 from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
@@ -19,6 +20,7 @@ from ..audit import log_admin_action
 
 
 router = APIRouter(prefix="/api", tags=["api"])
+logger = logging.getLogger(__name__)
 
 from fastapi.responses import RedirectResponse
 
@@ -51,8 +53,13 @@ async def ingest_pv(
     # Valider le fichier Excel
     validate_excel_file(file)
 
-    n = etl.ingest_pv_excel(db, file.file)
-    return RedirectResponse(url="/?retour=1", status_code=303)
+    try:
+        n = etl.ingest_pv_excel(db, file.file)
+        logger.info(f"Ingestion PV réussie : {n} lignes traitées")
+        return RedirectResponse(url="/?retour=1", status_code=303)
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ingestion PV : {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'ingestion du fichier : {str(e)}")
 
 @router.post("/ingest/invit")
 async def ingest_invit(
@@ -64,8 +71,13 @@ async def ingest_invit(
     # Valider le fichier Excel
     validate_excel_file(file)
 
-    n = etl.ingest_invit_excel(db, file.file)
-    return RedirectResponse(url="/?retour=1", status_code=303)
+    try:
+        n = etl.ingest_invit_excel(db, file.file)
+        logger.info(f"Ingestion invitations réussie : {n} lignes traitées")
+        return RedirectResponse(url="/?retour=1", status_code=303)
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ingestion invitations : {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'ingestion du fichier : {str(e)}")
 
 @router.post("/build/summary")
 def build_summary(

@@ -488,7 +488,7 @@ def fill_invitation_columns_from_raw():
                     try:
                         inv.effectif_connu = int(float(str(effectif_str).replace(",", ".").strip()))
                         updated = True
-                    except:
+                    except (ValueError, TypeError, AttributeError):
                         pass
 
             if not inv.structure_saisie:
