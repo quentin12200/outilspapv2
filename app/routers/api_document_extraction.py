@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -57,6 +57,7 @@ class InvitationCreate(BaseModel):
 
 @router.post("/document", response_model=ExtractionResult)
 async def extract_document(
+    request: Request,
     file: UploadFile = File(..., description="Image ou PDF du courrier PAP"),
     auto_save: bool = Form(False, description="Sauvegarder automatiquement dans la base"),
     db: Session = Depends(get_session)
@@ -113,13 +114,17 @@ async def extract_document(
 
         # Log de l'extraction
         log_admin_action(
-            db=db,
+            request=request,
+            api_key=None,  # Pas d'authentification pour ce endpoint public
             action="extract_document",
-            user_identifier="api",
             resource_type="document",
+            success=True,
             resource_id=extracted_data.get("siret", "unknown"),
-            request_params={"filename": file.filename, "auto_save": auto_save},
-            response_summary={"confidence": extracted_data.get("confidence")}
+            details={
+                "filename": file.filename,
+                "auto_save": auto_save,
+                "confidence": extracted_data.get("confidence")
+            }
         )
 
         # Sauvegarder automatiquement si demandé
@@ -155,6 +160,7 @@ async def extract_document(
 
 @router.post("/batch", response_model=BatchExtractionResult)
 async def extract_batch(
+    request: Request,
     files: List[UploadFile] = File(..., description="Liste d'images de courriers PAP"),
     auto_save: bool = Form(False, description="Sauvegarder automatiquement dans la base"),
     db: Session = Depends(get_session)
@@ -234,13 +240,15 @@ async def extract_batch(
 
     # Log du batch
     log_admin_action(
-        db=db,
+        request=request,
+        api_key=None,  # Pas d'authentification pour ce endpoint public
         action="extract_batch",
-        user_identifier="api",
         resource_type="document_batch",
+        success=True,
         resource_id=f"batch_{len(files)}",
-        request_params={"total_files": len(files), "auto_save": auto_save},
-        response_summary={
+        details={
+            "total_files": len(files),
+            "auto_save": auto_save,
             "successful": successful,
             "failed": failed,
             "total_cost_usd": total_cost
@@ -258,6 +266,7 @@ async def extract_batch(
 
 @router.post("/save-invitation")
 async def save_invitation(
+    request: Request,
     invitation: InvitationCreate,
     db: Session = Depends(get_session)
 ):
@@ -300,13 +309,16 @@ async def save_invitation(
         db.refresh(new_invitation)
 
         log_admin_action(
-            db=db,
+            request=request,
+            api_key=None,  # Pas d'authentification pour ce endpoint public
             action="save_invitation_from_extraction",
-            user_identifier="api",
             resource_type="invitation",
+            success=True,
             resource_id=str(new_invitation.id),
-            request_params={"siret": invitation.siret},
-            response_summary={"invitation_id": new_invitation.id}
+            details={
+                "siret": invitation.siret,
+                "invitation_id": new_invitation.id
+            }
         )
 
         return {
