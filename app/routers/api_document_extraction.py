@@ -120,10 +120,13 @@ async def extract_document(
             resource_type="document",
             success=True,
             resource_id=extracted_data.get("siret", "unknown"),
-            details={
+            request_params={
                 "filename": file.filename,
-                "auto_save": auto_save,
-                "confidence": extracted_data.get("confidence")
+                "auto_save": auto_save
+            },
+            response_summary={
+                "confidence": extracted_data.get("confidence"),
+                "siret": extracted_data.get("siret")
             }
         )
 
@@ -246,9 +249,11 @@ async def extract_batch(
         resource_type="document_batch",
         success=True,
         resource_id=f"batch_{len(files)}",
-        details={
+        request_params={
             "total_files": len(files),
-            "auto_save": auto_save,
+            "auto_save": auto_save
+        },
+        response_summary={
             "successful": successful,
             "failed": failed,
             "total_cost_usd": total_cost
@@ -315,8 +320,10 @@ async def save_invitation(
             resource_type="invitation",
             success=True,
             resource_id=str(new_invitation.id),
-            details={
-                "siret": invitation.siret,
+            request_params={
+                "siret": invitation.siret
+            },
+            response_summary={
                 "invitation_id": new_invitation.id
             }
         )
