@@ -147,7 +147,7 @@ class DocumentExtractor:
 
         Args:
             image_data: Données de l'image du courrier
-            model: Modèle OpenAI à utiliser. Si None, utilise le modèle configuré (gpt-4o-mini par défaut)
+            model: Modèle OpenAI à utiliser. Si None, utilise le modèle configuré (gpt-4o par défaut)
             temperature: Température du modèle (0.1 pour plus de précision)
 
         Returns:

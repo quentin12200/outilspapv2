@@ -13,6 +13,6 @@ AUTO_BUILD_SUMMARY_ON_STARTUP = os.getenv("AUTO_BUILD_SUMMARY_ON_STARTUP", "fals
 # Clé API OpenAI pour l'extraction automatique d'informations depuis les courriers PAP
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Modèle OpenAI à utiliser pour l'extraction (gpt-4o-mini, gpt-4o, gpt-4-turbo, etc.)
-# gpt-4o-mini est recommandé : moins cher et plus accessible
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+# Modèle OpenAI à utiliser pour l'extraction (gpt-4o, gpt-4-turbo, etc.)
+# gpt-4o est recommandé : bon équilibre performance/coût
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")

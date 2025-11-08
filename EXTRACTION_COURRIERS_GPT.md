@@ -28,9 +28,9 @@ Ajoutez votre clé dans le fichier `.env` à la racine du projet :
 # .env
 OPENAI_API_KEY=sk-proj-VOTRE_CLE_ICI
 
-# Optionnel: Modèle OpenAI à utiliser (par défaut: gpt-4o-mini)
-# Options: gpt-4o-mini, gpt-4o, gpt-4-turbo
-OPENAI_MODEL=gpt-4o-mini
+# Optionnel: Modèle OpenAI à utiliser (par défaut: gpt-4o)
+# Options: gpt-4o, gpt-4-turbo, gpt-4o-mini
+OPENAI_MODEL=gpt-4o
 ```
 
 ### 3. Installer les dépendances
@@ -161,17 +161,17 @@ Le système extrait automatiquement :
 
 ## 💰 Coûts
 
-Le service utilise par défaut **GPT-4o-mini** (modèle économique et performant) :
+Le service utilise par défaut **GPT-4o** (modèle performant et largement accessible) :
 
-**Tarif approximatif avec gpt-4o-mini :** ~$0.001 - 0.003 par document (très économique !)
+**Tarif approximatif avec gpt-4o :** ~$0.01 - 0.03 par document
 
-- Une extraction coûte environ 0.1 à 0.3 centimes de dollar
-- Pour 100 documents : ~$0.10-0.30
-- Pour 1000 documents : ~$1-3
+- Une extraction coûte environ 1 à 3 centimes de dollar
+- Pour 100 documents : ~$1-3
+- Pour 1000 documents : ~$10-30
 
 **Tarifs selon le modèle :**
-- `gpt-4o-mini` (défaut) : ~$0.001-0.003/doc - ⭐ Recommandé : très économique et performant
-- `gpt-4o` : ~$0.01-0.03/doc - Pour une précision maximale
+- `gpt-4o` (défaut) : ~$0.01-0.03/doc - ⭐ Recommandé : bon équilibre performance/coût et large accessibilité
+- `gpt-4o-mini` : ~$0.001-0.003/doc - Plus économique mais accès limité selon votre plan OpenAI
 - `gpt-4-turbo` : ~$0.02-0.05/doc - Ancien modèle, plus cher
 
 💡 **Astuce :** Les images sont automatiquement optimisées pour réduire les coûts sans perte de précision.
@@ -205,7 +205,7 @@ Le service utilise par défaut **GPT-4o-mini** (modèle économique et performan
 
 ### Modifier le modèle utilisé
 
-Par défaut, `gpt-4o-mini` est utilisé. Vous pouvez changer le modèle de deux façons :
+Par défaut, `gpt-4o` est utilisé. Vous pouvez changer le modèle de deux façons :
 
 **1. Via variable d'environnement (recommandé) :**
 
