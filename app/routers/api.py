@@ -14,6 +14,8 @@ from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
 from ..auth import require_api_key
+from ..models import AuditLog
+from ..audit import log_admin_action
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -1546,3 +1548,165 @@ async def enrichir_siret_from_api(siret: str):
         }
     except SireneAPIError as e:
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
+
+
+# ============================================================================
+# AUDIT LOGS
+# ============================================================================
+
+@router.get("/audit/logs")
+def get_audit_logs(
+    limit: int = Query(100, ge=1, le=1000, description="Nombre de logs à retourner"),
+    offset: int = Query(0, ge=0, description="Offset pour pagination"),
+    user_identifier: str = Query(None, description="Filtrer par utilisateur (hash API key)"),
+    resource_type: str = Query(None, description="Filtrer par type de ressource"),
+    success: bool = Query(None, description="Filtrer par succès/échec"),
+    action: str = Query(None, description="Filtrer par action"),
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
+    """
+    Récupère les audit logs pour monitoring et conformité.
+
+    Requiert authentification API Key.
+
+    Paramètres de filtrage :
+    - user_identifier : Hash de l'API key
+    - resource_type : Type de ressource (pv, invitation, siret_summary, etc.)
+    - success : True pour succès uniquement, False pour échecs uniquement
+    - action : Action spécifique (ex: "POST /api/ingest/pv")
+
+    Returns:
+        Liste des audit logs avec pagination
+    """
+    query = db.query(AuditLog).order_by(AuditLog.timestamp.desc())
+
+    # Appliquer les filtres
+    if user_identifier:
+        query = query.filter(AuditLog.user_identifier == user_identifier)
+
+    if resource_type:
+        query = query.filter(AuditLog.resource_type == resource_type)
+
+    if success is not None:
+        query = query.filter(AuditLog.success == success)
+
+    if action:
+        query = query.filter(AuditLog.action.like(f"%{action}%"))
+
+    # Compter le total pour la pagination
+    total = query.count()
+
+    # Appliquer pagination
+    logs = query.offset(offset).limit(limit).all()
+
+    # Formater la réponse
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "logs": [
+            {
+                "id": log.id,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "user_identifier": log.user_identifier,
+                "ip_address": log.ip_address,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "method": log.method,
+                "status_code": log.status_code,
+                "success": log.success,
+                "request_params": log.request_params,
+                "response_summary": log.response_summary,
+                "error_message": log.error_message,
+                "duration_ms": log.duration_ms,
+            }
+            for log in logs
+        ]
+    }
+
+
+@router.get("/audit/stats")
+def get_audit_stats(
+    days: int = Query(7, ge=1, le=90, description="Nombre de jours à analyser"),
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
+    """
+    Récupère des statistiques sur les audit logs.
+
+    Requiert authentification API Key.
+
+    Returns:
+        Statistiques agrégées sur les derniers N jours
+    """
+    from datetime import timedelta
+
+    since = datetime.now() - timedelta(days=days)
+
+    # Nombre total d'actions
+    total_actions = db.query(func.count(AuditLog.id)).filter(
+        AuditLog.timestamp >= since
+    ).scalar() or 0
+
+    # Nombre de succès vs échecs
+    success_count = db.query(func.count(AuditLog.id)).filter(
+        AuditLog.timestamp >= since,
+        AuditLog.success == True
+    ).scalar() or 0
+
+    failure_count = db.query(func.count(AuditLog.id)).filter(
+        AuditLog.timestamp >= since,
+        AuditLog.success == False
+    ).scalar() or 0
+
+    # Actions par type de ressource
+    resource_stats = db.query(
+        AuditLog.resource_type,
+        func.count(AuditLog.id).label('count')
+    ).filter(
+        AuditLog.timestamp >= since
+    ).group_by(
+        AuditLog.resource_type
+    ).order_by(
+        func.count(AuditLog.id).desc()
+    ).all()
+
+    # Utilisateurs les plus actifs
+    user_stats = db.query(
+        AuditLog.user_identifier,
+        func.count(AuditLog.id).label('count')
+    ).filter(
+        AuditLog.timestamp >= since
+    ).group_by(
+        AuditLog.user_identifier
+    ).order_by(
+        func.count(AuditLog.id).desc()
+    ).limit(10).all()
+
+    # Temps de réponse moyen
+    avg_duration = db.query(
+        func.avg(AuditLog.duration_ms)
+    ).filter(
+        AuditLog.timestamp >= since,
+        AuditLog.duration_ms.isnot(None)
+    ).scalar() or 0
+
+    return {
+        "period_days": days,
+        "since": since.isoformat(),
+        "total_actions": total_actions,
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "success_rate": round((success_count / total_actions * 100) if total_actions > 0 else 0, 2),
+        "avg_duration_ms": round(avg_duration, 2),
+        "by_resource_type": [
+            {"resource_type": r[0], "count": r[1]}
+            for r in resource_stats
+        ],
+        "top_users": [
+            {"user_identifier": u[0], "count": u[1]}
+            for u in user_stats
+        ]
+    }

@@ -22,63 +22,189 @@ class TaskStatus(str, Enum):
 
 class TaskTracker:
     """
-    Tracker simple pour suivre l'état des tâches en arrière-plan.
-    En production, utiliser Redis ou une vraie queue comme Celery.
+    Tracker persistant pour suivre l'état des tâches en arrière-plan.
+
+    Utilise SQLite pour la persistance des tâches.
+    Les tâches survivent aux redémarrages de l'application.
     """
     def __init__(self):
-        self._tasks = {}
+        # Cache en mémoire pour éviter trop de requêtes DB
+        self._cache = {}
+        self._cache_ttl = 60  # secondes
+
+    def _get_db(self):
+        """Récupère une session DB pour les opérations sur les tâches"""
+        from .db import SessionLocal
+        return SessionLocal()
 
     def start_task(self, task_id: str, description: str = None):
         """Marque une tâche comme démarrée"""
-        self._tasks[task_id] = {
-            "status": TaskStatus.RUNNING,
-            "description": description,
-            "started_at": datetime.now(),
-            "completed_at": None,
-            "result": None,
-            "error": None,
-        }
-        logger.info(f"Task {task_id} started: {description}")
+        from .models import BackgroundTask
+
+        db = self._get_db()
+        try:
+            # Vérifier si la tâche existe déjà
+            task = db.query(BackgroundTask).filter(BackgroundTask.id == task_id).first()
+
+            if task:
+                # Mettre à jour la tâche existante
+                task.status = TaskStatus.RUNNING
+                task.description = description
+                task.started_at = datetime.now()
+                task.completed_at = None
+                task.result = None
+                task.error = None
+            else:
+                # Créer une nouvelle tâche
+                task = BackgroundTask(
+                    id=task_id,
+                    status=TaskStatus.RUNNING,
+                    description=description,
+                    started_at=datetime.now()
+                )
+                db.add(task)
+
+            db.commit()
+            logger.info(f"Task {task_id} started: {description}")
+
+            # Mettre à jour le cache
+            self._cache[task_id] = {
+                "status": TaskStatus.RUNNING,
+                "description": description,
+                "started_at": datetime.now(),
+                "completed_at": None,
+                "result": None,
+                "error": None,
+                "cached_at": datetime.now()
+            }
+
+        finally:
+            db.close()
 
     def complete_task(self, task_id: str, result=None):
         """Marque une tâche comme terminée avec succès"""
-        if task_id in self._tasks:
-            self._tasks[task_id].update({
-                "status": TaskStatus.COMPLETED,
-                "completed_at": datetime.now(),
-                "result": result,
-            })
-            logger.info(f"Task {task_id} completed successfully")
+        from .models import BackgroundTask
+
+        db = self._get_db()
+        try:
+            task = db.query(BackgroundTask).filter(BackgroundTask.id == task_id).first()
+
+            if task:
+                task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.now()
+                task.result = result
+                db.commit()
+                logger.info(f"Task {task_id} completed successfully")
+
+                # Mettre à jour le cache
+                if task_id in self._cache:
+                    self._cache[task_id].update({
+                        "status": TaskStatus.COMPLETED,
+                        "completed_at": datetime.now(),
+                        "result": result,
+                        "cached_at": datetime.now()
+                    })
+
+        finally:
+            db.close()
 
     def fail_task(self, task_id: str, error: str):
         """Marque une tâche comme échouée"""
-        if task_id in self._tasks:
-            self._tasks[task_id].update({
-                "status": TaskStatus.FAILED,
-                "completed_at": datetime.now(),
-                "error": error,
-            })
-            logger.error(f"Task {task_id} failed: {error}")
+        from .models import BackgroundTask
+
+        db = self._get_db()
+        try:
+            task = db.query(BackgroundTask).filter(BackgroundTask.id == task_id).first()
+
+            if task:
+                task.status = TaskStatus.FAILED
+                task.completed_at = datetime.now()
+                task.error = error
+                db.commit()
+                logger.error(f"Task {task_id} failed: {error}")
+
+                # Mettre à jour le cache
+                if task_id in self._cache:
+                    self._cache[task_id].update({
+                        "status": TaskStatus.FAILED,
+                        "completed_at": datetime.now(),
+                        "error": error,
+                        "cached_at": datetime.now()
+                    })
+
+        finally:
+            db.close()
 
     def get_task_status(self, task_id: str) -> Optional[dict]:
         """Récupère le statut d'une tâche"""
-        return self._tasks.get(task_id)
+        from .models import BackgroundTask
+
+        # Vérifier le cache d'abord
+        if task_id in self._cache:
+            cached = self._cache[task_id]
+            cache_age = (datetime.now() - cached["cached_at"]).total_seconds()
+            if cache_age < self._cache_ttl:
+                # Cache valide, retourner
+                return {k: v for k, v in cached.items() if k != "cached_at"}
+
+        # Cache expiré ou absent, requêter la DB
+        db = self._get_db()
+        try:
+            task = db.query(BackgroundTask).filter(BackgroundTask.id == task_id).first()
+
+            if not task:
+                return None
+
+            result = {
+                "status": task.status,
+                "description": task.description,
+                "started_at": task.started_at,
+                "completed_at": task.completed_at,
+                "result": task.result,
+                "error": task.error,
+            }
+
+            # Mettre en cache
+            self._cache[task_id] = {**result, "cached_at": datetime.now()}
+
+            return result
+
+        finally:
+            db.close()
 
     def cleanup_old_tasks(self, max_age_hours: int = 24):
         """Nettoie les anciennes tâches terminées"""
-        now = datetime.now()
-        to_remove = []
-        for task_id, task_data in self._tasks.items():
-            if task_data["completed_at"]:
-                age = (now - task_data["completed_at"]).total_seconds() / 3600
-                if age > max_age_hours:
-                    to_remove.append(task_id)
+        from .models import BackgroundTask
+        from datetime import timedelta
 
-        for task_id in to_remove:
-            del self._tasks[task_id]
+        db = self._get_db()
+        try:
+            cutoff = datetime.now() - timedelta(hours=max_age_hours)
 
-        if to_remove:
-            logger.info(f"Cleaned up {len(to_remove)} old tasks")
+            # Supprimer les tâches terminées ou échouées anciennes
+            deleted = db.query(BackgroundTask).filter(
+                BackgroundTask.completed_at.isnot(None),
+                BackgroundTask.completed_at < cutoff
+            ).delete()
+
+            db.commit()
+
+            if deleted > 0:
+                logger.info(f"Cleaned up {deleted} old tasks")
+
+            # Nettoyer aussi le cache
+            now = datetime.now()
+            to_remove = [
+                task_id for task_id, task_data in self._cache.items()
+                if task_data.get("completed_at")
+                and (now - task_data["completed_at"]).total_seconds() / 3600 > max_age_hours
+            ]
+
+            for task_id in to_remove:
+                del self._cache[task_id]
+
+        finally:
+            db.close()
 
 
 # Instance globale du tracker (en production, utiliser Redis)

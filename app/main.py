@@ -303,6 +303,11 @@ from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
+
+# Activer l'audit logging middleware
+from .audit import create_audit_middleware
+app.middleware("http")(create_audit_middleware())
+
 app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)

@@ -327,4 +327,78 @@ class SiretSummary(Base):
     statut_pap = Column(String(10))       # 'C3' / 'C4' / 'C3+C4' / 'Aucun'
     date_pv_max = Column(Date)
     date_pap_c5 = Column(Date)            # dernière invitation connue
-    cgt_implantee = Column(Boolean)
+
+
+class AuditLog(Base):
+    """
+    Table d'audit pour tracer toutes les opérations administratives.
+
+    Enregistre automatiquement :
+    - L'utilisateur (API key hash)
+    - L'action effectuée
+    - Les paramètres de la requête
+    - Le résultat (succès/échec)
+    - Les métadonnées (IP, User-Agent, etc.)
+    """
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Qui ?
+    user_identifier = Column(String(255), index=True)  # Hash de l'API key ou IP
+    ip_address = Column(String(45))  # IPv4 ou IPv6
+
+    # Quoi ?
+    action = Column(String(100), index=True)  # Endpoint appelé (ex: "POST /api/ingest/pv")
+    resource_type = Column(String(50), index=True)  # Type de ressource (ex: "pv", "invitation", "siret_summary")
+    resource_id = Column(String(255))  # ID de la ressource affectée (ex: SIRET)
+
+    # Quand ?
+    timestamp = Column(DateTime, index=True, nullable=False)
+
+    # Détails
+    method = Column(String(10))  # HTTP method (GET, POST, etc.)
+    status_code = Column(Integer)  # HTTP status code de la réponse
+    success = Column(Boolean, index=True)  # True si succès, False si erreur
+
+    # Contexte
+    request_params = Column(JSON)  # Paramètres de la requête (query params, body)
+    response_summary = Column(JSON)  # Résumé de la réponse (nombre de lignes affectées, etc.)
+    error_message = Column(Text)  # Message d'erreur si échec
+
+    # Métadonnées
+    user_agent = Column(Text)
+    duration_ms = Column(Integer)  # Durée d'exécution en millisecondes
+
+    def __repr__(self):
+        return f"<AuditLog(id={self.id}, action={self.action}, user={self.user_identifier}, success={self.success})>"
+
+
+class BackgroundTask(Base):
+    """
+    Table pour persister l'état des tâches en arrière-plan.
+
+    Permet de suivre l'état des tâches même après un redémarrage de l'application.
+    """
+    __tablename__ = "background_tasks"
+
+    id = Column(String(100), primary_key=True)  # task_id unique
+
+    # État de la tâche
+    status = Column(String(20), index=True, nullable=False)  # pending, running, completed, failed
+    description = Column(Text)
+
+    # Timestamps
+    started_at = Column(DateTime, index=True)
+    completed_at = Column(DateTime)
+
+    # Résultats
+    result = Column(JSON)  # Résultat en cas de succès
+    error = Column(Text)  # Message d'erreur en cas d'échec
+
+    # Métadonnées
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<BackgroundTask(id={self.id}, status={self.status}, description={self.description})>"
