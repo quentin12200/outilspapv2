@@ -376,7 +376,8 @@ async function updateFdFromIdcc() {
     const response = await fetch('/api/invitations/update-fd-from-idcc', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': '{{ admin_api_key }}'
       }
     });
 

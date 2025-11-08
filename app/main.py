@@ -34,6 +34,7 @@ from .services.calcul_elus_cse import (
     calculer_elus_cse_complet,
     ORGANISATIONS_LABELS
 )
+from .auth import ADMIN_API_KEY
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -643,6 +644,7 @@ def index(
     return templates.TemplateResponse("index.html", {
         "request": request,
         "top_departments": top_departments,
+        "admin_api_key": ADMIN_API_KEY,
     })
 
 
@@ -2174,6 +2176,7 @@ def invitations(
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
+            "admin_api_key": ADMIN_API_KEY,
         },
     )
 
@@ -2545,6 +2548,7 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
             "sirene_status": sirene_status,
             "upcoming_preview": upcoming_preview,
             "upcoming_threshold": 1000,
+            "admin_api_key": ADMIN_API_KEY,
         },
     )
 
@@ -3148,7 +3152,10 @@ def clean_nan_values(db: Session = Depends(get_session)):
 
 @app.get("/recherche-siret", response_class=HTMLResponse)
 def recherche_siret_page(request: Request):
-    return templates.TemplateResponse("recherche-siret.html", {"request": request})
+    return templates.TemplateResponse("recherche-siret.html", {
+        "request": request,
+        "admin_api_key": ADMIN_API_KEY,
+    })
 
 
 @app.get("/mentions-legales", response_class=HTMLResponse)
