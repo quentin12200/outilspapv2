@@ -11,7 +11,7 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -35,6 +35,14 @@ from .services.calcul_elus_cse import (
     ORGANISATIONS_LABELS
 )
 from .auth import ADMIN_API_KEY
+from .admin_auth import (
+    get_current_admin_user,
+    verify_credentials,
+    create_session_token,
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE,
+    AdminAuthException
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -304,6 +312,17 @@ from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
+
+# Gestionnaire d'exceptions pour l'authentification admin
+@app.exception_handler(AdminAuthException)
+async def admin_auth_exception_handler(request: Request, exc: AdminAuthException):
+    """Redirige vers la page de login quand l'authentification admin échoue"""
+    return RedirectResponse(url=exc.redirect_url, status_code=303)
+
+# Activer l'audit logging middleware
+from .audit import create_audit_middleware
+app.middleware("http")(create_audit_middleware())
+
 app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
@@ -2456,8 +2475,71 @@ def cartographie_page(request: Request, db: Session = Depends(get_session)):
     )
 
 
+# =========================================================
+# Routes d'authentification admin
+# =========================================================
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_page(request: Request):
+    """Page de connexion à l'espace admin"""
+    return templates.TemplateResponse(
+        "admin_login.html",
+        {
+            "request": request,
+            "error": None,
+            "login_value": ""
+        }
+    )
+
+
+@app.post("/admin/login", response_class=HTMLResponse)
+def admin_login_post(request: Request, login: str = Form(...), password: str = Form(...)):
+    """Traitement de la connexion admin"""
+    if verify_credentials(login, password):
+        # Créer le token de session
+        session_token = create_session_token(login)
+
+        # Rediriger vers l'admin avec le cookie de session
+        response = RedirectResponse(url="/admin", status_code=303)
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_token,
+            max_age=SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        return response
+    else:
+        # Identifiants incorrects
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "error": "Identifiant ou mot de passe incorrect",
+                "login_value": login
+            },
+            status_code=401
+        )
+
+
+@app.get("/admin/logout")
+def admin_logout():
+    """Déconnexion de l'espace admin"""
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    return response
+
+
+# =========================================================
+# Routes admin (protégées par authentification)
+# =========================================================
+
 @app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request, db: Session = Depends(get_session)):
+def admin_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
     total_summary = db.query(func.count(SiretSummary.siret)).scalar() or 0
@@ -2539,7 +2621,11 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
     )
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
-def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
+def admin_diagnostics(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Page de diagnostic des doublons d'invitations"""
 
     # Compter le total
@@ -2588,7 +2674,10 @@ def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
     })
 
 @app.post("/admin/diagnostics/remove-duplicates")
-def remove_duplicates(db: Session = Depends(get_session)):
+def remove_duplicates(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Supprime les doublons d'invitations (garde le plus récent par SIRET)"""
 
     # Trouver les IDs à GARDER (ID max par SIRET)
@@ -2614,7 +2703,10 @@ def remove_duplicates(db: Session = Depends(get_session)):
     return RedirectResponse(url="/admin/diagnostics?success=1", status_code=303)
 
 @app.post("/admin/diagnostics/migrate-columns")
-def migrate_columns(db: Session = Depends(get_session)):
+def migrate_columns(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Remplit les colonnes structurées depuis le champ raw"""
 
     from .migrations import _pick_from_raw, _pick_bool_from_raw
@@ -2739,6 +2831,382 @@ def migrate_columns(db: Session = Depends(get_session)):
     db.commit()
 
     return RedirectResponse(url=f"/admin/diagnostics?migrated={updated_count}", status_code=303)
+
+@app.get("/admin/clean-nan", response_class=HTMLResponse)
+def clean_nan_page(
+    request: Request,
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Page simple pour exécuter le nettoyage des valeurs 'nan'"""
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Nettoyage des valeurs NaN</title>
+        <meta charset="utf-8">
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .card {
+                background: white;
+                border-radius: 8px;
+                padding: 30px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+                color: #333;
+                margin-top: 0;
+            }
+            .info {
+                background: #e3f2fd;
+                border-left: 4px solid #2196F3;
+                padding: 15px;
+                margin: 20px 0;
+            }
+            button {
+                background: #d32f2f;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                font-size: 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-top: 20px;
+            }
+            button:hover {
+                background: #b71c1c;
+            }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            #result {
+                margin-top: 20px;
+                padding: 15px;
+                border-radius: 4px;
+                display: none;
+            }
+            .success {
+                background: #c8e6c9;
+                border-left: 4px solid #4caf50;
+            }
+            .error {
+                background: #ffcdd2;
+                border-left: 4px solid #f44336;
+            }
+            .loading {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border: 3px solid rgba(255,255,255,.3);
+                border-radius: 50%;
+                border-top-color: white;
+                animation: spin 1s ease-in-out infinite;
+            }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            pre {
+                background: #f5f5f5;
+                padding: 10px;
+                border-radius: 4px;
+                overflow-x: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🧹 Nettoyage des valeurs "nan"</h1>
+
+            <div class="info">
+                <strong>ℹ️ Information</strong><br>
+                Cet outil nettoie toutes les valeurs "nan" (chaîne de caractères) dans les colonnes UD, FD et IDCC
+                et les convertit en NULL pour un affichage correct avec "—" dans l'interface.
+            </div>
+
+            <p><strong>Tables concernées :</strong></p>
+            <ul>
+                <li>Invitation (colonnes: ud, fd, idcc)</li>
+                <li>PVEvent (colonnes: UD, FD, idcc)</li>
+                <li>SiretSummary (colonnes: ud_c3, ud_c4, fd_c3, fd_c4, idcc)</li>
+            </ul>
+
+            <button id="cleanBtn" onclick="cleanNan()">
+                🚀 Lancer le nettoyage
+            </button>
+
+            <div id="result"></div>
+        </div>
+
+        <script>
+            async function cleanNan() {
+                const btn = document.getElementById('cleanBtn');
+                const result = document.getElementById('result');
+
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> Nettoyage en cours...';
+                result.style.display = 'none';
+
+                try {
+                    const response = await fetch('/admin/clean-nan/execute', {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        result.className = 'success';
+                        result.innerHTML = `
+                            <strong>${data.message}</strong><br><br>
+                            <strong>📊 Détails :</strong>
+                            <pre>${JSON.stringify(data.tables, null, 2)}</pre>
+                        `;
+                    } else {
+                        result.className = 'error';
+                        result.innerHTML = `
+                            <strong>${data.message}</strong><br><br>
+                            Erreur : ${data.error || 'Inconnue'}
+                        `;
+                    }
+                } catch (error) {
+                    result.className = 'error';
+                    result.innerHTML = `
+                        <strong>❌ Erreur de connexion</strong><br><br>
+                        ${error.message}
+                    `;
+                }
+
+                result.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '🚀 Lancer le nettoyage';
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return html
+
+@app.post("/admin/clean-nan/execute")
+def clean_nan_values(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """
+    Nettoie toutes les valeurs 'nan' dans les tables et les convertit en NULL.
+
+    Retourne un JSON avec les statistiques de nettoyage.
+    """
+    from fastapi.responses import JSONResponse
+
+    try:
+        stats = {
+            "success": True,
+            "tables": {},
+            "total_cleaned": 0
+        }
+
+        # 1. Table Invitation
+        inv_stats = {}
+
+        # Compter FD
+        inv_fd_count = db.query(Invitation).filter(
+            Invitation.fd.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        inv_stats["fd"] = inv_fd_count
+
+        # Compter UD
+        inv_ud_count = db.query(Invitation).filter(
+            Invitation.ud.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        inv_stats["ud"] = inv_ud_count
+
+        # Compter IDCC
+        inv_idcc_count = db.query(Invitation).filter(
+            Invitation.idcc.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        inv_stats["idcc"] = inv_idcc_count
+
+        # Nettoyer Invitation.fd
+        if inv_fd_count > 0:
+            db.execute(
+                update(Invitation)
+                .where(Invitation.fd.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(fd=None)
+            )
+
+        # Nettoyer Invitation.ud
+        if inv_ud_count > 0:
+            db.execute(
+                update(Invitation)
+                .where(Invitation.ud.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(ud=None)
+            )
+
+        # Nettoyer Invitation.idcc
+        if inv_idcc_count > 0:
+            db.execute(
+                update(Invitation)
+                .where(Invitation.idcc.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(idcc=None)
+            )
+
+        inv_stats["total"] = inv_fd_count + inv_ud_count + inv_idcc_count
+        stats["tables"]["Invitation"] = inv_stats
+
+        # 2. Table PVEvent
+        pv_stats = {}
+
+        # Compter FD
+        pv_fd_count = db.query(PVEvent).filter(
+            PVEvent.fd.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        pv_stats["fd"] = pv_fd_count
+
+        # Compter UD
+        pv_ud_count = db.query(PVEvent).filter(
+            PVEvent.ud.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        pv_stats["ud"] = pv_ud_count
+
+        # Compter IDCC
+        pv_idcc_count = db.query(PVEvent).filter(
+            PVEvent.idcc.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        pv_stats["idcc"] = pv_idcc_count
+
+        # Nettoyer PVEvent.fd
+        if pv_fd_count > 0:
+            db.execute(
+                update(PVEvent)
+                .where(PVEvent.fd.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(fd=None)
+            )
+
+        # Nettoyer PVEvent.ud
+        if pv_ud_count > 0:
+            db.execute(
+                update(PVEvent)
+                .where(PVEvent.ud.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(ud=None)
+            )
+
+        # Nettoyer PVEvent.idcc
+        if pv_idcc_count > 0:
+            db.execute(
+                update(PVEvent)
+                .where(PVEvent.idcc.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(idcc=None)
+            )
+
+        pv_stats["total"] = pv_fd_count + pv_ud_count + pv_idcc_count
+        stats["tables"]["PVEvent"] = pv_stats
+
+        # 3. Table SiretSummary
+        summary_stats = {}
+
+        # Compter FD C3
+        summary_fd_c3_count = db.query(SiretSummary).filter(
+            SiretSummary.fd_c3.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        summary_stats["fd_c3"] = summary_fd_c3_count
+
+        # Compter FD C4
+        summary_fd_c4_count = db.query(SiretSummary).filter(
+            SiretSummary.fd_c4.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        summary_stats["fd_c4"] = summary_fd_c4_count
+
+        # Compter UD C3
+        summary_ud_c3_count = db.query(SiretSummary).filter(
+            SiretSummary.ud_c3.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        summary_stats["ud_c3"] = summary_ud_c3_count
+
+        # Compter UD C4
+        summary_ud_c4_count = db.query(SiretSummary).filter(
+            SiretSummary.ud_c4.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        summary_stats["ud_c4"] = summary_ud_c4_count
+
+        # Compter IDCC
+        summary_idcc_count = db.query(SiretSummary).filter(
+            SiretSummary.idcc.in_(['nan', 'NaN', 'NAN', 'Nan'])
+        ).count()
+        summary_stats["idcc"] = summary_idcc_count
+
+        # Nettoyer SiretSummary.fd_c3
+        if summary_fd_c3_count > 0:
+            db.execute(
+                update(SiretSummary)
+                .where(SiretSummary.fd_c3.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(fd_c3=None)
+            )
+
+        # Nettoyer SiretSummary.fd_c4
+        if summary_fd_c4_count > 0:
+            db.execute(
+                update(SiretSummary)
+                .where(SiretSummary.fd_c4.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(fd_c4=None)
+            )
+
+        # Nettoyer SiretSummary.ud_c3
+        if summary_ud_c3_count > 0:
+            db.execute(
+                update(SiretSummary)
+                .where(SiretSummary.ud_c3.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(ud_c3=None)
+            )
+
+        # Nettoyer SiretSummary.ud_c4
+        if summary_ud_c4_count > 0:
+            db.execute(
+                update(SiretSummary)
+                .where(SiretSummary.ud_c4.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(ud_c4=None)
+            )
+
+        # Nettoyer SiretSummary.idcc
+        if summary_idcc_count > 0:
+            db.execute(
+                update(SiretSummary)
+                .where(SiretSummary.idcc.in_(['nan', 'NaN', 'NAN', 'Nan']))
+                .values(idcc=None)
+            )
+
+        summary_stats["total"] = (
+            summary_fd_c3_count + summary_fd_c4_count +
+            summary_ud_c3_count + summary_ud_c4_count + summary_idcc_count
+        )
+        stats["tables"]["SiretSummary"] = summary_stats
+
+        # Commit toutes les modifications
+        db.commit()
+
+        # Calculer le total
+        stats["total_cleaned"] = (
+            inv_stats["total"] + pv_stats["total"] + summary_stats["total"]
+        )
+
+        stats["message"] = f"✅ Nettoyage terminé avec succès! {stats['total_cleaned']} valeurs 'nan' nettoyées."
+
+        return JSONResponse(content=stats)
+
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "message": "❌ Erreur lors du nettoyage des valeurs 'nan'"
+            }
+        )
 
 @app.get("/recherche-siret", response_class=HTMLResponse)
 def recherche_siret_page(request: Request):
