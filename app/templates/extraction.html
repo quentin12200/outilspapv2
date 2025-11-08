@@ -95,10 +95,18 @@
   <!-- Zone de résultats -->
   <div id="results-zone" class="hidden">
     <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
-      <h3 class="text-lg font-bold text-gray-800 mb-4">
-        <i class="fas fa-check-circle text-green-600 mr-2"></i>
-        Résultats de l'extraction
-      </h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-800">
+          <i class="fas fa-check-circle text-green-600 mr-2"></i>
+          Résultats de l'extraction
+        </h3>
+        <!-- Bouton pour enregistrer toutes les invitations -->
+        <button id="save-all-btn" onclick="saveAllInvitations()" class="bg-cgt-red text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition flex items-center gap-2 hidden">
+          <i class="fas fa-database"></i>
+          <i class="fas fa-plus-circle"></i>
+          Enregistrer toutes les invitations
+        </button>
+      </div>
       <div id="results-summary" class="mb-6 p-4 bg-gray-50 rounded-lg"></div>
       <div id="results-list"></div>
     </div>
@@ -265,9 +273,11 @@ function displayResults() {
   const resultsZone = document.getElementById('results-zone');
   const resultsSummary = document.getElementById('results-summary');
   const resultsList = document.getElementById('results-list');
+  const saveAllBtn = document.getElementById('save-all-btn');
 
   const successful = extractedResults.filter(r => r.success).length;
   const failed = extractedResults.length - successful;
+  const notSaved = extractedResults.filter(r => r.success && !r.data.metadata?.auto_saved && r.data.data?.siret).length;
 
   resultsSummary.innerHTML = `
     <div class="flex items-center justify-between">
@@ -283,8 +293,19 @@ function displayResults() {
         <p class="text-sm text-gray-600">Échecs</p>
         <p class="text-2xl font-bold text-red-600">${failed}</p>
       </div>
+      <div>
+        <p class="text-sm text-gray-600">Non enregistrés</p>
+        <p class="text-2xl font-bold text-orange-600">${notSaved}</p>
+      </div>
     </div>
   `;
+
+  // Afficher le bouton "Enregistrer tout" si des invitations ne sont pas encore sauvegardées
+  if (notSaved > 0) {
+    saveAllBtn.classList.remove('hidden');
+  } else {
+    saveAllBtn.classList.add('hidden');
+  }
 
   resultsList.innerHTML = extractedResults.map((result, index) => {
     if (!result.success) {
@@ -326,15 +347,22 @@ function displayResults() {
 
         ${data.notes ? `<div class="mt-4 p-3 bg-white rounded border border-gray-200"><span class="font-semibold text-sm">Notes:</span> <span class="text-sm text-gray-700">${data.notes}</span></div>` : ''}
 
-        <div class="mt-4 flex gap-2">
-          <button onclick="viewDetails(${index})" class="text-sm bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700">
-            <i class="fas fa-eye mr-1"></i> Détails complets
+        <div class="mt-4 flex gap-2 flex-wrap">
+          <button onclick="viewDetails(${index})" class="text-sm bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition flex items-center gap-1">
+            <i class="fas fa-eye"></i>
+            Détails complets
           </button>
           ${!metadata.auto_saved && data.siret ? `
-            <button onclick="saveInvitation(${index})" class="text-sm bg-cgt-red text-white px-3 py-1 rounded hover:bg-red-700 flex items-center gap-1">
-              <i class="fas fa-robot mr-1"></i>
-              <i class="fas fa-plus-circle"></i> Ajouter à la liste PAP (source IA)
+            <button id="save-btn-${index}" onclick="saveInvitation(${index})" class="text-sm bg-cgt-red text-white px-4 py-1.5 rounded-lg hover:bg-red-700 transition flex items-center gap-2 font-semibold shadow-md">
+              <i class="fas fa-database"></i>
+              <i class="fas fa-plus-circle"></i>
+              Ajouter à la base de données PAP
             </button>
+          ` : metadata.auto_saved ? `
+            <span class="text-sm bg-green-600 text-white px-4 py-1.5 rounded-lg flex items-center gap-2 font-semibold">
+              <i class="fas fa-check-circle"></i>
+              Déjà enregistré dans la base PAP
+            </span>
           ` : ''}
         </div>
       </div>
@@ -377,6 +405,12 @@ async function saveInvitation(index) {
     return;
   }
 
+  const btn = document.getElementById(`save-btn-${index}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Enregistrement...';
+  }
+
   try {
     const response = await fetch('/api/extract/save-invitation', {
       method: 'POST',
@@ -392,15 +426,94 @@ async function saveInvitation(index) {
     });
 
     if (response.ok) {
+      // Marquer comme sauvegardé
+      if (result.data.metadata) {
+        result.data.metadata.auto_saved = true;
+      } else {
+        result.data.metadata = { auto_saved: true };
+      }
+
       alert('✅ Invitation ajoutée à la liste PAP avec succès !\n\nVous pouvez la retrouver dans la liste des invitations PAP avec la source "IA - Extraction GPT".');
-      location.reload();
+      displayResults(); // Rafraîchir l'affichage
     } else {
       const error = await response.json();
       alert('Erreur : ' + error.detail);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-database"></i><i class="fas fa-plus-circle ml-1"></i> Ajouter à la base de données PAP';
+      }
     }
   } catch (error) {
     alert('Erreur lors de la sauvegarde : ' + error.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-database"></i><i class="fas fa-plus-circle ml-1"></i> Ajouter à la base de données PAP';
+    }
   }
+}
+
+async function saveAllInvitations() {
+  const unsavedResults = extractedResults.filter(
+    r => r.success && !r.data.metadata?.auto_saved && r.data.data?.siret
+  );
+
+  if (unsavedResults.length === 0) {
+    alert('Aucune invitation à enregistrer.');
+    return;
+  }
+
+  if (!confirm(`Voulez-vous enregistrer ${unsavedResults.length} invitation(s) dans la base de données PAP ?\n\nToutes seront marquées avec la source "IA - Extraction GPT".`)) {
+    return;
+  }
+
+  const saveAllBtn = document.getElementById('save-all-btn');
+  const originalText = saveAllBtn.innerHTML;
+  saveAllBtn.disabled = true;
+  saveAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Enregistrement en cours...';
+
+  let saved = 0;
+  let errors = 0;
+
+  for (const result of unsavedResults) {
+    const data = result.data.data;
+
+    try {
+      const response = await fetch('/api/extract/save-invitation', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          siret: data.siret,
+          date_invit: data.date_invitation || new Date().toISOString().split('T')[0],
+          source: 'IA - Extraction GPT',
+          idcc: data.idcc,
+          effectif_connu: data.effectif,
+          date_election: data.date_election
+        })
+      });
+
+      if (response.ok) {
+        saved++;
+        // Marquer comme sauvegardé
+        if (result.data.metadata) {
+          result.data.metadata.auto_saved = true;
+        } else {
+          result.data.metadata = { auto_saved: true };
+        }
+      } else {
+        errors++;
+        console.error(`Erreur pour SIRET ${data.siret}:`, await response.text());
+      }
+    } catch (error) {
+      errors++;
+      console.error(`Erreur pour SIRET ${data.siret}:`, error);
+    }
+  }
+
+  alert(`✅ Enregistrement terminé !\n\n${saved} invitation(s) ajoutée(s) avec succès\n${errors} erreur(s)\n\nVous pouvez retrouver les invitations dans la liste PAP avec la source "IA - Extraction GPT".`);
+
+  displayResults(); // Rafraîchir l'affichage
+  saveAllBtn.disabled = false;
+  saveAllBtn.innerHTML = originalText;
 }
 
 // Bouton effacer
