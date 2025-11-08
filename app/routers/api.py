@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
 from typing import List
@@ -1791,6 +1791,7 @@ def get_audit_stats(
 
 @router.post("/invitations/update-fd-from-idcc")
 async def update_fd_from_idcc(
+    request: Request,
     db: Session = Depends(get_session),
     api_key: str = Depends(require_api_key)
 ):
@@ -1845,16 +1846,17 @@ async def update_fd_from_idcc(
     try:
         db.commit()
         log_admin_action(
-            db,
-            action_type="update_fd_from_idcc",
-            resource_type="invitations",
+            request,
+            api_key,
+            "update_fd_from_idcc",
+            "invitations",
+            True,
             resource_id="bulk",
             details={
                 "updated": updated_count,
                 "skipped": skipped_count,
                 "not_found": not_found_count
-            },
-            user_identifier=api_key[:8] if api_key else "unknown"
+            }
         )
     except Exception as e:
         db.rollback()
