@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% block title %}Extraction de courriers PAP — PAP/CSE{% endblock %}
+
+{% block content %}
+<section class="mb-8">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fas fa-robot text-cgt-red"></i>
+        Extraction automatique de courriers PAP
+      </h1>
+      <p class="text-sm text-gray-500 mt-2 max-w-2xl">
+        Importez des photos ou scans de courriers PAP (invitations C5, protocoles d'accord) et laissez l'intelligence artificielle extraire automatiquement les informations clés (SIRET, dates, adresses, etc.).
+      </p>
+    </div>
+    <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+      <p class="text-sm text-gray-500 uppercase font-semibold">Statut du service</p>
+      <p id="service-status" class="text-xl font-bold text-gray-400">Vérification...</p>
+    </div>
+  </div>
+
+  <!-- Zone d'upload -->
+  <div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 mb-8">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-cloud-upload-alt text-cgt-red mr-2"></i>
+      Uploader des courriers
+    </h3>
+
+    <div id="drop-zone" class="border-4 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-cgt-red transition-colors cursor-pointer">
+      <i class="fas fa-file-image text-6xl text-gray-400 mb-4"></i>
+      <p class="text-lg font-semibold text-gray-700 mb-2">Glissez-déposez vos images ici</p>
+      <p class="text-sm text-gray-500 mb-4">ou cliquez pour sélectionner des fichiers</p>
+      <p class="text-xs text-gray-400">Formats acceptés : JPG, PNG, WEBP (max 10MB par fichier)</p>
+      <input type="file" id="file-input" multiple accept="image/jpeg,image/jpg,image/png,image/webp" class="hidden">
+    </div>
+
+    <div class="mt-6 flex items-center gap-4">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="auto-save" class="w-4 h-4 text-cgt-red border-gray-300 rounded focus:ring-cgt-red">
+        <span class="text-sm text-gray-700">Sauvegarder automatiquement les invitations extraites</span>
+      </label>
+    </div>
+
+    <div class="mt-6">
+      <button id="extract-btn" disabled class="bg-cgt-red text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="fas fa-magic mr-2"></i>
+        Extraire les informations
+      </button>
+      <button id="clear-btn" class="ml-3 bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition">
+        <i class="fas fa-trash mr-2"></i>
+        Effacer
+      </button>
+    </div>
+  </div>
+
+  <!-- Zone de preview des fichiers -->
+  <div id="preview-zone" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-images text-cgt-red mr-2"></i>
+      Fichiers sélectionnés (<span id="file-count">0</span>)
+    </h3>
+    <div id="preview-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+  </div>
+
+  <!-- Barre de progression -->
+  <div id="progress-zone" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-spinner fa-spin text-cgt-red mr-2"></i>
+      Extraction en cours...
+    </h3>
+    <div class="w-full bg-gray-200 rounded-full h-4">
+      <div id="progress-bar" class="bg-cgt-red h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+    </div>
+    <p id="progress-text" class="text-sm text-gray-600 mt-2">Préparation...</p>
+  </div>
+
+  <!-- Zone de résultats -->
+  <div id="results-zone" class="hidden">
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">
+        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+        Résultats de l'extraction
+      </h3>
+      <div id="results-summary" class="mb-6 p-4 bg-gray-50 rounded-lg"></div>
+      <div id="results-list"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+// État global
+let selectedFiles = [];
+let extractedResults = [];
+
+// Vérifier l'état du service au chargement
+async function checkServiceStatus() {
+  try {
+    const response = await fetch('/api/extract/health');
+    const data = await response.json();
+
+    const statusEl = document.getElementById('service-status');
+    if (data.openai_configured) {
+      statusEl.textContent = '✓ Opérationnel';
+      statusEl.classList.remove('text-gray-400');
+      statusEl.classList.add('text-green-600');
+    } else {
+      statusEl.textContent = '✗ Non configuré';
+      statusEl.classList.remove('text-gray-400');
+      statusEl.classList.add('text-red-600');
+
+      // Afficher un message d'erreur
+      alert('Le service d\'extraction n\'est pas configuré.\n\nVeuillez ajouter votre clé API OpenAI dans le fichier .env :\nOPENAI_API_KEY=sk-...');
+    }
+  } catch (error) {
+    console.error('Erreur lors de la vérification du service:', error);
+  }
+}
+
+// Gestion du drag & drop
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('border-cgt-red', 'bg-red-50');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('border-cgt-red', 'bg-red-50');
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('border-cgt-red', 'bg-red-50');
+
+  const files = Array.from(e.dataTransfer.files).filter(f =>
+    f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024
+  );
+
+  addFiles(files);
+});
+
+fileInput.addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  addFiles(files);
+});
+
+function addFiles(files) {
+  selectedFiles = [...selectedFiles, ...files];
+  updatePreview();
+  document.getElementById('extract-btn').disabled = selectedFiles.length === 0;
+}
+
+function updatePreview() {
+  const previewZone = document.getElementById('preview-zone');
+  const previewGrid = document.getElementById('preview-grid');
+  const fileCount = document.getElementById('file-count');
+
+  if (selectedFiles.length === 0) {
+    previewZone.classList.add('hidden');
+    return;
+  }
+
+  previewZone.classList.remove('hidden');
+  fileCount.textContent = selectedFiles.length;
+
+  previewGrid.innerHTML = '';
+  selectedFiles.forEach((file, index) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const div = document.createElement('div');
+      div.className = 'relative group';
+      div.innerHTML = `
+        <img src="${e.target.result}" class="w-full h-32 object-cover rounded-lg border-2 border-gray-200">
+        <button onclick="removeFile(${index})" class="absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+        <p class="text-xs text-gray-600 mt-1 truncate">${file.name}</p>
+      `;
+      previewGrid.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeFile(index) {
+  selectedFiles.splice(index, 1);
+  updatePreview();
+  document.getElementById('extract-btn').disabled = selectedFiles.length === 0;
+}
+
+// Extraction
+document.getElementById('extract-btn').addEventListener('click', async () => {
+  if (selectedFiles.length === 0) return;
+
+  const progressZone = document.getElementById('progress-zone');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+  const resultsZone = document.getElementById('results-zone');
+
+  progressZone.classList.remove('hidden');
+  resultsZone.classList.add('hidden');
+  extractedResults = [];
+
+  const autoSave = document.getElementById('auto-save').checked;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const file = selectedFiles[i];
+    const progress = ((i + 1) / selectedFiles.length) * 100;
+
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `Traitement de ${file.name} (${i + 1}/${selectedFiles.length})...`;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('auto_save', autoSave);
+
+      const response = await fetch('/api/extract/document?auto_save=' + autoSave, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      extractedResults.push({
+        filename: file.name,
+        success: response.ok,
+        data: result
+      });
+    } catch (error) {
+      extractedResults.push({
+        filename: file.name,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  progressZone.classList.add('hidden');
+  displayResults();
+});
+
+// Affichage des résultats
+function displayResults() {
+  const resultsZone = document.getElementById('results-zone');
+  const resultsSummary = document.getElementById('results-summary');
+  const resultsList = document.getElementById('results-list');
+
+  const successful = extractedResults.filter(r => r.success).length;
+  const failed = extractedResults.length - successful;
+
+  resultsSummary.innerHTML = `
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-600">Total de documents traités</p>
+        <p class="text-2xl font-bold text-gray-800">${extractedResults.length}</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-600">Réussis</p>
+        <p class="text-2xl font-bold text-green-600">${successful}</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-600">Échecs</p>
+        <p class="text-2xl font-bold text-red-600">${failed}</p>
+      </div>
+    </div>
+  `;
+
+  resultsList.innerHTML = extractedResults.map((result, index) => {
+    if (!result.success) {
+      return `
+        <div class="border border-red-300 rounded-lg p-4 mb-4 bg-red-50">
+          <h4 class="font-semibold text-red-800 mb-2">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            ${result.filename}
+          </h4>
+          <p class="text-sm text-red-600">${result.error || result.data?.detail || 'Erreur inconnue'}</p>
+        </div>
+      `;
+    }
+
+    const data = result.data.data || {};
+    const metadata = result.data.metadata || {};
+
+    return `
+      <div class="border border-green-300 rounded-lg p-6 mb-4 bg-green-50">
+        <div class="flex items-start justify-between mb-4">
+          <h4 class="font-semibold text-green-800">
+            <i class="fas fa-check-circle mr-2"></i>
+            ${result.filename}
+          </h4>
+          ${metadata.auto_saved ? '<span class="text-xs bg-green-600 text-white px-2 py-1 rounded">Sauvegardé</span>' : ''}
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          ${data.siret ? `<div><span class="font-semibold">SIRET:</span> ${data.siret}</div>` : ''}
+          ${data.raison_sociale ? `<div><span class="font-semibold">Raison sociale:</span> ${data.raison_sociale}</div>` : ''}
+          ${data.ville ? `<div><span class="font-semibold">Ville:</span> ${data.ville}</div>` : ''}
+          ${data.code_postal ? `<div><span class="font-semibold">CP:</span> ${data.code_postal}</div>` : ''}
+          ${data.effectif ? `<div><span class="font-semibold">Effectif:</span> ${data.effectif}</div>` : ''}
+          ${data.date_invitation ? `<div><span class="font-semibold">Date invitation:</span> ${data.date_invitation}</div>` : ''}
+          ${data.date_election ? `<div><span class="font-semibold">Date élection:</span> ${data.date_election}</div>` : ''}
+          ${data.idcc ? `<div><span class="font-semibold">IDCC:</span> ${data.idcc}</div>` : ''}
+          ${data.confidence ? `<div><span class="font-semibold">Confiance:</span> <span class="px-2 py-1 rounded text-xs ${data.confidence === 'high' ? 'bg-green-600 text-white' : data.confidence === 'medium' ? 'bg-yellow-600 text-white' : 'bg-red-600 text-white'}">${data.confidence}</span></div>` : ''}
+        </div>
+
+        ${data.notes ? `<div class="mt-4 p-3 bg-white rounded border border-gray-200"><span class="font-semibold text-sm">Notes:</span> <span class="text-sm text-gray-700">${data.notes}</span></div>` : ''}
+
+        <div class="mt-4 flex gap-2">
+          <button onclick="viewDetails(${index})" class="text-sm bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700">
+            <i class="fas fa-eye mr-1"></i> Détails complets
+          </button>
+          ${!metadata.auto_saved && data.siret ? `
+            <button onclick="saveInvitation(${index})" class="text-sm bg-cgt-red text-white px-3 py-1 rounded hover:bg-red-700">
+              <i class="fas fa-save mr-1"></i> Sauvegarder
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  resultsZone.classList.remove('hidden');
+}
+
+function viewDetails(index) {
+  const result = extractedResults[index];
+  const data = JSON.stringify(result.data.data, null, 2);
+
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">Détails complets - ${result.filename}</h3>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      <pre class="bg-gray-100 p-4 rounded-lg overflow-auto text-xs">${data}</pre>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveInvitation(index) {
+  const result = extractedResults[index];
+  const data = result.data.data;
+
+  if (!data.siret) {
+    alert('Impossible de sauvegarder : SIRET manquant');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/extract/save-invitation', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        siret: data.siret,
+        date_invit: data.date_invitation || new Date().toISOString().split('T')[0],
+        source: 'Extraction GPT',
+        idcc: data.idcc,
+        effectif_connu: data.effectif,
+        date_election: data.date_election
+      })
+    });
+
+    if (response.ok) {
+      alert('Invitation sauvegardée avec succès !');
+      location.reload();
+    } else {
+      const error = await response.json();
+      alert('Erreur : ' + error.detail);
+    }
+  } catch (error) {
+    alert('Erreur lors de la sauvegarde : ' + error.message);
+  }
+}
+
+// Bouton effacer
+document.getElementById('clear-btn').addEventListener('click', () => {
+  selectedFiles = [];
+  extractedResults = [];
+  updatePreview();
+  document.getElementById('results-zone').classList.add('hidden');
+  document.getElementById('extract-btn').disabled = true;
+  fileInput.value = '';
+});
+
+// Vérifier le statut au chargement
+checkServiceStatus();
+</script>
+
+{% endblock %}

@@ -302,6 +302,7 @@ from .routers import api  # noqa: E402
 from .routers import api_invitations_stats  # noqa: E402
 from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
+from .routers import api_document_extraction  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -313,6 +314,7 @@ app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
+app.include_router(api_document_extraction.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -2264,6 +2266,17 @@ def _build_ciblage_context(df, siret_list: list[str]) -> dict:
         "match_rows": match_rows,
         "match_count": len(match_rows),
     }
+
+
+@app.get("/extraction", response_class=HTMLResponse)
+def extraction_page(request: Request):
+    """
+    Page d'extraction automatique de courriers PAP via GPT-4 Vision.
+
+    Permet d'uploader des images de courriers PAP et d'en extraire automatiquement
+    les informations (SIRET, dates, adresses, etc.) via l'API OpenAI.
+    """
+    return templates.TemplateResponse("extraction.html", {"request": request})
 
 
 @app.get("/ciblage", response_class=HTMLResponse)
