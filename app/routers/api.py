@@ -833,6 +833,62 @@ def _compute_dashboard_stats(db: Session):
         statut_counts.items(), key=lambda item: (-item[1], item[0])
     )
 
+    # ============================================================================
+    # NOUVEAUX INDICATEURS ENRICHIS
+    # ============================================================================
+
+    # 1. Taux de réponse PAP
+    invitations_avec_reponse = (
+        db.query(func.count(Invitation.id))
+        .filter(Invitation.date_reception.isnot(None))
+        .scalar() or 0
+    )
+    taux_reponse_pap = round(
+        (invitations_avec_reponse / invitations_total * 100) if invitations_total > 0 else 0,
+        1,
+    )
+
+    # 2. Élections dans les 30 prochains jours
+    thirty_days_later = today + timedelta(days=30)
+    elections_next_30_days = (
+        db.query(func.count(func.distinct(Invitation.siret)))
+        .filter(Invitation.date_election.isnot(None))
+        .filter(Invitation.date_election >= today)
+        .filter(Invitation.date_election <= thirty_days_later)
+        .scalar() or 0
+    )
+
+    # 3. Taux de programmation élections
+    invitations_election_programmee = (
+        db.query(func.count(Invitation.id))
+        .filter(Invitation.date_election.isnot(None))
+        .scalar() or 0
+    )
+    taux_programmation_elections = round(
+        (invitations_election_programmee / invitations_total * 100) if invitations_total > 0 else 0,
+        1,
+    )
+
+    # 4. Invitations sans réponse > 30 jours
+    thirty_days_ago = today - timedelta(days=30)
+    invitations_sans_reponse_30j = (
+        db.query(func.count(Invitation.id))
+        .filter(Invitation.date_invit < thirty_days_ago)
+        .filter(Invitation.date_reception.is_(None))
+        .scalar() or 0
+    )
+
+    # 5. Taux d'enrichissement API SIRENE
+    invitations_enrichies = (
+        db.query(func.count(Invitation.id))
+        .filter(Invitation.date_enrichissement.isnot(None))
+        .scalar() or 0
+    )
+    taux_enrichissement_sirene = round(
+        (invitations_enrichies / invitations_total * 100) if invitations_total > 0 else 0,
+        1,
+    )
+
     return {
         "audience_threshold": audience_threshold,
         "audience_siret": audience_siret,
@@ -898,6 +954,15 @@ def _compute_dashboard_stats(db: Session):
         "upcoming_quarters": upcoming_quarters,
         "statut_stats": [{"statut": s[0], "count": s[1]} for s in statut_stats],
         "global_stats": global_stats,
+        # Nouveaux indicateurs enrichis
+        "invitations_avec_reponse": invitations_avec_reponse,
+        "taux_reponse_pap": taux_reponse_pap,
+        "elections_next_30_days": elections_next_30_days,
+        "invitations_election_programmee": invitations_election_programmee,
+        "taux_programmation_elections": taux_programmation_elections,
+        "invitations_sans_reponse_30j": invitations_sans_reponse_30j,
+        "invitations_enrichies": invitations_enrichies,
+        "taux_enrichissement_sirene": taux_enrichissement_sirene,
     }
 
 
