@@ -605,6 +605,9 @@
 
           const response = await fetch(`/api/invitation/add?${params.toString()}`, {
             method: 'POST',
+            headers: {
+              'X-API-Key': '{{ admin_api_key }}'
+            }
           });
 
           const payload = await response.json();

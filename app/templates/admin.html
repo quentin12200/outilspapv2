@@ -569,7 +569,8 @@ async function triggerRebuild() {
     const response = await fetch('/api/build/summary', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': '{{ admin_api_key }}'
       }
     });
 
@@ -730,7 +731,8 @@ async function triggerEnrichirIDCC() {
     const response = await fetch('/api/enrichir/idcc', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': '{{ admin_api_key }}'
       }
     });
 

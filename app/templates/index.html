@@ -615,7 +615,10 @@ async function submitAddPAP(event) {
 
   try {
     const response = await fetch(\`/api/invitation/add?\${params.toString()}\`, {
-      method: 'POST'
+      method: 'POST',
+      headers: {
+        'X-API-Key': '{{ admin_api_key }}'
+      }
     });
 
     const result = await response.json();
