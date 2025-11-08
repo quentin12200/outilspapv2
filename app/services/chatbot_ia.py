@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from openai import OpenAI
 from ..config import OPENAI_API_KEY, OPENAI_MODEL
-from ..models import Invitation, TousPV
 
 logger = logging.getLogger(__name__)
 
