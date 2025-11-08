@@ -1328,14 +1328,27 @@ function genererCarteEntreprise(e) {
     ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CGT ✓</span>'
     : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-600">CGT ✗</span>';
 
+  // Badge de date d'élection avec couleur selon urgence
+  let dateBadge = '';
+  if (e.jours_restants !== null && e.jours_restants !== undefined) {
+    const joursColor = e.jours_restants <= 30
+      ? 'bg-red-100 text-red-700'
+      : e.jours_restants <= 90
+        ? 'bg-orange-100 text-orange-700'
+        : 'bg-blue-100 text-blue-700';
+    dateBadge = `<span class="px-2 py-1 text-xs font-semibold rounded-full ${joursColor}">J-${e.jours_restants}</span>`;
+  }
+
   return `
     <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
       <div class="flex items-start justify-between mb-3">
         <div class="flex-1">
           <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
           <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
+          ${e.date_election !== 'Non renseignée' ? `<p class="text-xs text-purple-600 font-semibold mt-1">📅 Élection: ${e.date_election}</p>` : ''}
         </div>
         <div class="flex flex-col items-end space-y-1">
+          ${dateBadge}
           ${carenceBadge}
           ${cgtBadge}
         </div>

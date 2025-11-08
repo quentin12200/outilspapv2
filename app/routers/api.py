@@ -1879,8 +1879,8 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     """
     Génère un rapport complet de la situation PAP prioritaire.
 
-    Priorité 1: Entreprises avec + de 1000 inscrits
-    Priorité 2: Entreprises de 500 à 1000 inscrits avec analyse des enjeux
+    Priorité 1: Boîtes avec élection dans les 90 prochains jours
+    Priorité 2: Entreprises avec élection dans l'année à venir
 
     Pour chaque entreprise, retourne:
     - SIRET
@@ -1893,6 +1893,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     - Carence (oui/non)
     - Invitations PAP reçues
     - Enjeux identifiés
+    - Date de la prochaine élection
     """
 
     def _to_number(value):
@@ -1913,6 +1914,29 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
                 return None
             try:
                 return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _parse_date_value(value):
+        """Parse une date depuis différents formats"""
+        if not value:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                try:
+                    return datetime.strptime(cleaned, fmt).date()
+                except ValueError:
+                    continue
+            try:
+                return datetime.fromisoformat(cleaned).date()
             except ValueError:
                 return None
         return None
@@ -1975,13 +1999,58 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
         return enjeux
 
-    # Récupère tous les SIRETs avec leur effectif le plus récent
-    # On utilise SiretSummary qui contient les données agrégées
-    query = db.query(SiretSummary).filter(
-        SiretSummary.effectif_siret.isnot(None)
-    )
+    # Dates de référence
+    today = date.today()
+    date_90_jours = today + timedelta(days=90)
+    date_1_an = today + timedelta(days=365)
 
-    all_sirets = query.all()
+    # Récupère tous les PV avec date_prochain_scrutin
+    pv_elections = db.query(
+        PVEvent.siret,
+        PVEvent.date_prochain_scrutin,
+        PVEvent.effectif_siret,
+        PVEvent.inscrits
+    ).filter(
+        PVEvent.date_prochain_scrutin.isnot(None)
+    ).all()
+
+    # Récupère les invitations avec date_election
+    invitations_elections = db.query(
+        Invitation.siret,
+        Invitation.date_election,
+        Invitation.effectif_connu
+    ).filter(
+        Invitation.date_election.isnot(None)
+    ).all()
+
+    # Map des SIRET avec leur date d'élection (prend la plus proche)
+    siret_elections = {}
+
+    # Ajoute les dates depuis PVEvent
+    for siret, date_election, effectif_siret, inscrits in pv_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif_siret) or _to_number(inscrits),
+                'source': 'pv'
+            }
+
+    # Ajoute les dates depuis Invitation (si plus proche)
+    for siret, date_election, effectif in invitations_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif),
+                'source': 'invitation'
+            }
 
     # Récupère les invitations PAP pour voir quels SIRET ont reçu une invitation
     invitations_map = {}
@@ -1991,11 +2060,37 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             invitations_map[siret] = []
         invitations_map[siret].append(date_invit)
 
-    # Sépare en deux groupes
-    priorite_1 = []  # >= 1000 inscrits
-    priorite_2 = []  # 500-999 inscrits
+    # Filtre les SIRET qui ont une élection dans les délais
+    sirets_priorite_1 = {  # Élections dans les 90 jours
+        siret for siret, data in siret_elections.items()
+        if data['date'] <= date_90_jours
+    }
 
-    for row in all_sirets:
+    sirets_priorite_2 = {  # Élections dans l'année (mais pas dans les 90 jours)
+        siret for siret, data in siret_elections.items()
+        if data['date'] > date_90_jours and data['date'] <= date_1_an
+    }
+
+    # Récupère les données complètes depuis SiretSummary
+    all_sirets_p1 = []
+    all_sirets_p2 = []
+
+    if sirets_priorite_1:
+        all_sirets_p1 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_1)
+        ).all()
+
+    if sirets_priorite_2:
+        all_sirets_p2 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_2)
+        ).all()
+
+    # Sépare en deux groupes
+    priorite_1 = []  # Élections dans les 90 jours
+    priorite_2 = []  # Élections dans l'année
+
+    def _traiter_siret(row, election_data):
+        """Traite un SIRET et retourne l'objet entreprise"""
         # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
         effectif = None
         if row.inscrits_c4:
@@ -2005,8 +2100,12 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         elif row.effectif_siret:
             effectif = _to_number(row.effectif_siret)
 
+        # Utilise l'effectif depuis election_data si disponible
+        if not effectif and election_data.get('effectif'):
+            effectif = election_data['effectif']
+
         if not effectif:
-            continue
+            return None
 
         # Détermine la carence
         carence = row.carence_c4 or row.carence_c3 or False
@@ -2028,6 +2127,10 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             orgs
         )
 
+        # Date de l'élection
+        date_election = election_data.get('date')
+        jours_restants = (date_election - today).days if date_election else None
+
         # Construction de l'objet entreprise
         entreprise = {
             "siret": row.siret,
@@ -2047,17 +2150,29 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "fd": row.fd_c4 or row.fd_c3 or "Non renseignée",
             "ud": row.ud_c4 or row.ud_c3 or "Non renseigné",
             "idcc": row.idcc or "Non renseigné",
+            "date_election": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
+            "jours_restants": jours_restants,
         }
 
-        # Classification par priorité
-        if effectif >= 1000:
+        return entreprise
+
+    # Traite les SIRET de priorité 1 (90 jours)
+    for row in all_sirets_p1:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
             priorite_1.append(entreprise)
-        elif effectif >= 500:
+
+    # Traite les SIRET de priorité 2 (1 an)
+    for row in all_sirets_p2:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
             priorite_2.append(entreprise)
 
-    # Tri par nombre d'inscrits décroissant
-    priorite_1.sort(key=lambda x: x["inscrits"], reverse=True)
-    priorite_2.sort(key=lambda x: x["inscrits"], reverse=True)
+    # Tri par date d'élection (les plus proches en premier), puis par nombre d'inscrits
+    priorite_1.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
+    priorite_2.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
 
     # Statistiques globales
     stats = {
@@ -2076,15 +2191,18 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     return {
         "success": True,
         "date_generation": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "date_reference": today.strftime("%d/%m/%Y"),
+        "date_limite_p1": date_90_jours.strftime("%d/%m/%Y"),
+        "date_limite_p2": date_1_an.strftime("%d/%m/%Y"),
         "statistiques": stats,
         "priorite_1": {
-            "titre": "Priorité 1: Entreprises avec ≥ 1000 inscrits",
-            "description": "Cibles prioritaires avec forte audience",
+            "titre": "Priorité 1: Boîtes avec élection dans les 90 jours",
+            "description": f"Élections du {today.strftime('%d/%m/%Y')} au {date_90_jours.strftime('%d/%m/%Y')} - Intervention urgente",
             "entreprises": priorite_1
         },
         "priorite_2": {
-            "titre": "Priorité 2: Entreprises de 500 à 999 inscrits",
-            "description": "Cibles secondaires à fort potentiel",
+            "titre": "Priorité 2: Entreprises avec élection dans l'année",
+            "description": f"Élections du {date_90_jours.strftime('%d/%m/%Y')} au {date_1_an.strftime('%d/%m/%Y')} - Planification à moyen terme",
             "entreprises": priorite_2
         }
     }
