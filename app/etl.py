@@ -72,10 +72,11 @@ def _todate(x):
     if x is None or (isinstance(x, float) and np.isnan(x)): return None
     try:
         d = pd.to_datetime(x, dayfirst=True, errors="coerce")
-        if pd.isna(d): 
+        if pd.isna(d):
             d = pd.to_datetime(dtparse(str(x), dayfirst=True))
         return d.date()
-    except: 
+    except (ValueError, TypeError, AttributeError, pd.errors.ParserError) as e:
+        # Silently ignore parsing errors and return None
         return None
 
 def _col_detect(df, tokens):
@@ -279,7 +280,7 @@ def ingest_pv_excel(session: Session, file_like) -> int:
 def _to_int(x):
     try:
         return int(float(str(x).replace(",", ".").strip()))
-    except:
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
@@ -318,7 +319,7 @@ def _sum_int(vals):
         try:
             s += int(float(str(v).replace(",", ".").strip()))
             has = True
-        except:
+        except (ValueError, TypeError, AttributeError):
             pass
     return s if has else None
 
@@ -372,7 +373,7 @@ def ingest_invit_excel(session: Session, file_like) -> int:
                 return None
             try:
                 return int(float(str(value).replace(",", ".").strip()))
-            except:
+            except (ValueError, TypeError, AttributeError):
                 return None
 
         def pick_date(*keys: str) -> date | None:

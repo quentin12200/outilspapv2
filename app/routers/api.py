@@ -12,6 +12,8 @@ from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
+from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
+from ..auth import require_api_key
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -38,21 +40,42 @@ def _month_bucket_expression(db: Session, column):
     return func.strftime("%Y-%m", column)
 
 @router.post("/ingest/pv")
-async def ingest_pv(file: UploadFile = File(...), db: Session = Depends(get_session)):
+async def ingest_pv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
+    """Ingestion de PV (requiert authentification API Key)"""
+    # Valider le fichier Excel
+    validate_excel_file(file)
+
     n = etl.ingest_pv_excel(db, file.file)
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/ingest/invit")
-async def ingest_invit(file: UploadFile = File(...), db: Session = Depends(get_session)):
+async def ingest_invit(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
+    """Ingestion d'invitations (requiert authentification API Key)"""
+    # Valider le fichier Excel
+    validate_excel_file(file)
+
     n = etl.ingest_invit_excel(db, file.file)
     return RedirectResponse(url="/?retour=1", status_code=303)
 
 @router.post("/build/summary")
-def build_summary(background_tasks: BackgroundTasks):
+def build_summary(
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(require_api_key)
+):
     """
     Lance la reconstruction de la table siret_summary en arrière-plan.
     Retourne immédiatement avec un statut "en cours".
     Utiliser GET /api/build/summary/status pour suivre la progression.
+
+    Requiert authentification API Key.
     """
     # Vérifier si une tâche est déjà en cours
     task_id = "build_siret_summary"
@@ -119,11 +142,16 @@ def get_build_summary_status():
 
 
 @router.post("/enrichir/idcc")
-def enrichir_idcc(background_tasks: BackgroundTasks):
+def enrichir_idcc(
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(require_api_key)
+):
     """
     Lance l'enrichissement des IDCC manquants en arrière-plan via l'API SIRENE.
     Retourne immédiatement avec un statut "en cours".
     Utiliser GET /api/enrichir/idcc/status pour suivre la progression.
+
+    Requiert authentification API Key.
     """
     # Vérifier si une tâche est déjà en cours
     task_id = "enrichir_invitations_idcc"
@@ -263,7 +291,14 @@ def dashboard_stats(db: Session = Depends(get_session)):
 
 
 def _compute_dashboard_stats(db: Session):
-    """Helper function to compute dashboard statistics"""
+    """
+    Helper function to compute dashboard statistics.
+
+    Raises:
+        Exception: If critical database queries fail
+    """
+    import logging
+    logger = logging.getLogger(__name__)
 
     def _to_number(value):
         if value is None:
@@ -319,7 +354,11 @@ def _compute_dashboard_stats(db: Session):
 
     audience_threshold = 1000
 
-    total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    try:
+        total_siret = db.query(func.count(SiretSummary.siret)).scalar() or 0
+    except Exception as e:
+        logger.error(f"Error counting total SIRET: {e}")
+        raise
 
     #
     # Détermination des SIRET cible (≥ 1000 inscrits au dernier PV du cycle 4)
@@ -347,18 +386,22 @@ def _compute_dashboard_stats(db: Session):
 
         return digits_only or stripped or None
 
-    latest_c4_rows = (
-        db.query(
-            PVEvent.siret,
-            PVEvent.id,
-            PVEvent.date_pv,
-            PVEvent.inscrits,
-            PVEvent.cgt_voix,
+    try:
+        latest_c4_rows = (
+            db.query(
+                PVEvent.siret,
+                PVEvent.id,
+                PVEvent.date_pv,
+                PVEvent.inscrits,
+                PVEvent.cgt_voix,
+            )
+            .filter(PVEvent.cycle.isnot(None))
+            .filter(PVEvent.cycle.ilike("%C4%"))
+            .all()
         )
-        .filter(PVEvent.cycle.isnot(None))
-        .filter(PVEvent.cycle.ilike("%C4%"))
-        .all()
-    )
+    except Exception as e:
+        logger.error(f"Error fetching C4 PV events: {e}")
+        raise
 
     latest_per_siret: dict[str, dict[str, float]] = {}
     for siret_value, pv_id, pv_date_value, inscrits_value, cgt_voix_value in latest_c4_rows:
@@ -366,15 +409,18 @@ def _compute_dashboard_stats(db: Session):
         if not siret_str:
             continue
 
+        parsed_pv_date = _parse_date_value(pv_date_value)
+
+        # Use date as primary sort key, ID as tiebreaker only when dates are equal
+        # This ensures deterministic ordering while still being chronologically correct
         try:
             pv_order = int(pv_id or 0)
         except (TypeError, ValueError):
             pv_order = 0
 
-        parsed_pv_date = _parse_date_value(pv_date_value)
         order_tuple = (
             parsed_pv_date or date.min,
-            pv_order,
+            pv_order,  # Secondary sort: higher ID = more recent when dates are equal
         )
 
         current = latest_per_siret.get(siret_str)
@@ -946,21 +992,33 @@ async def sirene_search(
 
 
 @router.post("/sirene/enrichir/{siret}")
-async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
+async def enrichir_un_siret(
+    siret: str,
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
     """
-    Enrichit une invitation avec les données de l'API Sirene
+    Enrichit une invitation avec les données de l'API Sirene.
+
+    Requiert authentification API Key.
     """
+    # Valider le SIRET
+    try:
+        siret_clean = validate_siret(siret, raise_exception=True)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     # Vérifie que l'invitation existe
-    invitation = db.query(Invitation).filter(Invitation.siret == siret).first()
+    invitation = db.query(Invitation).filter(Invitation.siret == siret_clean).first()
     if not invitation:
-        raise HTTPException(status_code=404, detail=f"Aucune invitation trouvée pour le SIRET {siret}")
+        raise HTTPException(status_code=404, detail=f"Aucune invitation trouvée pour le SIRET {siret_clean}")
 
     try:
         # Récupère les données depuis l'API Sirene
-        data = await enrichir_siret(siret)
+        data = await enrichir_siret(siret_clean)
 
         if not data:
-            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
+            raise HTTPException(status_code=404, detail=f"SIRET {siret_clean} non trouvé dans l'API Sirene")
 
         # Met à jour l'invitation
         invitation.denomination = data.get("denomination")
@@ -982,7 +1040,7 @@ async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
 
         return {
             "success": True,
-            "message": f"SIRET {siret} enrichi avec succès",
+            "message": f"SIRET {siret_clean} enrichi avec succès",
             "data": data
         }
 
@@ -993,12 +1051,25 @@ async def enrichir_un_siret(siret: str, db: Session = Depends(get_session)):
 @router.post("/sirene/enrichir-tout")
 async def enrichir_toutes_invitations(
     force: bool = Query(False, description="Forcer le réenrichissement même si déjà fait"),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
 ):
     """
-    Enrichit toutes les invitations qui n'ont pas encore été enrichies
-    Si force=True, réenrichit même celles déjà enrichies
+    [DEPRECATED] Enrichit toutes les invitations qui n'ont pas encore été enrichies.
+
+    ⚠️ AVERTISSEMENT : Cet endpoint exécute les enrichissements de manière séquentielle
+    et peut prendre beaucoup de temps, bloquant le serveur.
+
+    RECOMMANDATION : Utilisez plutôt POST /api/enrichir/idcc qui exécute la tâche
+    en arrière-plan de manière asynchrone et non-bloquante.
+
+    Si force=True, réenrichit même celles déjà enrichies.
+
+    Requiert authentification API Key.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ Endpoint /api/sirene/enrichir-tout is deprecated. Use /api/enrichir/idcc instead.")
     # Récupère les invitations à enrichir
     query = db.query(Invitation)
     if not force:
@@ -1018,38 +1089,51 @@ async def enrichir_toutes_invitations(
     erreurs = 0
     erreurs_details = []
 
-    for invitation in invitations:
-        try:
-            # Récupère les données depuis l'API Sirene
-            data = await enrichir_siret(invitation.siret)
+    # Parallélisation avec semaphore pour limiter le nombre de requêtes simultanées
+    # Limite à 5 requêtes simultanées pour ne pas surcharger l'API Sirene
+    import asyncio
+    semaphore = asyncio.Semaphore(5)
 
-            if data:
-                # Met à jour l'invitation
-                invitation.denomination = data.get("denomination")
-                invitation.enseigne = data.get("enseigne")
-                invitation.adresse = data.get("adresse")
-                invitation.code_postal = data.get("code_postal")
-                invitation.commune = data.get("commune")
-                invitation.activite_principale = data.get("activite_principale")
-                invitation.libelle_activite = data.get("libelle_activite")
-                invitation.tranche_effectifs = data.get("tranche_effectifs")
-                invitation.effectifs_label = data.get("effectifs_label")
-                invitation.est_siege = data.get("est_siege")
-                invitation.est_actif = data.get("est_actif")
-                invitation.categorie_entreprise = data.get("categorie_entreprise")
-                invitation.idcc = data.get("idcc")  # Convention collective
-                invitation.date_enrichissement = datetime.now()
-                enrichis += 1
-            else:
+    async def enrichir_invitation_safe(invitation):
+        """Enrichit une invitation avec gestion d'erreur et semaphore"""
+        nonlocal enrichis, erreurs, erreurs_details
+
+        async with semaphore:
+            try:
+                # Récupère les données depuis l'API Sirene
+                data = await enrichir_siret(invitation.siret)
+
+                if data:
+                    # Met à jour l'invitation
+                    invitation.denomination = data.get("denomination")
+                    invitation.enseigne = data.get("enseigne")
+                    invitation.adresse = data.get("adresse")
+                    invitation.code_postal = data.get("code_postal")
+                    invitation.commune = data.get("commune")
+                    invitation.activite_principale = data.get("activite_principale")
+                    invitation.libelle_activite = data.get("libelle_activite")
+                    invitation.tranche_effectifs = data.get("tranche_effectifs")
+                    invitation.effectifs_label = data.get("effectifs_label")
+                    invitation.est_siege = data.get("est_siege")
+                    invitation.est_actif = data.get("est_actif")
+                    invitation.categorie_entreprise = data.get("categorie_entreprise")
+                    invitation.idcc = data.get("idcc")  # Convention collective
+                    invitation.date_enrichissement = datetime.now()
+                    enrichis += 1
+                else:
+                    erreurs += 1
+                    erreurs_details.append(f"SIRET {invitation.siret} non trouvé")
+
+            except SireneAPIError as e:
                 erreurs += 1
-                erreurs_details.append(f"SIRET {invitation.siret} non trouvé")
+                erreurs_details.append(f"SIRET {invitation.siret}: {str(e)}")
+            except Exception as e:
+                erreurs += 1
+                erreurs_details.append(f"SIRET {invitation.siret}: Erreur inattendue - {type(e).__name__}")
+                logger.error(f"Unexpected error enriching {invitation.siret}: {e}", exc_info=True)
 
-        except SireneAPIError as e:
-            erreurs += 1
-            erreurs_details.append(f"SIRET {invitation.siret}: {str(e)}")
-        except Exception as e:
-            erreurs += 1
-            erreurs_details.append(f"SIRET {invitation.siret}: Erreur inattendue")
+    # Exécuter les enrichissements en parallèle (limité par le semaphore)
+    await asyncio.gather(*[enrichir_invitation_safe(inv) for inv in invitations])
 
     # Sauvegarde en base
     db.commit()
@@ -1359,32 +1443,39 @@ def add_pap_invitation(
     date_election: str = Query(None),
     structure_saisie: str = Query(None),
     source: str = Query("Manuel"),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
 ):
     """
     Ajoute une nouvelle invitation PAP manuellement.
+
+    Requiert authentification API Key.
     """
-    from datetime import datetime
-    
-    # Parse les dates
+    # Valider le SIRET
     try:
-        date_invit_parsed = datetime.strptime(date_invit, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Format de date_invit invalide (attendu: YYYY-MM-DD)")
-    
+        siret_clean = validate_siret(siret, raise_exception=True)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Valider et parser les dates
+    try:
+        date_invit_parsed = validate_date(date_invit, raise_exception=True)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=f"date_invit: {str(e)}")
+
     date_reception_parsed = None
     if date_reception:
         try:
-            date_reception_parsed = datetime.strptime(date_reception, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Format de date_reception invalide (attendu: YYYY-MM-DD)")
-    
+            date_reception_parsed = validate_date(date_reception, raise_exception=True)
+        except ValidationError as e:
+            raise HTTPException(status_code=400, detail=f"date_reception: {str(e)}")
+
     date_election_parsed = None
     if date_election:
         try:
-            date_election_parsed = datetime.strptime(date_election, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Format de date_election invalide (attendu: YYYY-MM-DD)")
+            date_election_parsed = validate_date(date_election, raise_exception=True)
+        except ValidationError as e:
+            raise HTTPException(status_code=400, detail=f"date_election: {str(e)}")
 
     # Enrichissement automatique FD à partir de l'IDCC
     # Principe: Toutes les entreprises avec un IDCC DOIVENT avoir une FD
@@ -1394,7 +1485,7 @@ def add_pap_invitation(
 
     # Crée la nouvelle invitation
     nouvelle_invitation = Invitation(
-        siret=siret,
+        siret=siret_clean,
         date_invit=date_invit_parsed,
         source=source,
         denomination=raison_sociale,
@@ -1426,17 +1517,23 @@ async def enrichir_siret_from_api(siret: str):
     Enrichit un SIRET directement depuis l'API Sirene (sans l'enregistrer).
     Utile pour pré-remplir le formulaire d'ajout PAP.
     """
+    # Valider le SIRET
     try:
-        data = await enrichir_siret(siret)
+        siret_clean = validate_siret(siret, raise_exception=True)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        data = await enrichir_siret(siret_clean)
         
         if not data:
-            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
-        
+            raise HTTPException(status_code=404, detail=f"SIRET {siret_clean} non trouvé dans l'API Sirene")
+
         # Formatte les données pour le formulaire
         return {
             "success": True,
             "data": {
-                "siret": siret,
+                "siret": siret_clean,
                 "raison_sociale": data.get("denomination"),
                 "ville": data.get("commune"),
                 "code_postal": data.get("code_postal"),

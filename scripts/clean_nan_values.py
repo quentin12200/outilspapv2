@@ -1,7 +1,30 @@
 #!/usr/bin/env python3
 """
-Script de migration pour nettoyer les valeurs 'nan' dans les tables.
-Convertit les chaînes 'nan', 'NaN', 'NAN' en NULL pour les colonnes FD, UD et IDCC.
+Script de migration one-time pour nettoyer les valeurs 'nan' dans les tables.
+
+DESCRIPTION:
+    Convertit les chaînes 'nan', 'NaN', 'NAN', 'Nan' en NULL (None) pour les colonnes
+    FD, UD et IDCC dans les tables Invitation, PVEvent et SiretSummary.
+
+USAGE:
+    python scripts/clean_nan_values.py
+
+TABLES AFFECTÉES:
+    - Invitation : colonnes fd, ud, idcc
+    - PVEvent : colonnes fd, ud, idcc
+    - SiretSummary : colonnes fd_c3, fd_c4, ud_c3, ud_c4, idcc
+
+NOTES:
+    - Ce script doit être exécuté une seule fois après l'importation initiale des données
+    - Toutes les modifications sont effectuées dans une transaction unique
+    - En cas d'erreur, un rollback automatique est effectué
+    - Un rapport détaillé est affiché à la fin de l'exécution
+
+AUTEUR:
+    Généré automatiquement lors de la correction des valeurs 'nan'
+
+DATE:
+    2025-01-08
 """
 
 import sys

@@ -1902,9 +1902,9 @@ def invitations(
                         parsed_date = datetime.strptime(date_str.strip(), fmt).date()
                         dates_presumees[normalized_key] = parsed_date
                         break
-                    except:
+                    except (ValueError, TypeError):
                         continue
-            except:
+            except (AttributeError, TypeError):
                 pass
     def _normalize_raw_key(key: str) -> str:
         normalized = unicodedata.normalize("NFKD", str(key))

@@ -121,18 +121,18 @@ class SireneAPI:
                     logger.info(f"SIRET non trouvé: {siret_clean}")
                     return None
                 elif response.status_code == 429:
-                    logger.warning("Limite de taux API Sirene atteinte")
-                    raise SireneAPIError("Trop de requêtes, veuillez patienter")
+                    logger.warning(f"Rate limit atteint pour SIRET {siret_clean}")
+                    raise SireneAPIError(f"Trop de requêtes API Sirene. Veuillez patienter avant de réessayer (SIRET: {siret_clean})")
                 else:
-                    logger.error(f"Erreur API Sirene ({response.status_code}): {response.text}")
-                    raise SireneAPIError(f"Erreur API: {response.status_code}")
+                    logger.error(f"Erreur API Sirene pour SIRET {siret_clean} ({response.status_code}): {response.text[:200]}")
+                    raise SireneAPIError(f"Erreur API Sirene (code {response.status_code}) pour SIRET {siret_clean}")
 
         except httpx.TimeoutException:
-            logger.error(f"Timeout lors de la requête SIRET {siret_clean}")
-            raise SireneAPIError("Timeout de l'API Sirene")
+            logger.error(f"Timeout lors de la requête SIRET {siret_clean} (délai: {REQUEST_TIMEOUT}s)")
+            raise SireneAPIError(f"Timeout de l'API Sirene pour SIRET {siret_clean} après {REQUEST_TIMEOUT}s")
         except httpx.RequestError as e:
-            logger.error(f"Erreur réseau API Sirene: {e}")
-            raise SireneAPIError("Erreur de connexion à l'API Sirene")
+            logger.error(f"Erreur réseau API Sirene pour SIRET {siret_clean}: {type(e).__name__}: {e}")
+            raise SireneAPIError(f"Erreur de connexion à l'API Sirene pour SIRET {siret_clean}: {type(e).__name__}")
 
     async def search_siret(
         self,
@@ -267,31 +267,42 @@ class SireneAPI:
                     continue
 
                 elif response.status_code == 401:
-                    logger.error("Clé API Sirene absente ou invalide")
-                    raise SireneAPIError("Accès refusé par l'API Sirene")
+                    logger.error(f"Clé API Sirene absente ou invalide lors de la recherche '{nom}'")
+                    raise SireneAPIError("Accès refusé par l'API Sirene. Vérifiez votre clé API.")
 
                 elif response.status_code == 429:
-                    logger.warning("Limite de taux API Sirene atteinte")
-                    raise SireneAPIError("Trop de requêtes, veuillez patienter")
+                    logger.warning(f"Rate limit atteint lors de la recherche '{nom}'")
+                    raise SireneAPIError("Trop de requêtes API Sirene. Veuillez patienter avant de réessayer.")
                 else:
                     logger.error(
-                        "Erreur API Sirene (%s): %s",
+                        "Erreur API Sirene lors de la recherche '%s' (status=%s, stratégie=%s): %s",
+                        nom,
                         response.status_code,
-                        response.text,
+                        strategy['name'],
+                        response.text[:200],
                     )
-                    raise SireneAPIError(f"Erreur API: {response.status_code}")
+                    raise SireneAPIError(f"Erreur API Sirene (code {response.status_code}) lors de la recherche '{nom}'")
 
             except httpx.TimeoutException:
                 location = f"CP:{code_postal}" if code_postal else commune or "N/A"
                 logger.error(
-                    "Timeout lors de la recherche Sirene pour %s / %s",
+                    "Timeout lors de la recherche Sirene pour '%s' / %s (délai: %ss, stratégie: %s)",
                     denomination,
                     location,
+                    REQUEST_TIMEOUT,
+                    strategy['name'],
                 )
-                raise SireneAPIError("Timeout de l'API Sirene")
+                raise SireneAPIError(f"Timeout de l'API Sirene pour la recherche '{denomination}' après {REQUEST_TIMEOUT}s")
             except httpx.RequestError as e:
-                logger.error(f"Erreur réseau API Sirene: {e}")
-                raise SireneAPIError("Erreur de connexion à l'API Sirene")
+                location = f"CP:{code_postal}" if code_postal else commune or "N/A"
+                logger.error(
+                    "Erreur réseau API Sirene pour '%s' / %s: %s: %s",
+                    denomination,
+                    location,
+                    type(e).__name__,
+                    e
+                )
+                raise SireneAPIError(f"Erreur de connexion à l'API Sirene pour '{denomination}': {type(e).__name__}")
 
         # Aucune stratégie n'a donné de résultats
         location = f"CP:{code_postal}" if code_postal else commune or "N/A"
