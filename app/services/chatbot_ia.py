@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from openai import OpenAI
-from ..config import OPENAI_API_KEY, OPENAI_MODEL
+from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,65 @@ class ChatbotIA:
 
         self.client = OpenAI(api_key=self.api_key)
         self.model = OPENAI_MODEL or "gpt-4o"
+
+    def _call_openai_with_fallback(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.1,
+        response_format: Optional[Dict[str, str]] = None
+    ) -> str:
+        """
+        Appelle l'API OpenAI avec mécanisme de fallback sur plusieurs modèles.
+
+        Args:
+            messages: Liste des messages pour l'API
+            temperature: Température pour la génération
+            response_format: Format de réponse (ex: {"type": "json_object"})
+
+        Returns:
+            Contenu de la réponse
+
+        Raises:
+            Exception: Si aucun modèle n'est accessible
+        """
+        last_error = None
+
+        for attempt_model in OPENAI_MODEL_FALLBACK:
+            try:
+                logger.info(f"Tentative d'appel OpenAI avec le modèle: {attempt_model}")
+
+                kwargs = {
+                    "model": attempt_model,
+                    "messages": messages,
+                    "temperature": temperature
+                }
+
+                if response_format:
+                    kwargs["response_format"] = response_format
+
+                response = self.client.chat.completions.create(**kwargs)
+
+                # Si on arrive ici, ça a marché !
+                logger.info(f"✅ Appel réussi avec le modèle: {attempt_model}")
+                return response.choices[0].message.content
+
+            except Exception as e:
+                error_msg = str(e)
+                last_error = e
+
+                # Si c'est une erreur d'accès au modèle, essayer le suivant
+                if "does not have access" in error_msg or "model_not_found" in error_msg:
+                    logger.warning(f"⚠️ Modèle {attempt_model} non accessible, essai du suivant...")
+                    continue
+                else:
+                    # Autre type d'erreur, on arrête les tentatives
+                    raise e
+
+        # Aucun modèle n'a fonctionné
+        raise Exception(
+            f"Aucun modèle GPT accessible. Dernière erreur: {str(last_error)}. "
+            f"Vérifiez que vous avez activé au moins un modèle GPT-4 dans votre projet OpenAI."
+        )
 
     def _get_schema_info(self) -> str:
         """
@@ -205,8 +264,7 @@ Maintenant, génère la requête SQL pour la question de l'utilisateur.
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            content = self._call_openai_with_fallback(
                 messages=[
                     {
                         "role": "system",
@@ -221,7 +279,7 @@ Maintenant, génère la requête SQL pour la question de l'utilisateur.
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(content)
             logger.info(f"Requête SQL générée: {result.get('sql')}")
             return result
 
@@ -328,8 +386,7 @@ Maintenant, réponds à la question de l'utilisateur.
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            content = self._call_openai_with_fallback(
                 messages=[
                     {
                         "role": "system",
@@ -343,7 +400,7 @@ Maintenant, réponds à la question de l'utilisateur.
                 temperature=0.3
             )
 
-            return response.choices[0].message.content
+            return content
 
         except Exception as e:
             logger.error(f"Erreur lors du formatage de la réponse: {str(e)}")

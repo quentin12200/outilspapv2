@@ -28,4 +28,6 @@ OPENAI_MODEL_FALLBACK = [
     "gpt-4o-mini-2024-07-18",  # Version mini spécifique
     "gpt-4-turbo",              # GPT-4 Turbo
     "gpt-4-turbo-2024-04-09",  # Version spécifique Turbo
+    "gpt-4",                    # GPT-4 legacy
+    "gpt-3.5-turbo",            # Fallback ultime (moins performant mais très accessible)
 ]
