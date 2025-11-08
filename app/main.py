@@ -331,7 +331,6 @@ templates.env.filters["clean_nan"] = clean_nan_filter
 
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
-    print("🔍 [STARTUP] Checking siret_summary schema...")
     logger.info("🔍 [STARTUP] Checking siret_summary schema...")
 
     from sqlalchemy import inspect, text
@@ -1853,13 +1852,13 @@ def invitations(
         for inv in invitations
         if (normalized := normalize_siret(inv.siret))
     }
-    print(f"DEBUG - Invitations PAP chargées: {len(invitations)}")
-    print(f"DEBUG - Invitations PAP avec SIRET: {len(pap_sirets)}")
+    logger.debug(f"Invitations PAP chargées: {len(invitations)}")
+    logger.debug(f"Invitations PAP avec SIRET: {len(pap_sirets)}")
 
     # Récupérer tous les SIRET qui ont un PV C3 ou C4 (reconduction)
     # DEBUG: Voir tous les cycles distincts dans la base
     all_cycles = db.query(PVEvent.cycle).distinct().all()
-    print(f"DEBUG - Tous les cycles dans la base: {[c[0] for c in all_cycles if c[0]]}")
+    logger.debug(f"Tous les cycles dans la base: {[c[0] for c in all_cycles if c[0]]}")
 
     sirets_with_previous_pv = {
         normalized
@@ -1871,18 +1870,15 @@ def invitations(
         )
         if (normalized := normalize_siret(raw_siret))
     }
-    print(f"DEBUG - Nombre de SIRETs avec PV C3/C4: {len(sirets_with_previous_pv)}")
-    print(
-        "DEBUG - Invitations PAP avec PV C3/C4:"
-        f" {len(pap_sirets & sirets_with_previous_pv)}"
+    logger.debug(f"Nombre de SIRETs avec PV C3/C4: {len(sirets_with_previous_pv)}")
+    logger.debug(
+        f"Invitations PAP avec PV C3/C4: {len(pap_sirets & sirets_with_previous_pv)}"
     )
-    print(
-        "DEBUG - Invitations PAP avec PV C5:"
-        f" {len(pap_sirets & sirets_with_pv_c5)}"
+    logger.debug(
+        f"Invitations PAP avec PV C5: {len(pap_sirets & sirets_with_pv_c5)}"
     )
-    print(
-        "DEBUG - Invitations PAP candidates Reconduction (C3/C4 sans C5):"
-        f" {len((pap_sirets & sirets_with_previous_pv) - sirets_with_pv_c5)}"
+    logger.debug(
+        f"Invitations PAP candidates Reconduction (C3/C4 sans C5): {len((pap_sirets & sirets_with_previous_pv) - sirets_with_pv_c5)}"
     )
 
     # Récupérer les dates présumées de prochaine élection (depuis le PV le plus récent)

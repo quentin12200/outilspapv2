@@ -48,9 +48,21 @@ def _build_raw_payload(row: pd.Series) -> dict[str, str]:
     return payload
 
 def _to14(x):
-    """Normalise une valeur de SIRET en ne conservant que les chiffres."""
+    """
+    Normalise une valeur de SIRET en ne conservant que les chiffres.
 
+    Args:
+        x: Value to convert (can be str, int, float, None, or NaN)
+
+    Returns:
+        str or None: The normalized SIRET (digits only) or None if invalid
+    """
+    if x is None:
+        return None
     if pd.isna(x):
+        return None
+    # Handle empty strings
+    if isinstance(x, str) and not x.strip():
         return None
     s = re.sub(r"\D", "", str(x))
     if not s:
@@ -69,22 +81,51 @@ def _normalize_siret_series(series: pd.Series | None) -> pd.Series | None:
     return normalized
 
 def _todate(x):
-    if x is None or (isinstance(x, float) and np.isnan(x)): return None
+    """
+    Convert a value to date safely.
+
+    Handles various date formats including Excel dates, string dates, timestamps, etc.
+
+    Args:
+        x: Value to convert (can be str, datetime, timestamp, int, float, None, or NaN)
+
+    Returns:
+        date or None: The converted date or None if conversion fails
+    """
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return None
+    # Handle empty strings
+    if isinstance(x, str) and not x.strip():
+        return None
     try:
         d = pd.to_datetime(x, dayfirst=True, errors="coerce")
         if pd.isna(d):
             d = pd.to_datetime(dtparse(str(x), dayfirst=True))
         return d.date()
-    except (ValueError, TypeError, AttributeError, pd.errors.ParserError) as e:
+    except (ValueError, TypeError, AttributeError, pd.errors.ParserError):
         # Silently ignore parsing errors and return None
         return None
 
-def _col_detect(df, tokens):
+def _col_detect(df, tokens, warn_if_missing=False):
+    """
+    Detect a column in a DataFrame by matching tokens.
+
+    Args:
+        df: DataFrame to search
+        tokens: List of possible column names to match
+        warn_if_missing: If True, log a warning when no column is found
+
+    Returns:
+        The matched column name or None
+    """
     for t in tokens:
         if t in df.columns: return t
     for c in df.columns:
         for t in tokens:
             if t in c: return c
+
+    if warn_if_missing:
+        logger.warning(f"Colonne non trouvée dans le fichier. Colonnes recherchées: {tokens}")
     return None
 
 def _norm_cycle(x: str) -> str:
@@ -224,8 +265,8 @@ def ingest_pv_excel(session: Session, file_like) -> int:
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
     df = _normalize_cols(df)
 
-    c_siret   = _col_detect(df, ["siret"])
-    c_cycle   = _col_detect(df, ["cycle"])
+    c_siret   = _col_detect(df, ["siret"], warn_if_missing=True)
+    c_cycle   = _col_detect(df, ["cycle"], warn_if_missing=True)
     # date PV: utiliser STRICTEMENT la colonne "date" si elle existe
     c_datepv = "date" if "date" in df.columns else (_col_detect(df, ["date pv","date pap","date_pv","date du pv","date du pap"]) or df.columns[min(15, len(df.columns)-1)])
     c_type    = _col_detect(df, ["type"])
@@ -242,9 +283,12 @@ def ingest_pv_excel(session: Session, file_like) -> int:
     c_ville   = _col_detect(df, ["ville"])
 
     inserted = 0
-    for _, r in df.iterrows():
+    skipped = 0
+    # Use to_dict('records') instead of iterrows() for better performance
+    for r in df.to_dict('records'):
         siret = _to14(r.get(c_siret))
-        if not siret: 
+        if not siret:
+            skipped += 1
             continue
         cycle = _norm_cycle(r.get(c_cycle))
         date_pv = _todate(r.get(c_datepv))
@@ -274,12 +318,34 @@ def ingest_pv_excel(session: Session, file_like) -> int:
         session.add(ev)
         inserted += 1
 
+    if skipped > 0:
+        logger.warning(f"Ingestion PV : {skipped} lignes ignorées (SIRET manquant ou invalide)")
     session.commit()
+    logger.info(f"Ingestion PV : {inserted} lignes insérées")
     return inserted
 
 def _to_int(x):
+    """
+    Convert a value to integer safely.
+
+    Handles various input types including strings with commas, pandas NaN, None, etc.
+
+    Args:
+        x: Value to convert (can be str, int, float, None, or NaN)
+
+    Returns:
+        int or None: The converted integer or None if conversion fails
+    """
+    if x is None:
+        return None
+    # Handle pandas NaN
+    if isinstance(x, float) and pd.isna(x):
+        return None
     try:
-        return int(float(str(x).replace(",", ".").strip()))
+        cleaned = str(x).replace(",", ".").strip()
+        if not cleaned or cleaned.lower() in ('nan', 'none', ''):
+            return None
+        return int(float(cleaned))
     except (ValueError, TypeError, AttributeError):
         return None
 
@@ -330,15 +396,20 @@ def ingest_invit_excel(session: Session, file_like) -> int:
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
     df = _normalize_cols(df)
 
-    c_siret = _col_detect(df, ["siret"])
-    c_date  = _col_detect(df, ["date pap","date_pap","date","date invitation"])
+    c_siret = _col_detect(df, ["siret"], warn_if_missing=True)
+    c_date  = _col_detect(df, ["date pap","date_pap","date","date invitation"], warn_if_missing=True)
     inserted = 0
-    for _, r in df.iterrows():
+    skipped_no_siret = 0
+    skipped_no_date = 0
+    # Use to_dict('records') instead of iterrows() for better performance
+    for r in df.to_dict('records'):
         siret = _to14(r.get(c_siret))
         if not siret:
+            skipped_no_siret += 1
             continue
         date_invit = _todate(r.get(c_date))
         if not date_invit:
+            skipped_no_date += 1
             continue
         raw_payload = _build_raw_payload(r)
 
@@ -436,7 +507,13 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, session)
         session.add(inv)
         inserted += 1
+
+    if skipped_no_siret > 0:
+        logger.warning(f"Ingestion invitations : {skipped_no_siret} lignes ignorées (SIRET manquant ou invalide)")
+    if skipped_no_date > 0:
+        logger.warning(f"Ingestion invitations : {skipped_no_date} lignes ignorées (date manquante ou invalide)")
     session.commit()
+    logger.info(f"Ingestion invitations : {inserted} lignes insérées")
     return inserted
 
 # -------- Construire le résumé 1-ligne/SIRET --------
