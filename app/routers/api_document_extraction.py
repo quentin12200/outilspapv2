@@ -104,17 +104,12 @@ async def extract_document(
         # Lire le fichier
         file_data = await file.read()
 
-        # TODO: Si c'est un PDF, le convertir en images
-        if file.content_type == "application/pdf":
-            raise HTTPException(
-                status_code=501,
-                detail="Le support PDF sera ajouté prochainement. "
-                       "Veuillez convertir votre PDF en image pour le moment."
-            )
+        # Déterminer si c'est un PDF
+        is_pdf = file.content_type == "application/pdf"
 
         # Extraire les informations
         extractor = DocumentExtractor()
-        extracted_data = extractor.extract_from_image(file_data)
+        extracted_data = extractor.extract_from_document(file_data, is_pdf=is_pdf)
 
         # Log de l'extraction
         log_admin_action(
@@ -195,11 +190,17 @@ async def extract_batch(
             file_data = await file.read()
 
             # Vérifier le type
-            if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
+            if file.content_type not in [
+                "image/jpeg", "image/jpg", "image/png", "image/webp",
+                "application/pdf"
+            ]:
                 raise ValueError(f"Type de fichier non supporté: {file.content_type}")
 
+            # Déterminer si c'est un PDF
+            is_pdf = file.content_type == "application/pdf"
+
             # Extraire
-            extracted_data = extractor.extract_from_image(file_data)
+            extracted_data = extractor.extract_from_document(file_data, is_pdf=is_pdf)
 
             # Sauvegarder si demandé
             saved_invitation = None

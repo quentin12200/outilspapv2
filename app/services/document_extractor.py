@@ -14,8 +14,14 @@ import json
 
 from openai import OpenAI
 from PIL import Image
+try:
+    from pdf2image import convert_from_bytes
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
+    logger.warning("pdf2image non installé - support PDF désactivé")
 
-from ..config import OPENAI_API_KEY
+from ..config import OPENAI_API_KEY, OPENAI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +37,13 @@ class DocumentExtractor:
     en utilisant l'API OpenAI GPT-4 Vision.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         """
         Initialise le service d'extraction.
 
         Args:
             api_key: Clé API OpenAI. Si None, utilise OPENAI_API_KEY de la config.
+            model: Modèle OpenAI à utiliser. Si None, utilise OPENAI_MODEL de la config.
 
         Raises:
             DocumentExtractorError: Si la clé API n'est pas configurée.
@@ -49,6 +56,7 @@ class DocumentExtractor:
             )
 
         self.client = OpenAI(api_key=self.api_key)
+        self.default_model = model or OPENAI_MODEL
 
     def _encode_image(self, image_data: bytes) -> str:
         """
@@ -94,10 +102,44 @@ class DocumentExtractor:
         except Exception as e:
             raise DocumentExtractorError(f"Erreur lors du traitement de l'image: {str(e)}")
 
+    def _convert_pdf_to_image(self, pdf_data: bytes) -> bytes:
+        """
+        Convertit la première page d'un PDF en image.
+
+        Args:
+            pdf_data: Données du PDF
+
+        Returns:
+            Image de la première page en bytes
+
+        Raises:
+            DocumentExtractorError: Si la conversion échoue ou si pdf2image n'est pas installé
+        """
+        if not PDF_SUPPORT:
+            raise DocumentExtractorError(
+                "Support PDF non disponible. Installez pdf2image avec: "
+                "pip install pdf2image"
+            )
+
+        try:
+            # Convertir le PDF en images (première page seulement pour économiser)
+            images = convert_from_bytes(pdf_data, first_page=1, last_page=1, dpi=200)
+
+            if not images:
+                raise DocumentExtractorError("Le PDF ne contient aucune page")
+
+            # Convertir l'image PIL en bytes
+            buffer = io.BytesIO()
+            images[0].save(buffer, format='PNG', optimize=True)
+            return buffer.getvalue()
+
+        except Exception as e:
+            raise DocumentExtractorError(f"Erreur lors de la conversion du PDF: {str(e)}")
+
     def extract_from_image(
         self,
         image_data: bytes,
-        model: str = "gpt-4o",
+        model: Optional[str] = None,
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         """
@@ -105,7 +147,7 @@ class DocumentExtractor:
 
         Args:
             image_data: Données de l'image du courrier
-            model: Modèle OpenAI à utiliser (gpt-4o recommandé)
+            model: Modèle OpenAI à utiliser. Si None, utilise le modèle configuré (gpt-4o-mini par défaut)
             temperature: Température du modèle (0.1 pour plus de précision)
 
         Returns:
@@ -128,6 +170,10 @@ class DocumentExtractor:
             DocumentExtractorError: Si l'extraction échoue
         """
         try:
+            # Utiliser le modèle par défaut si non spécifié
+            if model is None:
+                model = self.default_model
+
             # Valider et optimiser l'image
             processed_image = self._validate_and_convert_image(image_data)
             base64_image = self._encode_image(processed_image)
@@ -220,6 +266,48 @@ class DocumentExtractor:
             logger.error(f"Erreur lors de l'extraction: {str(e)}")
             raise DocumentExtractorError(f"Échec de l'extraction: {str(e)}")
 
+    def extract_from_document(
+        self,
+        document_data: bytes,
+        is_pdf: bool = False,
+        model: Optional[str] = None,
+        temperature: float = 0.1
+    ) -> Dict[str, Any]:
+        """
+        Extrait les informations d'un courrier PAP depuis un document (image ou PDF).
+
+        Cette méthode détecte automatiquement le type de document et applique
+        le traitement approprié.
+
+        Args:
+            document_data: Données du document (image ou PDF)
+            is_pdf: True si le document est un PDF, False sinon
+            model: Modèle OpenAI à utiliser. Si None, utilise le modèle configuré
+            temperature: Température du modèle (0.1 pour plus de précision)
+
+        Returns:
+            Dictionnaire contenant les informations extraites
+
+        Raises:
+            DocumentExtractorError: Si l'extraction échoue
+        """
+        try:
+            # Si c'est un PDF, le convertir en image
+            if is_pdf:
+                logger.info("Conversion du PDF en image...")
+                image_data = self._convert_pdf_to_image(document_data)
+            else:
+                image_data = document_data
+
+            # Extraire les informations de l'image
+            return self.extract_from_image(image_data, model=model, temperature=temperature)
+
+        except DocumentExtractorError:
+            raise
+        except Exception as e:
+            logger.error(f"Erreur lors de l'extraction du document: {str(e)}")
+            raise DocumentExtractorError(f"Échec de l'extraction: {str(e)}")
+
     def _estimate_cost(self, tokens: int, model: str) -> float:
         """
         Estime le coût de l'appel API.
@@ -233,31 +321,36 @@ class DocumentExtractor:
         """
         # Tarifs approximatifs (à jour au 2024)
         rates = {
+            "gpt-4o-mini": 0.00015 / 1000,  # $0.00015 per 1K tokens (très économique)
             "gpt-4o": 0.005 / 1000,  # $0.005 per 1K tokens (input + output moyenné)
             "gpt-4-turbo": 0.01 / 1000,
             "gpt-4": 0.03 / 1000,
         }
 
-        rate = rates.get(model, 0.01 / 1000)
+        rate = rates.get(model, 0.001 / 1000)
         return tokens * rate
 
     def extract_batch(
         self,
         images: list[bytes],
-        model: str = "gpt-4o"
+        model: Optional[str] = None
     ) -> list[Dict[str, Any]]:
         """
         Extrait les informations de plusieurs courriers en parallèle.
 
         Args:
             images: Liste de données d'images
-            model: Modèle OpenAI à utiliser
+            model: Modèle OpenAI à utiliser. Si None, utilise le modèle configuré
 
         Returns:
             Liste de dictionnaires avec les informations extraites
         """
         results = []
         total_cost = 0.0
+
+        # Utiliser le modèle par défaut si non spécifié
+        if model is None:
+            model = self.default_model
 
         for i, image_data in enumerate(images, 1):
             logger.info(f"Traitement du document {i}/{len(images)}")

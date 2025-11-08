@@ -27,6 +27,10 @@ Ajoutez votre clé dans le fichier `.env` à la racine du projet :
 ```bash
 # .env
 OPENAI_API_KEY=sk-proj-VOTRE_CLE_ICI
+
+# Optionnel: Modèle OpenAI à utiliser (par défaut: gpt-4o-mini)
+# Options: gpt-4o-mini, gpt-4o, gpt-4-turbo
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 ### 3. Installer les dépendances
@@ -38,6 +42,7 @@ pip install -r requirements.txt
 Les nouvelles dépendances installées :
 - `openai==1.54.3` - Client officiel OpenAI
 - `pillow==10.4.0` - Traitement d'images
+- `pdf2image==1.17.0` - Conversion de PDF en images
 
 ### 4. Redémarrer l'application
 
@@ -109,14 +114,16 @@ curl -X POST "http://localhost:8000/api/extract/batch" \
 curl http://localhost:8000/api/extract/health
 ```
 
-### Formats d'images supportés
+### Formats de documents supportés
 
 - **JPG / JPEG** ✅
 - **PNG** ✅
 - **WEBP** ✅
-- **PDF** ⏳ (à venir)
+- **PDF** ✅ (première page extraite automatiquement)
 
 **Taille maximale recommandée :** 10 MB par fichier
+
+**Note sur les PDF :** Les PDF sont automatiquement convertis en image (première page) avant l'extraction. Pour les PDF multipages, seule la première page est traitée.
 
 ## 📊 Informations extraites
 
@@ -154,13 +161,18 @@ Le système extrait automatiquement :
 
 ## 💰 Coûts
 
-Le service utilise GPT-4o (modèle optimisé pour la vision) :
+Le service utilise par défaut **GPT-4o-mini** (modèle économique et performant) :
 
-**Tarif approximatif :** ~$0.01 - 0.03 par document
+**Tarif approximatif avec gpt-4o-mini :** ~$0.001 - 0.003 par document (très économique !)
 
-- Une extraction coûte entre 1 et 3 centimes de dollar
-- Pour 100 documents : ~$1-3
-- Pour 1000 documents : ~$10-30
+- Une extraction coûte environ 0.1 à 0.3 centimes de dollar
+- Pour 100 documents : ~$0.10-0.30
+- Pour 1000 documents : ~$1-3
+
+**Tarifs selon le modèle :**
+- `gpt-4o-mini` (défaut) : ~$0.001-0.003/doc - ⭐ Recommandé : très économique et performant
+- `gpt-4o` : ~$0.01-0.03/doc - Pour une précision maximale
+- `gpt-4-turbo` : ~$0.02-0.05/doc - Ancien modèle, plus cher
 
 💡 **Astuce :** Les images sont automatiquement optimisées pour réduire les coûts sans perte de précision.
 
@@ -193,13 +205,23 @@ Le service utilise GPT-4o (modèle optimisé pour la vision) :
 
 ### Modifier le modèle utilisé
 
-Par défaut, `gpt-4o` est utilisé. Vous pouvez changer dans le code :
+Par défaut, `gpt-4o-mini` est utilisé. Vous pouvez changer le modèle de deux façons :
+
+**1. Via variable d'environnement (recommandé) :**
+
+```bash
+# Dans le fichier .env
+OPENAI_MODEL=gpt-4o  # ou gpt-4o-mini, gpt-4-turbo
+```
+
+**2. Via le code (pour un usage ponctuel) :**
 
 ```python
 # app/services/document_extractor.py
-extractor.extract_from_image(
-    image_data,
-    model="gpt-4-turbo",  # ou "gpt-4"
+extractor = DocumentExtractor(model="gpt-4o")
+extracted_data = extractor.extract_from_document(
+    document_data,
+    is_pdf=False,
     temperature=0.1
 )
 ```
@@ -309,7 +331,8 @@ class ExtractionResult(BaseModel):
 
 ## 🔮 Améliorations futures
 
-- [ ] Support des PDF multipages
+- [x] ~~Support des PDF~~ ✅ Implémenté (première page)
+- [ ] Support des PDF multipages (traiter toutes les pages)
 - [ ] Extraction de courriers manuscrits
 - [ ] Détection automatique du type de document
 - [ ] Export des résultats en Excel
