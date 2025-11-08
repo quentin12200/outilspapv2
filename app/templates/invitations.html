@@ -169,6 +169,10 @@
         <i class="fas fa-expand mr-2"></i>
         Plein écran
       </button>
+      <button onclick="updateFdFromIdcc()" id="btn-update-fd" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>
+        Mettre à jour FD par IDCC
+      </button>
     </div>
   </div>
 
@@ -353,6 +357,56 @@ function changePerPage(perPage) {
   url.searchParams.set('per_page', perPage);
   url.searchParams.set('page', '1'); // Reset to first page
   window.location.href = url.toString();
+}
+
+async function updateFdFromIdcc() {
+  const btn = document.getElementById('btn-update-fd');
+  const originalText = btn.innerHTML;
+
+  // Confirmation de l'utilisateur
+  if (!confirm('Voulez-vous mettre à jour les FD à partir des IDCC ? Cette opération peut prendre quelques instants.')) {
+    return;
+  }
+
+  // Désactiver le bouton et afficher un spinner
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mise à jour en cours...';
+
+  try {
+    const response = await fetch('/api/invitations/update-fd-from-idcc', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // Succès
+      const message = `Mise à jour terminée !
+
+✅ ${data.updated} invitations mises à jour
+⏭️ ${data.skipped_without_idcc} sans IDCC (ignorées)
+❌ ${data.not_found_in_mapping} IDCC non trouvés dans le mapping
+📊 Total: ${data.total_invitations} invitations`;
+
+      alert(message);
+
+      // Recharger la page pour afficher les nouvelles données
+      window.location.reload();
+    } else {
+      // Erreur
+      alert(`Erreur: ${data.detail || 'Une erreur est survenue'}`);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la mise à jour des FD: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
 }
 </script>
 {% endblock %}

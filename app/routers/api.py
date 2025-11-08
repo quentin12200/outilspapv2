@@ -1787,3 +1787,85 @@ def get_audit_stats(
             for u in user_stats
         ]
     }
+
+
+@router.post("/invitations/update-fd-from-idcc")
+async def update_fd_from_idcc(
+    db: Session = Depends(get_session),
+    api_key: str = Depends(require_api_key)
+):
+    """
+    Met à jour les FD (Fédérations) à partir des IDCC en utilisant le mapping idcc_to_fd_mapping.json
+    """
+    import json
+    import os
+
+    # Charger le mapping IDCC -> FD
+    mapping_file = os.path.join(os.path.dirname(__file__), "..", "data", "idcc_to_fd_mapping.json")
+    try:
+        with open(mapping_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            idcc_to_fd = data.get("mapping", {})
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Fichier de mapping IDCC -> FD introuvable")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors du chargement du mapping: {str(e)}")
+
+    if not idcc_to_fd:
+        raise HTTPException(status_code=500, detail="Mapping IDCC -> FD vide")
+
+    # Récupérer toutes les invitations
+    invitations = db.query(Invitation).all()
+
+    updated_count = 0
+    skipped_count = 0
+    not_found_count = 0
+
+    for invitation in invitations:
+        # Vérifier si l'invitation a un IDCC
+        if not invitation.idcc:
+            skipped_count += 1
+            continue
+
+        # Convertir l'IDCC en string pour la recherche
+        idcc_str = str(invitation.idcc).strip()
+
+        # Chercher la FD correspondante
+        if idcc_str in idcc_to_fd:
+            new_fd = idcc_to_fd[idcc_str]
+
+            # Mettre à jour seulement si la FD est différente ou vide
+            if not invitation.fd or invitation.fd == "[FD NON RENSEIGNEE]" or invitation.fd != new_fd:
+                invitation.fd = new_fd
+                updated_count += 1
+        else:
+            not_found_count += 1
+
+    # Sauvegarder les modifications
+    try:
+        db.commit()
+        log_admin_action(
+            db,
+            action_type="update_fd_from_idcc",
+            resource_type="invitations",
+            resource_id="bulk",
+            details={
+                "updated": updated_count,
+                "skipped": skipped_count,
+                "not_found": not_found_count
+            },
+            user_identifier=api_key[:8] if api_key else "unknown"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {str(e)}")
+
+    return {
+        "success": True,
+        "message": "Mise à jour des FD terminée",
+        "total_invitations": len(invitations),
+        "updated": updated_count,
+        "skipped_without_idcc": skipped_count,
+        "not_found_in_mapping": not_found_count,
+        "mapping_size": len(idcc_to_fd)
+    }
