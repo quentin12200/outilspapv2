@@ -1,0 +1,444 @@
+"""
+Service de chatbot IA pour répondre à des questions sur les données PAP/CSE.
+
+Ce service utilise GPT-4 pour interpréter des requêtes en langage naturel,
+générer des requêtes SQL appropriées et retourner des réponses formatées.
+"""
+
+import logging
+import json
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from openai import OpenAI
+from ..config import OPENAI_API_KEY, OPENAI_MODEL
+from ..models import Invitation, TousPV
+
+logger = logging.getLogger(__name__)
+
+
+class ChatbotIA:
+    """
+    Chatbot IA pour interroger la base de données PAP/CSE en langage naturel.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialise le chatbot IA.
+
+        Args:
+            api_key: Clé API OpenAI. Si None, utilise OPENAI_API_KEY de la config.
+
+        Raises:
+            ValueError: Si la clé API n'est pas configurée.
+        """
+        self.api_key = api_key or OPENAI_API_KEY
+        if not self.api_key:
+            raise ValueError(
+                "Clé API OpenAI manquante. "
+                "Veuillez configurer OPENAI_API_KEY dans le fichier .env"
+            )
+
+        self.client = OpenAI(api_key=self.api_key)
+        self.model = OPENAI_MODEL or "gpt-4o"
+
+    def _get_schema_info(self) -> str:
+        """
+        Retourne une description du schéma de la base de données.
+
+        Returns:
+            Description textuelle du schéma pour le contexte GPT.
+        """
+        return """
+## Schéma de la base de données PAP/CSE
+
+### Table: invitations
+Table des invitations PAP (Protocole d'Accord Préélectoral) Cycle 5.
+Colonnes:
+- id (INTEGER): Identifiant unique
+- siret (TEXT): Numéro SIRET de l'établissement (14 chiffres)
+- date_invit (DATE): Date de l'invitation au PAP
+- date_reception (DATE): Date de réception de l'invitation
+- date_election (DATE): Date prévue de l'élection
+- source (TEXT): Source de l'invitation (ex: "IA - Extraction GPT", "Import Manuel", "Email")
+- ud (TEXT): Union Départementale (ex: "UD 75", "UD 13")
+- fd (TEXT): Fédération (ex: "Métallurgie", "Chimie", "Commerce")
+- idcc (TEXT): Code IDCC de la convention collective
+- effectif_connu (INTEGER): Effectif de l'entreprise si connu
+- structure_saisie (TEXT): Structure qui a saisi l'invitation
+- created_at (DATETIME): Date de création dans la BDD
+- updated_at (DATETIME): Date de dernière mise à jour
+- raw (JSON): Données brutes complètes
+
+Informations importantes:
+- Les invitations peuvent être marquées avec différents statuts basés sur les dates
+- La source "IA - Extraction GPT" indique une extraction automatique par IA
+- L'IDCC permet d'identifier la convention collective
+
+### Table: Tous_PV
+Table historique des PV (Procès-Verbaux) d'élections professionnelles.
+Colonnes principales:
+- siret (TEXT): Numéro SIRET de l'établissement
+- raison_sociale (TEXT): Nom de l'entreprise
+- effectif (INTEGER): Effectif de l'établissement
+- date_scrutin (DATE): Date du scrutin
+- date_prochain_scrutin (DATE): Date du prochain scrutin prévu
+- cycle (TEXT): Cycle électoral (ex: "C5", "C4")
+- institution (TEXT): Type d'institution (ex: "CSE", "CE", "DP", "CAR" pour carence)
+- fd (TEXT): Fédération
+- ud (TEXT): Union Départementale
+- idcc (TEXT): Code IDCC
+- region (TEXT): Région
+- departement (TEXT): Département
+- ville (TEXT): Ville
+- code_postal (TEXT): Code postal
+- participation_pourcent (REAL): Taux de participation en %
+- sve (BOOLEAN): Syndicat Voix Electeur (1 = oui, 0 = non)
+
+Informations sur les résultats électoraux:
+- total_exprimes: Total des votes exprimés
+- total_votants: Total des votants
+- cgt_*: Résultats CGT (sièges, voix, %)
+- cfdt_*: Résultats CFDT
+- fo_*: Résultats FO
+- cfe_cgc_*: Résultats CFE-CGC
+- cftc_*: Résultats CFTC
+- unsa_*: Résultats UNSA
+- fsu_*: Résultats FSU
+- solidaires_*: Résultats Solidaires
+- autres_*: Autres syndicats
+
+### Requêtes courantes:
+
+**Compter les invitations:**
+SELECT COUNT(*) FROM invitations
+
+**Invitations par département (via UD):**
+SELECT ud, COUNT(*) as count FROM invitations WHERE ud IS NOT NULL GROUP BY ud ORDER BY count DESC
+
+**Invitations en retard (>60 jours sans date d'élection):**
+SELECT COUNT(*) FROM invitations
+WHERE date_election IS NULL
+AND date_invit < date('now', '-60 days')
+
+**Statistiques par source:**
+SELECT source, COUNT(*) as count FROM invitations GROUP BY source
+
+**Prochaines élections:**
+SELECT COUNT(*) FROM Tous_PV
+WHERE date_prochain_scrutin >= date('now')
+AND date_prochain_scrutin <= date('now', '+30 days')
+
+**Top FD par nombre de PV:**
+SELECT fd, COUNT(*) as count FROM Tous_PV WHERE fd IS NOT NULL GROUP BY fd ORDER BY count DESC LIMIT 10
+"""
+
+    def _generate_sql_query(self, question: str, db: Session) -> Dict[str, Any]:
+        """
+        Génère une requête SQL à partir d'une question en langage naturel.
+
+        Args:
+            question: Question de l'utilisateur en langage naturel
+            db: Session de base de données
+
+        Returns:
+            Dict avec la requête SQL, son explication et le type de réponse
+        """
+        schema = self._get_schema_info()
+
+        prompt = f"""Tu es un assistant SQL expert pour une plateforme de gestion PAP/CSE (élections professionnelles).
+
+{schema}
+
+Question de l'utilisateur: {question}
+
+IMPORTANT:
+- Génère UNIQUEMENT une requête SQL SQLite sécurisée (pas d'UPDATE, DELETE, DROP)
+- La requête doit être optimisée et pertinente
+- Utilise des fonctions SQL appropriées (COUNT, SUM, GROUP BY, etc.)
+- Pour les dates, utilise la fonction date() de SQLite
+- Pour "aujourd'hui", utilise date('now')
+- Les dates sont au format YYYY-MM-DD
+- Retourne UNIQUEMENT un objet JSON avec cette structure:
+
+{{
+    "sql": "SELECT ...",
+    "explanation": "Explication courte de ce que fait la requête",
+    "response_type": "count|list|table|stat",
+    "limit": 10
+}}
+
+Types de response_type:
+- count: Une seule valeur numérique
+- list: Liste d'éléments
+- table: Tableau de données
+- stat: Statistiques agrégées
+
+Exemples:
+
+Q: "Combien d'invitations en retard dans le 75 ?"
+R: {{
+    "sql": "SELECT COUNT(*) as count FROM invitations WHERE ud = 'UD 75' AND date_election IS NULL AND date_invit < date('now', '-60 days')",
+    "explanation": "Compte les invitations du département 75 sans date d'élection et datant de plus de 60 jours",
+    "response_type": "count",
+    "limit": null
+}}
+
+Q: "Quelles entreprises ont une élection ce mois-ci ?"
+R: {{
+    "sql": "SELECT DISTINCT siret, raison_sociale, date_prochain_scrutin FROM Tous_PV WHERE date_prochain_scrutin >= date('now', 'start of month') AND date_prochain_scrutin < date('now', '+1 month', 'start of month') ORDER BY date_prochain_scrutin LIMIT 20",
+    "explanation": "Liste les entreprises avec une élection prévue ce mois",
+    "response_type": "table",
+    "limit": 20
+}}
+
+Q: "Statistiques des invitations par source"
+R: {{
+    "sql": "SELECT source, COUNT(*) as count, ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM invitations), 2) as percentage FROM invitations GROUP BY source ORDER BY count DESC",
+    "explanation": "Agrège les invitations par source avec pourcentages",
+    "response_type": "stat",
+    "limit": null
+}}
+
+Maintenant, génère la requête SQL pour la question de l'utilisateur.
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert SQL pour bases de données SQLite. Tu génères des requêtes SQL sécurisées et optimisées."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            logger.info(f"Requête SQL générée: {result.get('sql')}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération SQL: {str(e)}")
+            raise
+
+    def _execute_query(self, sql: str, db: Session) -> List[Dict[str, Any]]:
+        """
+        Exécute une requête SQL de manière sécurisée.
+
+        Args:
+            sql: Requête SQL à exécuter
+            db: Session de base de données
+
+        Returns:
+            Liste de résultats sous forme de dictionnaires
+
+        Raises:
+            ValueError: Si la requête contient des opérations dangereuses
+        """
+        # Vérification de sécurité
+        sql_upper = sql.upper()
+        dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE"]
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise ValueError(f"Requête non autorisée: contient '{keyword}'")
+
+        try:
+            result = db.execute(text(sql))
+
+            # Convertir les résultats en liste de dictionnaires
+            rows = []
+            for row in result:
+                # row est un objet Row qui se comporte comme un tuple et un dict
+                row_dict = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(result.keys(), row))
+                rows.append(row_dict)
+
+            logger.info(f"Requête exécutée avec succès: {len(rows)} résultats")
+            return rows
+
+        except Exception as e:
+            logger.error(f"Erreur lors de l'exécution SQL: {str(e)}")
+            raise
+
+    def _format_response(
+        self,
+        question: str,
+        sql_info: Dict[str, Any],
+        results: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Formate les résultats en réponse en langage naturel.
+
+        Args:
+            question: Question originale
+            sql_info: Informations sur la requête SQL
+            results: Résultats de la requête
+
+        Returns:
+            Réponse formatée en langage naturel
+        """
+        response_type = sql_info.get("response_type", "table")
+
+        # Si pas de résultats
+        if not results:
+            return "Aucun résultat trouvé pour cette requête."
+
+        prompt = f"""Tu es un assistant pour une plateforme PAP/CSE.
+
+Question: {question}
+
+Requête SQL: {sql_info.get('sql')}
+
+Résultats:
+{json.dumps(results, indent=2, default=str)}
+
+INSTRUCTIONS:
+- Réponds à la question de manière claire et professionnelle
+- Utilise des formats adaptés (listes, tableaux, statistiques)
+- Si c'est un nombre, indique-le clairement
+- Si c'est une liste, présente-la de manière structurée
+- Ajoute du contexte si pertinent
+- Utilise des émojis appropriés (📊 pour stats, 🏢 pour entreprises, 📅 pour dates, etc.)
+
+Exemples de formats:
+
+Pour un compte:
+"Il y a **23 invitations** en retard dans le département 75 (Paris) 🔴"
+
+Pour une liste:
+"Voici les 5 prochaines élections :
+1. **ABC Corp** (SIRET: xxx) - 15/03/2024
+2. **DEF SA** (SIRET: yyy) - 22/03/2024
+..."
+
+Pour des statistiques:
+"📊 **Répartition des invitations par source** :
+- IA - Extraction GPT: 145 (45%)
+- Import Manuel: 102 (32%)
+- Email: 73 (23%)"
+
+Maintenant, réponds à la question de l'utilisateur.
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un assistant professionnel qui aide à interpréter des données sur les élections professionnelles."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3
+            )
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error(f"Erreur lors du formatage de la réponse: {str(e)}")
+            # Fallback: retourner les résultats bruts
+            return f"Résultats trouvés: {len(results)} entrée(s)\n\n{json.dumps(results[:10], indent=2, default=str)}"
+
+    def ask(self, question: str, db: Session) -> Dict[str, Any]:
+        """
+        Pose une question au chatbot et obtient une réponse.
+
+        Args:
+            question: Question en langage naturel
+            db: Session de base de données
+
+        Returns:
+            Dictionnaire contenant:
+            - question: Question posée
+            - answer: Réponse en langage naturel
+            - sql: Requête SQL générée
+            - results: Résultats bruts (limité aux 100 premiers)
+            - metadata: Métadonnées (tokens, coût, etc.)
+
+        Raises:
+            ValueError: Si la question est vide ou la requête dangereuse
+            Exception: En cas d'erreur lors du traitement
+        """
+        if not question or not question.strip():
+            raise ValueError("La question ne peut pas être vide")
+
+        logger.info(f"Question posée: {question}")
+
+        try:
+            # 1. Générer la requête SQL
+            sql_info = self._generate_sql_query(question, db)
+
+            # 2. Exécuter la requête
+            results = self._execute_query(sql_info["sql"], db)
+
+            # 3. Formater la réponse
+            answer = self._format_response(question, sql_info, results)
+
+            return {
+                "question": question,
+                "answer": answer,
+                "sql": sql_info["sql"],
+                "sql_explanation": sql_info.get("explanation"),
+                "results": results[:100],  # Limiter les résultats retournés
+                "total_results": len(results),
+                "metadata": {
+                    "model": self.model,
+                    "timestamp": datetime.now().isoformat(),
+                    "response_type": sql_info.get("response_type")
+                }
+            }
+
+        except ValueError as e:
+            # Erreur de sécurité ou validation
+            logger.warning(f"Erreur de validation: {str(e)}")
+            return {
+                "question": question,
+                "answer": f"⚠️ Erreur : {str(e)}",
+                "sql": None,
+                "error": str(e)
+            }
+
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement de la question: {str(e)}")
+            return {
+                "question": question,
+                "answer": f"❌ Une erreur est survenue lors du traitement de votre question. Veuillez reformuler ou essayer une autre question.",
+                "sql": None,
+                "error": str(e)
+            }
+
+
+# Fonction utilitaire pour une utilisation rapide
+def ask_chatbot(question: str, db: Session) -> str:
+    """
+    Fonction utilitaire pour poser rapidement une question au chatbot.
+
+    Args:
+        question: Question en langage naturel
+        db: Session de base de données
+
+    Returns:
+        Réponse en langage naturel
+
+    Example:
+        >>> from app.db import get_session
+        >>> db = next(get_session())
+        >>> answer = ask_chatbot("Combien d'invitations PAP ?", db)
+        >>> print(answer)
+        "Il y a **320 invitations** PAP dans la base de données 📊"
+    """
+    chatbot = ChatbotIA()
+    result = chatbot.ask(question, db)
+    return result["answer"]

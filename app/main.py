@@ -303,6 +303,7 @@ from .routers import api_invitations_stats  # noqa: E402
 from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
+from .routers import api_chatbot  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -315,6 +316,7 @@ app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
+app.include_router(api_chatbot.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
