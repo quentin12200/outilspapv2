@@ -52,3 +52,5 @@ app/static/last_ciblage.csv
 # Backup files
 *_backup.*
 *_old_backup.*
+app/data/*
+!app/data/.gitkeep

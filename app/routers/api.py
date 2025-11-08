@@ -10,6 +10,7 @@ from .. import etl
 from ..models import SiretSummary, PVEvent, Invitation
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
+from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 
 
@@ -1384,7 +1385,13 @@ def add_pap_invitation(
             date_election_parsed = datetime.strptime(date_election, "%Y-%m-%d").date()
         except ValueError:
             raise HTTPException(status_code=400, detail="Format de date_election invalide (attendu: YYYY-MM-DD)")
-    
+
+    # Enrichissement automatique FD à partir de l'IDCC
+    # Principe: Toutes les entreprises avec un IDCC DOIVENT avoir une FD
+    if idcc and not fd:
+        enrichment_service = get_idcc_enrichment_service()
+        fd = enrichment_service.enrich_fd(idcc, fd, db)
+
     # Crée la nouvelle invitation
     nouvelle_invitation = Invitation(
         siret=siret,

@@ -426,6 +426,13 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             date_election=pick_date("date_election", "date election", "date_des_elections", "date des elections", "date_scrutin", "date scrutin"),
             structure_saisie=pick_first_truthy("structure_saisie", "structure saisie", "structure", "organisation"),
         )
+
+        # Enrichissement automatique FD à partir de l'IDCC
+        # Principe: Toutes les entreprises avec un IDCC DOIVENT avoir une FD
+        if inv.idcc and not inv.fd:
+            from app.services.idcc_enrichment import get_idcc_enrichment_service
+            enrichment_service = get_idcc_enrichment_service()
+            inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, session)
         session.add(inv)
         inserted += 1
     session.commit()
