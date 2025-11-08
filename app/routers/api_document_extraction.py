@@ -395,7 +395,7 @@ async def _save_as_invitation(
         invitation = Invitation(
             siret=siret,
             date_invit=date_invit,
-            source=f"Extraction GPT - {extracted_data.get('source', 'Document')}",
+            source="IA - Extraction GPT",
             ud=None,  # À remplir manuellement
             fd=None,  # À remplir manuellement
             idcc=extracted_data.get("idcc"),
