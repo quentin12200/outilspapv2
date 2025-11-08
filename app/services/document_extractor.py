@@ -21,7 +21,7 @@ except ImportError:
     PDF_SUPPORT = False
     logger.warning("pdf2image non installé - support PDF désactivé")
 
-from ..config import OPENAI_API_KEY, OPENAI_MODEL
+from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
 
 logger = logging.getLogger(__name__)
 
@@ -220,28 +220,59 @@ class DocumentExtractor:
             - Sois très précis sur les chiffres (SIRET, effectif, dates)
             """
 
-            # Appeler l'API OpenAI
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
+            # Essayer plusieurs modèles en fallback si le premier échoue
+            models_to_try = [model] if model != self.default_model else OPENAI_MODEL_FALLBACK
+            last_error = None
+
+            for attempt_model in models_to_try:
+                try:
+                    logger.info(f"Tentative d'extraction avec le modèle: {attempt_model}")
+
+                    # Appeler l'API OpenAI
+                    response = self.client.chat.completions.create(
+                        model=attempt_model,
+                        messages=[
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{base64_image}",
-                                    "detail": "high"
-                                }
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/png;base64,{base64_image}",
+                                            "detail": "high"
+                                        }
+                                    }
+                                ]
                             }
-                        ]
-                    }
-                ],
-                temperature=temperature,
-                max_tokens=2000,
-                response_format={"type": "json_object"}
-            )
+                        ],
+                        temperature=temperature,
+                        max_tokens=2000,
+                        response_format={"type": "json_object"}
+                    )
+
+                    # Si on arrive ici, ça a marché !
+                    model = attempt_model  # Utiliser ce modèle pour les métadonnées
+                    logger.info(f"✅ Extraction réussie avec le modèle: {attempt_model}")
+                    break
+
+                except Exception as e:
+                    error_msg = str(e)
+                    last_error = e
+
+                    # Si c'est une erreur d'accès au modèle, essayer le suivant
+                    if "does not have access" in error_msg or "model_not_found" in error_msg:
+                        logger.warning(f"⚠️ Modèle {attempt_model} non accessible, essai du suivant...")
+                        continue
+                    else:
+                        # Autre type d'erreur, on arrête les tentatives
+                        raise e
+            else:
+                # Aucun modèle n'a fonctionné
+                raise DocumentExtractorError(
+                    f"Aucun modèle GPT-4 accessible. Dernière erreur: {str(last_error)}. "
+                    f"Vérifiez que vous avez activé au moins un modèle GPT-4 dans votre projet OpenAI."
+                )
 
             # Parser la réponse
             result = response.choices[0].message.content
