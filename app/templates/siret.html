@@ -1,54 +1,1121 @@
 {% extends "base.html" %}
 {% block title %}{{ row.siret if row else 'SIRET inconnu' }} — PAP/CSE{% endblock %}
+
 {% block content %}
+
 {% if not row %}
-  <p>SIRET introuvable.</p>
-{% else %}
-<article>
-  <header>
-    <h3 style="margin:0">{{ row.raison_sociale or '(raison manquante)' }}</h3>
-    <small>SIRET {{ row.siret }} — IDCC {{ row.idcc or '–' }} — {{ row.ville or '' }} ({{ row.cp or '' }})</small>
-  </header>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-    <div>
-      <h5>Cycle 3</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c3 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c3 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c3 or '–' }}, Votants: {{ row.votants_c3 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c3 or '–' }}</li>
-        <li>UD: {{ row.ud_c3 or '–' }}, FD: {{ row.fd_c3 or '–' }}</li>
-      </ul>
+<!-- Not Found Message -->
+<div class="flex items-center justify-center min-h-[400px]">
+  <div class="text-center">
+    <i class="fas fa-exclamation-triangle text-6xl text-gray-300 mb-4"></i>
+    <h2 class="text-2xl font-bold text-gray-700 mb-2">SIRET non trouvé</h2>
+    <p class="text-gray-500 mb-6">Ce SIRET n'est pas dans la base des données des PV C3 et C4 (carences compris).</p>
+    <p class="text-gray-400 text-sm mb-6">
+      <i class="fas fa-info-circle mr-1"></i>
+      Vous pouvez rechercher ce SIRET dans la base nationale via la page PAP ou enrichir les données via l'API Sirene.
+    </p>
+    <div class="flex gap-4 justify-center">
+      <a href="/" class="inline-flex items-center px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+        <i class="fas fa-arrow-left mr-2"></i>
+        Retour à l'accueil
+      </a>
+      <a href="/pap" class="inline-flex items-center px-6 py-3 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition">
+        <i class="fas fa-search mr-2"></i>
+        Rechercher dans PAP
+      </a>
     </div>
-    <div>
-      <h5>Cycle 4</h5>
-      <ul>
-        <li>Date PV: <strong>{{ row.date_pv_c4 or '–' }}</strong></li>
-        <li>Carence: <strong>{{ 'Oui' if row.carence_c5 else 'Non' }}</strong></li>
-        <li>Inscrits: {{ row.inscrits_c4 or '–' }}, Votants: {{ row.votants_c4 or '–' }}</li>
-        <li>Voix CGT: {{ row.cgt_voix_c4 or '–' }}</li>
-        <li>UD: {{ row.ud_c4 or '–' }}, FD: {{ row.fd_c4 or '–' }}</li>
-      </ul>
+  </div>
+</div>
+
+{% else %}
+
+<!-- Back Button -->
+<div class="mb-6">
+  <a href="/" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+    <i class="fas fa-arrow-left mr-2"></i>
+    Retour à la liste
+  </a>
+</div>
+
+<!-- Company Header -->
+<section class="bg-gradient-to-br from-cgt-red via-cgt-darkred to-red-900 text-white rounded-2xl shadow-2xl p-8 mb-8 relative overflow-hidden">
+  <!-- Decorative background pattern -->
+  <div class="absolute inset-0 opacity-10">
+    <div class="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2"></div>
+    <div class="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2"></div>
+  </div>
+
+  <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div class="flex-1">
+      <div class="flex items-start space-x-4 mb-4">
+        <div class="flex-shrink-0 w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+          <i class="fas fa-building text-3xl"></i>
+        </div>
+        <div class="flex-1">
+          <h1 class="text-4xl font-bold mb-2 leading-tight">{{ row.raison_sociale or '(raison manquante)' }}</h1>
+          <div class="flex flex-wrap items-center gap-3 text-red-50">
+            <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+              <i class="fas fa-hashtag"></i>
+              <span class="font-mono font-semibold tracking-wide">{{ row.siret }}</span>
+            </div>
+            {% if row.idcc | clean_nan %}
+            <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+              <i class="fas fa-file-contract"></i>
+              <span class="font-semibold">IDCC {{ row.idcc | clean_nan }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3 text-sm">
+        {% if row.ville or row.cp %}
+        <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+          <i class="fas fa-map-marker-alt text-lg"></i>
+          <span class="font-medium">{{ row.ville or '' }}{% if row.cp %} ({{ row.cp }}){% endif %}</span>
+        </div>
+        {% endif %}
+        {% if row.region %}
+        <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+          <i class="fas fa-map text-lg"></i>
+          <span class="font-medium">{{ row.region }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex flex-col items-end space-y-3">
+      {% if row.cgt_implantee %}
+      <div class="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl shadow-lg flex items-center space-x-3 transform hover:scale-105 transition-transform">
+        <i class="fas fa-check-circle text-2xl"></i>
+        <div class="text-left">
+          <div class="font-bold text-lg">CGT Implantée</div>
+          <div class="text-xs text-green-100">Organisation présente</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl shadow-lg flex items-center space-x-3">
+        <i class="fas fa-times-circle text-2xl"></i>
+        <div class="text-left">
+          <div class="font-bold text-lg">CGT Non Implantée</div>
+          <div class="text-xs text-gray-200">Organisation absente</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Sirene Information (INSEE) -->
+{% if sirene_data %}
+<section class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-md p-6 mb-8 border-l-4 border-indigo-500">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-2xl font-bold text-gray-800">
+      <i class="fas fa-database text-indigo-500 mr-2"></i>
+      Informations officielles (API Sirene - INSEE)
+    </h2>
+    <div class="flex items-center space-x-2 text-xs text-gray-500">
+      <i class="fas fa-sync-alt"></i>
+      <span>Mis à jour le {{ sirene_data.date_enrichissement_label or 'N/A' }}</span>
     </div>
   </div>
 
-  <p>Statut: <strong>{{ row.statut_pap }}</strong> — Dernier PV: <strong>{{ row.date_pv_max or '–' }}</strong> — Dernier PAP (C5): <strong>{{ row.date_pap_c5 or '–' }}</strong></p>
-  <p>Implantation CGT: {% if row.cgt_implantee %}<span class="badge ok">Oui</span>{% else %}<span class="badge">Non</span>{% endif %}</p>
-</article>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- Dénomination -->
+    {% if sirene_data.denomination %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Dénomination officielle</p>
+      <p class="font-bold text-gray-800">{{ sirene_data.denomination }}</p>
+    </div>
+    {% endif %}
 
-<article>
-  <header><strong>Évolution inscrits / votants / voix CGT</strong></header>
-  <div id="ts" style="height:360px"></div>
-  <script>
-  fetch(`/api/siret/{{ row.siret }}/timeseries`).then(r=>r.json()).then(data=>{
-    const fig = [
-      {x:data.dates, y:data.inscrits, type:'scatter', mode:'lines+markers', name:'Inscrits'},
-      {x:data.dates, y:data.votants,  type:'scatter', mode:'lines+markers', name:'Votants'},
-      {x:data.dates, y:data.cgt_voix, type:'scatter', mode:'lines+markers', name:'Voix CGT'}
-    ];
-    Plotly.newPlot('ts', fig, {margin:{l:30,r:10,t:10,b:30}});
-  });
-  </script>
-</article>
+    <!-- Enseigne -->
+    {% if sirene_data.enseigne %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Enseigne commerciale</p>
+      <p class="font-bold text-gray-800">{{ sirene_data.enseigne }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Adresse -->
+    {% if sirene_data.adresse %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">
+        <i class="fas fa-map-marker-alt text-green-500 mr-1"></i>
+        Adresse
+      </p>
+      <p class="text-sm text-gray-800">{{ sirene_data.adresse }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Effectifs -->
+    {% if sirene_data.effectifs_label %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">
+        <i class="fas fa-users text-blue-500 mr-1"></i>
+        Effectifs
+      </p>
+      <p class="font-bold text-gray-800">{{ sirene_data.effectifs_label }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Activité -->
+    {% if sirene_data.libelle_activite %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">
+        <i class="fas fa-briefcase text-purple-500 mr-1"></i>
+        Activité principale
+      </p>
+      <p class="text-sm text-gray-800">{{ sirene_data.libelle_activite }}</p>
+      {% if sirene_data.activite_principale %}
+      <p class="text-xs text-gray-500 mt-1">Code NAF: {{ sirene_data.activite_principale }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Statut -->
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Statut</p>
+      <div class="flex items-center space-x-3">
+        {% if sirene_data.est_actif is none %}
+        <span class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-xs font-bold">
+          <i class="fas fa-question-circle mr-1"></i>Statut inconnu
+        </span>
+        {% elif sirene_data.est_actif %}
+        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">
+          <i class="fas fa-check-circle mr-1"></i>Actif
+        </span>
+        {% else %}
+        <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">
+          <i class="fas fa-times-circle mr-1"></i>Inactif
+        </span>
+        {% endif %}
+
+        {% if sirene_data.est_siege %}
+        <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
+          <i class="fas fa-building mr-1"></i>Siège
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Convention Collective (IDCC) -->
+    {% if sirene_data.idcc | clean_nan %}
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-1">
+        <i class="fas fa-file-contract text-indigo-500 mr-1"></i>
+        Convention collective
+      </p>
+      <p class="font-bold text-gray-800">IDCC {{ sirene_data.idcc | clean_nan }}</p>
+      <div class="mt-2 space-y-1">
+        {% if sirene_data.idcc_url %}
+        <a href="{{ sirene_data.idcc_url }}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 hover:underline">
+          <i class="fas fa-balance-scale mr-1"></i>
+          Texte officiel sur Legifrance
+        </a>
+        {% endif %}
+        <a href="https://code.travail.gouv.fr/convention-collective/{{ sirene_data.idcc }}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline block">
+          <i class="fas fa-book mr-1"></i>
+          Code du travail numérique
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
 {% endif %}
+
+<!-- Quick Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <!-- Statut PAP -->
+  <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-shadow transform hover:-translate-y-1 transition-transform">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <h3 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Statut PAP</h3>
+        <p class="text-3xl font-extrabold text-blue-900">{{ row.statut_pap or 'N/A' }}</p>
+      </div>
+      <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+        <i class="fas fa-info-circle text-white text-xl"></i>
+      </div>
+    </div>
+    <div class="text-xs text-blue-700 font-medium">Protocole d'accord préélectoral</div>
+  </div>
+
+  <!-- Date PAP C5 -->
+  <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-shadow transform hover:-translate-y-1 transition-transform">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <h3 class="text-xs font-bold text-green-600 uppercase tracking-wider mb-1">Date PAP C5</h3>
+        {% set pap_date = row.date_pap_c5_display or row.date_pap_c5 %}
+        {% set pap_label = row.date_pap_c5_label or pap_date %}
+        <p class="text-3xl font-extrabold text-green-900">
+          {% if pap_date %}
+            {{ pap_label }}
+          {% else %}
+            N/A
+          {% endif %}
+        </p>
+      </div>
+      <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+        <i class="fas fa-calendar-check text-white text-xl"></i>
+      </div>
+    </div>
+    <div class="text-xs text-green-700 font-medium">Prochaine échéance électorale</div>
+  </div>
+
+  <!-- Dernier PV -->
+  <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl shadow-lg p-6 border-l-4 border-purple-500 hover:shadow-xl transition-shadow transform hover:-translate-y-1 transition-transform">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <h3 class="text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">Dernier PV</h3>
+        <p class="text-3xl font-extrabold text-purple-900">
+          {% if row.date_pv_max %}
+            {{ row.date_pv_max.strftime('%d/%m/%Y') if row.date_pv_max is not string else row.date_pv_max }}
+          {% else %}
+            N/A
+          {% endif %}
+        </p>
+      </div>
+      <div class="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+        <i class="fas fa-file-alt text-white text-xl"></i>
+      </div>
+    </div>
+    <div class="text-xs text-purple-700 font-medium">Procès-verbal le plus récent</div>
+  </div>
+</div>
+
+<!-- Prochaines élections (Cycle 5) -->
+{% if cycle_projection %}
+<section class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-md p-6 mb-8 border-l-4 border-orange-500">
+  <div class="flex items-center mb-4">
+    <i class="fas fa-calendar-alt text-orange-500 text-3xl mr-4"></i>
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Prochaines élections (Cycle 5)</h2>
+      <p class="text-sm text-gray-600">Estimées à partir du Cycle 4</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
+        <i class="fas fa-calendar-day mr-1"></i>
+        Date prévue des prochaines élections
+      </p>
+      {% if cycle_projection.projected_label %}
+        <p class="text-2xl font-bold text-orange-600">
+          {{ cycle_projection.projected_label }}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">
+          ({{ cycle_projection.duration_years }} ans après le Cycle 4)
+        </p>
+      {% else %}
+        <p class="text-lg text-gray-400">Non calculable</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
+        <i class="fas fa-hourglass-half mr-1"></i>
+        Temps restant
+      </p>
+      {% set countdown = cycle_projection.countdown %}
+      {% if countdown %}
+        {% if countdown.status == 'upcoming' %}
+          <p class="text-2xl font-bold text-blue-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
+        {% elif countdown.status == 'imminent' %}
+          <p class="text-lg font-bold text-orange-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
+        {% else %}
+          <p class="text-lg font-bold text-red-600">{{ countdown.primary_label }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ countdown.secondary_label }}</p>
+        {% endif %}
+      {% else %}
+        <p class="text-lg text-gray-400">Non calculable</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+    <p class="text-sm text-gray-700">
+      <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+      <strong>Note :</strong> Cette date est estimée en ajoutant la durée du mandat (généralement 4 ans) à la date du Cycle 4.
+      La date réelle peut varier selon les accords d'entreprise.
+    </p>
+  </div>
+</section>
+{% endif %}
+
+<!-- Cycle Information -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+  <!-- Cycle 3 -->
+  <section class="bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg p-6 border-t-4 border-blue-500 hover:shadow-xl transition-shadow">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+        <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+          <i class="fas fa-calendar text-white"></i>
+        </div>
+        Cycle 3
+      </h2>
+      {% if row.carence_c3 %}
+      <span class="px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 rounded-lg text-xs font-bold shadow-md">
+        <i class="fas fa-exclamation-triangle mr-1"></i>CARENCE
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="space-y-4">
+      <!-- Date PV -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-calendar-day w-5 mr-2"></i>
+          Date PV
+        </span>
+        <span class="font-bold text-gray-800">{{ row.date_pv_c3 or '–' }}</span>
+      </div>
+
+      <!-- FD / UD -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-sitemap w-5 mr-2"></i>
+          FD / UD
+        </span>
+        <span class="font-bold text-gray-800">{{ row.fd_c3 | clean_nan or '–' }} / {{ row.ud_c3 | clean_nan or '–' }}</span>
+      </div>
+
+      <!-- Inscrits / Votants -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-users w-5 mr-2"></i>
+          Inscrits / Votants
+        </span>
+        <span class="font-bold text-gray-800">
+          <span class="text-blue-600">{{ row.inscrits_c3 or '–' }}</span>
+          /
+          <span class="text-green-600">{{ row.votants_c3 or '–' }}</span>
+        </span>
+      </div>
+
+      <!-- Voix CGT -->
+      <div class="flex items-center justify-between pb-3">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-vote-yea w-5 mr-2"></i>
+          Voix CGT
+        </span>
+        <span class="text-2xl font-bold text-cgt-red">{{ row.cgt_voix_c3 or '–' }}</span>
+      </div>
+
+      <!-- Pourcentage -->
+      {% if row.inscrits_c3 and row.cgt_voix_c3 %}
+      <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-600">Taux CGT</span>
+          <span class="text-lg font-bold text-cgt-red">
+            {{ "%.1f"|format((row.cgt_voix_c3 / row.inscrits_c3 * 100)) }}%
+          </span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div class="bg-cgt-red h-3 rounded-full transition-all"
+               style="width: {{ (row.cgt_voix_c3 / row.inscrits_c3 * 100)|round|int }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Cycle 4 -->
+  <section class="bg-gradient-to-br from-white to-green-50 rounded-2xl shadow-lg p-6 border-t-4 border-green-500 hover:shadow-xl transition-shadow">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+          <i class="fas fa-calendar text-white"></i>
+        </div>
+        Cycle 4
+      </h2>
+      {% if row.carence_c4 %}
+      <span class="px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 rounded-lg text-xs font-bold shadow-md">
+        <i class="fas fa-exclamation-triangle mr-1"></i>CARENCE
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="space-y-4">
+      <!-- Date PV -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-calendar-day w-5 mr-2"></i>
+          Date PV
+        </span>
+        <span class="font-bold text-gray-800">{{ row.date_pv_c4 or '–' }}</span>
+      </div>
+
+      <!-- FD / UD -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-sitemap w-5 mr-2"></i>
+          FD / UD
+        </span>
+        <span class="font-bold text-gray-800">{{ row.fd_c4 | clean_nan or '–' }} / {{ row.ud_c4 | clean_nan or '–' }}</span>
+      </div>
+
+      <!-- Inscrits / Votants -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-users w-5 mr-2"></i>
+          Inscrits / Votants
+        </span>
+        <span class="font-bold text-gray-800">
+          <span class="text-blue-600">{{ row.inscrits_c4 or '–' }}</span>
+          /
+          <span class="text-green-600">{{ row.votants_c4 or '–' }}</span>
+        </span>
+      </div>
+
+      <!-- Voix CGT -->
+      <div class="flex items-center justify-between pb-3">
+        <span class="text-gray-600 flex items-center">
+          <i class="fas fa-vote-yea w-5 mr-2"></i>
+          Voix CGT
+        </span>
+        <span class="text-2xl font-bold text-cgt-red">{{ row.cgt_voix_c4 or '–' }}</span>
+      </div>
+
+      <!-- Pourcentage -->
+      {% if row.inscrits_c4 and row.cgt_voix_c4 %}
+      <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-600">Taux CGT</span>
+          <span class="text-lg font-bold text-cgt-red">
+            {{ "%.1f"|format((row.cgt_voix_c4 / row.inscrits_c4 * 100)) }}%
+          </span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div class="bg-cgt-red h-3 rounded-full transition-all"
+               style="width: {{ (row.cgt_voix_c4 / row.inscrits_c4 * 100)|round|int }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<!-- Evolution Charts -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">
+      <i class="fas fa-chart-line text-cgt-red mr-2"></i>
+      Évolution Historique
+    </h2>
+    <div class="flex space-x-2">
+      <button onclick="switchChart('inscrits')" id="btn-inscrits"
+              class="px-4 py-2 bg-cgt-red text-white rounded-lg text-sm transition">
+        Inscrits
+      </button>
+      <button onclick="switchChart('votants')" id="btn-votants"
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+        Votants
+      </button>
+      <button onclick="switchChart('cgt')" id="btn-cgt"
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+        Voix CGT
+      </button>
+    </div>
+  </div>
+
+  <!-- Plotly Chart -->
+  <div id="evolutionChart" class="w-full" style="height: 400px;"></div>
+
+  <!-- Chart.js Alternative (hidden by default) -->
+  <canvas id="evolutionChartCanvas" class="hidden" height="400"></canvas>
+</section>
+
+<!-- Comparison C3 vs C4 -->
+{% if row.inscrits_c3 and row.inscrits_c4 %}
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-balance-scale text-purple-500 mr-2"></i>
+    Comparaison C3 vs C4
+  </h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Inscrits Comparison -->
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Inscrits</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.inscrits_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.inscrits_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_inscrits = row.inscrits_c4 - row.inscrits_c3 %}
+      <p class="mt-2 text-sm {% if diff_inscrits > 0 %}text-green-600{% elif diff_inscrits < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_inscrits > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_inscrits }}
+        {% elif diff_inscrits < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_inscrits }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+
+    <!-- Votants Comparison -->
+    {% if row.votants_c3 and row.votants_c4 %}
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Votants</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.votants_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.votants_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_votants = row.votants_c4 - row.votants_c3 %}
+      <p class="mt-2 text-sm {% if diff_votants > 0 %}text-green-600{% elif diff_votants < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_votants > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_votants }}
+        {% elif diff_votants < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_votants }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- CGT Voix Comparison -->
+    {% if row.cgt_voix_c3 and row.cgt_voix_c4 %}
+    <div class="text-center p-4 bg-gray-50 rounded-lg">
+      <p class="text-sm text-gray-600 mb-2">Voix CGT</p>
+      <div class="flex items-center justify-center space-x-4">
+        <div>
+          <p class="text-xs text-gray-500">C3</p>
+          <p class="text-2xl font-bold text-blue-600">{{ row.cgt_voix_c3 }}</p>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div>
+          <p class="text-xs text-gray-500">C4</p>
+          <p class="text-2xl font-bold text-green-600">{{ row.cgt_voix_c4 }}</p>
+        </div>
+      </div>
+      {% set diff_cgt = row.cgt_voix_c4 - row.cgt_voix_c3 %}
+      <p class="mt-2 text-sm {% if diff_cgt > 0 %}text-green-600{% elif diff_cgt < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+        {% if diff_cgt > 0 %}
+        <i class="fas fa-arrow-up"></i> +{{ diff_cgt }}
+        {% elif diff_cgt < 0 %}
+        <i class="fas fa-arrow-down"></i> {{ diff_cgt }}
+        {% else %}
+        <i class="fas fa-equals"></i> Stable
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Scores de tous les syndicats -->
+{% if row.cgt_voix_c3 or row.cgt_voix_c4 or row.cfdt_voix_c3 or row.cfdt_voix_c4 %}
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>
+    Scores des organisations syndicales
+  </h2>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-left font-semibold text-gray-700">Syndicat</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-700">Cycle 3</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-700">Cycle 4</th>
+          <th class="px-4 py-3 text-center font-semibold text-gray-700">Évolution</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <!-- CGT -->
+        {% if row.score_cgt_c3 or row.score_cgt_c4 %}
+        <tr class="hover:bg-red-50 transition">
+          <td class="px-4 py-3 font-bold text-cgt-red flex items-center">
+            <i class="fas fa-flag mr-2"></i>
+            CGT
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.score_cgt_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.score_cgt_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.score_cgt_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.score_cgt_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.score_cgt_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.score_cgt_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.score_cgt_c3 and row.score_cgt_c4 %}
+              {% set diff = row.score_cgt_c4 - row.score_cgt_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- CFDT -->
+        {% if row.cfdt_voix_c3 or row.cfdt_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-green-600"></i>
+            CFDT
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.cfdt_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.cfdt_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cfdt_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.cfdt_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.cfdt_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cfdt_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.cfdt_voix_c3 and row.cfdt_voix_c4 %}
+              {% set diff = row.cfdt_voix_c4 - row.cfdt_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- FO -->
+        {% if row.fo_voix_c3 or row.fo_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-orange-600"></i>
+            FO
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.fo_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.fo_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.fo_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.fo_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.fo_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.fo_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.fo_voix_c3 and row.fo_voix_c4 %}
+              {% set diff = row.fo_voix_c4 - row.fo_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- CFTC -->
+        {% if row.cftc_voix_c3 or row.cftc_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-blue-600"></i>
+            CFTC
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.cftc_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.cftc_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cftc_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.cftc_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.cftc_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cftc_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.cftc_voix_c3 and row.cftc_voix_c4 %}
+              {% set diff = row.cftc_voix_c4 - row.cftc_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- CGC -->
+        {% if row.cgc_voix_c3 or row.cgc_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-purple-600"></i>
+            CGC
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.cgc_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.cgc_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cgc_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.cgc_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.cgc_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.cgc_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.cgc_voix_c3 and row.cgc_voix_c4 %}
+              {% set diff = row.cgc_voix_c4 - row.cgc_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- UNSA -->
+        {% if row.unsa_voix_c3 or row.unsa_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-yellow-600"></i>
+            UNSA
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.unsa_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.unsa_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.unsa_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.unsa_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.unsa_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.unsa_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.unsa_voix_c3 and row.unsa_voix_c4 %}
+              {% set diff = row.unsa_voix_c4 - row.unsa_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- SUD -->
+        {% if row.sud_voix_c3 or row.sud_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-pink-600"></i>
+            SUD
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.sud_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.sud_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.sud_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.sud_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.sud_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.sud_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.sud_voix_c3 and row.sud_voix_c4 %}
+              {% set diff = row.sud_voix_c4 - row.sud_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- SOLIDAIRE -->
+        {% if row.solidaire_voix_c3 or row.solidaire_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-teal-600"></i>
+            SOLIDAIRES
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.solidaire_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.solidaire_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.solidaire_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.solidaire_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.solidaire_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.solidaire_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.solidaire_voix_c3 and row.solidaire_voix_c4 %}
+              {% set diff = row.solidaire_voix_c4 - row.solidaire_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- AUTRE -->
+        {% if row.autre_voix_c3 or row.autre_voix_c4 %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-4 py-3 font-semibold text-gray-700 flex items-center">
+            <i class="fas fa-flag mr-2 text-gray-600"></i>
+            Autres
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ row.autre_voix_c3 or '–' }}</span>
+            {% if row.inscrits_c3 and row.autre_voix_c3 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.autre_voix_c3 / row.inscrits_c3 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ row.autre_voix_c4 or '–' }}</span>
+            {% if row.inscrits_c4 and row.autre_voix_c4 %}
+            <span class="text-xs text-gray-500 block">({{ "%.1f"|format((row.autre_voix_c4 / row.inscrits_c4 * 100)) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if row.autre_voix_c3 and row.autre_voix_c4 %}
+              {% set diff = row.autre_voix_c4 - row.autre_voix_c3 %}
+              <span class="{% if diff > 0 %}text-green-600{% elif diff < 0 %}text-red-600{% else %}text-gray-600{% endif %} font-semibold">
+                {% if diff > 0 %}<i class="fas fa-arrow-up"></i> +{{ diff }}
+                {% elif diff < 0 %}<i class="fas fa-arrow-down"></i> {{ diff }}
+                {% else %}<i class="fas fa-equals"></i> Stable{% endif %}
+              </span>
+            {% else %}–{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Event Timeline -->
+{% if timeline_events %}
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">
+    <i class="fas fa-history text-orange-500 mr-2"></i>
+    Chronologie des événements
+  </h2>
+
+  <div class="relative">
+    <!-- Timeline Line -->
+    <div class="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-300"></div>
+
+    <div class="space-y-6">
+      {% for event in timeline_events %}
+      <div class="relative pl-20 pb-6">
+        <!-- Timeline Dot -->
+        <div class="absolute left-6 -translate-x-1/2 w-4 h-4 rounded-full
+                    {% if event.type == 'pv' %}bg-blue-500{% else %}bg-green-500{% endif %}
+                    border-4 border-white shadow-lg"></div>
+
+        <!-- Event Card -->
+        <div class="bg-gray-50 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <div class="flex items-center space-x-2">
+                {% if event.type == 'pv' %}
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
+                  <i class="fas fa-file-alt mr-1"></i>
+                  PV {{ event.cycle or '—' }}
+                </span>
+                {% if event.carence %}
+                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">
+                  <i class="fas fa-exclamation-triangle mr-1"></i>CARENCE
+                </span>
+                {% endif %}
+                {% else %}
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">
+                  <i class="fas fa-envelope mr-1"></i>
+                  Invitation PAP
+                </span>
+                {% endif %}
+              </div>
+              <p class="text-xs text-gray-500 mt-1">
+                <i class="fas fa-calendar mr-1"></i>
+                {{ event.date_label or 'N/A' }}
+              </p>
+            </div>
+          </div>
+
+          {% if event.type == 'pv' %}
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
+            {% if event.inscrits %}
+            <div>
+              <p class="text-xs text-gray-500">Inscrits</p>
+              <p class="font-bold text-blue-600">{{ event.inscrits }}</p>
+            </div>
+            {% endif %}
+            {% if event.votants %}
+            <div>
+              <p class="text-xs text-gray-500">Votants</p>
+              <p class="font-bold text-green-600">{{ event.votants }}</p>
+            </div>
+            {% endif %}
+            {% if event.cgt_voix %}
+            <div>
+              <p class="text-xs text-gray-500">Voix CGT</p>
+              <p class="font-bold text-red-600">{{ event.cgt_voix }}</p>
+            </div>
+            {% endif %}
+            {% if event.fd or event.ud %}
+            <div>
+              <p class="text-xs text-gray-500">FD / UD</p>
+              <p class="font-semibold text-gray-700">
+                {% if event.fd %}FD {{ event.fd }}{% endif %}
+                {% if event.fd and event.ud %} • {% endif %}
+                {% if event.ud %}UD {{ event.ud }}{% endif %}
+              </p>
+            </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="mt-3 text-sm text-gray-600">
+            <p class="text-xs text-gray-500 uppercase">Source</p>
+            <p class="font-semibold">{{ event.source or '—' }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- Scripts for Charts -->
+<script>
+  let chartData = null;
+  let currentChart = 'inscrits';
+
+  // Fetch timeseries data
+  fetch('/api/siret/{{ row.siret }}/timeseries')
+    .then(response => response.json())
+    .then(data => {
+      chartData = data;
+      renderPlotlyChart('inscrits');
+    })
+    .catch(error => {
+      console.error('Error loading timeseries:', error);
+      document.getElementById('evolutionChart').innerHTML =
+        '<div class="text-center text-gray-500 py-8"><i class="fas fa-exclamation-triangle text-4xl mb-2"></i><p>Erreur lors du chargement des données</p></div>';
+    });
+
+  function switchChart(type) {
+    currentChart = type;
+
+    // Update button styles
+    ['inscrits', 'votants', 'cgt'].forEach(t => {
+      const btn = document.getElementById('btn-' + t);
+      if (t === type) {
+        btn.className = 'px-4 py-2 bg-cgt-red text-white rounded-lg text-sm transition';
+      } else {
+        btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm transition hover:bg-gray-300';
+      }
+    });
+
+    renderPlotlyChart(type);
+  }
+
+  function renderPlotlyChart(type) {
+    if (!chartData) return;
+
+    let yData, yLabel, color;
+
+    switch(type) {
+      case 'inscrits':
+        yData = chartData.inscrits;
+        yLabel = 'Inscrits';
+        color = '#3b82f6';
+        break;
+      case 'votants':
+        yData = chartData.votants;
+        yLabel = 'Votants';
+        color = '#10b981';
+        break;
+      case 'cgt':
+        yData = chartData.cgt_voix;
+        yLabel = 'Voix CGT';
+        color = '#d5001c';
+        break;
+    }
+
+    const trace = {
+      x: chartData.dates,
+      y: yData,
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: yLabel,
+      line: { color: color, width: 3 },
+      marker: { size: 8, color: color }
+    };
+
+    const layout = {
+      margin: { l: 50, r: 30, t: 30, b: 50 },
+      xaxis: {
+        title: 'Date PV',
+        gridcolor: '#e5e7eb'
+      },
+      yaxis: {
+        title: yLabel,
+        gridcolor: '#e5e7eb'
+      },
+      plot_bgcolor: '#f9fafb',
+      paper_bgcolor: 'white',
+      font: { family: 'inherit' }
+    };
+
+    Plotly.newPlot('evolutionChart', [trace], layout, { responsive: true });
+  }
+</script>
+
+{% endif %}
+
 {% endblock %}

@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}Diagnostic Doublons — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="mb-8">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-4xl font-bold text-gray-800 mb-2">
+        <i class="fas fa-stethoscope text-cgt-red mr-3"></i>
+        Diagnostic des Doublons
+      </h1>
+      <p class="text-gray-600">Vérifiez et nettoyez les invitations en double</p>
+    </div>
+    <a href="/admin" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition inline-flex items-center gap-2">
+      <i class="fas fa-arrow-left"></i>
+      Retour Admin
+    </a>
+  </div>
+</div>
+
+<!-- Message de succès doublons -->
+{% if request.query_params.get('success') %}
+<div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+  <div class="flex items-center">
+    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+    <div>
+      <p class="font-semibold text-green-800">Doublons supprimés avec succès !</p>
+      <p class="text-sm text-green-700">Maintenant, cliquez sur "Remplir les colonnes" ci-dessous pour afficher les données.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Message de succès migration -->
+{% if request.query_params.get('migrated') %}
+<div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+  <div class="flex items-center">
+    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+    <div>
+      <p class="font-semibold text-green-800">Migration réussie !</p>
+      <p class="text-sm text-green-700">{{ request.query_params.get('migrated') }} invitations ont été mises à jour. Vérifiez maintenant la page /invitations !</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Statistiques principales -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+
+  <!-- Total invitations -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500 uppercase font-semibold mb-1">Total Invitations</p>
+        <p class="text-4xl font-bold text-gray-800">{{ total }}</p>
+      </div>
+      <i class="fas fa-envelope text-blue-500 text-4xl opacity-20"></i>
+    </div>
+  </div>
+
+  <!-- SIRET uniques -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500 uppercase font-semibold mb-1">SIRET Uniques</p>
+        <p class="text-4xl font-bold text-gray-800">{{ unique_sirets }}</p>
+      </div>
+      <i class="fas fa-check-circle text-green-500 text-4xl opacity-20"></i>
+    </div>
+  </div>
+
+  <!-- Doublons -->
+  <div class="bg-white rounded-xl shadow-md p-6 border-l-4 {% if has_duplicates %}border-red-500{% else %}border-gray-300{% endif %}">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500 uppercase font-semibold mb-1">Doublons</p>
+        <p class="text-4xl font-bold {% if has_duplicates %}text-red-600{% else %}text-gray-400{% endif %}">{{ duplicates }}</p>
+      </div>
+      <i class="fas fa-copy {% if has_duplicates %}text-red-500{% else %}text-gray-300{% endif %} text-4xl opacity-20"></i>
+    </div>
+  </div>
+
+</div>
+
+<!-- Statistiques FD/UD/IDCC -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+    <i class="fas fa-columns text-cgt-red"></i>
+    Colonnes FD / UD / IDCC
+  </h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Avec champ RAW</p>
+      <p class="text-2xl font-bold text-gray-800">{{ with_raw }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (with_raw * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if fd_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">FD remplie</p>
+      <p class="text-2xl font-bold {% if fd_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ fd_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (fd_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if ud_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">UD remplie</p>
+      <p class="text-2xl font-bold {% if ud_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ ud_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (ud_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+
+    <div class="p-4 {% if idcc_filled > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-lg border">
+      <p class="text-xs text-gray-500 uppercase font-semibold mb-1">IDCC remplie</p>
+      <p class="text-2xl font-bold {% if idcc_filled > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ idcc_filled }}</p>
+      <p class="text-xs text-gray-600 mt-1">{{ (idcc_filled * 100 / total)|round(1) if total > 0 else 0 }}%</p>
+    </div>
+  </div>
+
+  {% if fd_filled == 0 and ud_filled == 0 and idcc_filled == 0 %}
+  <div class="p-4 bg-red-50 border-l-4 border-red-500 rounded-lg mb-4">
+    <div class="flex items-start">
+      <i class="fas fa-exclamation-triangle text-red-500 text-2xl mr-3 mt-1"></i>
+      <div class="flex-1">
+        <h3 class="text-lg font-bold text-red-800 mb-2">Problème : Toutes les colonnes FD/UD/IDCC sont vides !</h3>
+        <p class="text-red-700 mb-2">Causes possibles :</p>
+        <ul class="list-disc list-inside text-red-700 mb-3 space-y-1 text-sm">
+          <li>Le fichier Excel importé ne contient pas ces colonnes</li>
+          <li>Les colonnes ont des noms différents dans l'Excel</li>
+          <li>Le champ 'raw' ne contient pas les données ({{ with_raw }} invitations avec raw)</li>
+        </ul>
+        <p class="text-red-700 text-sm mb-2"><strong>Clés disponibles dans le champ RAW (exemple) :</strong></p>
+        {% if sample_raw_keys %}
+        <div class="bg-white p-3 rounded border border-red-200 text-xs font-mono text-gray-700 max-h-32 overflow-y-auto">
+          {{ sample_raw_keys|join(', ') }}
+        </div>
+        {% else %}
+        <p class="text-red-700 text-sm italic">Aucune clé disponible (raw vide)</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% elif fd_filled > 0 or ud_filled > 0 or idcc_filled > 0 %}
+  <div class="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+    <div class="flex items-center">
+      <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+      <div>
+        <h3 class="text-lg font-bold text-green-800">Des données FD/UD/IDCC sont présentes</h3>
+        <p class="text-green-700 text-sm">Si certaines invitations n'ont pas ces colonnes, utilisez le bouton "Remplir les colonnes" ci-dessous.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Alerte si doublons -->
+{% if has_duplicates %}
+<div class="mb-8 p-6 bg-red-50 border-l-4 border-red-500 rounded-lg">
+  <div class="flex items-start">
+    <i class="fas fa-exclamation-triangle text-red-500 text-3xl mr-4 mt-1"></i>
+    <div class="flex-1">
+      <h3 class="text-xl font-bold text-red-800 mb-2">Attention : {{ duplicates }} doublons détectés !</h3>
+      <p class="text-red-700 mb-4">
+        Vous avez importé les mêmes données plusieurs fois. Chaque import <strong>AJOUTE</strong> les invitations au lieu de les remplacer.
+      </p>
+      <ul class="list-disc list-inside text-red-700 mb-4 space-y-1">
+        <li>Total d'invitations : <strong>{{ total }}</strong></li>
+        <li>SIRET différents : <strong>{{ unique_sirets }}</strong></li>
+        <li>Imports estimés : <strong>~{{ (total / unique_sirets)|round(1) if unique_sirets > 0 else 0 }} fois</strong></li>
+      </ul>
+
+      <form method="post" action="/admin/diagnostics/remove-duplicates" onsubmit="return confirm('⚠️ Êtes-vous sûr de vouloir supprimer {{ duplicates }} doublons ?\n\n✅ Je garderai seulement la version la plus RÉCENTE de chaque SIRET.\n\n❌ Cette action est IRRÉVERSIBLE.');">
+        <button type="submit" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md inline-flex items-center gap-2 font-semibold">
+          <i class="fas fa-trash-alt"></i>
+          Supprimer les {{ duplicates }} doublons
+        </button>
+        <p class="text-xs text-red-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          Garde la dernière importée pour chaque SIRET et supprime les anciennes
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="mb-8 p-6 bg-green-50 border-l-4 border-green-500 rounded-lg">
+  <div class="flex items-center">
+    <i class="fas fa-check-circle text-green-500 text-3xl mr-4"></i>
+    <div>
+      <h3 class="text-xl font-bold text-green-800 mb-1">Parfait ! Aucun doublon détecté</h3>
+      <p class="text-green-700">Votre base de données est propre. Vous avez {{ total }} invitations uniques.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Bouton migration colonnes -->
+<div class="mb-8 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+  <div class="flex items-start">
+    <i class="fas fa-database text-blue-500 text-3xl mr-4 mt-1"></i>
+    <div class="flex-1">
+      <h3 class="text-xl font-bold text-blue-800 mb-2">Remplir les colonnes depuis les données importées</h3>
+      <p class="text-blue-700 mb-4">
+        Si les colonnes (Raison sociale, Adresse, Ville, Effectifs) sont <strong>vides</strong> sur la page /invitations,
+        cliquez sur ce bouton pour les remplir automatiquement depuis vos fichiers Excel.
+      </p>
+      <ul class="list-disc list-inside text-blue-700 mb-4 space-y-1 text-sm">
+        <li>Remplit Raison sociale, Adresse, Ville, Code postal</li>
+        <li>Remplit Activité, Effectifs, Enseigne (si disponibles dans l'Excel)</li>
+        <li>Utilise TOUTES les variantes de noms de colonnes</li>
+        <li>Ne modifie pas les colonnes déjà remplies</li>
+      </ul>
+
+      <form method="post" action="/admin/diagnostics/migrate-columns">
+        <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md inline-flex items-center gap-2 font-semibold">
+          <i class="fas fa-magic"></i>
+          Remplir les colonnes maintenant
+        </button>
+        <p class="text-xs text-blue-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          Cette opération peut prendre quelques secondes si vous avez beaucoup d'invitations
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Répartition par source -->
+<section class="bg-white rounded-xl shadow-md p-6 mb-8">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+    <i class="fas fa-chart-pie text-cgt-red"></i>
+    Répartition par source
+  </h2>
+
+  <div class="overflow-x-auto">
+    <table class="min-w-full">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Source</th>
+          <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">Nombre</th>
+          <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">Pourcentage</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {% for item in sources %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-gray-800">{{ item.source }}</td>
+          <td class="px-4 py-3 text-right font-semibold text-gray-800">{{ item.count }}</td>
+          <td class="px-4 py-3 text-right text-gray-600">{{ (item.count * 100 / total)|round(1) if total > 0 else 0 }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Top doublons -->
+{% if top_duplicates %}
+<section class="bg-white rounded-xl shadow-md p-6">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+    <i class="fas fa-list-ol text-cgt-red"></i>
+    Top 10 des SIRET avec le plus de doublons
+  </h2>
+
+  <div class="overflow-x-auto">
+    <table class="min-w-full">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">SIRET</th>
+          <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Nombre de doublons</th>
+          <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Dates d'invitation</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {% for item in top_duplicates %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3">
+            <a href="/siret/{{ item.siret }}" class="text-blue-600 hover:text-blue-800 font-mono">{{ item.siret }}</a>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-bold">{{ item.count }} fois</span>
+          </td>
+          <td class="px-4 py-3 text-gray-600 text-sm">{{ item.dates }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Conseils -->
+<section class="mt-8 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+  <h3 class="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+    <i class="fas fa-lightbulb"></i>
+    Comment éviter les doublons à l'avenir
+  </h3>
+
+  <div class="space-y-3 text-blue-700">
+    <div class="flex items-start gap-3">
+      <i class="fas fa-check text-green-600 mt-1"></i>
+      <div>
+        <strong>Pour corriger des données :</strong> Supprimez d'abord les anciennes invitations, puis réimportez le fichier complet
+      </div>
+    </div>
+
+    <div class="flex items-start gap-3">
+      <i class="fas fa-check text-green-600 mt-1"></i>
+      <div>
+        <strong>Pour ajouter de nouvelles invitations :</strong> Créez un fichier Excel avec SEULEMENT les nouvelles lignes
+      </div>
+    </div>
+
+    <div class="flex items-start gap-3">
+      <i class="fas fa-times text-red-600 mt-1"></i>
+      <div>
+        <strong>N'importez jamais le même fichier 2 fois</strong> sans supprimer l'ancien d'abord
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
