@@ -1493,10 +1493,10 @@ async def enrichir_siret_from_api(siret: str):
     """
     try:
         data = await enrichir_siret(siret)
-        
+
         if not data:
             raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
-        
+
         # Formatte les données pour le formulaire
         return {
             "success": True,
@@ -1514,3 +1514,219 @@ async def enrichir_siret_from_api(siret: str):
         }
     except SireneAPIError as e:
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
+
+
+@router.get("/rapport-ia-pap")
+def generer_rapport_ia_pap(db: Session = Depends(get_session)):
+    """
+    Génère un rapport complet de la situation PAP prioritaire.
+
+    Priorité 1: Entreprises avec + de 1000 inscrits
+    Priorité 2: Entreprises de 500 à 1000 inscrits avec analyse des enjeux
+
+    Pour chaque entreprise, retourne:
+    - SIRET
+    - Raison sociale
+    - Nombre d'inscrits
+    - Implantation syndicale (organisations présentes)
+    - Nombre de collèges
+    - Département
+    - Ville
+    - Carence (oui/non)
+    - Invitations PAP reçues
+    - Enjeux identifiés
+    """
+
+    def _to_number(value):
+        """Convertit une valeur en nombre"""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = (
+                value.strip()
+                .replace("\u202f", "")
+                .replace("\xa0", "")
+                .replace(" ", "")
+            )
+            cleaned = cleaned.replace(",", ".")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _analyser_implantations(row):
+        """Analyse les implantations syndicales d'un SIRET"""
+        orgs = []
+        # Vérifier les présences au niveau SIRET
+        if row.pres_siret_cgt:
+            orgs.append("CGT")
+        if row.pres_siret_cfdt:
+            orgs.append("CFDT")
+        if row.pres_siret_fo:
+            orgs.append("FO")
+        if row.pres_siret_cftc:
+            orgs.append("CFTC")
+        if row.pres_siret_cgc:
+            orgs.append("CGC")
+        if row.pres_siret_unsa:
+            orgs.append("UNSA")
+        if row.pres_siret_sud:
+            orgs.append("SUD")
+        if row.pres_siret_autre:
+            orgs.append("AUTRE")
+
+        return orgs if orgs else ["Aucune implantation identifiée"]
+
+    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs):
+        """Analyse les enjeux d'une entreprise"""
+        enjeux = []
+
+        # Enjeux liés à la taille
+        if inscrits >= 1000:
+            enjeux.append(f"Très forte audience ({int(inscrits)} inscrits)")
+        elif inscrits >= 500:
+            enjeux.append(f"Forte audience ({int(inscrits)} inscrits)")
+
+        # Enjeux liés à la carence
+        if carence:
+            enjeux.append("⚠️ CARENCE - Opportunité de reconquête")
+
+        # Enjeux liés à l'invitation PAP
+        if has_invitation:
+            enjeux.append("✓ Invitation PAP reçue (C5)")
+        else:
+            enjeux.append("⚠️ Pas d'invitation PAP détectée")
+
+        # Enjeux liés aux collèges
+        if nb_colleges and nb_colleges > 1:
+            enjeux.append(f"Pluralité de collèges ({int(nb_colleges)})")
+
+        # Enjeux liés aux implantations
+        if "CGT" not in orgs:
+            enjeux.append("⚠️ CGT NON implantée - Priorité d'intervention")
+        else:
+            enjeux.append("✓ CGT implantée")
+
+        if len(orgs) == 1 and orgs[0] == "Aucune implantation identifiée":
+            enjeux.append("⚠️ Aucune organisation syndicale - Terrain vierge")
+
+        return enjeux
+
+    # Récupère tous les SIRETs avec leur effectif le plus récent
+    # On utilise SiretSummary qui contient les données agrégées
+    query = db.query(SiretSummary).filter(
+        SiretSummary.effectif_siret.isnot(None)
+    )
+
+    all_sirets = query.all()
+
+    # Récupère les invitations PAP pour voir quels SIRET ont reçu une invitation
+    invitations_map = {}
+    invitations = db.query(Invitation.siret, Invitation.date_invit).all()
+    for siret, date_invit in invitations:
+        if siret not in invitations_map:
+            invitations_map[siret] = []
+        invitations_map[siret].append(date_invit)
+
+    # Sépare en deux groupes
+    priorite_1 = []  # >= 1000 inscrits
+    priorite_2 = []  # 500-999 inscrits
+
+    for row in all_sirets:
+        # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
+        effectif = None
+        if row.inscrits_c4:
+            effectif = _to_number(row.inscrits_c4)
+        elif row.inscrits_c3:
+            effectif = _to_number(row.inscrits_c3)
+        elif row.effectif_siret:
+            effectif = _to_number(row.effectif_siret)
+
+        if not effectif:
+            continue
+
+        # Détermine la carence
+        carence = row.carence_c4 or row.carence_c3 or False
+
+        # Analyse les implantations syndicales
+        orgs = _analyser_implantations(row)
+
+        # Vérifie si le SIRET a une invitation PAP
+        has_invitation = row.siret in invitations_map
+        invitations_dates = invitations_map.get(row.siret, [])
+
+        # Analyse les enjeux
+        enjeux = _analyser_enjeux(
+            row.siret,
+            effectif,
+            has_invitation,
+            carence,
+            row.nb_college_siret,
+            orgs
+        )
+
+        # Construction de l'objet entreprise
+        entreprise = {
+            "siret": row.siret,
+            "raison_sociale": row.raison_sociale or "Non renseignée",
+            "inscrits": int(effectif),
+            "departement": row.dep or "Non renseigné",
+            "ville": row.ville or "Non renseignée",
+            "code_postal": row.cp or "Non renseigné",
+            "nb_colleges": int(row.nb_college_siret) if row.nb_college_siret else 0,
+            "carence": carence,
+            "implantations_syndicales": orgs,
+            "invitations_pap": [
+                d.strftime("%d/%m/%Y") if isinstance(d, date) else str(d)
+                for d in invitations_dates
+            ] if invitations_dates else [],
+            "enjeux": enjeux,
+            "fd": row.fd_c4 or row.fd_c3 or "Non renseignée",
+            "ud": row.ud_c4 or row.ud_c3 or "Non renseigné",
+            "idcc": row.idcc or "Non renseigné",
+        }
+
+        # Classification par priorité
+        if effectif >= 1000:
+            priorite_1.append(entreprise)
+        elif effectif >= 500:
+            priorite_2.append(entreprise)
+
+    # Tri par nombre d'inscrits décroissant
+    priorite_1.sort(key=lambda x: x["inscrits"], reverse=True)
+    priorite_2.sort(key=lambda x: x["inscrits"], reverse=True)
+
+    # Statistiques globales
+    stats = {
+        "total_priorite_1": len(priorite_1),
+        "total_priorite_2": len(priorite_2),
+        "total_inscrits_p1": sum(e["inscrits"] for e in priorite_1),
+        "total_inscrits_p2": sum(e["inscrits"] for e in priorite_2),
+        "cgt_implantee_p1": sum(1 for e in priorite_1 if "CGT" in e["implantations_syndicales"]),
+        "cgt_implantee_p2": sum(1 for e in priorite_2 if "CGT" in e["implantations_syndicales"]),
+        "carence_p1": sum(1 for e in priorite_1 if e["carence"]),
+        "carence_p2": sum(1 for e in priorite_2 if e["carence"]),
+        "avec_invitation_p1": sum(1 for e in priorite_1 if e["invitations_pap"]),
+        "avec_invitation_p2": sum(1 for e in priorite_2 if e["invitations_pap"]),
+    }
+
+    return {
+        "success": True,
+        "date_generation": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "statistiques": stats,
+        "priorite_1": {
+            "titre": "Priorité 1: Entreprises avec ≥ 1000 inscrits",
+            "description": "Cibles prioritaires avec forte audience",
+            "entreprises": priorite_1
+        },
+        "priorite_2": {
+            "titre": "Priorité 2: Entreprises de 500 à 999 inscrits",
+            "description": "Cibles secondaires à fort potentiel",
+            "entreprises": priorite_2
+        }
+    }

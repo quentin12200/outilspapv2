@@ -79,6 +79,14 @@
 <section class="mb-10">
   <h2 class="text-2xl font-bold text-gray-800 mb-4">Raccourcis & nouvelles fonctionnalités</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    <button onclick="genererRapportIA()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition border border-pink-200 hover:from-pink-600 hover:to-purple-700">
+      <div class="text-left">
+        <p class="text-sm font-semibold">🤖 Rapport IA - Situation PAP</p>
+        <p class="text-xs opacity-90">Analyse intelligente des cibles prioritaires</p>
+      </div>
+      <i class="fas fa-robot text-white text-xl"></i>
+    </button>
+
     <a href="/calendrier" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-purple-100">
       <div>
         <p class="text-sm font-semibold text-gray-700">Calendrier prochaines élections +1000</p>
@@ -873,6 +881,269 @@ function resetIDCCButton() {
   buttonIcon.classList.remove('fa-spin');
   buttonText.textContent = 'Enrichir les IDCC';
 }
+
+// ============================================
+// RAPPORT IA PAP
+// ============================================
+
+async function genererRapportIA() {
+  // Affiche la modal
+  const modal = document.getElementById('rapport-ia-modal');
+  const modalContent = document.getElementById('rapport-ia-content');
+
+  modal.classList.remove('hidden');
+
+  // Affiche le loader
+  modalContent.innerHTML = `
+    <div class="flex flex-col items-center justify-center py-12">
+      <i class="fas fa-robot fa-3x text-purple-600 mb-4 animate-pulse"></i>
+      <p class="text-lg font-semibold text-gray-700">Génération du rapport IA en cours...</p>
+      <p class="text-sm text-gray-500 mt-2">Analyse des entreprises prioritaires</p>
+      <div class="mt-4">
+        <i class="fas fa-spinner fa-spin text-2xl text-purple-600"></i>
+      </div>
+    </div>
+  `;
+
+  try {
+    const response = await fetch('/api/rapport-ia-pap');
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error('Erreur lors de la génération du rapport');
+    }
+
+    // Affiche le rapport
+    afficherRapportIA(data);
+
+  } catch (error) {
+    modalContent.innerHTML = `
+      <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
+        <i class="fas fa-exclamation-circle text-red-600 mr-2"></i>
+        <span class="text-red-800">Erreur: ${error.message}</span>
+      </div>
+    `;
+  }
+}
+
+function afficherRapportIA(data) {
+  const modalContent = document.getElementById('rapport-ia-content');
+  const stats = data.statistiques;
+  const p1 = data.priorite_1;
+  const p2 = data.priorite_2;
+
+  let html = `
+    <!-- Header -->
+    <div class="mb-6">
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">🤖 Rapport IA - Analyse PAP Prioritaire</h2>
+      <p class="text-sm text-gray-500">Généré le ${data.date_generation}</p>
+    </div>
+
+    <!-- Statistiques globales -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-purple-50 rounded-lg p-4">
+        <p class="text-xs text-purple-600 font-semibold uppercase">Priorité 1</p>
+        <p class="text-2xl font-bold text-purple-900">${stats.total_priorite_1}</p>
+        <p class="text-xs text-purple-700">${stats.total_inscrits_p1.toLocaleString()} inscrits</p>
+      </div>
+      <div class="bg-blue-50 rounded-lg p-4">
+        <p class="text-xs text-blue-600 font-semibold uppercase">Priorité 2</p>
+        <p class="text-2xl font-bold text-blue-900">${stats.total_priorite_2}</p>
+        <p class="text-xs text-blue-700">${stats.total_inscrits_p2.toLocaleString()} inscrits</p>
+      </div>
+      <div class="bg-green-50 rounded-lg p-4">
+        <p class="text-xs text-green-600 font-semibold uppercase">CGT Implantée</p>
+        <p class="text-2xl font-bold text-green-900">${stats.cgt_implantee_p1 + stats.cgt_implantee_p2}</p>
+        <p class="text-xs text-green-700">P1: ${stats.cgt_implantee_p1} | P2: ${stats.cgt_implantee_p2}</p>
+      </div>
+      <div class="bg-orange-50 rounded-lg p-4">
+        <p class="text-xs text-orange-600 font-semibold uppercase">En Carence</p>
+        <p class="text-2xl font-bold text-orange-900">${stats.carence_p1 + stats.carence_p2}</p>
+        <p class="text-xs text-orange-700">P1: ${stats.carence_p1} | P2: ${stats.carence_p2}</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-6">
+      <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <button onclick="switchTab('priorite-1')" id="tab-priorite-1" class="rapport-tab active border-b-2 border-purple-600 py-4 px-1 text-sm font-semibold text-purple-600">
+            Priorité 1 (${stats.total_priorite_1})
+          </button>
+          <button onclick="switchTab('priorite-2')" id="tab-priorite-2" class="rapport-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+            Priorité 2 (${stats.total_priorite_2})
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Content Priorité 1 -->
+    <div id="content-priorite-1" class="rapport-content">
+      <div class="mb-4">
+        <h3 class="text-xl font-bold text-gray-800">${p1.titre}</h3>
+        <p class="text-sm text-gray-600">${p1.description}</p>
+      </div>
+      <div class="space-y-4 max-h-96 overflow-y-auto">
+        ${p1.entreprises.map(e => genererCarteEntreprise(e)).join('')}
+      </div>
+    </div>
+
+    <!-- Content Priorité 2 -->
+    <div id="content-priorite-2" class="rapport-content hidden">
+      <div class="mb-4">
+        <h3 class="text-xl font-bold text-gray-800">${p2.titre}</h3>
+        <p class="text-sm text-gray-600">${p2.description}</p>
+      </div>
+      <div class="space-y-4 max-h-96 overflow-y-auto">
+        ${p2.entreprises.map(e => genererCarteEntreprise(e)).join('')}
+      </div>
+    </div>
+
+    <!-- Export button -->
+    <div class="mt-6 flex justify-end space-x-3">
+      <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
+        <i class="fas fa-download mr-2"></i>
+        Télécharger JSON
+      </button>
+      <button onclick="fermerRapportIA()" class="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
+        Fermer
+      </button>
+    </div>
+  `;
+
+  modalContent.innerHTML = html;
+}
+
+function genererCarteEntreprise(e) {
+  const carenceBadge = e.carence
+    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">CARENCE</span>'
+    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">PV</span>';
+
+  const cgtBadge = e.implantations_syndicales.includes('CGT')
+    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CGT ✓</span>'
+    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-600">CGT ✗</span>';
+
+  return `
+    <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1">
+          <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
+          <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
+        </div>
+        <div class="flex flex-col items-end space-y-1">
+          ${carenceBadge}
+          ${cgtBadge}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
+        <div>
+          <p class="text-xs text-gray-500">Inscrits</p>
+          <p class="font-semibold text-gray-800">${e.inscrits.toLocaleString()}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Collèges</p>
+          <p class="font-semibold text-gray-800">${e.nb_colleges}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Département</p>
+          <p class="font-semibold text-gray-800">${e.departement}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Ville</p>
+          <p class="font-semibold text-gray-800">${e.ville}</p>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
+        <div class="flex flex-wrap gap-1">
+          ${e.implantations_syndicales.map(org =>
+            `<span class="px-2 py-1 text-xs rounded-full ${org === 'CGT' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}">${org}</span>`
+          ).join('')}
+        </div>
+      </div>
+
+      ${e.invitations_pap.length > 0 ? `
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Invitations PAP:</p>
+        <p class="text-xs text-gray-700">${e.invitations_pap.join(', ')}</p>
+      </div>
+      ` : ''}
+
+      <div>
+        <p class="text-xs text-gray-500 mb-1">Enjeux identifiés:</p>
+        <ul class="space-y-1">
+          ${e.enjeux.map(enjeu =>
+            `<li class="text-xs text-gray-700 flex items-start">
+              <i class="fas fa-chevron-right text-purple-500 mr-2 mt-1 text-xs"></i>
+              <span>${enjeu}</span>
+            </li>`
+          ).join('')}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+function switchTab(tabName) {
+  // Reset all tabs
+  document.querySelectorAll('.rapport-tab').forEach(tab => {
+    tab.classList.remove('active', 'border-purple-600', 'text-purple-600');
+    tab.classList.add('border-transparent', 'text-gray-500');
+  });
+
+  // Hide all contents
+  document.querySelectorAll('.rapport-content').forEach(content => {
+    content.classList.add('hidden');
+  });
+
+  // Activate selected tab
+  const selectedTab = document.getElementById(`tab-${tabName}`);
+  selectedTab.classList.remove('border-transparent', 'text-gray-500');
+  selectedTab.classList.add('active', 'border-purple-600', 'text-purple-600');
+
+  // Show selected content
+  document.getElementById(`content-${tabName}`).classList.remove('hidden');
+}
+
+let rapportDataGlobal = null;
+
+async function exporterRapportJSON() {
+  try {
+    const response = await fetch('/api/rapport-ia-pap');
+    const data = await response.json();
+
+    // Crée un blob JSON
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    // Crée un lien de téléchargement
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport-ia-pap-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Erreur lors de l\'export: ' + error.message);
+  }
+}
+
+function fermerRapportIA() {
+  const modal = document.getElementById('rapport-ia-modal');
+  modal.classList.add('hidden');
+}
 </script>
+
+<!-- Modal Rapport IA -->
+<div id="rapport-ia-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div class="p-6 overflow-y-auto max-h-[90vh]" id="rapport-ia-content">
+      <!-- Le contenu sera injecté ici -->
+    </div>
+  </div>
+</div>
 
 {% endblock %}
