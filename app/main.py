@@ -300,11 +300,13 @@ ensure_sqlite_asset()
 from .routers import api  # noqa: E402
 from .routers import api_invitations_stats  # noqa: E402
 from .routers import api_geo_stats  # noqa: E402
+from .routers import api_idcc_enrichment  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
+app.include_router(api_idcc_enrichment.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
