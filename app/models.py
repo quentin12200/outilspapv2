@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON
 from sqlalchemy.orm import synonym, deferred
 from .db import Base
