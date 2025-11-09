@@ -1322,12 +1322,144 @@ function filtrerParRegion(region) {
 
   // Mettre à jour le contenu
   document.querySelector('#content-priorite-1 .space-y-4').innerHTML =
-    p1Filtrees.map(e => genererCarteEntreprise(e)).join('') ||
+    p1Filtrees.length > 0 ? genererTableauEntreprises(p1Filtrees) :
     '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
 
   document.querySelector('#content-priorite-2 .space-y-4').innerHTML =
-    p2Filtrees.map(e => genererCarteEntreprise(e)).join('') ||
+    p2Filtrees.length > 0 ? genererTableauEntreprises(p2Filtrees) :
     '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
+}
+
+function genererTableauEntreprises(entreprises) {
+  return `
+    <div class="overflow-x-auto -mx-4 sm:mx-0">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gradient-to-r from-purple-600 to-pink-600 text-white sticky top-0 z-10">
+          <tr>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Entreprise</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Localisation</th>
+            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider whitespace-nowrap">Inscrits</th>
+            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider whitespace-nowrap">PV</th>
+            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider whitespace-nowrap">Status</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Élection</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Invitations PAP</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">FD / UD / IDCC</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Collèges</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Implantations</th>
+            <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">Résultats</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${entreprises.map((e, index) => {
+            const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+            const cgtPresent = e.implantations_syndicales.includes('CGT');
+
+            // Badges status
+            const carenceBadge = e.carence
+              ? '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-red-100 text-red-700">CARENCE</span>'
+              : '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-700">PV</span>';
+
+            const cgtBadge = cgtPresent
+              ? '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-700">CGT ✓</span>'
+              : '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-orange-100 text-orange-700">CGT ✗</span>';
+
+            // Date élection avec badge urgence
+            let dateElectionHtml = '<span class="text-gray-400 text-xs">Non renseignée</span>';
+            if (e.date_election !== 'Non renseignée') {
+              const joursColor = e.jours_restants <= 30
+                ? 'bg-red-100 text-red-700 border-red-300'
+                : e.jours_restants <= 90
+                  ? 'bg-orange-100 text-orange-700 border-orange-300'
+                  : 'bg-blue-100 text-blue-700 border-blue-300';
+              dateElectionHtml = `
+                <div class="text-xs">
+                  <div class="font-bold text-gray-800">${e.date_election}</div>
+                  ${e.jours_restants !== null && e.jours_restants !== undefined
+                    ? `<span class="inline-block mt-1 px-2 py-0.5 rounded border ${joursColor} font-semibold">J-${e.jours_restants}</span>`
+                    : ''}
+                </div>
+              `;
+            }
+
+            // Invitations PAP
+            const invitPapHtml = e.invitations_pap && e.invitations_pap.length > 0
+              ? `<div class="text-xs">${e.invitations_pap.map(date =>
+                  `<div class="text-purple-700 font-medium">📬 ${date}</div>`
+                ).join('')}</div>`
+              : '<span class="text-gray-400 text-xs">—</span>';
+
+            // Collèges
+            const collegesHtml = e.colleges && e.colleges.length > 0
+              ? `<div class="text-xs space-y-0.5">${e.colleges.slice(0, 3).map(c =>
+                  `<div class="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded inline-block mr-1">${c}</div>`
+                ).join('')}${e.colleges.length > 3 ? `<div class="text-gray-500 text-xs mt-1">+${e.colleges.length - 3} autres</div>` : ''}</div>`
+              : '<span class="text-gray-400 text-xs">—</span>';
+
+            // Implantations syndicales
+            const implantationsHtml = e.implantations_syndicales && e.implantations_syndicales.length > 0
+              ? `<div class="flex flex-wrap gap-1">${e.implantations_syndicales.map(org =>
+                  `<span class="px-1.5 py-0.5 text-xs rounded ${org === 'CGT' ? 'bg-red-100 text-red-700 font-semibold' : 'bg-gray-100 text-gray-600'}">${org}</span>`
+                ).join('')}</div>`
+              : '<span class="text-gray-400 text-xs">—</span>';
+
+            // Résultats électoraux (top 3)
+            let resultatsHtml = '<span class="text-gray-400 text-xs">—</span>';
+            if (e.voix_organisations && Object.keys(e.voix_organisations).length > 0) {
+              const topOrgs = Object.entries(e.voix_organisations)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+              resultatsHtml = `<div class="text-xs space-y-0.5">${topOrgs.map(([org, voix]) => {
+                const pct = e.sve && e.sve > 0 ? ((voix / e.sve) * 100).toFixed(0) : '0';
+                const isCGT = org === 'CGT';
+                return `<div class="${isCGT ? 'font-semibold text-red-700' : 'text-gray-700'}">
+                  ${org}: ${voix.toLocaleString()} <span class="text-gray-500">(${pct}%)</span>
+                </div>`;
+              }).join('')}</div>`;
+            }
+
+            return `
+              <tr class="${rowBg} hover:bg-purple-50 transition">
+                <td class="px-3 py-3 whitespace-nowrap">
+                  <div class="text-sm font-bold text-gray-900">${e.raison_sociale}</div>
+                  <div class="text-xs text-gray-500 font-mono">${e.siret}</div>
+                </td>
+                <td class="px-3 py-3">
+                  <div class="text-sm text-gray-900">${e.ville}</div>
+                  <div class="text-xs text-gray-500">${e.departement} · ${e.region || 'N/A'}</div>
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="text-sm font-bold text-gray-900">${e.inscrits.toLocaleString()}</div>
+                  ${e.sve ? `<div class="text-xs text-gray-500">SVE: ${e.sve.toLocaleString()}</div>` : ''}
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="text-sm font-bold text-gray-900">${e.nb_pv}</div>
+                  ${e.votants ? `<div class="text-xs text-gray-500">${e.votants.toLocaleString()} votants</div>` : ''}
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="space-y-1">
+                    ${carenceBadge}
+                    ${cgtBadge}
+                  </div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap">${dateElectionHtml}</td>
+                <td class="px-3 py-3">${invitPapHtml}</td>
+                <td class="px-3 py-3">
+                  <div class="text-xs space-y-0.5">
+                    <div><span class="font-semibold text-blue-600">FD:</span> ${e.fd || 'N/A'}</div>
+                    <div><span class="font-semibold text-blue-600">UD:</span> ${e.ud || 'N/A'}</div>
+                    <div><span class="font-semibold text-blue-600">IDCC:</span> ${e.idcc || 'N/A'}</div>
+                  </div>
+                </td>
+                <td class="px-3 py-3">${collegesHtml}</td>
+                <td class="px-3 py-3">${implantationsHtml}</td>
+                <td class="px-3 py-3">${resultatsHtml}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function genererCarteEntreprise(e) {
