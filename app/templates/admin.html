@@ -1373,6 +1373,21 @@ function genererCarteEntreprise(e) {
         </div>
       </div>
 
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm bg-blue-50 p-2 rounded border border-blue-200">
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">FD (Fédération)</p>
+          <p class="font-semibold text-gray-800">${e.fd || 'Non renseignée'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">UD</p>
+          <p class="font-semibold text-gray-800">${e.ud || 'Non renseigné'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">IDCC</p>
+          <p class="font-semibold text-gray-800">${e.idcc || 'Non renseigné'}</p>
+        </div>
+      </div>
+
       <div class="mb-3">
         <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
         <div class="flex flex-wrap gap-1">

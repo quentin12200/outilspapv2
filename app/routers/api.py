@@ -1946,21 +1946,55 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     def _analyser_implantations(row):
         """Analyse les implantations syndicales d'un SIRET"""
         orgs = []
-        # Vérifier les présences au niveau SIRET
-        if row.pres_siret_cgt:
+
+        # Méthode 1 : Utiliser les colonnes cgt_implantee, cfdt_implantee, etc. (plus fiables)
+        # Méthode 2 : Vérifier pres_siret_* (peut être vide)
+        # Méthode 3 : Vérifier si voix > 0 dans les cycles
+
+        # CGT
+        if (row.cgt_implantee or
+            row.pres_siret_cgt or
+            (row.cgt_voix_c4 and _to_number(row.cgt_voix_c4) > 0) or
+            (row.cgt_voix_c3 and _to_number(row.cgt_voix_c3) > 0)):
             orgs.append("CGT")
-        if row.pres_siret_cfdt:
+
+        # CFDT
+        if (row.pres_siret_cfdt or
+            (row.cfdt_voix_c4 and _to_number(row.cfdt_voix_c4) > 0) or
+            (row.cfdt_voix_c3 and _to_number(row.cfdt_voix_c3) > 0)):
             orgs.append("CFDT")
-        if row.pres_siret_fo:
+
+        # FO
+        if (row.pres_siret_fo or
+            (row.fo_voix_c4 and _to_number(row.fo_voix_c4) > 0) or
+            (row.fo_voix_c3 and _to_number(row.fo_voix_c3) > 0)):
             orgs.append("FO")
-        if row.pres_siret_cftc:
+
+        # CFTC
+        if (row.pres_siret_cftc or
+            (row.cftc_voix_c4 and _to_number(row.cftc_voix_c4) > 0) or
+            (row.cftc_voix_c3 and _to_number(row.cftc_voix_c3) > 0)):
             orgs.append("CFTC")
-        if row.pres_siret_cgc:
+
+        # CGC
+        if (row.pres_siret_cgc or
+            (row.cgc_voix_c4 and _to_number(row.cgc_voix_c4) > 0) or
+            (row.cgc_voix_c3 and _to_number(row.cgc_voix_c3) > 0)):
             orgs.append("CGC")
-        if row.pres_siret_unsa:
+
+        # UNSA
+        if (row.pres_siret_unsa or
+            (row.unsa_voix_c4 and _to_number(row.unsa_voix_c4) > 0) or
+            (row.unsa_voix_c3 and _to_number(row.unsa_voix_c3) > 0)):
             orgs.append("UNSA")
-        if row.pres_siret_sud:
+
+        # SUD
+        if (row.pres_siret_sud or
+            (row.sud_voix_c4 and _to_number(row.sud_voix_c4) > 0) or
+            (row.sud_voix_c3 and _to_number(row.sud_voix_c3) > 0)):
             orgs.append("SUD")
+
+        # AUTRE
         if row.pres_siret_autre:
             orgs.append("AUTRE")
 
