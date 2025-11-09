@@ -1966,40 +1966,102 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
         return orgs if orgs else ["Aucune implantation identifiée"]
 
-    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs):
+    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs, cgt_voix=None, total_voix=None):
         """Analyse les enjeux d'une entreprise"""
         enjeux = []
 
         # Enjeux liés à la taille
         if inscrits >= 1000:
-            enjeux.append(f"Très forte audience ({int(inscrits)} inscrits)")
+            enjeux.append(f"🎯 Très forte audience ({int(inscrits)} inscrits)")
         elif inscrits >= 500:
-            enjeux.append(f"Forte audience ({int(inscrits)} inscrits)")
+            enjeux.append(f"📊 Forte audience ({int(inscrits)} inscrits)")
+
+        # Enjeux liés à l'implantation CGT
+        if "CGT" in orgs:
+            if inscrits >= 1000:
+                enjeux.append("✅ CGT IMPLANTÉE - RENFORCEMENT PRIORITAIRE (forte audience)")
+            elif inscrits >= 500:
+                enjeux.append("✅ CGT implantée - Consolidation recommandée")
+            else:
+                enjeux.append("✅ CGT implantée - Maintien position")
+
+            # Ajouter le score CGT si disponible
+            if cgt_voix and total_voix and total_voix > 0:
+                pct_cgt = (cgt_voix / total_voix) * 100
+                if pct_cgt >= 50:
+                    enjeux.append(f"💪 CGT majoritaire ({pct_cgt:.1f}%)")
+                elif pct_cgt >= 30:
+                    enjeux.append(f"💪 CGT bien positionnée ({pct_cgt:.1f}%)")
+                else:
+                    enjeux.append(f"📈 CGT à renforcer ({pct_cgt:.1f}%)")
+        else:
+            if inscrits >= 1000:
+                enjeux.append("⚠️ CGT NON IMPLANTÉE - OPPORTUNITÉ MAJEURE (forte audience)")
+            elif inscrits >= 500:
+                enjeux.append("⚠️ CGT NON implantée - Priorité d'intervention")
+            else:
+                enjeux.append("⚠️ CGT non implantée - Prospection")
 
         # Enjeux liés à la carence
         if carence:
-            enjeux.append("⚠️ CARENCE - Opportunité de reconquête")
+            enjeux.append("🔴 CARENCE - Opportunité de (re)conquête")
 
         # Enjeux liés à l'invitation PAP
         if has_invitation:
             enjeux.append("✓ Invitation PAP reçue (C5)")
         else:
-            enjeux.append("⚠️ Pas d'invitation PAP détectée")
+            enjeux.append("ℹ️ Pas d'invitation PAP détectée")
 
         # Enjeux liés aux collèges
         if nb_colleges and nb_colleges > 1:
-            enjeux.append(f"Pluralité de collèges ({int(nb_colleges)})")
+            enjeux.append(f"🏢 Pluralité de collèges ({int(nb_colleges)})")
 
-        # Enjeux liés aux implantations
-        if "CGT" not in orgs:
-            enjeux.append("⚠️ CGT NON implantée - Priorité d'intervention")
-        else:
-            enjeux.append("✓ CGT implantée")
-
+        # Situation syndicale globale
         if len(orgs) == 1 and orgs[0] == "Aucune implantation identifiée":
             enjeux.append("⚠️ Aucune organisation syndicale - Terrain vierge")
+        elif len(orgs) > 4:
+            enjeux.append(f"⚔️ Forte concurrence syndicale ({len(orgs)} organisations)")
 
         return enjeux
+
+    def _calculer_score_priorite(entreprise):
+        """Calcule un score de priorité pour trier les entreprises"""
+        score = 0
+
+        # CRITÈRE 1 : CGT déjà implantée avec forte audience = PRIORITÉ ABSOLUE
+        is_cgt = "CGT" in entreprise.get("implantations_syndicales", [])
+        inscrits = entreprise.get("inscrits", 0)
+
+        if is_cgt and inscrits >= 1000:
+            score += 10000  # Priorité maximale : renforcement CGT forte audience
+        elif is_cgt and inscrits >= 500:
+            score += 5000   # Haute priorité : renforcement CGT audience moyenne
+        elif is_cgt:
+            score += 2000   # Priorité : maintien position CGT
+
+        # CRITÈRE 2 : Forte audience sans CGT = opportunité
+        if not is_cgt and inscrits >= 1000:
+            score += 3000   # Opportunité majeure d'implantation
+        elif not is_cgt and inscrits >= 500:
+            score += 1000   # Opportunité d'implantation
+
+        # CRITÈRE 3 : Carence (opportunité de reconquête)
+        if entreprise.get("carence"):
+            score += 500
+
+        # CRITÈRE 4 : Urgence temporelle (jours restants)
+        jours = entreprise.get("jours_restants", 999)
+        if jours <= 30:
+            score += 300
+        elif jours <= 60:
+            score += 200
+        elif jours <= 90:
+            score += 100
+
+        # CRITÈRE 5 : Nombre d'inscrits (pondération)
+        score += inscrits * 0.1
+
+        return score
 
     # Dates de référence
     today = date.today()
@@ -2123,6 +2185,10 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         if not effectif:
             return None
 
+        # Filtre : Exclure les entreprises de moins de 50 salariés (non prioritaires)
+        if effectif < 50:
+            return None
+
         # Détermine la carence
         carence = row.carence_c4 or row.carence_c3 or False
 
@@ -2144,6 +2210,10 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         elif pv_stats.get('nb_colleges'):
             nb_colleges = pv_stats.get('nb_colleges')
 
+        # Récupère les voix CGT et total pour l'analyse
+        cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
+        total_voix = _to_number(row.total_voix_c4) or _to_number(row.total_voix_c3)
+
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
             row.siret,
@@ -2151,7 +2221,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             has_invitation,
             carence,
             nb_colleges,
-            orgs
+            orgs,
+            cgt_voix,
+            total_voix
         )
 
         # Date de l'élection
@@ -2199,9 +2271,12 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         if entreprise:
             priorite_2.append(entreprise)
 
-    # Tri par date d'élection (les plus proches en premier), puis par nombre d'inscrits
-    priorite_1.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
-    priorite_2.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
+    # Tri par score de priorité (décroissant) - met en avant :
+    # 1. CGT implantée + forte audience (renforcement)
+    # 2. Forte audience sans CGT (implantation)
+    # 3. Urgence temporelle
+    priorite_1.sort(key=lambda x: -_calculer_score_priorite(x))
+    priorite_2.sort(key=lambda x: -_calculer_score_priorite(x))
 
     # Statistiques globales
     stats = {
