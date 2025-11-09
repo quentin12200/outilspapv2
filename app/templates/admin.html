@@ -1432,6 +1432,17 @@ function genererCarteEntreprise(e) {
       </div>
       ` : ''}
 
+      ${e.colleges && e.colleges.length > 0 ? `
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Collèges électoraux (${e.colleges.length}):</p>
+        <div class="flex flex-wrap gap-1">
+          ${e.colleges.map(college =>
+            `<span class="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200">${college}</span>`
+          ).join('')}
+        </div>
+      </div>
+      ` : ''}
+
       ${e.invitations_pap.length > 0 ? `
       <div class="mb-3">
         <p class="text-xs text-gray-500 mb-1">Invitations PAP:</p>

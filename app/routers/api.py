@@ -2173,6 +2173,22 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             'nb_colleges': nb_colleges
         }
 
+    # Récupère la liste des noms de collèges distincts par SIRET
+    colleges_map = {}
+    colleges_query = db.query(
+        PVEvent.siret,
+        PVEvent.deno_coll
+    ).filter(
+        PVEvent.deno_coll.isnot(None),
+        PVEvent.deno_coll != ''
+    ).distinct().all()
+
+    for siret, deno_coll in colleges_query:
+        if siret not in colleges_map:
+            colleges_map[siret] = []
+        if deno_coll and deno_coll not in colleges_map[siret]:
+            colleges_map[siret].append(deno_coll)
+
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
         siret for siret, data in siret_elections.items()
@@ -2238,6 +2254,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
+        # Récupère la liste des collèges pour ce SIRET
+        colleges_list = colleges_map.get(row.siret, [])
+
         # Détermine le nombre de collèges
         # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
         nb_colleges = 0
@@ -2292,6 +2311,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
             "nb_colleges": nb_colleges,
+            "colleges": colleges_list,  # Liste des noms de collèges
             "nb_pv": nb_pv,
             "nb_etablissements": nb_pv,  # Le nombre d'établissements = nombre de PV distincts
             "carence": carence,
