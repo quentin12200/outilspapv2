@@ -310,8 +310,11 @@ from .routers import api  # noqa: E402
 from .routers import api_invitations_stats  # noqa: E402
 from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
+<<<<<<< HEAD
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -329,8 +332,11 @@ app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
+<<<<<<< HEAD
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")

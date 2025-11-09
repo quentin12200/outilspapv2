@@ -1552,9 +1552,15 @@ def add_pap_invitation(
     date_election_parsed = None
     if date_election:
         try:
+<<<<<<< HEAD
             date_election_parsed = validate_date(date_election, raise_exception=True)
         except ValidationError as e:
             raise HTTPException(status_code=400, detail=f"date_election: {str(e)}")
+=======
+            date_election_parsed = datetime.strptime(date_election, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format de date_election invalide (attendu: YYYY-MM-DD)")
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
     # Enrichissement automatique FD à partir de l'IDCC
     # Principe: Toutes les entreprises avec un IDCC DOIVENT avoir une FD
@@ -1598,6 +1604,7 @@ async def enrichir_siret_from_api(siret: str):
     """
     # Valider le SIRET
     try:
+<<<<<<< HEAD
         siret_clean = validate_siret(siret, raise_exception=True)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1607,6 +1614,12 @@ async def enrichir_siret_from_api(siret: str):
         
         if not data:
             raise HTTPException(status_code=404, detail=f"SIRET {siret_clean} non trouvé dans l'API Sirene")
+=======
+        data = await enrichir_siret(siret)
+
+        if not data:
+            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
         # Formatte les données pour le formulaire
         return {
@@ -1627,6 +1640,7 @@ async def enrichir_siret_from_api(siret: str):
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
 
 
+<<<<<<< HEAD
 
 
 # AUDIT LOGS
@@ -1874,28 +1888,42 @@ async def update_fd_from_idcc(
     }
 
 
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 @router.get("/rapport-ia-pap")
 def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     """
     Génère un rapport complet de la situation PAP prioritaire.
 
+<<<<<<< HEAD
     Priorité 1: Boîtes avec élection dans les 90 prochains jours
     Priorité 2: Entreprises avec élection dans l'année à venir
+=======
+    Priorité 1: Entreprises avec + de 1000 inscrits
+    Priorité 2: Entreprises de 500 à 1000 inscrits avec analyse des enjeux
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
     Pour chaque entreprise, retourne:
     - SIRET
     - Raison sociale
     - Nombre d'inscrits
     - Implantation syndicale (organisations présentes)
+<<<<<<< HEAD
     - Nombre de collèges (calculé depuis les PV si non disponible dans siret_summary)
     - Nombre de PV (nombre de procès-verbaux enregistrés)
     - Nombre d'établissements (basé sur le nombre de PV distincts)
+=======
+    - Nombre de collèges
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
     - Département
     - Ville
     - Carence (oui/non)
     - Invitations PAP reçues
     - Enjeux identifiés
+<<<<<<< HEAD
     - Date de la prochaine élection
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
     """
 
     def _to_number(value):
@@ -1920,6 +1948,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
                 return None
         return None
 
+<<<<<<< HEAD
     def _parse_date_value(value):
         """Parse une date depuis différents formats"""
         if not value:
@@ -1943,6 +1972,8 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
                 return None
         return None
 
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
     def _analyser_implantations(row):
         """Analyse les implantations syndicales d'un SIRET"""
         orgs = []
@@ -2001,6 +2032,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
         return enjeux
 
+<<<<<<< HEAD
     # Dates de référence
     today = date.today()
     date_90_jours = today + timedelta(days=90)
@@ -2053,6 +2085,15 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
                 'effectif': _to_number(effectif),
                 'source': 'invitation'
             }
+=======
+    # Récupère tous les SIRETs avec leur effectif le plus récent
+    # On utilise SiretSummary qui contient les données agrégées
+    query = db.query(SiretSummary).filter(
+        SiretSummary.effectif_siret.isnot(None)
+    )
+
+    all_sirets = query.all()
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
     # Récupère les invitations PAP pour voir quels SIRET ont reçu une invitation
     invitations_map = {}
@@ -2062,7 +2103,11 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             invitations_map[siret] = []
         invitations_map[siret].append(date_invit)
 
+<<<<<<< HEAD
     # Calcule le nombre de PV et de collèges par SIRET depuis la table Tous_PV
+=======
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table PVEvent
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
     pv_stats_map = {}
     pv_stats = db.query(
         PVEvent.siret,
@@ -2076,6 +2121,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             'nb_colleges': nb_colleges
         }
 
+<<<<<<< HEAD
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
         siret for siret, data in siret_elections.items()
@@ -2107,6 +2153,56 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
     def _traiter_siret(row, election_data):
         """Traite un SIRET et retourne l'objet entreprise"""
+=======
+    # Calcule les stats par SIREN pour regrouper les entreprises multi-SIRET
+    def _calculer_stats_par_siren(sirets_list):
+        """Calcule les statistiques par SIREN en regroupant les SIRET"""
+        siren_map = {}
+
+        for siret in sirets_list:
+            siren = siret[:9] if len(siret) >= 9 else siret
+
+            if siren not in siren_map:
+                siren_map[siren] = {
+                    'sirets': [],
+                    'nb_etablissements': 0,
+                    'nb_pv_total': 0,
+                    'nb_colleges_total': 0
+                }
+
+            siren_map[siren]['sirets'].append(siret)
+            siren_map[siren]['nb_etablissements'] += 1
+
+            # Ajoute les stats PV pour ce SIRET
+            if siret in pv_stats_map:
+                siren_map[siren]['nb_pv_total'] += pv_stats_map[siret].get('nb_pv', 0)
+                siren_map[siren]['nb_colleges_total'] = max(
+                    siren_map[siren]['nb_colleges_total'],
+                    pv_stats_map[siret].get('nb_colleges', 0)
+                )
+
+        return siren_map
+
+    # Sépare en deux groupes
+    priorite_1 = []  # >= 1000 inscrits
+    priorite_2 = []  # 500-999 inscrits
+
+    # Calcule les stats par SIREN pour tous les SIRET
+    all_sirets_list = [row.siret for row in all_sirets]
+    siren_stats_all = _calculer_stats_par_siren(all_sirets_list)
+    sirets_deja_traites = set()
+
+    for row in all_sirets:
+        # Pour les entreprises multi-SIRET, on ne traite que le SIRET principal (le premier)
+        siren = row.siret[:9] if len(row.siret) >= 9 else row.siret
+        siren_info = siren_stats_all.get(siren)
+
+        if siren_info and len(siren_info['sirets']) > 1:
+            if siren in sirets_deja_traites:
+                continue
+            sirets_deja_traites.add(siren)
+
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
         # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
         effectif = None
         if row.inscrits_c4:
@@ -2116,12 +2212,17 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         elif row.effectif_siret:
             effectif = _to_number(row.effectif_siret)
 
+<<<<<<< HEAD
         # Utilise l'effectif depuis election_data si disponible
         if not effectif and election_data.get('effectif'):
             effectif = election_data['effectif']
 
         if not effectif:
             return None
+=======
+        if not effectif:
+            continue
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
         # Détermine la carence
         carence = row.carence_c4 or row.carence_c3 or False
@@ -2144,6 +2245,16 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         elif pv_stats.get('nb_colleges'):
             nb_colleges = pv_stats.get('nb_colleges')
 
+<<<<<<< HEAD
+=======
+        # Si on a les stats du SIREN (entreprise multi-SIRET), on les utilise
+        nb_etablissements = 1
+        if siren_info:
+            nb_etablissements = siren_info.get('nb_etablissements', 1)
+            nb_pv = siren_info.get('nb_pv_total', nb_pv)
+            nb_colleges = max(nb_colleges, siren_info.get('nb_colleges_total', 0))
+
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
             row.siret,
@@ -2154,6 +2265,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             orgs
         )
 
+<<<<<<< HEAD
         # Date de l'élection
         date_election = election_data.get('date')
         jours_restants = (date_election - today).days if date_election else None
@@ -2161,6 +2273,18 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         # Construction de l'objet entreprise
         entreprise = {
             "siret": row.siret,
+=======
+        # Ajoute des informations sur les établissements multiples
+        sirets_du_siren = siren_info.get('sirets', [row.siret]) if siren_info else [row.siret]
+        if nb_etablissements > 1:
+            enjeux.append(f"🏢 Entreprise multi-établissements ({nb_etablissements} SIRET)")
+
+        # Construction de l'objet entreprise
+        entreprise = {
+            "siren": siren,
+            "siret": row.siret,
+            "sirets_associes": sirets_du_siren if nb_etablissements > 1 else [],
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
             "raison_sociale": row.raison_sociale or "Non renseignée",
             "inscrits": int(effectif),
             "departement": row.dep or "Non renseigné",
@@ -2168,7 +2292,11 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "code_postal": row.cp or "Non renseigné",
             "nb_colleges": nb_colleges,
             "nb_pv": nb_pv,
+<<<<<<< HEAD
             "nb_etablissements": nb_pv,  # Le nombre d'établissements = nombre de PV distincts
+=======
+            "nb_etablissements": nb_etablissements,
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
             "carence": carence,
             "implantations_syndicales": orgs,
             "invitations_pap": [
@@ -2179,6 +2307,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "fd": row.fd_c4 or row.fd_c3 or "Non renseignée",
             "ud": row.ud_c4 or row.ud_c3 or "Non renseigné",
             "idcc": row.idcc or "Non renseigné",
+<<<<<<< HEAD
             "date_election": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
             "jours_restants": jours_restants,
         }
@@ -2202,6 +2331,19 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     # Tri par date d'élection (les plus proches en premier), puis par nombre d'inscrits
     priorite_1.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
     priorite_2.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
+=======
+        }
+
+        # Classification par priorité
+        if effectif >= 1000:
+            priorite_1.append(entreprise)
+        elif effectif >= 500:
+            priorite_2.append(entreprise)
+
+    # Tri par nombre d'inscrits décroissant
+    priorite_1.sort(key=lambda x: x["inscrits"], reverse=True)
+    priorite_2.sort(key=lambda x: x["inscrits"], reverse=True)
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
     # Statistiques globales
     stats = {
@@ -2220,6 +2362,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     return {
         "success": True,
         "date_generation": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+<<<<<<< HEAD
         "date_reference": today.strftime("%d/%m/%Y"),
         "date_limite_p1": date_90_jours.strftime("%d/%m/%Y"),
         "date_limite_p2": date_1_an.strftime("%d/%m/%Y"),
@@ -2232,6 +2375,17 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         "priorite_2": {
             "titre": "Priorité 2: Entreprises avec élection dans l'année",
             "description": f"Élections du {date_90_jours.strftime('%d/%m/%Y')} au {date_1_an.strftime('%d/%m/%Y')} - Planification à moyen terme",
+=======
+        "statistiques": stats,
+        "priorite_1": {
+            "titre": "Priorité 1: Entreprises avec ≥ 1000 inscrits",
+            "description": "Cibles prioritaires avec forte audience",
+            "entreprises": priorite_1
+        },
+        "priorite_2": {
+            "titre": "Priorité 2: Entreprises de 500 à 999 inscrits",
+            "description": "Cibles secondaires à fort potentiel",
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
             "entreprises": priorite_2
         }
     }
