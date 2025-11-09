@@ -78,11 +78,7 @@
 <!-- Quick actions -->
 <section class="mb-10">
   <h2 class="text-2xl font-bold text-gray-800 mb-4">Raccourcis & nouvelles fonctionnalités</h2>
-<<<<<<< HEAD
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-=======
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
     <button onclick="genererRapportIA()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition border border-pink-200 hover:from-pink-600 hover:to-purple-700">
       <div class="text-left">
         <p class="text-sm font-semibold">🤖 Rapport IA - Situation PAP</p>
@@ -980,7 +976,6 @@ function resetIDCCButton() {
 }
 
 // ============================================
-<<<<<<< HEAD
 // Chatbot IA Functions
 
 
@@ -1193,8 +1188,6 @@ function formatMarkdown(text) {
   return text;
 }
 
-=======
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 // RAPPORT IA PAP
 // ============================================
 
@@ -1311,21 +1304,10 @@ function afficherRapportIA(data) {
       </div>
     </div>
 
-<<<<<<< HEAD
     <!-- Export button -->
     <div class="mt-6 flex justify-end space-x-3">
       <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
         <i class="fas fa-download mr-2"></i>
-=======
-    <!-- Export buttons -->
-    <div class="mt-6 flex justify-end space-x-3">
-      <button onclick="exporterRapportPDF()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
-        <i class="fas fa-file-pdf mr-2"></i>
-        Télécharger PDF
-      </button>
-      <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
-        <i class="fas fa-file-code mr-2"></i>
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
         Télécharger JSON
       </button>
       <button onclick="fermerRapportIA()" class="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
@@ -1346,7 +1328,6 @@ function genererCarteEntreprise(e) {
     ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CGT ✓</span>'
     : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-600">CGT ✗</span>';
 
-<<<<<<< HEAD
   // Badge de date d'élection avec couleur selon urgence
   let dateBadge = '';
   if (e.jours_restants !== null && e.jours_restants !== undefined) {
@@ -1358,59 +1339,29 @@ function genererCarteEntreprise(e) {
     dateBadge = `<span class="px-2 py-1 text-xs font-semibold rounded-full ${joursColor}">J-${e.jours_restants}</span>`;
   }
 
-=======
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
   return `
     <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
       <div class="flex items-start justify-between mb-3">
         <div class="flex-1">
           <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
           <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
-<<<<<<< HEAD
           ${e.date_election !== 'Non renseignée' ? `<p class="text-xs text-purple-600 font-semibold mt-1">📅 Élection: ${e.date_election}</p>` : ''}
         </div>
         <div class="flex flex-col items-end space-y-1">
           ${dateBadge}
-=======
-          ${e.sirets_associes && e.sirets_associes.length > 0 ? `
-          <details class="mt-1">
-            <summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-              <i class="fas fa-building mr-1"></i>
-              ${e.nb_etablissements} établissements (${e.sirets_associes.length} SIRET)
-            </summary>
-            <div class="mt-2 pl-4 space-y-1">
-              ${e.sirets_associes.map(s => `<p class="text-xs text-gray-600 font-mono">• ${s}</p>`).join('')}
-            </div>
-          </details>
-          ` : ''}
-        </div>
-        <div class="flex flex-col items-end space-y-1">
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
           ${carenceBadge}
           ${cgtBadge}
         </div>
       </div>
 
-<<<<<<< HEAD
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
-=======
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3 text-sm">
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
         <div>
           <p class="text-xs text-gray-500">Inscrits</p>
           <p class="font-semibold text-gray-800">${e.inscrits.toLocaleString()}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500">Collèges</p>
-<<<<<<< HEAD
           <p class="font-semibold text-gray-800">${e.nb_colleges}</p>
-=======
-          <p class="font-semibold text-gray-800">${e.nb_colleges || 0}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">PV</p>
-          <p class="font-semibold text-gray-800">${e.nb_pv || 0}</p>
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
         </div>
         <div>
           <p class="text-xs text-gray-500">Département</p>
@@ -1422,24 +1373,6 @@ function genererCarteEntreprise(e) {
         </div>
       </div>
 
-<<<<<<< HEAD
-=======
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm bg-gray-50 rounded-lg p-2">
-        <div>
-          <p class="text-xs text-gray-500">FD</p>
-          <p class="font-semibold text-gray-800">${e.fd || 'Non renseignée'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">IDCC</p>
-          <p class="font-semibold text-gray-800">${e.idcc || 'Non renseigné'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">UD</p>
-          <p class="font-semibold text-gray-800">${e.ud || 'Non renseigné'}</p>
-        </div>
-      </div>
-
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
       <div class="mb-3">
         <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
         <div class="flex flex-wrap gap-1">
@@ -1494,166 +1427,6 @@ function switchTab(tabName) {
 
 let rapportDataGlobal = null;
 
-<<<<<<< HEAD
-=======
-async function exporterRapportPDF() {
-  try {
-    const response = await fetch('/api/rapport-ia-pap');
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error('Erreur lors de la récupération du rapport');
-    }
-
-    // Charge jsPDF dynamiquement
-    if (typeof window.jspdf === 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-      document.head.appendChild(script);
-      await new Promise((resolve, reject) => {
-        script.onload = resolve;
-        script.onerror = reject;
-      });
-    }
-
-    // Charge jsPDF AutoTable
-    if (typeof window.jspdf.jsPDF.API.autoTable === 'undefined') {
-      const autoTableScript = document.createElement('script');
-      autoTableScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js';
-      document.head.appendChild(autoTableScript);
-      await new Promise((resolve, reject) => {
-        autoTableScript.onload = resolve;
-        autoTableScript.onerror = reject;
-      });
-    }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    let yPos = margin;
-
-    // Titre
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Rapport IA - Analyse PAP Prioritaire', margin, yPos);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Généré le ${data.date_generation}`, margin, yPos);
-    yPos += 10;
-
-    // Stats globales
-    const stats = data.statistiques;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Statistiques Globales', margin, yPos);
-    yPos += 7;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const statsText = [
-      `Priorité 1: ${stats.total_priorite_1} entreprises (${stats.total_inscrits_p1.toLocaleString()} inscrits)`,
-      `Priorité 2: ${stats.total_priorite_2} entreprises (${stats.total_inscrits_p2.toLocaleString()} inscrits)`,
-      `CGT Implantée: ${stats.cgt_implantee_p1 + stats.cgt_implantee_p2} (P1: ${stats.cgt_implantee_p1}, P2: ${stats.cgt_implantee_p2})`,
-      `En Carence: ${stats.carence_p1 + stats.carence_p2} (P1: ${stats.carence_p1}, P2: ${stats.carence_p2})`
-    ];
-
-    statsText.forEach(text => {
-      doc.text(text, margin, yPos);
-      yPos += 5;
-    });
-    yPos += 5;
-
-    // Fonction pour ajouter une section
-    function ajouterSection(titre, description, entreprises) {
-      if (yPos + 30 > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text(titre, margin, yPos);
-      yPos += 6;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      doc.text(description, margin, yPos);
-      yPos += 8;
-
-      const tableData = entreprises.map(e => {
-        const implantations = e.implantations_syndicales.join(', ');
-        const sirets = e.sirets_associes && e.sirets_associes.length > 0
-          ? `${e.nb_etablissements} établ.`
-          : '1 établ.';
-
-        return [
-          e.raison_sociale.substring(0, 30),
-          e.siret.substring(0, 9) + '...',
-          e.inscrits.toLocaleString(),
-          e.nb_colleges || 0,
-          e.nb_pv || 0,
-          sirets,
-          e.departement,
-          (e.fd || 'N/A').substring(0, 12),
-          e.idcc || 'N/A',
-          e.carence ? 'Oui' : 'Non',
-          implantations.includes('CGT') ? 'Oui' : 'Non'
-        ];
-      });
-
-      doc.autoTable({
-        startY: yPos,
-        head: [['Raison Sociale', 'SIREN', 'Inscrits', 'Coll.', 'PV', 'Établ.', 'Dép.', 'FD', 'IDCC', 'Car.', 'CGT']],
-        body: tableData,
-        theme: 'grid',
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [147, 51, 234], textColor: 255, fontStyle: 'bold', halign: 'center' },
-        columnStyles: {
-          0: { cellWidth: 35 },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 15, halign: 'right' },
-          3: { cellWidth: 10, halign: 'center' },
-          4: { cellWidth: 10, halign: 'center' },
-          5: { cellWidth: 12, halign: 'center' },
-          6: { cellWidth: 10, halign: 'center' },
-          7: { cellWidth: 15 },
-          8: { cellWidth: 12 },
-          9: { cellWidth: 10, halign: 'center' },
-          10: { cellWidth: 10, halign: 'center' }
-        },
-        margin: { left: margin, right: margin },
-        didDrawPage: () => {
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'italic');
-          doc.text(`Page ${doc.internal.getCurrentPageInfo().pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-        }
-      });
-
-      yPos = doc.lastAutoTable.finalY + 10;
-    }
-
-    // Ajouter les sections
-    if (data.priorite_1.entreprises.length > 0) {
-      ajouterSection(data.priorite_1.titre, data.priorite_1.description, data.priorite_1.entreprises);
-    }
-
-    if (data.priorite_2.entreprises.length > 0) {
-      ajouterSection(data.priorite_2.titre, data.priorite_2.description, data.priorite_2.entreprises);
-    }
-
-    doc.save(`rapport-ia-pap-${new Date().toISOString().split('T')[0]}.pdf`);
-
-  } catch (error) {
-    console.error('Erreur lors de l\'export PDF:', error);
-    alert('Erreur lors de l\'export PDF: ' + error.message);
-  }
-}
-
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 async function exporterRapportJSON() {
   try {
     const response = await fetch('/api/rapport-ia-pap');
