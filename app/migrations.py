@@ -488,11 +488,7 @@ def fill_invitation_columns_from_raw():
                     try:
                         inv.effectif_connu = int(float(str(effectif_str).replace(",", ".").strip()))
                         updated = True
-<<<<<<< HEAD
                     except (ValueError, TypeError, AttributeError):
-=======
-                    except:
->>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
                         pass
 
             if not inv.structure_saisie:
