@@ -1268,15 +1268,23 @@ function afficherRapportIA(data) {
       </div>
     </div>
 
+    <!-- Filtre par région -->
+    <div class="mb-6">
+      <p class="text-sm font-semibold text-gray-700 mb-2">Filtrer par région:</p>
+      <div class="flex flex-wrap gap-2" id="region-tabs">
+        <!-- Les onglets de régions seront générés dynamiquement -->
+      </div>
+    </div>
+
     <!-- Tabs -->
     <div class="mb-6">
       <div class="border-b border-gray-200">
         <nav class="-mb-px flex space-x-8">
           <button onclick="switchTab('priorite-1')" id="tab-priorite-1" class="rapport-tab active border-b-2 border-purple-600 py-4 px-1 text-sm font-semibold text-purple-600">
-            Priorité 1 (${stats.total_priorite_1})
+            Priorité 1 (<span id="count-p1">${stats.total_priorite_1}</span>)
           </button>
           <button onclick="switchTab('priorite-2')" id="tab-priorite-2" class="rapport-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-            Priorité 2 (${stats.total_priorite_2})
+            Priorité 2 (<span id="count-p2">${stats.total_priorite_2}</span>)
           </button>
         </nav>
       </div>
@@ -1321,6 +1329,87 @@ function afficherRapportIA(data) {
   `;
 
   modalContent.innerHTML = html;
+
+  // Générer et afficher les onglets de régions
+  genererOngletsRegions(p1, p2);
+
+  // Stocker les données globalement pour le filtrage
+  window.rapportData = { p1, p2 };
+  window.regionSelectionnee = 'toutes';
+}
+
+function genererOngletsRegions(p1, p2) {
+  // Collecter toutes les régions uniques
+  const regions = new Set();
+  [...p1.entreprises, ...p2.entreprises].forEach(e => {
+    if (e.region && e.region !== 'Non renseignée') {
+      regions.add(e.region);
+    }
+  });
+
+  const regionsArray = Array.from(regions).sort();
+  const regionTabsContainer = document.getElementById('region-tabs');
+
+  // Bouton "Toutes régions"
+  let html = `
+    <button onclick="filtrerParRegion('toutes')" id="region-tab-toutes"
+            class="region-tab px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white">
+      Toutes régions
+    </button>
+  `;
+
+  // Boutons pour chaque région
+  regionsArray.forEach(region => {
+    html += `
+      <button onclick="filtrerParRegion('${region}')" id="region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}"
+              class="region-tab px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
+        ${region}
+      </button>
+    `;
+  });
+
+  regionTabsContainer.innerHTML = html;
+}
+
+function filtrerParRegion(region) {
+  window.regionSelectionnee = region;
+
+  // Mettre à jour l'apparence des onglets de régions
+  document.querySelectorAll('.region-tab').forEach(tab => {
+    tab.classList.remove('bg-purple-600', 'text-white');
+    tab.classList.add('bg-gray-100', 'text-gray-700');
+  });
+
+  const tabId = region === 'toutes' ? 'region-tab-toutes' : `region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  const activeTab = document.getElementById(tabId);
+  if (activeTab) {
+    activeTab.classList.remove('bg-gray-100', 'text-gray-700');
+    activeTab.classList.add('bg-purple-600', 'text-white');
+  }
+
+  // Filtrer les entreprises
+  const { p1, p2 } = window.rapportData;
+
+  const p1Filtrees = region === 'toutes'
+    ? p1.entreprises
+    : p1.entreprises.filter(e => e.region === region);
+
+  const p2Filtrees = region === 'toutes'
+    ? p2.entreprises
+    : p2.entreprises.filter(e => e.region === region);
+
+  // Mettre à jour les compteurs
+  document.getElementById('count-p1').textContent = p1Filtrees.length;
+  document.getElementById('count-p2').textContent = p2Filtrees.length;
+
+  // Mettre à jour le contenu
+  document.querySelector('#content-priorite-1 .space-y-4').innerHTML =
+    p1Filtrees.map(e => genererCarteEntreprise(e)).join('') ||
+    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
+
+  document.querySelector('#content-priorite-2 .space-y-4').innerHTML =
+    p2Filtrees.map(e => genererCarteEntreprise(e)).join('') ||
+    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
 }
 
 function genererCarteEntreprise(e) {

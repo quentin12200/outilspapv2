@@ -2359,6 +2359,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "departement": row.dep or "Non renseigné",
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
+            "region": row.region or "Non renseignée",
             "nb_colleges": nb_colleges,
             "colleges": colleges_list,  # Liste des noms de collèges
             "nb_pv": nb_pv,
