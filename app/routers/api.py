@@ -1946,21 +1946,55 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     def _analyser_implantations(row):
         """Analyse les implantations syndicales d'un SIRET"""
         orgs = []
-        # Vérifier les présences au niveau SIRET
-        if row.pres_siret_cgt:
+
+        # Méthode 1 : Utiliser les colonnes cgt_implantee, cfdt_implantee, etc. (plus fiables)
+        # Méthode 2 : Vérifier pres_siret_* (peut être vide)
+        # Méthode 3 : Vérifier si voix > 0 dans les cycles
+
+        # CGT
+        if (row.cgt_implantee or
+            row.pres_siret_cgt or
+            (row.cgt_voix_c4 and _to_number(row.cgt_voix_c4) > 0) or
+            (row.cgt_voix_c3 and _to_number(row.cgt_voix_c3) > 0)):
             orgs.append("CGT")
-        if row.pres_siret_cfdt:
+
+        # CFDT
+        if (row.pres_siret_cfdt or
+            (row.cfdt_voix_c4 and _to_number(row.cfdt_voix_c4) > 0) or
+            (row.cfdt_voix_c3 and _to_number(row.cfdt_voix_c3) > 0)):
             orgs.append("CFDT")
-        if row.pres_siret_fo:
+
+        # FO
+        if (row.pres_siret_fo or
+            (row.fo_voix_c4 and _to_number(row.fo_voix_c4) > 0) or
+            (row.fo_voix_c3 and _to_number(row.fo_voix_c3) > 0)):
             orgs.append("FO")
-        if row.pres_siret_cftc:
+
+        # CFTC
+        if (row.pres_siret_cftc or
+            (row.cftc_voix_c4 and _to_number(row.cftc_voix_c4) > 0) or
+            (row.cftc_voix_c3 and _to_number(row.cftc_voix_c3) > 0)):
             orgs.append("CFTC")
-        if row.pres_siret_cgc:
+
+        # CGC
+        if (row.pres_siret_cgc or
+            (row.cgc_voix_c4 and _to_number(row.cgc_voix_c4) > 0) or
+            (row.cgc_voix_c3 and _to_number(row.cgc_voix_c3) > 0)):
             orgs.append("CGC")
-        if row.pres_siret_unsa:
+
+        # UNSA
+        if (row.pres_siret_unsa or
+            (row.unsa_voix_c4 and _to_number(row.unsa_voix_c4) > 0) or
+            (row.unsa_voix_c3 and _to_number(row.unsa_voix_c3) > 0)):
             orgs.append("UNSA")
-        if row.pres_siret_sud:
+
+        # SUD
+        if (row.pres_siret_sud or
+            (row.sud_voix_c4 and _to_number(row.sud_voix_c4) > 0) or
+            (row.sud_voix_c3 and _to_number(row.sud_voix_c3) > 0)):
             orgs.append("SUD")
+
+        # AUTRE
         if row.pres_siret_autre:
             orgs.append("AUTRE")
 
@@ -2139,6 +2173,22 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             'nb_colleges': nb_colleges
         }
 
+    # Récupère la liste des noms de collèges distincts par SIRET
+    colleges_map = {}
+    colleges_query = db.query(
+        PVEvent.siret,
+        PVEvent.deno_coll
+    ).filter(
+        PVEvent.deno_coll.isnot(None),
+        PVEvent.deno_coll != ''
+    ).distinct().all()
+
+    for siret, deno_coll in colleges_query:
+        if siret not in colleges_map:
+            colleges_map[siret] = []
+        if deno_coll and deno_coll not in colleges_map[siret]:
+            colleges_map[siret].append(deno_coll)
+
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
         siret for siret, data in siret_elections.items()
@@ -2204,7 +2254,11 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
-        # Détermine le nombre de collèges (priorité: nb_college_siret > nb_colleges depuis PV)
+        # Récupère la liste des collèges pour ce SIRET
+        colleges_list = colleges_map.get(row.siret, [])
+
+        # Détermine le nombre de collèges
+        # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
         nb_colleges = 0
         if row.nb_college_siret and _to_number(row.nb_college_siret):
             nb_colleges = int(_to_number(row.nb_college_siret))
@@ -2214,6 +2268,23 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         # Récupère les voix CGT et votants pour le calcul du pourcentage
         cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
         votants = _to_number(row.votants_c4) or _to_number(row.votants_c3)
+
+        # Récupère les voix de TOUTES les organisations
+        voix_organisations = {
+            "CGT": cgt_voix,
+            "CFDT": _to_number(row.cfdt_voix_c4) or _to_number(row.cfdt_voix_c3),
+            "FO": _to_number(row.fo_voix_c4) or _to_number(row.fo_voix_c3),
+            "CFTC": _to_number(row.cftc_voix_c4) or _to_number(row.cftc_voix_c3),
+            "CGC": _to_number(row.cgc_voix_c4) or _to_number(row.cgc_voix_c3),
+            "UNSA": _to_number(row.unsa_voix_c4) or _to_number(row.unsa_voix_c3),
+            "SUD": _to_number(row.sud_voix_c4) or _to_number(row.sud_voix_c3),
+        }
+        # Filtrer les voix nulles
+        voix_organisations = {k: int(v) for k, v in voix_organisations.items() if v and v > 0}
+
+        # Calcul du SVE (Suffrages Valablement Exprimés) = somme de toutes les voix
+        # Note: Il n'y a pas de colonne sve_c4/c3 dans SiretSummary
+        sve = sum(voix_organisations.values()) if voix_organisations else 0
 
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
@@ -2240,6 +2311,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
             "nb_colleges": nb_colleges,
+            "colleges": colleges_list,  # Liste des noms de collèges
             "nb_pv": nb_pv,
             "nb_etablissements": nb_pv,  # Le nombre d'établissements = nombre de PV distincts
             "carence": carence,
@@ -2254,6 +2326,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "idcc": row.idcc or "Non renseigné",
             "date_election": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
             "jours_restants": jours_restants,
+            "sve": int(sve) if sve else 0,
+            "votants": int(votants) if votants else 0,
+            "voix_organisations": voix_organisations,
         }
 
         return entreprise

@@ -22,6 +22,7 @@ except ImportError:
     logger.warning("pdf2image non installé - support PDF désactivé")
 
 from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
+from .sirene_api import SireneAPI
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,70 @@ class DocumentExtractor:
         except Exception as e:
             raise DocumentExtractorError(f"Erreur lors de la conversion du PDF: {str(e)}")
 
-    def extract_from_image(
+    @staticmethod
+    def _is_valid_siret(siret: Optional[str]) -> bool:
+        """
+        Vérifie si un SIRET est valide (14 chiffres).
+
+        Args:
+            siret: Numéro SIRET à valider
+
+        Returns:
+            True si le SIRET est valide, False sinon
+        """
+        if not siret:
+            return False
+        # Nettoyer le SIRET (enlever espaces, tirets, etc.)
+        siret_clean = ''.join(c for c in str(siret) if c.isdigit())
+        return len(siret_clean) == 14
+
+    async def _search_siret_from_data(
+        self,
+        raison_sociale: Optional[str],
+        code_postal: Optional[str] = None,
+        ville: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Recherche automatiquement un SIRET via l'API Sirene
+        en utilisant la raison sociale et les informations géographiques.
+
+        Args:
+            raison_sociale: Nom de l'entreprise
+            code_postal: Code postal de l'établissement
+            ville: Ville de l'établissement
+
+        Returns:
+            SIRET trouvé ou None si pas de résultat
+        """
+        if not raison_sociale:
+            return None
+
+        try:
+            logger.info(f"🔍 Recherche automatique du SIRET pour: {raison_sociale}")
+
+            sirene_api = SireneAPI()
+            results = await sirene_api.search_siret(
+                denomination=raison_sociale,
+                code_postal=code_postal,
+                commune=ville,
+                limit=5
+            )
+
+            if results and len(results) > 0:
+                # Prendre le premier résultat
+                siret = results[0].get('siret')
+                if siret:
+                    logger.info(f"✅ SIRET trouvé automatiquement: {siret} pour {raison_sociale}")
+                    return siret
+
+            logger.warning(f"❌ Aucun SIRET trouvé pour: {raison_sociale}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la recherche automatique du SIRET: {str(e)}")
+            return None
+
+    async def extract_from_image(
         self,
         image_data: bytes,
         model: Optional[str] = None,
@@ -287,6 +351,31 @@ class DocumentExtractor:
             }
 
             logger.info(f"Extraction réussie - SIRET: {extracted_data.get('siret', 'N/A')}")
+
+            # Si le SIRET n'est pas valide, essayer de le rechercher automatiquement
+            if not self._is_valid_siret(extracted_data.get('siret')):
+                logger.warning(f"⚠️ SIRET manquant ou invalide, recherche automatique...")
+
+                raison_sociale = extracted_data.get('raison_sociale')
+                code_postal = extracted_data.get('code_postal')
+                ville = extracted_data.get('ville')
+
+                if raison_sociale:
+                    siret_found = await self._search_siret_from_data(
+                        raison_sociale=raison_sociale,
+                        code_postal=code_postal,
+                        ville=ville
+                    )
+
+                    if siret_found:
+                        extracted_data['siret'] = siret_found
+                        # Ajouter une note dans les métadonnées
+                        if '_metadata' not in extracted_data:
+                            extracted_data['_metadata'] = {}
+                        extracted_data['_metadata']['siret_auto_found'] = True
+                        extracted_data['_metadata']['siret_source'] = 'API Sirene (recherche automatique)'
+                        logger.info(f"✅ SIRET trouvé automatiquement et ajouté: {siret_found}")
+
             return extracted_data
 
         except json.JSONDecodeError as e:
@@ -297,7 +386,7 @@ class DocumentExtractor:
             logger.error(f"Erreur lors de l'extraction: {str(e)}")
             raise DocumentExtractorError(f"Échec de l'extraction: {str(e)}")
 
-    def extract_from_document(
+    async def extract_from_document(
         self,
         document_data: bytes,
         is_pdf: bool = False,
@@ -331,7 +420,7 @@ class DocumentExtractor:
                 image_data = document_data
 
             # Extraire les informations de l'image
-            return self.extract_from_image(image_data, model=model, temperature=temperature)
+            return await self.extract_from_image(image_data, model=model, temperature=temperature)
 
         except DocumentExtractorError:
             raise
