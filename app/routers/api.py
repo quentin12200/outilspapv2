@@ -2167,11 +2167,19 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         func.count(func.distinct(PVEvent.deno_coll)).label('nb_colleges_distinct')
     ).group_by(PVEvent.siret).all()
 
+    # Normaliser les SIRET (enlever espaces, tirets) pour le matching
+    def normalize_siret(siret):
+        if not siret:
+            return None
+        return ''.join(c for c in str(siret) if c.isdigit())
+
     for siret, nb_pv, nb_colleges in pv_stats:
-        pv_stats_map[siret] = {
-            'nb_pv': nb_pv,
-            'nb_colleges': nb_colleges
-        }
+        siret_norm = normalize_siret(siret)
+        if siret_norm:
+            pv_stats_map[siret_norm] = {
+                'nb_pv': nb_pv,
+                'nb_colleges': nb_colleges
+            }
 
     logger.info(f"📊 Stats PV: {len(pv_stats_map)} SIRET avec PV trouvés")
 
@@ -2207,11 +2215,13 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     ).all()
 
     for siret, deno_coll in colleges_query:
-        if siret not in colleges_map:
-            colleges_map[siret] = []
-        # Ajouter seulement si pas déjà dans la liste (pour avoir des collèges uniques)
-        if deno_coll and deno_coll.strip() and deno_coll not in colleges_map[siret]:
-            colleges_map[siret].append(deno_coll)
+        siret_norm = normalize_siret(siret)
+        if siret_norm:
+            if siret_norm not in colleges_map:
+                colleges_map[siret_norm] = []
+            # Ajouter seulement si pas déjà dans la liste (pour avoir des collèges uniques)
+            if deno_coll and deno_coll.strip() and deno_coll not in colleges_map[siret_norm]:
+                colleges_map[siret_norm].append(deno_coll)
 
     logger.info(f"📋 Collèges: {len(colleges_map)} SIRET avec collèges trouvés")
     # Debug: afficher un exemple pour RATP
@@ -2282,16 +2292,19 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         has_invitation = row.siret in invitations_map
         invitations_dates = invitations_map.get(row.siret, [])
 
-        # Récupère les stats PV pour ce SIRET
-        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        # Normaliser le SIRET pour le matching avec PVEvent
+        siret_norm = normalize_siret(row.siret)
+
+        # Récupère les stats PV pour ce SIRET (avec SIRET normalisé)
+        pv_stats = pv_stats_map.get(siret_norm, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
-        # Récupère la liste des collèges pour ce SIRET
-        colleges_list = colleges_map.get(row.siret, [])
+        # Récupère la liste des collèges pour ce SIRET (avec SIRET normalisé)
+        colleges_list = colleges_map.get(siret_norm, [])
 
         # Debug pour RATP
         if row.siret == "77566343800494":
-            logger.info(f"🔍 RATP dans _traiter_siret: nb_pv={nb_pv}, colleges={colleges_list}")
+            logger.info(f"🔍 RATP dans _traiter_siret: siret_norm={siret_norm}, nb_pv={nb_pv}, colleges={colleges_list}")
 
         # Détermine le nombre de collèges
         # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
