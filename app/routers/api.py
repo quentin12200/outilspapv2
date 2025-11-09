@@ -1966,7 +1966,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
         return orgs if orgs else ["Aucune implantation identifiée"]
 
-    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs, cgt_voix=None, total_voix=None):
+    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs, cgt_voix=None, votants=None):
         """Analyse les enjeux d'une entreprise"""
         enjeux = []
 
@@ -1985,9 +1985,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             else:
                 enjeux.append("✅ CGT implantée - Maintien position")
 
-            # Ajouter le score CGT si disponible
-            if cgt_voix and total_voix and total_voix > 0:
-                pct_cgt = (cgt_voix / total_voix) * 100
+            # Ajouter le score CGT si disponible (basé sur les votants)
+            if cgt_voix and votants and votants > 0:
+                pct_cgt = (cgt_voix / votants) * 100
                 if pct_cgt >= 50:
                     enjeux.append(f"💪 CGT majoritaire ({pct_cgt:.1f}%)")
                 elif pct_cgt >= 30:
@@ -2050,13 +2050,14 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             score += 500
 
         # CRITÈRE 4 : Urgence temporelle (jours restants)
-        jours = entreprise.get("jours_restants", 999)
-        if jours <= 30:
-            score += 300
-        elif jours <= 60:
-            score += 200
-        elif jours <= 90:
-            score += 100
+        jours = entreprise.get("jours_restants")
+        if jours is not None:
+            if jours <= 30:
+                score += 300
+            elif jours <= 60:
+                score += 200
+            elif jours <= 90:
+                score += 100
 
         # CRITÈRE 5 : Nombre d'inscrits (pondération)
         score += inscrits * 0.1
@@ -2210,9 +2211,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         elif pv_stats.get('nb_colleges'):
             nb_colleges = pv_stats.get('nb_colleges')
 
-        # Récupère les voix CGT et total pour l'analyse
+        # Récupère les voix CGT et votants pour le calcul du pourcentage
         cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
-        total_voix = _to_number(row.total_voix_c4) or _to_number(row.total_voix_c3)
+        votants = _to_number(row.votants_c4) or _to_number(row.votants_c3)
 
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
@@ -2223,7 +2224,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             nb_colleges,
             orgs,
             cgt_voix,
-            total_voix
+            votants
         )
 
         # Date de l'élection
