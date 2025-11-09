@@ -2238,19 +2238,13 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
-        # Détermine le nombre de collèges (priorité: nb_colleges_c4 > nb_colleges_c3 > nb_college_siret > PV)
+        # Détermine le nombre de collèges
+        # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
         nb_colleges = 0
-        if row.nb_colleges_c4 and _to_number(row.nb_colleges_c4):
-            nb_colleges = int(_to_number(row.nb_colleges_c4))
-        elif row.nb_colleges_c3 and _to_number(row.nb_colleges_c3):
-            nb_colleges = int(_to_number(row.nb_colleges_c3))
-        elif row.nb_college_siret and _to_number(row.nb_college_siret):
+        if row.nb_college_siret and _to_number(row.nb_college_siret):
             nb_colleges = int(_to_number(row.nb_college_siret))
         elif pv_stats.get('nb_colleges'):
             nb_colleges = pv_stats.get('nb_colleges')
-
-        # SVE (Suffrages Valablement Exprimés)
-        sve = _to_number(row.sve_c4) or _to_number(row.sve_c3)
 
         # Récupère les voix CGT et votants pour le calcul du pourcentage
         cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
@@ -2268,6 +2262,10 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         }
         # Filtrer les voix nulles
         voix_organisations = {k: int(v) for k, v in voix_organisations.items() if v and v > 0}
+
+        # Calcul du SVE (Suffrages Valablement Exprimés) = somme de toutes les voix
+        # Note: Il n'y a pas de colonne sve_c4/c3 dans SiretSummary
+        sve = sum(voix_organisations.values()) if voix_organisations else 0
 
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
