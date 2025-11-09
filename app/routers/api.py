@@ -1633,11 +1633,68 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             invitations_map[siret] = []
         invitations_map[siret].append(date_invit)
 
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table PVEvent
+    pv_stats_map = {}
+    pv_stats = db.query(
+        PVEvent.siret,
+        func.count(PVEvent.id).label('nb_pv'),
+        func.count(func.distinct(PVEvent.deno_coll)).label('nb_colleges_distinct')
+    ).group_by(PVEvent.siret).all()
+
+    for siret, nb_pv, nb_colleges in pv_stats:
+        pv_stats_map[siret] = {
+            'nb_pv': nb_pv,
+            'nb_colleges': nb_colleges
+        }
+
+    # Calcule les stats par SIREN pour regrouper les entreprises multi-SIRET
+    def _calculer_stats_par_siren(sirets_list):
+        """Calcule les statistiques par SIREN en regroupant les SIRET"""
+        siren_map = {}
+
+        for siret in sirets_list:
+            siren = siret[:9] if len(siret) >= 9 else siret
+
+            if siren not in siren_map:
+                siren_map[siren] = {
+                    'sirets': [],
+                    'nb_etablissements': 0,
+                    'nb_pv_total': 0,
+                    'nb_colleges_total': 0
+                }
+
+            siren_map[siren]['sirets'].append(siret)
+            siren_map[siren]['nb_etablissements'] += 1
+
+            # Ajoute les stats PV pour ce SIRET
+            if siret in pv_stats_map:
+                siren_map[siren]['nb_pv_total'] += pv_stats_map[siret].get('nb_pv', 0)
+                siren_map[siren]['nb_colleges_total'] = max(
+                    siren_map[siren]['nb_colleges_total'],
+                    pv_stats_map[siret].get('nb_colleges', 0)
+                )
+
+        return siren_map
+
     # Sépare en deux groupes
     priorite_1 = []  # >= 1000 inscrits
     priorite_2 = []  # 500-999 inscrits
 
+    # Calcule les stats par SIREN pour tous les SIRET
+    all_sirets_list = [row.siret for row in all_sirets]
+    siren_stats_all = _calculer_stats_par_siren(all_sirets_list)
+    sirets_deja_traites = set()
+
     for row in all_sirets:
+        # Pour les entreprises multi-SIRET, on ne traite que le SIRET principal (le premier)
+        siren = row.siret[:9] if len(row.siret) >= 9 else row.siret
+        siren_info = siren_stats_all.get(siren)
+
+        if siren_info and len(siren_info['sirets']) > 1:
+            if siren in sirets_deja_traites:
+                continue
+            sirets_deja_traites.add(siren)
+
         # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
         effectif = None
         if row.inscrits_c4:
@@ -1660,25 +1717,52 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         has_invitation = row.siret in invitations_map
         invitations_dates = invitations_map.get(row.siret, [])
 
+        # Récupère les stats PV pour ce SIRET
+        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        nb_pv = pv_stats.get('nb_pv', 0)
+
+        # Détermine le nombre de collèges (priorité: nb_college_siret > nb_colleges depuis PV)
+        nb_colleges = 0
+        if row.nb_college_siret and _to_number(row.nb_college_siret):
+            nb_colleges = int(_to_number(row.nb_college_siret))
+        elif pv_stats.get('nb_colleges'):
+            nb_colleges = pv_stats.get('nb_colleges')
+
+        # Si on a les stats du SIREN (entreprise multi-SIRET), on les utilise
+        nb_etablissements = 1
+        if siren_info:
+            nb_etablissements = siren_info.get('nb_etablissements', 1)
+            nb_pv = siren_info.get('nb_pv_total', nb_pv)
+            nb_colleges = max(nb_colleges, siren_info.get('nb_colleges_total', 0))
+
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
             row.siret,
             effectif,
             has_invitation,
             carence,
-            row.nb_college_siret,
+            nb_colleges,
             orgs
         )
 
+        # Ajoute des informations sur les établissements multiples
+        sirets_du_siren = siren_info.get('sirets', [row.siret]) if siren_info else [row.siret]
+        if nb_etablissements > 1:
+            enjeux.append(f"🏢 Entreprise multi-établissements ({nb_etablissements} SIRET)")
+
         # Construction de l'objet entreprise
         entreprise = {
+            "siren": siren,
             "siret": row.siret,
+            "sirets_associes": sirets_du_siren if nb_etablissements > 1 else [],
             "raison_sociale": row.raison_sociale or "Non renseignée",
             "inscrits": int(effectif),
             "departement": row.dep or "Non renseigné",
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
-            "nb_colleges": int(row.nb_college_siret) if row.nb_college_siret else 0,
+            "nb_colleges": nb_colleges,
+            "nb_pv": nb_pv,
+            "nb_etablissements": nb_etablissements,
             "carence": carence,
             "implantations_syndicales": orgs,
             "invitations_pap": [
