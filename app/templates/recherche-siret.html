@@ -1,32 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Recherche SIRET & Ajout PAP — PAP/CSE{% endblock %}
+{% block title %}Ajout PAP — PAP/CSE{% endblock %}
 
 {% block content %}
 
 <!-- Page Header -->
 <div class="mb-8">
   <h1 class="text-4xl font-bold text-gray-800 mb-2">
-    <i class="fas fa-search text-cgt-red mr-3"></i>
-    Recherche SIRET & Ajout PAP
+    <i class="fas fa-plus-circle text-cgt-red mr-3"></i>
+    Ajout PAP
   </h1>
-  <p class="text-gray-600">Trouvez un SIRET ou ajoutez une invitation PAP manuellement</p>
+  <p class="text-gray-600">Ajoutez une invitation PAP manuellement ou recherchez un SIRET</p>
 </div>
 
 <!-- Tabs Navigation -->
-<div class="mb-6" x-data="{ activeTab: 'search' }">
+<div class="mb-6" x-data="{ activeTab: 'add' }">
   <div class="border-b border-gray-200">
     <nav class="-mb-px flex space-x-8">
-      <button @click="activeTab = 'search'"
-              :class="activeTab === 'search' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-              class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
-        <i class="fas fa-search mr-2"></i>
-        Recherche SIRET
-      </button>
       <button @click="activeTab = 'add'"
               :class="activeTab === 'add' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
               class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
         <i class="fas fa-plus-circle mr-2"></i>
         Ajouter PAP
+      </button>
+      <button @click="activeTab = 'search'"
+              :class="activeTab === 'search' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+              class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
+        <i class="fas fa-search mr-2"></i>
+        Recherche SIRET
       </button>
     </nav>
   </div>

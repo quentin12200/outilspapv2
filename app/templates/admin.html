@@ -81,10 +81,10 @@
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
     <button onclick="genererRapportIA()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition border border-pink-200 hover:from-pink-600 hover:to-purple-700">
       <div class="text-left">
-        <p class="text-sm font-semibold">🤖 Rapport IA - Situation PAP</p>
-        <p class="text-xs opacity-90">Analyse intelligente des cibles prioritaires</p>
+        <p class="text-sm font-semibold">⚡ Analyse Avancée PAP</p>
+        <p class="text-xs opacity-90">Analyse approfondie des cibles prioritaires</p>
       </div>
-      <i class="fas fa-robot text-white text-xl"></i>
+      <i class="fas fa-chart-line text-white text-xl"></i>
     </button>
 
     <a href="/calendrier" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-purple-100">
@@ -1201,9 +1201,9 @@ async function genererRapportIA() {
   // Affiche le loader
   modalContent.innerHTML = `
     <div class="flex flex-col items-center justify-center py-12">
-      <i class="fas fa-robot fa-3x text-purple-600 mb-4 animate-pulse"></i>
-      <p class="text-lg font-semibold text-gray-700">Génération du rapport IA en cours...</p>
-      <p class="text-sm text-gray-500 mt-2">Analyse des entreprises prioritaires</p>
+      <i class="fas fa-chart-line fa-3x text-purple-600 mb-4 animate-pulse"></i>
+      <p class="text-lg font-semibold text-gray-700">Analyse en cours...</p>
+      <p class="text-sm text-gray-500 mt-2">Traitement des entreprises prioritaires</p>
       <div class="mt-4">
         <i class="fas fa-spinner fa-spin text-2xl text-purple-600"></i>
       </div>
@@ -1240,7 +1240,7 @@ function afficherRapportIA(data) {
   let html = `
     <!-- Header -->
     <div class="mb-6">
-      <h2 class="text-3xl font-bold text-gray-800 mb-2">🤖 Rapport IA - Analyse PAP Prioritaire</h2>
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">⚡ Analyse Avancée PAP - Cibles Prioritaires</h2>
       <p class="text-sm text-gray-500">Généré le ${data.date_generation}</p>
     </div>
 

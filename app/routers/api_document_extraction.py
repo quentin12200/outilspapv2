@@ -395,14 +395,14 @@ async def _save_as_invitation(
         invitation = Invitation(
             siret=siret,
             date_invit=date_invit,
-            source="IA - Extraction GPT",
+            source="Scan automatique",
             ud=None,  # À remplir manuellement
             fd=None,  # À remplir manuellement
             idcc=extracted_data.get("idcc"),
             effectif_connu=extracted_data.get("effectif"),
             date_election=date_election,
             date_reception=datetime.now().date(),
-            structure_saisie="Extraction automatique GPT",
+            structure_saisie="Scanner PAP",
             raw=extracted_data  # Stocker toutes les données extraites
         )
 
