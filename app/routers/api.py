@@ -2174,6 +2174,20 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         }
 
     logger.info(f"📊 Stats PV: {len(pv_stats_map)} SIRET avec PV trouvés")
+
+    # Debug: afficher quelques exemples de SIRET dans PVEvent
+    if pv_stats_map:
+        premiers_sirets = list(pv_stats_map.keys())[:5]
+        logger.info(f"🔍 Exemples de SIRET dans PVEvent: {premiers_sirets}")
+        # Chercher RATP dans les SIRET
+        ratp_sirets = [s for s in pv_stats_map.keys() if s and '77566343' in str(s)]
+        if ratp_sirets:
+            logger.info(f"🔍 SIRET RATP trouvés dans PVEvent: {ratp_sirets}")
+            for rs in ratp_sirets[:3]:
+                logger.info(f"  - {rs}: {pv_stats_map[rs]}")
+        else:
+            logger.warning(f"⚠️ Aucun SIRET RATP (commençant par 77566343) trouvé dans PVEvent")
+
     # Debug: afficher un exemple pour RATP
     ratp_siret = "77566343800494"
     if ratp_siret in pv_stats_map:
