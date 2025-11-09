@@ -2179,14 +2179,16 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         PVEvent.siret,
         PVEvent.deno_coll
     ).filter(
+        PVEvent.siret.isnot(None),
         PVEvent.deno_coll.isnot(None),
         PVEvent.deno_coll != ''
-    ).distinct().all()
+    ).all()
 
     for siret, deno_coll in colleges_query:
         if siret not in colleges_map:
             colleges_map[siret] = []
-        if deno_coll and deno_coll not in colleges_map[siret]:
+        # Ajouter seulement si pas déjà dans la liste (pour avoir des collèges uniques)
+        if deno_coll and deno_coll.strip() and deno_coll not in colleges_map[siret]:
             colleges_map[siret].append(deno_coll)
 
     # Filtre les SIRET qui ont une élection dans les délais
