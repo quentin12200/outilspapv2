@@ -110,7 +110,7 @@ async def extract_document(
 
         # Extraire les informations
         extractor = DocumentExtractor()
-        extracted_data = extractor.extract_from_document(file_data, is_pdf=is_pdf)
+        extracted_data = await extractor.extract_from_document(file_data, is_pdf=is_pdf)
 
         # Log de l'extraction
         log_admin_action(
