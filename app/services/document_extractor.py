@@ -22,7 +22,6 @@ except ImportError:
     logger.warning("pdf2image non installé - support PDF désactivé")
 
 from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
-from .sirene_api import SireneAPI
 
 logger = logging.getLogger(__name__)
 
@@ -161,8 +160,8 @@ class DocumentExtractor:
         ville: Optional[str] = None
     ) -> Optional[str]:
         """
-        Recherche automatiquement un SIRET via l'API Sirene
-        en utilisant la raison sociale et les informations géographiques.
+        Recherche automatiquement un SIRET via GPT en utilisant une recherche web.
+        Plus fiable que l'API Sirene qui peut être instable.
 
         Args:
             raison_sociale: Nom de l'entreprise
@@ -176,26 +175,106 @@ class DocumentExtractor:
             return None
 
         try:
-            logger.info(f"🔍 Recherche automatique du SIRET pour: {raison_sociale}")
+            logger.info(f"🔍 Recherche automatique du SIRET via GPT pour: {raison_sociale}")
 
-            sirene_api = SireneAPI()
-            results = await sirene_api.search_siret(
-                denomination=raison_sociale,
-                code_postal=code_postal,
-                commune=ville,
-                limit=5
-            )
+            # Construire le prompt de recherche
+            localisation = []
+            if ville:
+                localisation.append(ville)
+            if code_postal:
+                localisation.append(f"CP {code_postal}")
 
-            if results and len(results) > 0:
-                # Prendre le premier résultat
-                siret = results[0].get('siret')
-                if siret:
-                    logger.info(f"✅ SIRET trouvé automatiquement: {siret} pour {raison_sociale}")
-                    return siret
+            localisation_str = " - ".join(localisation) if localisation else ""
 
-            logger.warning(f"❌ Aucun SIRET trouvé pour: {raison_sociale}")
+            prompt = f"""Tu es un assistant expert pour trouver des numéros SIRET d'entreprises françaises.
+
+IMPORTANT: Je cherche le numéro SIRET (14 chiffres) de l'entreprise suivante:
+- Nom de l'entreprise: {raison_sociale}
+{f"- Localisation: {localisation_str}" if localisation_str else ""}
+
+CONSIGNES:
+1. Cherche sur internet le SIRET de cette entreprise (utilise societe.com, pappers.fr, annuaire-entreprises.data.gouv.fr, etc.)
+2. Vérifie que le SIRET trouvé correspond bien à l'entreprise et à la localisation
+3. Retourne UNIQUEMENT un objet JSON avec cette structure:
+
+{{
+    "siret": "12345678901234",
+    "raison_sociale_officielle": "Nom officiel de l'entreprise",
+    "ville": "Ville",
+    "source": "Site web utilisé pour la recherche",
+    "confiance": "high|medium|low"
+}}
+
+Si tu ne trouves pas de SIRET valide, retourne:
+{{
+    "siret": null,
+    "raison": "Explication de pourquoi le SIRET n'a pas été trouvé"
+}}
+
+IMPORTANT: Le SIRET doit contenir exactement 14 chiffres. Vérifie bien que c'est le bon établissement."""
+
+            # Appeler GPT avec fallback
+            models_to_try = OPENAI_MODEL_FALLBACK
+            last_error = None
+
+            for attempt_model in models_to_try:
+                try:
+                    logger.info(f"Tentative de recherche SIRET avec le modèle: {attempt_model}")
+
+                    response = self.client.chat.completions.create(
+                        model=attempt_model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Tu es un expert en recherche d'informations d'entreprises françaises. Tu as accès à internet pour trouver des SIRET."
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        temperature=0.1,
+                        max_tokens=500,
+                        response_format={"type": "json_object"}
+                    )
+
+                    # Si on arrive ici, ça a marché !
+                    logger.info(f"✅ Recherche réussie avec le modèle: {attempt_model}")
+                    break
+
+                except Exception as e:
+                    error_msg = str(e)
+                    last_error = e
+
+                    # Si c'est une erreur d'accès au modèle, essayer le suivant
+                    if "does not have access" in error_msg or "model_not_found" in error_msg:
+                        logger.warning(f"⚠️ Modèle {attempt_model} non accessible, essai du suivant...")
+                        continue
+                    else:
+                        # Autre type d'erreur, on arrête les tentatives
+                        raise e
+            else:
+                # Aucun modèle n'a fonctionné
+                logger.error(f"❌ Aucun modèle accessible pour la recherche SIRET")
+                return None
+
+            # Parser la réponse
+            result_json = json.loads(response.choices[0].message.content)
+            siret = result_json.get('siret')
+
+            if siret and self._is_valid_siret(siret):
+                logger.info(f"✅ SIRET trouvé par GPT: {siret} pour {raison_sociale}")
+                logger.info(f"   Source: {result_json.get('source', 'Non spécifiée')}")
+                logger.info(f"   Confiance: {result_json.get('confiance', 'Non spécifiée')}")
+                return siret
+            else:
+                raison = result_json.get('raison', 'SIRET non trouvé ou invalide')
+                logger.warning(f"❌ GPT n'a pas trouvé de SIRET valide: {raison}")
+                return None
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Erreur de parsing JSON lors de la recherche SIRET: {str(e)}")
             return None
-
         except Exception as e:
             logger.error(f"Erreur lors de la recherche automatique du SIRET: {str(e)}")
             return None
@@ -375,10 +454,10 @@ class DocumentExtractor:
                         if '_metadata' not in extracted_data:
                             extracted_data['_metadata'] = {}
                         extracted_data['_metadata']['siret_auto_found'] = True
-                        extracted_data['_metadata']['siret_source'] = 'API Sirene (recherche automatique)'
+                        extracted_data['_metadata']['siret_source'] = 'Recherche web GPT (recherche automatique)'
 
                         # Ajouter dans les notes pour que l'utilisateur le voie
-                        note_siret = f"✅ SIRET trouvé automatiquement via API Sirene (non visible sur le document)"
+                        note_siret = f"✅ SIRET trouvé automatiquement par recherche web (non visible sur le document)"
                         if extracted_data.get('notes'):
                             extracted_data['notes'] = f"{extracted_data['notes']} | {note_siret}"
                         else:
