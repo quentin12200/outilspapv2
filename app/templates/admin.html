@@ -1438,7 +1438,6 @@ function genererCarteEntreprise(e) {
         <div class="flex-1">
           <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
           <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
-          ${e.date_election !== 'Non renseignée' ? `<p class="text-xs text-purple-600 font-semibold mt-1">📅 Élection: ${e.date_election}</p>` : ''}
         </div>
         <div class="flex flex-col items-end space-y-1">
           ${dateBadge}
@@ -1465,6 +1464,33 @@ function genererCarteEntreprise(e) {
           <p class="font-semibold text-gray-800">${e.ville}</p>
         </div>
       </div>
+
+      ${e.date_election !== 'Non renseignée' || (e.invitations_pap && e.invitations_pap.length > 0) ? `
+      <div class="mb-3 bg-purple-50 p-3 rounded border border-purple-200">
+        <p class="text-xs text-purple-700 font-semibold mb-2">📅 DATES IMPORTANTES</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+          ${e.date_election !== 'Non renseignée' ? `
+          <div class="flex items-center gap-2">
+            <span class="text-purple-600">🗳️</span>
+            <div>
+              <p class="text-xs text-purple-600 font-medium">Prochaine élection</p>
+              <p class="font-bold text-purple-900">${e.date_election}</p>
+              ${e.jours_restants !== null && e.jours_restants !== undefined ? `<p class="text-xs text-purple-700">Dans ${e.jours_restants} jours</p>` : ''}
+            </div>
+          </div>
+          ` : ''}
+          ${e.invitations_pap && e.invitations_pap.length > 0 ? `
+          <div class="flex items-center gap-2">
+            <span class="text-purple-600">📬</span>
+            <div>
+              <p class="text-xs text-purple-600 font-medium">Invitation(s) PAP</p>
+              <p class="font-bold text-purple-900">${e.invitations_pap.join(', ')}</p>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
 
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm bg-blue-50 p-2 rounded border border-blue-200">
         <div>
@@ -1529,13 +1555,6 @@ function genererCarteEntreprise(e) {
             `<span class="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200">${college}</span>`
           ).join('')}
         </div>
-      </div>
-      ` : ''}
-
-      ${e.invitations_pap.length > 0 ? `
-      <div class="mb-3">
-        <p class="text-xs text-gray-500 mb-1">Invitations PAP:</p>
-        <p class="text-xs text-gray-700">${e.invitations_pap.join(', ')}</p>
       </div>
       ` : ''}
 
