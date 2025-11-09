@@ -2173,6 +2173,14 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             'nb_colleges': nb_colleges
         }
 
+    logger.info(f"📊 Stats PV: {len(pv_stats_map)} SIRET avec PV trouvés")
+    # Debug: afficher un exemple pour RATP
+    ratp_siret = "77566343800494"
+    if ratp_siret in pv_stats_map:
+        logger.info(f"🔍 RATP {ratp_siret}: {pv_stats_map[ratp_siret]}")
+    else:
+        logger.warning(f"⚠️ RATP {ratp_siret} PAS trouvé dans pv_stats_map")
+
     # Récupère la liste des noms de collèges distincts par SIRET
     colleges_map = {}
     colleges_query = db.query(
@@ -2190,6 +2198,14 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         # Ajouter seulement si pas déjà dans la liste (pour avoir des collèges uniques)
         if deno_coll and deno_coll.strip() and deno_coll not in colleges_map[siret]:
             colleges_map[siret].append(deno_coll)
+
+    logger.info(f"📋 Collèges: {len(colleges_map)} SIRET avec collèges trouvés")
+    # Debug: afficher un exemple pour RATP
+    ratp_siret = "77566343800494"
+    if ratp_siret in colleges_map:
+        logger.info(f"🔍 RATP {ratp_siret} collèges: {colleges_map[ratp_siret]}")
+    else:
+        logger.warning(f"⚠️ RATP {ratp_siret} PAS trouvé dans colleges_map")
 
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
@@ -2258,6 +2274,10 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
         # Récupère la liste des collèges pour ce SIRET
         colleges_list = colleges_map.get(row.siret, [])
+
+        # Debug pour RATP
+        if row.siret == "77566343800494":
+            logger.info(f"🔍 RATP dans _traiter_siret: nb_pv={nb_pv}, colleges={colleges_list}")
 
         # Détermine le nombre de collèges
         # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
