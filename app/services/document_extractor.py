@@ -354,11 +354,13 @@ class DocumentExtractor:
 
             # Si le SIRET n'est pas valide, essayer de le rechercher automatiquement
             if not self._is_valid_siret(extracted_data.get('siret')):
-                logger.warning(f"⚠️ SIRET manquant ou invalide, recherche automatique...")
+                logger.warning(f"⚠️ SIRET manquant ou invalide: '{extracted_data.get('siret')}' - Lancement de la recherche automatique...")
 
                 raison_sociale = extracted_data.get('raison_sociale')
                 code_postal = extracted_data.get('code_postal')
                 ville = extracted_data.get('ville')
+
+                logger.info(f"🔍 Données pour recherche: Raison sociale='{raison_sociale}', CP='{code_postal}', Ville='{ville}'")
 
                 if raison_sociale:
                     siret_found = await self._search_siret_from_data(
@@ -369,12 +371,24 @@ class DocumentExtractor:
 
                     if siret_found:
                         extracted_data['siret'] = siret_found
-                        # Ajouter une note dans les métadonnées
+                        # Ajouter une note dans les métadonnées et dans notes
                         if '_metadata' not in extracted_data:
                             extracted_data['_metadata'] = {}
                         extracted_data['_metadata']['siret_auto_found'] = True
                         extracted_data['_metadata']['siret_source'] = 'API Sirene (recherche automatique)'
+
+                        # Ajouter dans les notes pour que l'utilisateur le voie
+                        note_siret = f"✅ SIRET trouvé automatiquement via API Sirene (non visible sur le document)"
+                        if extracted_data.get('notes'):
+                            extracted_data['notes'] = f"{extracted_data['notes']} | {note_siret}"
+                        else:
+                            extracted_data['notes'] = note_siret
+
                         logger.info(f"✅ SIRET trouvé automatiquement et ajouté: {siret_found}")
+                    else:
+                        logger.error(f"❌ Aucun SIRET trouvé automatiquement pour '{raison_sociale}'")
+                else:
+                    logger.warning(f"⚠️ Impossible de rechercher le SIRET: raison sociale manquante")
 
             return extracted_data
 
