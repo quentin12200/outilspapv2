@@ -28,7 +28,68 @@
         <i class="fas fa-search mr-2"></i>
         Recherche SIRET
       </button>
+      <button @click="activeTab = 'scanner'"
+              :class="activeTab === 'scanner' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+              class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
+        <i class="fas fa-scan mr-2"></i>
+        Scanner PAP
+      </button>
     </nav>
+  </div>
+
+  <!-- Tab: Scanner PAP -->
+  <div x-show="activeTab === 'scanner'" x-cloak>
+    <section class="bg-white rounded-xl shadow-md p-8 mt-6">
+      <div class="max-w-3xl mx-auto text-center">
+        <div class="mb-6">
+          <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full mb-4">
+            <i class="fas fa-scan text-4xl text-purple-600"></i>
+          </div>
+          <h2 class="text-3xl font-bold text-gray-800 mb-3">
+            Scanner PAP
+          </h2>
+          <p class="text-gray-600 mb-6 max-w-2xl mx-auto">
+            Importez des photos ou scans de courriers PAP (invitations C5, protocoles d'accord) et le système extrait automatiquement les informations clés : SIRET, dates, adresses, effectifs, etc.
+          </p>
+        </div>
+
+        <div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-8 mb-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-check-circle text-green-600 mr-2"></i>
+            Fonctionnalités du scanner
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-sm text-gray-700">
+            <div class="flex items-start gap-2">
+              <i class="fas fa-file-image text-purple-600 mt-1"></i>
+              <span>Supporte images (JPG, PNG, WEBP) et PDF</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <i class="fas fa-magic text-purple-600 mt-1"></i>
+              <span>Extraction automatique des données</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <i class="fas fa-database text-purple-600 mt-1"></i>
+              <span>Sauvegarde automatique optionnelle</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <i class="fas fa-layer-group text-purple-600 mt-1"></i>
+              <span>Traitement par lots (plusieurs fichiers)</span>
+            </div>
+          </div>
+        </div>
+
+        <a href="/extraction" class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-lg font-bold rounded-xl hover:from-purple-700 hover:to-pink-700 transition shadow-lg hover:shadow-xl">
+          <i class="fas fa-scan text-2xl"></i>
+          <span>Accéder au Scanner PAP</span>
+          <i class="fas fa-arrow-right"></i>
+        </a>
+
+        <p class="text-xs text-gray-500 mt-4">
+          <i class="fas fa-info-circle mr-1"></i>
+          Les invitations scannées seront marquées avec la source "Scan automatique"
+        </p>
+      </div>
+    </section>
   </div>
 
   <!-- Tab: Recherche SIRET -->
