@@ -11,7 +11,7 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -35,6 +35,14 @@ from .services.calcul_elus_cse import (
     ORGANISATIONS_LABELS
 )
 from .auth import ADMIN_API_KEY
+from .admin_auth import (
+    get_current_admin_user,
+    verify_credentials,
+    create_session_token,
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE,
+    AdminAuthException
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -302,8 +310,16 @@ from .routers import api  # noqa: E402
 from .routers import api_invitations_stats  # noqa: E402
 from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
+from .routers import api_document_extraction  # noqa: E402
+from .routers import api_chatbot  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
+
+# Gestionnaire d'exceptions pour l'authentification admin
+@app.exception_handler(AdminAuthException)
+async def admin_auth_exception_handler(request: Request, exc: AdminAuthException):
+    """Redirige vers la page de login quand l'authentification admin échoue"""
+    return RedirectResponse(url=exc.redirect_url, status_code=303)
 
 # Activer l'audit logging middleware
 from .audit import create_audit_middleware
@@ -313,6 +329,8 @@ app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
 app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
+app.include_router(api_document_extraction.router)
+app.include_router(api_chatbot.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -2266,6 +2284,17 @@ def _build_ciblage_context(df, siret_list: list[str]) -> dict:
     }
 
 
+@app.get("/extraction", response_class=HTMLResponse)
+def extraction_page(request: Request):
+    """
+    Page d'extraction automatique de courriers PAP via GPT-4 Vision.
+
+    Permet d'uploader des images de courriers PAP et d'en extraire automatiquement
+    les informations (SIRET, dates, adresses, etc.) via l'API OpenAI.
+    """
+    return templates.TemplateResponse("extraction.html", {"request": request})
+
+
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
     import pandas as pd
@@ -2470,8 +2499,71 @@ def cartographie_page(request: Request, db: Session = Depends(get_session)):
     )
 
 
+# =========================================================
+# Routes d'authentification admin
+# =========================================================
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_page(request: Request):
+    """Page de connexion à l'espace admin"""
+    return templates.TemplateResponse(
+        "admin_login.html",
+        {
+            "request": request,
+            "error": None,
+            "login_value": ""
+        }
+    )
+
+
+@app.post("/admin/login", response_class=HTMLResponse)
+def admin_login_post(request: Request, login: str = Form(...), password: str = Form(...)):
+    """Traitement de la connexion admin"""
+    if verify_credentials(login, password):
+        # Créer le token de session
+        session_token = create_session_token(login)
+
+        # Rediriger vers l'admin avec le cookie de session
+        response = RedirectResponse(url="/admin", status_code=303)
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_token,
+            max_age=SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        return response
+    else:
+        # Identifiants incorrects
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "error": "Identifiant ou mot de passe incorrect",
+                "login_value": login
+            },
+            status_code=401
+        )
+
+
+@app.get("/admin/logout")
+def admin_logout():
+    """Déconnexion de l'espace admin"""
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    return response
+
+
+# =========================================================
+# Routes admin (protégées par authentification)
+# =========================================================
+
 @app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request, db: Session = Depends(get_session)):
+def admin_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
     total_summary = db.query(func.count(SiretSummary.siret)).scalar() or 0
@@ -2553,7 +2645,11 @@ def admin_page(request: Request, db: Session = Depends(get_session)):
     )
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
-def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
+def admin_diagnostics(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Page de diagnostic des doublons d'invitations"""
 
     # Compter le total
@@ -2628,7 +2724,10 @@ def admin_diagnostics(request: Request, db: Session = Depends(get_session)):
     })
 
 @app.post("/admin/diagnostics/remove-duplicates")
-def remove_duplicates(db: Session = Depends(get_session)):
+def remove_duplicates(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Supprime les doublons d'invitations (garde le plus récent par SIRET)"""
 
     # Trouver les IDs à GARDER (ID max par SIRET)
@@ -2654,7 +2753,10 @@ def remove_duplicates(db: Session = Depends(get_session)):
     return RedirectResponse(url="/admin/diagnostics?success=1", status_code=303)
 
 @app.post("/admin/diagnostics/migrate-columns")
-def migrate_columns(db: Session = Depends(get_session)):
+def migrate_columns(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """Remplit les colonnes structurées depuis le champ raw"""
 
     from .migrations import _pick_from_raw, _pick_bool_from_raw
@@ -2781,7 +2883,10 @@ def migrate_columns(db: Session = Depends(get_session)):
     return RedirectResponse(url=f"/admin/diagnostics?migrated={updated_count}", status_code=303)
 
 @app.get("/admin/clean-nan", response_class=HTMLResponse)
-def clean_nan_page(request: Request):
+def clean_nan_page(
+    request: Request,
+    current_user: str = Depends(get_current_admin_user)
+):
     """Page simple pour exécuter le nettoyage des valeurs 'nan'"""
     html = """
     <!DOCTYPE html>
@@ -2937,7 +3042,10 @@ def clean_nan_page(request: Request):
     return html
 
 @app.post("/admin/clean-nan/execute")
-def clean_nan_values(db: Session = Depends(get_session)):
+def clean_nan_values(
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
     """
     Nettoie toutes les valeurs 'nan' dans les tables et les convertit en NULL.
 
