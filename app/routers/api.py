@@ -1887,7 +1887,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     - Raison sociale
     - Nombre d'inscrits
     - Implantation syndicale (organisations présentes)
-    - Nombre de collèges
+    - Nombre de collèges (calculé depuis les PV si non disponible dans siret_summary)
+    - Nombre de PV (nombre de procès-verbaux enregistrés)
+    - Nombre d'établissements (basé sur le nombre de PV distincts)
     - Département
     - Ville
     - Carence (oui/non)
@@ -2060,6 +2062,20 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             invitations_map[siret] = []
         invitations_map[siret].append(date_invit)
 
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table Tous_PV
+    pv_stats_map = {}
+    pv_stats = db.query(
+        PVEvent.siret,
+        func.count(PVEvent.id).label('nb_pv'),
+        func.count(func.distinct(PVEvent.deno_coll)).label('nb_colleges_distinct')
+    ).group_by(PVEvent.siret).all()
+
+    for siret, nb_pv, nb_colleges in pv_stats:
+        pv_stats_map[siret] = {
+            'nb_pv': nb_pv,
+            'nb_colleges': nb_colleges
+        }
+
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
         siret for siret, data in siret_elections.items()
@@ -2117,13 +2133,24 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         has_invitation = row.siret in invitations_map
         invitations_dates = invitations_map.get(row.siret, [])
 
+        # Récupère les stats PV pour ce SIRET
+        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        nb_pv = pv_stats.get('nb_pv', 0)
+
+        # Détermine le nombre de collèges (priorité: nb_college_siret > nb_colleges depuis PV)
+        nb_colleges = 0
+        if row.nb_college_siret and _to_number(row.nb_college_siret):
+            nb_colleges = int(_to_number(row.nb_college_siret))
+        elif pv_stats.get('nb_colleges'):
+            nb_colleges = pv_stats.get('nb_colleges')
+
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
             row.siret,
             effectif,
             has_invitation,
             carence,
-            row.nb_college_siret,
+            nb_colleges,
             orgs
         )
 
@@ -2139,7 +2166,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "departement": row.dep or "Non renseigné",
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
-            "nb_colleges": int(row.nb_college_siret) if row.nb_college_siret else 0,
+            "nb_colleges": nb_colleges,
+            "nb_pv": nb_pv,
+            "nb_etablissements": nb_pv,  # Le nombre d'établissements = nombre de PV distincts
             "carence": carence,
             "implantations_syndicales": orgs,
             "invitations_pap": [
