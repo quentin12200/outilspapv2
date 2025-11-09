@@ -1552,9 +1552,15 @@ def add_pap_invitation(
     date_election_parsed = None
     if date_election:
         try:
+<<<<<<< HEAD
             date_election_parsed = validate_date(date_election, raise_exception=True)
         except ValidationError as e:
             raise HTTPException(status_code=400, detail=f"date_election: {str(e)}")
+=======
+            date_election_parsed = datetime.strptime(date_election, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format de date_election invalide (attendu: YYYY-MM-DD)")
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
     # Enrichissement automatique FD à partir de l'IDCC
     # Principe: Toutes les entreprises avec un IDCC DOIVENT avoir une FD
@@ -1598,6 +1604,7 @@ async def enrichir_siret_from_api(siret: str):
     """
     # Valider le SIRET
     try:
+<<<<<<< HEAD
         siret_clean = validate_siret(siret, raise_exception=True)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1607,6 +1614,12 @@ async def enrichir_siret_from_api(siret: str):
         
         if not data:
             raise HTTPException(status_code=404, detail=f"SIRET {siret_clean} non trouvé dans l'API Sirene")
+=======
+        data = await enrichir_siret(siret)
+
+        if not data:
+            raise HTTPException(status_code=404, detail=f"SIRET {siret} non trouvé dans l'API Sirene")
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
 
         # Formatte les données pour le formulaire
         return {
@@ -1627,7 +1640,9 @@ async def enrichir_siret_from_api(siret: str):
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
 
 
-# ============================================================================
+<<<<<<< HEAD
+
+
 # AUDIT LOGS
 # ============================================================================
 
@@ -1870,4 +1885,507 @@ async def update_fd_from_idcc(
         "skipped_without_idcc": skipped_count,
         "not_found_in_mapping": not_found_count,
         "mapping_size": len(idcc_to_fd)
+    }
+
+
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+@router.get("/rapport-ia-pap")
+def generer_rapport_ia_pap(db: Session = Depends(get_session)):
+    """
+    Génère un rapport complet de la situation PAP prioritaire.
+
+<<<<<<< HEAD
+    Priorité 1: Boîtes avec élection dans les 90 prochains jours
+    Priorité 2: Entreprises avec élection dans l'année à venir
+=======
+    Priorité 1: Entreprises avec + de 1000 inscrits
+    Priorité 2: Entreprises de 500 à 1000 inscrits avec analyse des enjeux
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+
+    Pour chaque entreprise, retourne:
+    - SIRET
+    - Raison sociale
+    - Nombre d'inscrits
+    - Implantation syndicale (organisations présentes)
+<<<<<<< HEAD
+    - Nombre de collèges (calculé depuis les PV si non disponible dans siret_summary)
+    - Nombre de PV (nombre de procès-verbaux enregistrés)
+    - Nombre d'établissements (basé sur le nombre de PV distincts)
+=======
+    - Nombre de collèges
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+    - Département
+    - Ville
+    - Carence (oui/non)
+    - Invitations PAP reçues
+    - Enjeux identifiés
+<<<<<<< HEAD
+    - Date de la prochaine élection
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+    """
+
+    def _to_number(value):
+        """Convertit une valeur en nombre"""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = (
+                value.strip()
+                .replace("\u202f", "")
+                .replace("\xa0", "")
+                .replace(" ", "")
+            )
+            cleaned = cleaned.replace(",", ".")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+<<<<<<< HEAD
+    def _parse_date_value(value):
+        """Parse une date depuis différents formats"""
+        if not value:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                try:
+                    return datetime.strptime(cleaned, fmt).date()
+                except ValueError:
+                    continue
+            try:
+                return datetime.fromisoformat(cleaned).date()
+            except ValueError:
+                return None
+        return None
+
+=======
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+    def _analyser_implantations(row):
+        """Analyse les implantations syndicales d'un SIRET"""
+        orgs = []
+        # Vérifier les présences au niveau SIRET
+        if row.pres_siret_cgt:
+            orgs.append("CGT")
+        if row.pres_siret_cfdt:
+            orgs.append("CFDT")
+        if row.pres_siret_fo:
+            orgs.append("FO")
+        if row.pres_siret_cftc:
+            orgs.append("CFTC")
+        if row.pres_siret_cgc:
+            orgs.append("CGC")
+        if row.pres_siret_unsa:
+            orgs.append("UNSA")
+        if row.pres_siret_sud:
+            orgs.append("SUD")
+        if row.pres_siret_autre:
+            orgs.append("AUTRE")
+
+        return orgs if orgs else ["Aucune implantation identifiée"]
+
+    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs):
+        """Analyse les enjeux d'une entreprise"""
+        enjeux = []
+
+        # Enjeux liés à la taille
+        if inscrits >= 1000:
+            enjeux.append(f"Très forte audience ({int(inscrits)} inscrits)")
+        elif inscrits >= 500:
+            enjeux.append(f"Forte audience ({int(inscrits)} inscrits)")
+
+        # Enjeux liés à la carence
+        if carence:
+            enjeux.append("⚠️ CARENCE - Opportunité de reconquête")
+
+        # Enjeux liés à l'invitation PAP
+        if has_invitation:
+            enjeux.append("✓ Invitation PAP reçue (C5)")
+        else:
+            enjeux.append("⚠️ Pas d'invitation PAP détectée")
+
+        # Enjeux liés aux collèges
+        if nb_colleges and nb_colleges > 1:
+            enjeux.append(f"Pluralité de collèges ({int(nb_colleges)})")
+
+        # Enjeux liés aux implantations
+        if "CGT" not in orgs:
+            enjeux.append("⚠️ CGT NON implantée - Priorité d'intervention")
+        else:
+            enjeux.append("✓ CGT implantée")
+
+        if len(orgs) == 1 and orgs[0] == "Aucune implantation identifiée":
+            enjeux.append("⚠️ Aucune organisation syndicale - Terrain vierge")
+
+        return enjeux
+
+<<<<<<< HEAD
+    # Dates de référence
+    today = date.today()
+    date_90_jours = today + timedelta(days=90)
+    date_1_an = today + timedelta(days=365)
+
+    # Récupère tous les PV avec date_prochain_scrutin
+    pv_elections = db.query(
+        PVEvent.siret,
+        PVEvent.date_prochain_scrutin,
+        PVEvent.effectif_siret,
+        PVEvent.inscrits
+    ).filter(
+        PVEvent.date_prochain_scrutin.isnot(None)
+    ).all()
+
+    # Récupère les invitations avec date_election
+    invitations_elections = db.query(
+        Invitation.siret,
+        Invitation.date_election,
+        Invitation.effectif_connu
+    ).filter(
+        Invitation.date_election.isnot(None)
+    ).all()
+
+    # Map des SIRET avec leur date d'élection (prend la plus proche)
+    siret_elections = {}
+
+    # Ajoute les dates depuis PVEvent
+    for siret, date_election, effectif_siret, inscrits in pv_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif_siret) or _to_number(inscrits),
+                'source': 'pv'
+            }
+
+    # Ajoute les dates depuis Invitation (si plus proche)
+    for siret, date_election, effectif in invitations_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif),
+                'source': 'invitation'
+            }
+=======
+    # Récupère tous les SIRETs avec leur effectif le plus récent
+    # On utilise SiretSummary qui contient les données agrégées
+    query = db.query(SiretSummary).filter(
+        SiretSummary.effectif_siret.isnot(None)
+    )
+
+    all_sirets = query.all()
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+
+    # Récupère les invitations PAP pour voir quels SIRET ont reçu une invitation
+    invitations_map = {}
+    invitations = db.query(Invitation.siret, Invitation.date_invit).all()
+    for siret, date_invit in invitations:
+        if siret not in invitations_map:
+            invitations_map[siret] = []
+        invitations_map[siret].append(date_invit)
+
+<<<<<<< HEAD
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table Tous_PV
+=======
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table PVEvent
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+    pv_stats_map = {}
+    pv_stats = db.query(
+        PVEvent.siret,
+        func.count(PVEvent.id).label('nb_pv'),
+        func.count(func.distinct(PVEvent.deno_coll)).label('nb_colleges_distinct')
+    ).group_by(PVEvent.siret).all()
+
+    for siret, nb_pv, nb_colleges in pv_stats:
+        pv_stats_map[siret] = {
+            'nb_pv': nb_pv,
+            'nb_colleges': nb_colleges
+        }
+
+<<<<<<< HEAD
+    # Filtre les SIRET qui ont une élection dans les délais
+    sirets_priorite_1 = {  # Élections dans les 90 jours
+        siret for siret, data in siret_elections.items()
+        if data['date'] <= date_90_jours
+    }
+
+    sirets_priorite_2 = {  # Élections dans l'année (mais pas dans les 90 jours)
+        siret for siret, data in siret_elections.items()
+        if data['date'] > date_90_jours and data['date'] <= date_1_an
+    }
+
+    # Récupère les données complètes depuis SiretSummary
+    all_sirets_p1 = []
+    all_sirets_p2 = []
+
+    if sirets_priorite_1:
+        all_sirets_p1 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_1)
+        ).all()
+
+    if sirets_priorite_2:
+        all_sirets_p2 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_2)
+        ).all()
+
+    # Sépare en deux groupes
+    priorite_1 = []  # Élections dans les 90 jours
+    priorite_2 = []  # Élections dans l'année
+
+    def _traiter_siret(row, election_data):
+        """Traite un SIRET et retourne l'objet entreprise"""
+=======
+    # Calcule les stats par SIREN pour regrouper les entreprises multi-SIRET
+    def _calculer_stats_par_siren(sirets_list):
+        """Calcule les statistiques par SIREN en regroupant les SIRET"""
+        siren_map = {}
+
+        for siret in sirets_list:
+            siren = siret[:9] if len(siret) >= 9 else siret
+
+            if siren not in siren_map:
+                siren_map[siren] = {
+                    'sirets': [],
+                    'nb_etablissements': 0,
+                    'nb_pv_total': 0,
+                    'nb_colleges_total': 0
+                }
+
+            siren_map[siren]['sirets'].append(siret)
+            siren_map[siren]['nb_etablissements'] += 1
+
+            # Ajoute les stats PV pour ce SIRET
+            if siret in pv_stats_map:
+                siren_map[siren]['nb_pv_total'] += pv_stats_map[siret].get('nb_pv', 0)
+                siren_map[siren]['nb_colleges_total'] = max(
+                    siren_map[siren]['nb_colleges_total'],
+                    pv_stats_map[siret].get('nb_colleges', 0)
+                )
+
+        return siren_map
+
+    # Sépare en deux groupes
+    priorite_1 = []  # >= 1000 inscrits
+    priorite_2 = []  # 500-999 inscrits
+
+    # Calcule les stats par SIREN pour tous les SIRET
+    all_sirets_list = [row.siret for row in all_sirets]
+    siren_stats_all = _calculer_stats_par_siren(all_sirets_list)
+    sirets_deja_traites = set()
+
+    for row in all_sirets:
+        # Pour les entreprises multi-SIRET, on ne traite que le SIRET principal (le premier)
+        siren = row.siret[:9] if len(row.siret) >= 9 else row.siret
+        siren_info = siren_stats_all.get(siren)
+
+        if siren_info and len(siren_info['sirets']) > 1:
+            if siren in sirets_deja_traites:
+                continue
+            sirets_deja_traites.add(siren)
+
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+        # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
+        effectif = None
+        if row.inscrits_c4:
+            effectif = _to_number(row.inscrits_c4)
+        elif row.inscrits_c3:
+            effectif = _to_number(row.inscrits_c3)
+        elif row.effectif_siret:
+            effectif = _to_number(row.effectif_siret)
+
+<<<<<<< HEAD
+        # Utilise l'effectif depuis election_data si disponible
+        if not effectif and election_data.get('effectif'):
+            effectif = election_data['effectif']
+
+        if not effectif:
+            return None
+=======
+        if not effectif:
+            continue
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+
+        # Détermine la carence
+        carence = row.carence_c4 or row.carence_c3 or False
+
+        # Analyse les implantations syndicales
+        orgs = _analyser_implantations(row)
+
+        # Vérifie si le SIRET a une invitation PAP
+        has_invitation = row.siret in invitations_map
+        invitations_dates = invitations_map.get(row.siret, [])
+
+        # Récupère les stats PV pour ce SIRET
+        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        nb_pv = pv_stats.get('nb_pv', 0)
+
+        # Détermine le nombre de collèges (priorité: nb_college_siret > nb_colleges depuis PV)
+        nb_colleges = 0
+        if row.nb_college_siret and _to_number(row.nb_college_siret):
+            nb_colleges = int(_to_number(row.nb_college_siret))
+        elif pv_stats.get('nb_colleges'):
+            nb_colleges = pv_stats.get('nb_colleges')
+
+<<<<<<< HEAD
+=======
+        # Si on a les stats du SIREN (entreprise multi-SIRET), on les utilise
+        nb_etablissements = 1
+        if siren_info:
+            nb_etablissements = siren_info.get('nb_etablissements', 1)
+            nb_pv = siren_info.get('nb_pv_total', nb_pv)
+            nb_colleges = max(nb_colleges, siren_info.get('nb_colleges_total', 0))
+
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+        # Analyse les enjeux
+        enjeux = _analyser_enjeux(
+            row.siret,
+            effectif,
+            has_invitation,
+            carence,
+            nb_colleges,
+            orgs
+        )
+
+<<<<<<< HEAD
+        # Date de l'élection
+        date_election = election_data.get('date')
+        jours_restants = (date_election - today).days if date_election else None
+
+        # Construction de l'objet entreprise
+        entreprise = {
+            "siret": row.siret,
+=======
+        # Ajoute des informations sur les établissements multiples
+        sirets_du_siren = siren_info.get('sirets', [row.siret]) if siren_info else [row.siret]
+        if nb_etablissements > 1:
+            enjeux.append(f"🏢 Entreprise multi-établissements ({nb_etablissements} SIRET)")
+
+        # Construction de l'objet entreprise
+        entreprise = {
+            "siren": siren,
+            "siret": row.siret,
+            "sirets_associes": sirets_du_siren if nb_etablissements > 1 else [],
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+            "raison_sociale": row.raison_sociale or "Non renseignée",
+            "inscrits": int(effectif),
+            "departement": row.dep or "Non renseigné",
+            "ville": row.ville or "Non renseignée",
+            "code_postal": row.cp or "Non renseigné",
+            "nb_colleges": nb_colleges,
+            "nb_pv": nb_pv,
+<<<<<<< HEAD
+            "nb_etablissements": nb_pv,  # Le nombre d'établissements = nombre de PV distincts
+=======
+            "nb_etablissements": nb_etablissements,
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+            "carence": carence,
+            "implantations_syndicales": orgs,
+            "invitations_pap": [
+                d.strftime("%d/%m/%Y") if isinstance(d, date) else str(d)
+                for d in invitations_dates
+            ] if invitations_dates else [],
+            "enjeux": enjeux,
+            "fd": row.fd_c4 or row.fd_c3 or "Non renseignée",
+            "ud": row.ud_c4 or row.ud_c3 or "Non renseigné",
+            "idcc": row.idcc or "Non renseigné",
+<<<<<<< HEAD
+            "date_election": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
+            "jours_restants": jours_restants,
+        }
+
+        return entreprise
+
+    # Traite les SIRET de priorité 1 (90 jours)
+    for row in all_sirets_p1:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
+            priorite_1.append(entreprise)
+
+    # Traite les SIRET de priorité 2 (1 an)
+    for row in all_sirets_p2:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
+            priorite_2.append(entreprise)
+
+    # Tri par date d'élection (les plus proches en premier), puis par nombre d'inscrits
+    priorite_1.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
+    priorite_2.sort(key=lambda x: (x["jours_restants"] if x["jours_restants"] else 999999, -x["inscrits"]))
+=======
+        }
+
+        # Classification par priorité
+        if effectif >= 1000:
+            priorite_1.append(entreprise)
+        elif effectif >= 500:
+            priorite_2.append(entreprise)
+
+    # Tri par nombre d'inscrits décroissant
+    priorite_1.sort(key=lambda x: x["inscrits"], reverse=True)
+    priorite_2.sort(key=lambda x: x["inscrits"], reverse=True)
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+
+    # Statistiques globales
+    stats = {
+        "total_priorite_1": len(priorite_1),
+        "total_priorite_2": len(priorite_2),
+        "total_inscrits_p1": sum(e["inscrits"] for e in priorite_1),
+        "total_inscrits_p2": sum(e["inscrits"] for e in priorite_2),
+        "cgt_implantee_p1": sum(1 for e in priorite_1 if "CGT" in e["implantations_syndicales"]),
+        "cgt_implantee_p2": sum(1 for e in priorite_2 if "CGT" in e["implantations_syndicales"]),
+        "carence_p1": sum(1 for e in priorite_1 if e["carence"]),
+        "carence_p2": sum(1 for e in priorite_2 if e["carence"]),
+        "avec_invitation_p1": sum(1 for e in priorite_1 if e["invitations_pap"]),
+        "avec_invitation_p2": sum(1 for e in priorite_2 if e["invitations_pap"]),
+    }
+
+    return {
+        "success": True,
+        "date_generation": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+<<<<<<< HEAD
+        "date_reference": today.strftime("%d/%m/%Y"),
+        "date_limite_p1": date_90_jours.strftime("%d/%m/%Y"),
+        "date_limite_p2": date_1_an.strftime("%d/%m/%Y"),
+        "statistiques": stats,
+        "priorite_1": {
+            "titre": "Priorité 1: Boîtes avec élection dans les 90 jours",
+            "description": f"Élections du {today.strftime('%d/%m/%Y')} au {date_90_jours.strftime('%d/%m/%Y')} - Intervention urgente",
+            "entreprises": priorite_1
+        },
+        "priorite_2": {
+            "titre": "Priorité 2: Entreprises avec élection dans l'année",
+            "description": f"Élections du {date_90_jours.strftime('%d/%m/%Y')} au {date_1_an.strftime('%d/%m/%Y')} - Planification à moyen terme",
+=======
+        "statistiques": stats,
+        "priorite_1": {
+            "titre": "Priorité 1: Entreprises avec ≥ 1000 inscrits",
+            "description": "Cibles prioritaires avec forte audience",
+            "entreprises": priorite_1
+        },
+        "priorite_2": {
+            "titre": "Priorité 2: Entreprises de 500 à 999 inscrits",
+            "description": "Cibles secondaires à fort potentiel",
+>>>>>>> claude/fix-electoral-quotient-calculation-011CUrhaod8vzkG7ZHeXooi3
+            "entreprises": priorite_2
+        }
     }
