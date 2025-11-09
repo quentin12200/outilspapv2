@@ -1306,6 +1306,10 @@ function afficherRapportIA(data) {
 
     <!-- Export button -->
     <div class="mt-6 flex justify-end space-x-3">
+      <button onclick="exporterRapportPDF()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+        <i class="fas fa-file-pdf mr-2"></i>
+        Télécharger PDF
+      </button>
       <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
         <i class="fas fa-download mr-2"></i>
         Télécharger JSON
@@ -1388,6 +1392,19 @@ function genererCarteEntreprise(e) {
         </div>
       </div>
 
+      ${e.sve || e.votants ? `
+      <div class="grid grid-cols-2 gap-3 mb-3 text-sm bg-gray-50 p-2 rounded border border-gray-200">
+        <div>
+          <p class="text-xs text-gray-600 font-semibold">SVE</p>
+          <p class="font-semibold text-gray-800">${(e.sve || 0).toLocaleString()}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-600 font-semibold">Votants</p>
+          <p class="font-semibold text-gray-800">${(e.votants || 0).toLocaleString()}</p>
+        </div>
+      </div>
+      ` : ''}
+
       <div class="mb-3">
         <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
         <div class="flex flex-wrap gap-1">
@@ -1396,6 +1413,24 @@ function genererCarteEntreprise(e) {
           ).join('')}
         </div>
       </div>
+
+      ${e.voix_organisations && Object.keys(e.voix_organisations).length > 0 ? `
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Résultats électoraux (voix):</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          ${Object.entries(e.voix_organisations).sort((a, b) => b[1] - a[1]).map(([org, voix]) => {
+            const pct = e.sve && e.sve > 0 ? ((voix / e.sve) * 100).toFixed(1) : '0';
+            const bgColor = org === 'CGT' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200';
+            const textColor = org === 'CGT' ? 'text-red-700' : 'text-gray-700';
+            return `<div class="p-2 rounded border ${bgColor}">
+              <span class="font-semibold ${textColor}">${org}</span>:
+              <span class="font-bold">${voix.toLocaleString()}</span>
+              <span class="text-gray-500">(${pct}%)</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      ` : ''}
 
       ${e.invitations_pap.length > 0 ? `
       <div class="mb-3">
@@ -1441,6 +1476,27 @@ function switchTab(tabName) {
 }
 
 let rapportDataGlobal = null;
+
+function exporterRapportPDF() {
+  // Méthode simple : utiliser window.print() pour générer un PDF
+  // Le navigateur ouvrira la boîte de dialogue d'impression avec l'option "Enregistrer en PDF"
+
+  // Masquer temporairement les boutons d'export
+  const modalFooter = document.querySelector('#rapport-ia-modal .mt-6');
+  if (modalFooter) {
+    modalFooter.style.display = 'none';
+  }
+
+  // Lancer l'impression
+  window.print();
+
+  // Réafficher les boutons après impression
+  setTimeout(() => {
+    if (modalFooter) {
+      modalFooter.style.display = 'flex';
+    }
+  }, 100);
+}
 
 async function exporterRapportJSON() {
   try {

@@ -2238,16 +2238,36 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
-        # Détermine le nombre de collèges (priorité: nb_college_siret > nb_colleges depuis PV)
+        # Détermine le nombre de collèges (priorité: nb_colleges_c4 > nb_colleges_c3 > nb_college_siret > PV)
         nb_colleges = 0
-        if row.nb_college_siret and _to_number(row.nb_college_siret):
+        if row.nb_colleges_c4 and _to_number(row.nb_colleges_c4):
+            nb_colleges = int(_to_number(row.nb_colleges_c4))
+        elif row.nb_colleges_c3 and _to_number(row.nb_colleges_c3):
+            nb_colleges = int(_to_number(row.nb_colleges_c3))
+        elif row.nb_college_siret and _to_number(row.nb_college_siret):
             nb_colleges = int(_to_number(row.nb_college_siret))
         elif pv_stats.get('nb_colleges'):
             nb_colleges = pv_stats.get('nb_colleges')
 
+        # SVE (Suffrages Valablement Exprimés)
+        sve = _to_number(row.sve_c4) or _to_number(row.sve_c3)
+
         # Récupère les voix CGT et votants pour le calcul du pourcentage
         cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
         votants = _to_number(row.votants_c4) or _to_number(row.votants_c3)
+
+        # Récupère les voix de TOUTES les organisations
+        voix_organisations = {
+            "CGT": cgt_voix,
+            "CFDT": _to_number(row.cfdt_voix_c4) or _to_number(row.cfdt_voix_c3),
+            "FO": _to_number(row.fo_voix_c4) or _to_number(row.fo_voix_c3),
+            "CFTC": _to_number(row.cftc_voix_c4) or _to_number(row.cftc_voix_c3),
+            "CGC": _to_number(row.cgc_voix_c4) or _to_number(row.cgc_voix_c3),
+            "UNSA": _to_number(row.unsa_voix_c4) or _to_number(row.unsa_voix_c3),
+            "SUD": _to_number(row.sud_voix_c4) or _to_number(row.sud_voix_c3),
+        }
+        # Filtrer les voix nulles
+        voix_organisations = {k: int(v) for k, v in voix_organisations.items() if v and v > 0}
 
         # Analyse les enjeux
         enjeux = _analyser_enjeux(
@@ -2288,6 +2308,9 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "idcc": row.idcc or "Non renseigné",
             "date_election": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
             "jours_restants": jours_restants,
+            "sve": int(sve) if sve else 0,
+            "votants": int(votants) if votants else 0,
+            "voix_organisations": voix_organisations,
         }
 
         return entreprise
