@@ -1819,8 +1819,39 @@ function fermerAssistantExpert() {
 
 <style>
 @media print {
-  /* Masquer les éléments non nécessaires à l'impression */
-  .hidden {
+  /* Masquer TOUT sauf le modal du rapport */
+  body > *:not(#rapport-ia-modal) {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage du modal rapport même avec classe hidden */
+  #rapport-ia-modal {
+    display: block !important;
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #rapport-ia-modal > div {
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  #rapport-ia-content {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Masquer les boutons d'export */
+  #rapport-ia-modal .mt-6 {
+    display: none !important;
+  }
+
+  /* Masquer les onglets de région */
+  #region-tabs {
     display: none !important;
   }
 
@@ -1831,7 +1862,7 @@ function fermerAssistantExpert() {
     overflow: visible !important;
   }
 
-  /* S'assurer que les tableaux occupent toute la largeur */
+  /* Tableaux - Optimisation impression */
   table {
     width: 100% !important;
     page-break-inside: auto;
@@ -1846,30 +1877,18 @@ function fermerAssistantExpert() {
     page-break-after: auto;
   }
 
-  /* Masquer les onglets de région à l'impression */
-  #region-tabs {
-    display: none !important;
-  }
-
-  /* Masquer le fond modal */
-  #rapport-ia-modal {
-    position: static !important;
-    background: white !important;
-  }
-
-  #rapport-ia-modal > div {
-    max-width: 100% !important;
-    max-height: none !important;
-    box-shadow: none !important;
-  }
-
-  /* Réduire la taille de police pour tout faire tenir */
+  /* Taille de police optimisée */
   body {
-    font-size: 10pt;
+    font-size: 9pt;
   }
 
   h1, h2, h3 {
     page-break-after: avoid;
+  }
+
+  /* Masquer navigation, header, footer, etc. */
+  nav, header, footer, .navbar, aside {
+    display: none !important;
   }
 }
 </style>
