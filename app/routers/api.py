@@ -2122,6 +2122,12 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         Invitation.date_election.isnot(None)
     ).all()
 
+    # Fonction pour normaliser les SIRET (enlever espaces, tirets)
+    def normalize_siret(siret):
+        if not siret:
+            return None
+        return ''.join(c for c in str(siret) if c.isdigit())
+
     # Map des SIRET avec leur date d'élection (prend la plus proche)
     siret_elections = {}
 
@@ -2131,8 +2137,12 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         if not parsed_date or parsed_date < today:
             continue
 
-        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
-            siret_elections[siret] = {
+        siret_norm = normalize_siret(siret)
+        if not siret_norm:
+            continue
+
+        if siret_norm not in siret_elections or parsed_date < siret_elections[siret_norm]['date']:
+            siret_elections[siret_norm] = {
                 'date': parsed_date,
                 'effectif': _to_number(effectif_siret) or _to_number(inscrits),
                 'source': 'pv'
@@ -2144,8 +2154,12 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         if not parsed_date or parsed_date < today:
             continue
 
-        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
-            siret_elections[siret] = {
+        siret_norm = normalize_siret(siret)
+        if not siret_norm:
+            continue
+
+        if siret_norm not in siret_elections or parsed_date < siret_elections[siret_norm]['date']:
+            siret_elections[siret_norm] = {
                 'date': parsed_date,
                 'effectif': _to_number(effectif),
                 'source': 'invitation'
@@ -2155,9 +2169,11 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     invitations_map = {}
     invitations = db.query(Invitation.siret, Invitation.date_invit).all()
     for siret, date_invit in invitations:
-        if siret not in invitations_map:
-            invitations_map[siret] = []
-        invitations_map[siret].append(date_invit)
+        siret_norm = normalize_siret(siret)
+        if siret_norm:
+            if siret_norm not in invitations_map:
+                invitations_map[siret_norm] = []
+            invitations_map[siret_norm].append(date_invit)
 
     # Calcule le nombre de PV et de collèges par SIRET depuis la table Tous_PV
     pv_stats_map = {}
@@ -2168,10 +2184,34 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
     ).group_by(PVEvent.siret).all()
 
     for siret, nb_pv, nb_colleges in pv_stats:
-        pv_stats_map[siret] = {
-            'nb_pv': nb_pv,
-            'nb_colleges': nb_colleges
-        }
+        siret_norm = normalize_siret(siret)
+        if siret_norm:
+            pv_stats_map[siret_norm] = {
+                'nb_pv': nb_pv,
+                'nb_colleges': nb_colleges
+            }
+
+    logger.info(f"📊 Stats PV: {len(pv_stats_map)} SIRET avec PV trouvés")
+
+    # Debug: afficher quelques exemples de SIRET dans PVEvent
+    if pv_stats_map:
+        premiers_sirets = list(pv_stats_map.keys())[:5]
+        logger.info(f"🔍 Exemples de SIRET dans PVEvent: {premiers_sirets}")
+        # Chercher RATP dans les SIRET
+        ratp_sirets = [s for s in pv_stats_map.keys() if s and '77566343' in str(s)]
+        if ratp_sirets:
+            logger.info(f"🔍 SIRET RATP trouvés dans PVEvent: {ratp_sirets}")
+            for rs in ratp_sirets[:3]:
+                logger.info(f"  - {rs}: {pv_stats_map[rs]}")
+        else:
+            logger.warning(f"⚠️ Aucun SIRET RATP (commençant par 77566343) trouvé dans PVEvent")
+
+    # Debug: afficher un exemple pour RATP
+    ratp_siret = "77566343800494"
+    if ratp_siret in pv_stats_map:
+        logger.info(f"🔍 RATP {ratp_siret}: {pv_stats_map[ratp_siret]}")
+    else:
+        logger.warning(f"⚠️ RATP {ratp_siret} PAS trouvé dans pv_stats_map")
 
     # Récupère la liste des noms de collèges distincts par SIRET
     colleges_map = {}
@@ -2179,15 +2219,27 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         PVEvent.siret,
         PVEvent.deno_coll
     ).filter(
+        PVEvent.siret.isnot(None),
         PVEvent.deno_coll.isnot(None),
         PVEvent.deno_coll != ''
-    ).distinct().all()
+    ).all()
 
     for siret, deno_coll in colleges_query:
-        if siret not in colleges_map:
-            colleges_map[siret] = []
-        if deno_coll and deno_coll not in colleges_map[siret]:
-            colleges_map[siret].append(deno_coll)
+        siret_norm = normalize_siret(siret)
+        if siret_norm:
+            if siret_norm not in colleges_map:
+                colleges_map[siret_norm] = []
+            # Ajouter seulement si pas déjà dans la liste (pour avoir des collèges uniques)
+            if deno_coll and deno_coll.strip() and deno_coll not in colleges_map[siret_norm]:
+                colleges_map[siret_norm].append(deno_coll)
+
+    logger.info(f"📋 Collèges: {len(colleges_map)} SIRET avec collèges trouvés")
+    # Debug: afficher un exemple pour RATP
+    ratp_siret = "77566343800494"
+    if ratp_siret in colleges_map:
+        logger.info(f"🔍 RATP {ratp_siret} collèges: {colleges_map[ratp_siret]}")
+    else:
+        logger.warning(f"⚠️ RATP {ratp_siret} PAS trouvé dans colleges_map")
 
     # Filtre les SIRET qui ont une élection dans les délais
     sirets_priorite_1 = {  # Élections dans les 90 jours
@@ -2246,16 +2298,23 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
         # Analyse les implantations syndicales
         orgs = _analyser_implantations(row)
 
-        # Vérifie si le SIRET a une invitation PAP
-        has_invitation = row.siret in invitations_map
-        invitations_dates = invitations_map.get(row.siret, [])
+        # Normaliser le SIRET pour le matching avec PVEvent et invitations
+        siret_norm = normalize_siret(row.siret)
 
-        # Récupère les stats PV pour ce SIRET
-        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        # Vérifie si le SIRET a une invitation PAP
+        has_invitation = siret_norm in invitations_map if siret_norm else False
+        invitations_dates = invitations_map.get(siret_norm, []) if siret_norm else []
+
+        # Récupère les stats PV pour ce SIRET (avec SIRET normalisé)
+        pv_stats = pv_stats_map.get(siret_norm, {'nb_pv': 0, 'nb_colleges': 0})
         nb_pv = pv_stats.get('nb_pv', 0)
 
-        # Récupère la liste des collèges pour ce SIRET
-        colleges_list = colleges_map.get(row.siret, [])
+        # Récupère la liste des collèges pour ce SIRET (avec SIRET normalisé)
+        colleges_list = colleges_map.get(siret_norm, [])
+
+        # Debug pour RATP
+        if row.siret == "77566343800494":
+            logger.info(f"🔍 RATP dans _traiter_siret: siret_norm={siret_norm}, nb_pv={nb_pv}, colleges={colleges_list}")
 
         # Détermine le nombre de collèges
         # Note: Il n'y a pas de nb_colleges_c4/c3 dans SiretSummary
@@ -2310,6 +2369,7 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "departement": row.dep or "Non renseigné",
             "ville": row.ville or "Non renseignée",
             "code_postal": row.cp or "Non renseigné",
+            "region": row.region or "Non renseignée",
             "nb_colleges": nb_colleges,
             "colleges": colleges_list,  # Liste des noms de collèges
             "nb_pv": nb_pv,
@@ -2335,14 +2395,28 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
 
     # Traite les SIRET de priorité 1 (90 jours)
     for row in all_sirets_p1:
-        election_data = siret_elections.get(row.siret, {})
+        siret_norm = normalize_siret(row.siret)
+        election_data = siret_elections.get(siret_norm, {})
+        if not election_data:
+            # Fallback: essayer avec le SIRET non normalisé
+            election_data = siret_elections.get(row.siret, {})
+
+        # Debug pour RATP
+        if row.siret == "77566343800494":
+            logger.info(f"🔍 RATP P1: siret_norm={siret_norm}, election_data={election_data}")
+
         entreprise = _traiter_siret(row, election_data)
         if entreprise:
             priorite_1.append(entreprise)
 
     # Traite les SIRET de priorité 2 (1 an)
     for row in all_sirets_p2:
-        election_data = siret_elections.get(row.siret, {})
+        siret_norm = normalize_siret(row.siret)
+        election_data = siret_elections.get(siret_norm, {})
+        if not election_data:
+            # Fallback: essayer avec le SIRET non normalisé
+            election_data = siret_elections.get(row.siret, {})
+
         entreprise = _traiter_siret(row, election_data)
         if entreprise:
             priorite_2.append(entreprise)

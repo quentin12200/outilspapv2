@@ -198,11 +198,11 @@ async def get_chatbot_examples():
             ]
         },
         {
-            "category": "🤖 Extraction IA",
+            "category": "📄 Scanner PAP",
             "questions": [
-                "Combien d'invitations extraites par l'IA ?",
-                "Invitations avec source IA vs manuelles",
-                "Dernières extractions IA"
+                "Combien d'invitations scannées automatiquement ?",
+                "Invitations avec source Scan automatique vs manuelles",
+                "Dernières invitations scannées"
             ]
         }
     ]

@@ -120,7 +120,7 @@ Colonnes:
 - date_invit (DATE): Date de l'invitation au PAP
 - date_reception (DATE): Date de réception de l'invitation
 - date_election (DATE): Date prévue de l'élection
-- source (TEXT): Source de l'invitation (ex: "IA - Extraction GPT", "Import Manuel", "Email")
+- source (TEXT): Source de l'invitation (ex: "Scan automatique", "Import Manuel", "Email")
 - ud (TEXT): Union Départementale (ex: "UD 75", "UD 13")
 - fd (TEXT): Fédération (ex: "Métallurgie", "Chimie", "Commerce")
 - idcc (TEXT): Code IDCC de la convention collective
@@ -132,7 +132,7 @@ Colonnes:
 
 Informations importantes:
 - Les invitations peuvent être marquées avec différents statuts basés sur les dates
-- La source "IA - Extraction GPT" indique une extraction automatique par IA
+- La source "Scan automatique" indique une extraction automatique depuis un document scanné
 - L'IDCC permet d'identifier la convention collective
 
 ### Table: Tous_PV
@@ -378,7 +378,7 @@ Pour une liste:
 
 Pour des statistiques:
 "📊 **Répartition des invitations par source** :
-- IA - Extraction GPT: 145 (45%)
+- Scan automatique: 145 (45%)
 - Import Manuel: 102 (32%)
 - Email: 73 (23%)"
 
