@@ -3,7 +3,7 @@
 
 {% block extra_head %}
 <!-- SheetJS pour export Excel -->
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -1729,6 +1729,13 @@ let rapportDataGlobal = null;
 
 function exporterRapportExcel() {
   try {
+    // Vérifier que XLSX est bien chargé
+    if (typeof XLSX === 'undefined') {
+      alert('❌ Erreur: La bibliothèque Excel n\'est pas chargée. Veuillez rafraîchir la page et réessayer.');
+      console.error('XLSX library is not loaded');
+      return;
+    }
+
     // Récupérer les données du rapport
     const { p1, p2 } = window.rapportData;
     const region = window.regionSelectionnee || 'toutes';
