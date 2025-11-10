@@ -1871,3 +1871,511 @@ async def update_fd_from_idcc(
         "not_found_in_mapping": not_found_count,
         "mapping_size": len(idcc_to_fd)
     }
+
+
+@router.get("/rapport-ia-pap")
+def generer_rapport_ia_pap(db: Session = Depends(get_session)):
+    """
+    Génère un rapport compact de la situation PAP prioritaire avec analyses détaillées.
+
+    Priorité 1: Boîtes avec élection dans les 90 prochains jours
+    Priorité 2: Entreprises avec élection dans l'année à venir
+
+    Pour chaque entreprise, retourne une structure compacte avec :
+    - SIRET, Raison sociale, Inscrits
+    - Localisation (département - ville (CP))
+    - Election (date, jours restants)
+    - Collèges (nombre, noms)
+    - Contexte syndical (FD, UD, IDCC)
+    - Syndicats (implantés, voix, SVE, votants)
+    - Invitations PAP
+    - Enjeux identifiés (avec emojis et analyses détaillées)
+    """
+
+    def _to_number(value):
+        """Convertit une valeur en nombre"""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = (
+                value.strip()
+                .replace("\u202f", "")
+                .replace("\xa0", "")
+                .replace(" ", "")
+            )
+            cleaned = cleaned.replace(",", ".")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _parse_date_value(value):
+        """Parse une date depuis différents formats"""
+        if not value:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                try:
+                    return datetime.strptime(cleaned, fmt).date()
+                except ValueError:
+                    continue
+            try:
+                return datetime.fromisoformat(cleaned).date()
+            except ValueError:
+                return None
+        return None
+
+    def _analyser_implantations(row):
+        """Analyse les implantations syndicales d'un SIRET"""
+        orgs = []
+
+        # CGT
+        if (row.cgt_implantee or
+            row.pres_siret_cgt or
+            (row.cgt_voix_c4 and _to_number(row.cgt_voix_c4) > 0) or
+            (row.cgt_voix_c3 and _to_number(row.cgt_voix_c3) > 0)):
+            orgs.append("CGT")
+
+        # CFDT
+        if (row.pres_siret_cfdt or
+            (row.cfdt_voix_c4 and _to_number(row.cfdt_voix_c4) > 0) or
+            (row.cfdt_voix_c3 and _to_number(row.cfdt_voix_c3) > 0)):
+            orgs.append("CFDT")
+
+        # FO
+        if (row.pres_siret_fo or
+            (row.fo_voix_c4 and _to_number(row.fo_voix_c4) > 0) or
+            (row.fo_voix_c3 and _to_number(row.fo_voix_c3) > 0)):
+            orgs.append("FO")
+
+        # CFTC
+        if (row.pres_siret_cftc or
+            (row.cftc_voix_c4 and _to_number(row.cftc_voix_c4) > 0) or
+            (row.cftc_voix_c3 and _to_number(row.cftc_voix_c3) > 0)):
+            orgs.append("CFTC")
+
+        # CGC
+        if (row.pres_siret_cgc or
+            (row.cgc_voix_c4 and _to_number(row.cgc_voix_c4) > 0) or
+            (row.cgc_voix_c3 and _to_number(row.cgc_voix_c3) > 0)):
+            orgs.append("CGC")
+
+        # UNSA
+        if (row.pres_siret_unsa or
+            (row.unsa_voix_c4 and _to_number(row.unsa_voix_c4) > 0) or
+            (row.unsa_voix_c3 and _to_number(row.unsa_voix_c3) > 0)):
+            orgs.append("UNSA")
+
+        # SUD
+        if (row.pres_siret_sud or
+            (row.sud_voix_c4 and _to_number(row.sud_voix_c4) > 0) or
+            (row.sud_voix_c3 and _to_number(row.sud_voix_c3) > 0)):
+            orgs.append("SUD")
+
+        # AUTRE
+        if row.pres_siret_autre:
+            orgs.append("AUTRE")
+
+        return orgs if orgs else ["Aucune implantation identifiée"]
+
+    def _analyser_enjeux(siret, inscrits, has_invitation, carence, nb_colleges, orgs, cgt_voix=None, votants=None):
+        """Analyse les enjeux d'une entreprise avec emojis et messages détaillés"""
+        enjeux = []
+
+        # Enjeux liés à la taille
+        if inscrits >= 1000:
+            enjeux.append(f"🎯 Très forte audience ({int(inscrits)} inscrits)")
+        elif inscrits >= 500:
+            enjeux.append(f"📊 Forte audience ({int(inscrits)} inscrits)")
+
+        # Enjeux liés à l'implantation CGT
+        if "CGT" in orgs:
+            if inscrits >= 1000:
+                enjeux.append("✅ CGT IMPLANTÉE - RENFORCEMENT PRIORITAIRE (forte audience)")
+            elif inscrits >= 500:
+                enjeux.append("✅ CGT implantée - Consolidation recommandée")
+            else:
+                enjeux.append("✅ CGT implantée - Maintien position")
+
+            # Ajouter le score CGT si disponible (basé sur les votants)
+            if cgt_voix and votants and votants > 0:
+                pct_cgt = (cgt_voix / votants) * 100
+                if pct_cgt >= 50:
+                    enjeux.append(f"💪 CGT majoritaire ({pct_cgt:.1f}%)")
+                elif pct_cgt >= 30:
+                    enjeux.append(f"💪 CGT bien positionnée ({pct_cgt:.1f}%)")
+                else:
+                    enjeux.append(f"📈 CGT à renforcer ({pct_cgt:.1f}%)")
+        else:
+            if inscrits >= 1000:
+                enjeux.append("⚠️ CGT NON IMPLANTÉE - OPPORTUNITÉ MAJEURE (forte audience)")
+            elif inscrits >= 500:
+                enjeux.append("⚠️ CGT NON implantée - Priorité d'intervention")
+            else:
+                enjeux.append("⚠️ CGT non implantée - Prospection")
+
+        # Enjeux liés à la carence
+        if carence:
+            enjeux.append("🔴 CARENCE - Opportunité de (re)conquête")
+
+        # Enjeux liés à l'invitation PAP
+        if has_invitation:
+            enjeux.append("✓ Invitation PAP reçue (C5)")
+        else:
+            enjeux.append("ℹ️ Pas d'invitation PAP détectée")
+
+        # Enjeux liés aux collèges
+        if nb_colleges and nb_colleges > 1:
+            enjeux.append(f"🏢 Pluralité de collèges ({int(nb_colleges)})")
+
+        # Situation syndicale globale
+        if len(orgs) == 1 and orgs[0] == "Aucune implantation identifiée":
+            enjeux.append("⚠️ Aucune organisation syndicale - Terrain vierge")
+        elif len(orgs) > 4:
+            enjeux.append(f"⚔️ Forte concurrence syndicale ({len(orgs)} organisations)")
+
+        return enjeux
+
+    def _calculer_score_priorite(entreprise):
+        """Calcule un score de priorité pour trier les entreprises"""
+        score = 0
+
+        # CRITÈRE 1 : CGT déjà implantée avec forte audience = PRIORITÉ ABSOLUE
+        is_cgt = "CGT" in entreprise.get("syndicats", {}).get("implantes", [])
+        inscrits = entreprise.get("inscrits", 0)
+
+        if is_cgt and inscrits >= 1000:
+            score += 10000  # Priorité maximale : renforcement CGT forte audience
+        elif is_cgt and inscrits >= 500:
+            score += 5000   # Haute priorité : renforcement CGT audience moyenne
+        elif is_cgt:
+            score += 2000   # Priorité : maintien position CGT
+
+        # CRITÈRE 2 : Forte audience sans CGT = opportunité
+        if not is_cgt and inscrits >= 1000:
+            score += 3000   # Opportunité majeure d'implantation
+        elif not is_cgt and inscrits >= 500:
+            score += 1000   # Opportunité d'implantation
+
+        # CRITÈRE 3 : Carence (opportunité de reconquête)
+        if entreprise.get("carence"):
+            score += 500
+
+        # CRITÈRE 4 : Urgence temporelle (jours restants)
+        jours = entreprise.get("election", {}).get("jours_restants")
+        if jours is not None:
+            if jours <= 30:
+                score += 300
+            elif jours <= 60:
+                score += 200
+            elif jours <= 90:
+                score += 100
+
+        # CRITÈRE 5 : Nombre d'inscrits (pondération)
+        score += inscrits * 0.1
+
+        return score
+
+    # Dates de référence
+    today = date.today()
+    date_90_jours = today + timedelta(days=90)
+    date_1_an = today + timedelta(days=365)
+
+    # Récupère tous les PV avec date_prochain_scrutin
+    pv_elections = db.query(
+        PVEvent.siret,
+        PVEvent.date_prochain_scrutin,
+        PVEvent.effectif_siret,
+        PVEvent.inscrits
+    ).filter(
+        PVEvent.date_prochain_scrutin.isnot(None)
+    ).all()
+
+    # Récupère les invitations avec date_election
+    invitations_elections = db.query(
+        Invitation.siret,
+        Invitation.date_election,
+        Invitation.effectif_connu
+    ).filter(
+        Invitation.date_election.isnot(None)
+    ).all()
+
+    # Map des SIRET avec leur date d'élection (prend la plus proche)
+    siret_elections = {}
+
+    # Ajoute les dates depuis PVEvent
+    for siret, date_election, effectif_siret, inscrits in pv_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif_siret) or _to_number(inscrits),
+                'source': 'pv'
+            }
+
+    # Ajoute les dates depuis Invitation (si plus proche)
+    for siret, date_election, effectif in invitations_elections:
+        parsed_date = _parse_date_value(date_election)
+        if not parsed_date or parsed_date < today:
+            continue
+
+        if siret not in siret_elections or parsed_date < siret_elections[siret]['date']:
+            siret_elections[siret] = {
+                'date': parsed_date,
+                'effectif': _to_number(effectif),
+                'source': 'invitation'
+            }
+
+    # Récupère les invitations PAP pour voir quels SIRET ont reçu une invitation
+    invitations_map = {}
+    invitations = db.query(Invitation.siret, Invitation.date_invit).all()
+    for siret, date_invit in invitations:
+        if siret not in invitations_map:
+            invitations_map[siret] = []
+        invitations_map[siret].append(date_invit)
+
+    # Calcule le nombre de PV et de collèges par SIRET depuis la table Tous_PV
+    pv_stats_map = {}
+    pv_stats = db.query(
+        PVEvent.siret,
+        func.count(PVEvent.id).label('nb_pv'),
+        func.count(func.distinct(PVEvent.deno_coll)).label('nb_colleges_distinct')
+    ).group_by(PVEvent.siret).all()
+
+    for siret, nb_pv, nb_colleges in pv_stats:
+        pv_stats_map[siret] = {
+            'nb_pv': nb_pv,
+            'nb_colleges': nb_colleges
+        }
+
+    # Récupère la liste des noms de collèges distincts par SIRET
+    colleges_map = {}
+    colleges_query = db.query(
+        PVEvent.siret,
+        PVEvent.deno_coll
+    ).filter(
+        PVEvent.deno_coll.isnot(None),
+        PVEvent.deno_coll != ''
+    ).distinct().all()
+
+    for siret, deno_coll in colleges_query:
+        if siret not in colleges_map:
+            colleges_map[siret] = []
+        if deno_coll and deno_coll not in colleges_map[siret]:
+            colleges_map[siret].append(deno_coll)
+
+    # Filtre les SIRET qui ont une élection dans les délais
+    sirets_priorite_1 = {  # Élections dans les 90 jours
+        siret for siret, data in siret_elections.items()
+        if data['date'] <= date_90_jours
+    }
+
+    sirets_priorite_2 = {  # Élections dans l'année (mais pas dans les 90 jours)
+        siret for siret, data in siret_elections.items()
+        if data['date'] > date_90_jours and data['date'] <= date_1_an
+    }
+
+    # Récupère les données complètes depuis SiretSummary
+    all_sirets_p1 = []
+    all_sirets_p2 = []
+
+    if sirets_priorite_1:
+        all_sirets_p1 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_1)
+        ).all()
+
+    if sirets_priorite_2:
+        all_sirets_p2 = db.query(SiretSummary).filter(
+            SiretSummary.siret.in_(sirets_priorite_2)
+        ).all()
+
+    # Sépare en deux groupes
+    priorite_1 = []  # Élections dans les 90 jours
+    priorite_2 = []  # Élections dans l'année
+
+    def _traiter_siret(row, election_data):
+        """Traite un SIRET et retourne l'objet entreprise en format compact"""
+        # Détermine l'effectif (priorité: inscrits_c4 > inscrits_c3 > effectif_siret)
+        effectif = None
+        if row.inscrits_c4:
+            effectif = _to_number(row.inscrits_c4)
+        elif row.inscrits_c3:
+            effectif = _to_number(row.inscrits_c3)
+        elif row.effectif_siret:
+            effectif = _to_number(row.effectif_siret)
+
+        # Utilise l'effectif depuis election_data si disponible
+        if not effectif and election_data.get('effectif'):
+            effectif = election_data['effectif']
+
+        if not effectif:
+            return None
+
+        # Filtre : Exclure les entreprises de moins de 50 salariés (non prioritaires)
+        if effectif < 50:
+            return None
+
+        # Détermine la carence
+        carence = row.carence_c4 or row.carence_c3 or False
+
+        # Analyse les implantations syndicales
+        orgs = _analyser_implantations(row)
+
+        # Vérifie si le SIRET a une invitation PAP
+        has_invitation = row.siret in invitations_map
+        invitations_dates = invitations_map.get(row.siret, [])
+
+        # Récupère les stats PV pour ce SIRET
+        pv_stats = pv_stats_map.get(row.siret, {'nb_pv': 0, 'nb_colleges': 0})
+        nb_pv = pv_stats.get('nb_pv', 0)
+
+        # Récupère la liste des collèges pour ce SIRET
+        colleges_list = colleges_map.get(row.siret, [])
+
+        # Détermine le nombre de collèges
+        nb_colleges = 0
+        if row.nb_college_siret and _to_number(row.nb_college_siret):
+            nb_colleges = int(_to_number(row.nb_college_siret))
+        elif pv_stats.get('nb_colleges'):
+            nb_colleges = pv_stats.get('nb_colleges')
+
+        # Récupère les voix CGT et votants pour le calcul du pourcentage
+        cgt_voix = _to_number(row.cgt_voix_c4) or _to_number(row.cgt_voix_c3)
+        votants = _to_number(row.votants_c4) or _to_number(row.votants_c3)
+
+        # Récupère les voix de TOUTES les organisations
+        voix_organisations = {
+            "CGT": cgt_voix,
+            "CFDT": _to_number(row.cfdt_voix_c4) or _to_number(row.cfdt_voix_c3),
+            "FO": _to_number(row.fo_voix_c4) or _to_number(row.fo_voix_c3),
+            "CFTC": _to_number(row.cftc_voix_c4) or _to_number(row.cftc_voix_c3),
+            "CGC": _to_number(row.cgc_voix_c4) or _to_number(row.cgc_voix_c3),
+            "UNSA": _to_number(row.unsa_voix_c4) or _to_number(row.unsa_voix_c3),
+            "SUD": _to_number(row.sud_voix_c4) or _to_number(row.sud_voix_c3),
+        }
+        # Filtrer les voix nulles
+        voix_organisations = {k: int(v) for k, v in voix_organisations.items() if v and v > 0}
+
+        # Calcul du SVE (Suffrages Valablement Exprimés) = somme de toutes les voix
+        sve = sum(voix_organisations.values()) if voix_organisations else 0
+
+        # Analyse les enjeux
+        enjeux = _analyser_enjeux(
+            row.siret,
+            effectif,
+            has_invitation,
+            carence,
+            nb_colleges,
+            orgs,
+            cgt_voix,
+            votants
+        )
+
+        # Date de l'élection
+        date_election = election_data.get('date')
+        jours_restants = (date_election - today).days if date_election else None
+
+        # Construction de l'objet entreprise (structure compacte)
+        entreprise = {
+            "siret": row.siret,
+            "raison_sociale": row.raison_sociale or "Non renseignée",
+            "inscrits": int(effectif),
+            "localisation": f"{row.dep or '?'} - {row.ville or 'Non renseignée'} ({row.cp or '?'})",
+            "election": {
+                "date": date_election.strftime("%d/%m/%Y") if date_election else "Non renseignée",
+                "jours_restants": jours_restants
+            },
+            "colleges": {
+                "nombre": nb_colleges,
+                "noms": colleges_list
+            },
+            "nb_pv": nb_pv,
+            "carence": carence,
+            "contexte": {
+                "fd": row.fd_c4 or row.fd_c3 or "Non renseignée",
+                "ud": row.ud_c4 or row.ud_c3 or "Non renseigné",
+                "idcc": row.idcc or "Non renseigné"
+            },
+            "syndicats": {
+                "implantes": orgs,
+                "voix": voix_organisations,
+                "sve": int(sve) if sve else 0,
+                "votants": int(votants) if votants else 0
+            },
+            "invitations_pap": [
+                d.strftime("%d/%m/%Y") if isinstance(d, date) else str(d)
+                for d in invitations_dates
+            ] if invitations_dates else [],
+            "enjeux": enjeux
+        }
+
+        return entreprise
+
+    # Traite les SIRET de priorité 1 (90 jours)
+    for row in all_sirets_p1:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
+            priorite_1.append(entreprise)
+
+    # Traite les SIRET de priorité 2 (1 an)
+    for row in all_sirets_p2:
+        election_data = siret_elections.get(row.siret, {})
+        entreprise = _traiter_siret(row, election_data)
+        if entreprise:
+            priorite_2.append(entreprise)
+
+    # Tri par score de priorité (décroissant) - met en avant :
+    # 1. CGT implantée + forte audience (renforcement)
+    # 2. Forte audience sans CGT (implantation)
+    # 3. Urgence temporelle
+    priorite_1.sort(key=lambda x: -_calculer_score_priorite(x))
+    priorite_2.sort(key=lambda x: -_calculer_score_priorite(x))
+
+    # Statistiques globales
+    stats = {
+        "total_priorite_1": len(priorite_1),
+        "total_priorite_2": len(priorite_2),
+        "total_inscrits_p1": sum(e["inscrits"] for e in priorite_1),
+        "total_inscrits_p2": sum(e["inscrits"] for e in priorite_2),
+        "cgt_implantee_p1": sum(1 for e in priorite_1 if "CGT" in e["syndicats"]["implantes"]),
+        "cgt_implantee_p2": sum(1 for e in priorite_2 if "CGT" in e["syndicats"]["implantes"]),
+        "carence_p1": sum(1 for e in priorite_1 if e["carence"]),
+        "carence_p2": sum(1 for e in priorite_2 if e["carence"]),
+        "avec_invitation_p1": sum(1 for e in priorite_1 if e["invitations_pap"]),
+        "avec_invitation_p2": sum(1 for e in priorite_2 if e["invitations_pap"]),
+    }
+
+    return {
+        "success": True,
+        "date_generation": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "date_reference": today.strftime("%d/%m/%Y"),
+        "date_limite_p1": date_90_jours.strftime("%d/%m/%Y"),
+        "date_limite_p2": date_1_an.strftime("%d/%m/%Y"),
+        "statistiques": stats,
+        "priorite_1": {
+            "titre": "Priorité 1: Boîtes avec élection dans les 90 jours",
+            "description": f"Élections du {today.strftime('%d/%m/%Y')} au {date_90_jours.strftime('%d/%m/%Y')} - Intervention urgente",
+            "entreprises": priorite_1
+        },
+        "priorite_2": {
+            "titre": "Priorité 2: Entreprises avec élection dans l'année",
+            "description": f"Élections du {date_90_jours.strftime('%d/%m/%Y')} au {date_1_an.strftime('%d/%m/%Y')} - Planification à moyen terme",
+            "entreprises": priorite_2
+        }
+    }
