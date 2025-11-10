@@ -1232,9 +1232,9 @@ function afficherRapportIA(data) {
 
     <!-- Export button -->
     <div class="mt-6 flex justify-end space-x-3">
-      <button onclick="exporterRapportPDF()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
-        <i class="fas fa-file-pdf mr-2"></i>
-        Télécharger PDF
+      <button onclick="exporterRapportExcel()" class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition">
+        <i class="fas fa-file-excel mr-2"></i>
+        Télécharger Excel
       </button>
       <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
         <i class="fas fa-download mr-2"></i>
@@ -1722,49 +1722,135 @@ function switchTab(tabName) {
 
 let rapportDataGlobal = null;
 
-function exporterRapportPDF() {
-  // Sauvegarder l'état original
-  const contentP1 = document.querySelector('#content-priorite-1 .space-y-4');
-  const contentP2 = document.querySelector('#content-priorite-2 .space-y-4');
-  const modalFooter = document.querySelector('#rapport-ia-modal .mt-6');
+function exporterRapportExcel() {
+  try {
+    // Récupérer les données du rapport
+    const { p1, p2 } = window.rapportData;
+    const region = window.regionSelectionnee || 'toutes';
 
-  // Sauvegarder les classes originales
-  const originalClassP1 = contentP1.className;
-  const originalClassP2 = contentP2.className;
+    // Filtrer par région si nécessaire
+    const p1Filtrees = region === 'toutes' ? p1.entreprises : p1.entreprises.filter(e => e.region === region);
+    const p2Filtrees = region === 'toutes' ? p2.entreprises : p2.entreprises.filter(e => e.region === region);
 
-  // Masquer les boutons d'export
-  if (modalFooter) {
-    modalFooter.style.display = 'none';
-  }
-
-  // Retirer la limitation de hauteur pour l'impression
-  contentP1.classList.remove('max-h-[600px]', 'overflow-y-auto');
-  contentP2.classList.remove('max-h-[600px]', 'overflow-y-auto');
-
-  // Forcer l'affichage complet du tableau
-  contentP1.style.maxHeight = 'none';
-  contentP2.style.maxHeight = 'none';
-  contentP1.style.overflow = 'visible';
-  contentP2.style.overflow = 'visible';
-
-  // Lancer l'impression
-  setTimeout(() => {
-    window.print();
-
-    // Restaurer l'état original après impression
-    setTimeout(() => {
-      contentP1.className = originalClassP1;
-      contentP2.className = originalClassP2;
-      contentP1.style.maxHeight = '';
-      contentP2.style.maxHeight = '';
-      contentP1.style.overflow = '';
-      contentP2.style.overflow = '';
-
-      if (modalFooter) {
-        modalFooter.style.display = 'flex';
+    // Fonction pour échapper les virgules et guillemets dans CSV
+    const escapeCsv = (str) => {
+      if (str === null || str === undefined) return '';
+      const s = String(str);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
       }
-    }, 100);
-  }, 100);
+      return s;
+    };
+
+    // Fonction pour formater une entreprise en ligne CSV
+    const formatEntreprise = (e, priorite) => {
+      const analyses = [];
+
+      // Générer analyses (même logique que l'affichage)
+      if (e.inscrits >= 10000) analyses.push(`Très forte audience (${e.inscrits} inscrits)`);
+      else if (e.inscrits >= 5000) analyses.push(`Forte audience (${e.inscrits} inscrits)`);
+      else if (e.inscrits >= 1000) analyses.push(`Audience significative (${e.inscrits} inscrits)`);
+
+      const cgtPresent = e.implantations_syndicales.includes('CGT');
+      if (cgtPresent && e.voix_organisations && e.voix_organisations['CGT']) {
+        const pctCGT = e.sve && e.sve > 0 ? ((e.voix_organisations['CGT'] / e.sve) * 100).toFixed(1) : 0;
+        analyses.push(`CGT: ${pctCGT}%`);
+      }
+
+      if (e.invitations_pap && e.invitations_pap.length > 0) {
+        analyses.push(`Invitation(s) PAP: ${e.invitations_pap.join(', ')}`);
+      }
+
+      if (e.colleges && e.colleges.length > 1) {
+        analyses.push(`${e.colleges.length} collèges`);
+      }
+
+      if (e.implantations_syndicales && e.implantations_syndicales.length >= 5) {
+        analyses.push(`Forte concurrence (${e.implantations_syndicales.length} orgas)`);
+      }
+
+      if (e.jours_restants !== null && e.jours_restants <= 30) {
+        analyses.push(`ÉLECTION IMMINENTE J-${e.jours_restants}`);
+      }
+
+      return [
+        priorite,
+        escapeCsv(e.raison_sociale),
+        escapeCsv(e.siret),
+        escapeCsv(e.ville),
+        escapeCsv(e.departement),
+        escapeCsv(e.region || ''),
+        e.inscrits || 0,
+        e.nb_pv || 0,
+        e.sve || 0,
+        e.votants || 0,
+        e.carence ? 'Carence' : 'PV',
+        cgtPresent ? 'Oui' : 'Non',
+        escapeCsv(e.date_election !== 'Non renseignée' ? e.date_election : ''),
+        e.jours_restants !== null ? e.jours_restants : '',
+        escapeCsv((e.invitations_pap || []).join(', ')),
+        escapeCsv(e.fd || ''),
+        escapeCsv(e.ud || ''),
+        escapeCsv(e.idcc || ''),
+        escapeCsv((e.colleges || []).join(', ')),
+        escapeCsv((e.implantations_syndicales || []).join(', ')),
+        e.voix_organisations && e.voix_organisations['CGT'] ? e.voix_organisations['CGT'] : '',
+        e.voix_organisations && e.voix_organisations['CGT'] && e.sve ? ((e.voix_organisations['CGT'] / e.sve) * 100).toFixed(1) : '',
+        escapeCsv(analyses.join(' | '))
+      ].join(',');
+    };
+
+    // En-tête CSV
+    const headers = [
+      'Priorité',
+      'Raison Sociale',
+      'SIRET',
+      'Ville',
+      'Département',
+      'Région',
+      'Inscrits',
+      'Nb PV',
+      'SVE',
+      'Votants',
+      'Status',
+      'CGT Présent',
+      'Date Élection',
+      'Jours Restants',
+      'Invitations PAP',
+      'FD',
+      'UD',
+      'IDCC',
+      'Collèges',
+      'Implantations Syndicales',
+      'Voix CGT',
+      'CGT %',
+      'Analyses'
+    ].join(',');
+
+    // Générer le contenu CSV
+    const rows = [
+      headers,
+      ...p1Filtrees.map(e => formatEntreprise(e, 'Priorité 1')),
+      ...p2Filtrees.map(e => formatEntreprise(e, 'Priorité 2'))
+    ];
+
+    const csvContent = '\uFEFF' + rows.join('\n'); // BOM UTF-8 pour Excel
+
+    // Créer et télécharger le fichier
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport-analyse-avancee-pap-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+  } catch (error) {
+    console.error('Erreur lors de l\'export Excel:', error);
+    alert('Erreur lors de l\'export: ' + error.message);
+  }
 }
 
 async function exporterRapportJSON() {
@@ -1816,82 +1902,6 @@ function fermerAssistantExpert() {
   modal.classList.add('hidden');
 }
 </script>
-
-<style>
-@media print {
-  /* Masquer TOUT sauf le modal du rapport */
-  body > *:not(#rapport-ia-modal) {
-    display: none !important;
-  }
-
-  /* Forcer l'affichage du modal rapport même avec classe hidden */
-  #rapport-ia-modal {
-    display: block !important;
-    position: static !important;
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  #rapport-ia-modal > div {
-    max-width: 100% !important;
-    max-height: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-
-  #rapport-ia-content {
-    overflow: visible !important;
-    max-height: none !important;
-  }
-
-  /* Masquer les boutons d'export */
-  #rapport-ia-modal .mt-6 {
-    display: none !important;
-  }
-
-  /* Masquer les onglets de région */
-  #region-tabs {
-    display: none !important;
-  }
-
-  /* Forcer l'affichage complet des tableaux */
-  #content-priorite-1 .space-y-4,
-  #content-priorite-2 .space-y-4 {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
-  /* Tableaux - Optimisation impression */
-  table {
-    width: 100% !important;
-    page-break-inside: auto;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
-  }
-
-  /* Taille de police optimisée */
-  body {
-    font-size: 9pt;
-  }
-
-  h1, h2, h3 {
-    page-break-after: avoid;
-  }
-
-  /* Masquer navigation, header, footer, etc. */
-  nav, header, footer, .navbar, aside {
-    display: none !important;
-  }
-}
-</style>
 
 <!-- Modal Rapport IA -->
 <div id="rapport-ia-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
