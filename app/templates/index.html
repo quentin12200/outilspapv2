@@ -60,13 +60,13 @@ document.addEventListener('alpine:init', () => {
     border-color: #d5001c;
     box-shadow: 0 12px 24px -8px rgba(213, 0, 28, 0.3);
   }
-  .add-pap-card {
-    background: linear-gradient(135deg, #d5001c 0%, #a00015 100%);
+  .scanner-pap-card {
+    background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
     transition: all 0.3s ease;
   }
-  .add-pap-card:hover {
+  .scanner-pap-card:hover {
     transform: scale(1.02);
-    box-shadow: 0 16px 32px -8px rgba(213, 0, 28, 0.4);
+    box-shadow: 0 16px 32px -8px rgba(147, 51, 234, 0.4);
   }
 </style>
 {% endblock %}
@@ -212,25 +212,25 @@ document.addEventListener('alpine:init', () => {
 <section class="mb-10">
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Left Column: Add PAP + Search -->
+    <!-- Left Column: Scanner PAP + Search -->
     <div class="space-y-6">
-      <!-- Add PAP Card -->
-      <div class="add-pap-card rounded-2xl shadow-lg p-8 text-white cursor-pointer" onclick="openAddPAPModal()">
+      <!-- Scanner PAP Card -->
+      <a href="/extraction" class="scanner-pap-card rounded-2xl shadow-lg p-8 text-white block hover:opacity-95 transition">
         <div class="flex items-start justify-between mb-4">
           <div class="p-4 rounded-2xl bg-white/20">
-            <i class="fas fa-plus-circle text-4xl"></i>
+            <i class="fas fa-scan text-4xl"></i>
           </div>
           <i class="fas fa-arrow-right text-2xl opacity-60"></i>
         </div>
-        <h3 class="text-2xl font-black mb-2">Ajouter une invitation PAP</h3>
+        <h3 class="text-2xl font-black mb-2">Scanner PAP</h3>
         <p class="text-white/80 text-sm mb-4">
-          Enregistrez manuellement une nouvelle invitation au PAP Cycle 5
+          Scannez automatiquement vos courriers d'invitation PAP avec l'intelligence artificielle
         </p>
         <div class="flex items-center gap-2 text-sm font-semibold">
-          <span>Saisir les informations</span>
+          <span>Déposer un document</span>
           <i class="fas fa-chevron-right"></i>
         </div>
-      </div>
+      </a>
 
       <!-- Search Card -->
       <div class="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
@@ -362,16 +362,16 @@ document.addEventListener('alpine:init', () => {
           <p class="text-sm text-gray-600">Analyse de la cible prioritaire</p>
         </a>
 
-        <!-- Ajout PAP Card -->
-        <a href="/recherche-siret" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
+        <!-- Administration Card -->
+        <a href="/admin" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
           <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-teal-100 group-hover:bg-teal-200 transition">
-              <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
+            <div class="p-3 rounded-xl bg-gray-100 group-hover:bg-gray-200 transition">
+              <i class="fas fa-cog text-2xl text-gray-600"></i>
             </div>
             <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
           </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Ajout PAP</h4>
-          <p class="text-sm text-gray-600">Ajouter une invitation PAP ou rechercher un SIRET</p>
+          <h4 class="text-lg font-bold text-gray-800 mb-2">Administration</h4>
+          <p class="text-sm text-gray-600">Gestion et paramètres avancés</p>
         </a>
       </div>
     </div>
