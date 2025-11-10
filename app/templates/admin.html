@@ -1723,23 +1723,47 @@ function switchTab(tabName) {
 let rapportDataGlobal = null;
 
 function exporterRapportPDF() {
-  // Méthode simple : utiliser window.print() pour générer un PDF
-  // Le navigateur ouvrira la boîte de dialogue d'impression avec l'option "Enregistrer en PDF"
-
-  // Masquer temporairement les boutons d'export
+  // Sauvegarder l'état original
+  const contentP1 = document.querySelector('#content-priorite-1 .space-y-4');
+  const contentP2 = document.querySelector('#content-priorite-2 .space-y-4');
   const modalFooter = document.querySelector('#rapport-ia-modal .mt-6');
+
+  // Sauvegarder les classes originales
+  const originalClassP1 = contentP1.className;
+  const originalClassP2 = contentP2.className;
+
+  // Masquer les boutons d'export
   if (modalFooter) {
     modalFooter.style.display = 'none';
   }
 
-  // Lancer l'impression
-  window.print();
+  // Retirer la limitation de hauteur pour l'impression
+  contentP1.classList.remove('max-h-[600px]', 'overflow-y-auto');
+  contentP2.classList.remove('max-h-[600px]', 'overflow-y-auto');
 
-  // Réafficher les boutons après impression
+  // Forcer l'affichage complet du tableau
+  contentP1.style.maxHeight = 'none';
+  contentP2.style.maxHeight = 'none';
+  contentP1.style.overflow = 'visible';
+  contentP2.style.overflow = 'visible';
+
+  // Lancer l'impression
   setTimeout(() => {
-    if (modalFooter) {
-      modalFooter.style.display = 'flex';
-    }
+    window.print();
+
+    // Restaurer l'état original après impression
+    setTimeout(() => {
+      contentP1.className = originalClassP1;
+      contentP2.className = originalClassP2;
+      contentP1.style.maxHeight = '';
+      contentP2.style.maxHeight = '';
+      contentP1.style.overflow = '';
+      contentP2.style.overflow = '';
+
+      if (modalFooter) {
+        modalFooter.style.display = 'flex';
+      }
+    }, 100);
   }, 100);
 }
 
@@ -1792,6 +1816,63 @@ function fermerAssistantExpert() {
   modal.classList.add('hidden');
 }
 </script>
+
+<style>
+@media print {
+  /* Masquer les éléments non nécessaires à l'impression */
+  .hidden {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage complet des tableaux */
+  #content-priorite-1 .space-y-4,
+  #content-priorite-2 .space-y-4 {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* S'assurer que les tableaux occupent toute la largeur */
+  table {
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* Masquer les onglets de région à l'impression */
+  #region-tabs {
+    display: none !important;
+  }
+
+  /* Masquer le fond modal */
+  #rapport-ia-modal {
+    position: static !important;
+    background: white !important;
+  }
+
+  #rapport-ia-modal > div {
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Réduire la taille de police pour tout faire tenir */
+  body {
+    font-size: 10pt;
+  }
+
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+}
+</style>
 
 <!-- Modal Rapport IA -->
 <div id="rapport-ia-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
