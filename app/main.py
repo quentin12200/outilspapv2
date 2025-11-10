@@ -43,6 +43,14 @@ from .admin_auth import (
     SESSION_MAX_AGE,
     AdminAuthException
 )
+from .platform_auth import (
+    get_current_platform_user,
+    verify_password,
+    create_session_token as create_platform_session_token,
+    SESSION_COOKIE_NAME as PLATFORM_SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE as PLATFORM_SESSION_MAX_AGE,
+    PlatformAuthException
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -315,6 +323,12 @@ from .routers import api_chatbot  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
+# Gestionnaire d'exceptions pour l'authentification plateforme
+@app.exception_handler(PlatformAuthException)
+async def platform_auth_exception_handler(request: Request, exc: PlatformAuthException):
+    """Redirige vers la page de login quand l'authentification plateforme échoue"""
+    return RedirectResponse(url=exc.redirect_url, status_code=303)
+
 # Gestionnaire d'exceptions pour l'authentification admin
 @app.exception_handler(AdminAuthException)
 async def admin_auth_exception_handler(request: Request, exc: AdminAuthException):
@@ -324,6 +338,48 @@ async def admin_auth_exception_handler(request: Request, exc: AdminAuthException
 # Activer l'audit logging middleware
 from .audit import create_audit_middleware
 app.middleware("http")(create_audit_middleware())
+
+# Middleware de protection d'authentification pour la plateforme
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse as StarletteRedirectResponse
+
+class PlatformAuthMiddleware(BaseHTTPMiddleware):
+    """Middleware qui redirige vers /login si l'utilisateur n'est pas authentifié"""
+
+    # Routes publiques qui ne nécessitent pas d'authentification
+    PUBLIC_PATHS = {
+        "/login",
+        "/logout",
+        "/health",
+        "/mentions-legales",
+    }
+
+    # Préfixes de chemins publics
+    PUBLIC_PREFIXES = (
+        "/static/",
+    )
+
+    async def dispatch(self, request, call_next):
+        # Vérifier si le chemin est public
+        path = request.url.path
+
+        # Autoriser les routes publiques
+        if path in self.PUBLIC_PATHS:
+            return await call_next(request)
+
+        # Autoriser les préfixes publics
+        if any(path.startswith(prefix) for prefix in self.PUBLIC_PREFIXES):
+            return await call_next(request)
+
+        # Vérifier l'authentification
+        from .platform_auth import is_platform_authenticated
+        if not is_platform_authenticated(request):
+            return StarletteRedirectResponse(url="/login", status_code=303)
+
+        return await call_next(request)
+
+# Ajouter le middleware de protection
+app.add_middleware(PlatformAuthMiddleware)
 
 app.include_router(api.router)
 app.include_router(api_invitations_stats.router)
@@ -2497,6 +2553,59 @@ def cartographie_page(request: Request, db: Session = Depends(get_session)):
             "request": request
         }
     )
+
+
+# =========================================================
+# Routes d'authentification plateforme
+# =========================================================
+
+@app.get("/login", response_class=HTMLResponse)
+def platform_login_page(request: Request):
+    """Page de connexion à la plateforme"""
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None
+        }
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+def platform_login_post(request: Request, password: str = Form(...)):
+    """Traitement de la connexion à la plateforme"""
+    if verify_password(password):
+        # Créer le token de session
+        session_token = create_platform_session_token()
+
+        # Rediriger vers l'accueil avec le cookie de session
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie(
+            key=PLATFORM_SESSION_COOKIE_NAME,
+            value=session_token,
+            max_age=PLATFORM_SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        return response
+    else:
+        # Mot de passe incorrect
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Mot de passe incorrect"
+            },
+            status_code=401
+        )
+
+
+@app.get("/logout")
+def platform_logout():
+    """Déconnexion de la plateforme"""
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(key=PLATFORM_SESSION_COOKIE_NAME)
+    return response
 
 
 # =========================================================

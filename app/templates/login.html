@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Connexion — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<div class="min-h-[80vh] flex items-center justify-center">
+  <div class="w-full max-w-md">
+
+    <!-- Card de connexion -->
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-cgt-red/10 text-cgt-red rounded-full mb-4">
+          <i class="fas fa-lock text-2xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">
+          Accès à la plateforme
+        </h1>
+        <p class="text-gray-600">
+          Entrez le mot de passe pour accéder aux outils
+        </p>
+      </div>
+
+      <!-- Message d'erreur -->
+      {% if error %}
+      <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-start">
+          <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-red-800">{{ error }}</p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Formulaire de connexion -->
+      <form method="POST" action="/login" class="space-y-6">
+
+        <!-- Champ mot de passe -->
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+            Mot de passe
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fas fa-key text-gray-400"></i>
+            </div>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              autocomplete="current-password"
+              autofocus
+              class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+              placeholder="Entrez le mot de passe"
+            />
+          </div>
+        </div>
+
+        <!-- Bouton de connexion -->
+        <button
+          type="submit"
+          class="w-full bg-cgt-red hover:bg-cgt-red-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        >
+          <i class="fas fa-sign-in-alt mr-2"></i>
+          Se connecter
+        </button>
+
+      </form>
+
+    </div>
+
+    <!-- Info sécurité -->
+    <div class="mt-6 text-center">
+      <p class="text-sm text-gray-500">
+        <i class="fas fa-shield-alt mr-1"></i>
+        Plateforme sécurisée réservée aux utilisateurs autorisés
+      </p>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
