@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Administration — PAP/CSE{% endblock %}
 
+{% block extra_head %}
+<!-- SheetJS pour export Excel -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+{% endblock %}
+
 {% block content %}
 
 <!-- Header -->
@@ -1732,17 +1737,7 @@ function exporterRapportExcel() {
     const p1Filtrees = region === 'toutes' ? p1.entreprises : p1.entreprises.filter(e => e.region === region);
     const p2Filtrees = region === 'toutes' ? p2.entreprises : p2.entreprises.filter(e => e.region === region);
 
-    // Fonction pour échapper les virgules et guillemets dans CSV
-    const escapeCsv = (str) => {
-      if (str === null || str === undefined) return '';
-      const s = String(str);
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-        return '"' + s.replace(/"/g, '""') + '"';
-      }
-      return s;
-    };
-
-    // Fonction pour formater une entreprise en ligne CSV
+    // Fonction pour formater une entreprise en ligne Excel
     const formatEntreprise = (e, priorite) => {
       const analyses = [];
 
@@ -1773,79 +1768,77 @@ function exporterRapportExcel() {
         analyses.push(`ÉLECTION IMMINENTE J-${e.jours_restants}`);
       }
 
-      return [
-        priorite,
-        escapeCsv(e.raison_sociale),
-        escapeCsv(e.siret),
-        escapeCsv(e.ville),
-        escapeCsv(e.departement),
-        escapeCsv(e.region || ''),
-        e.inscrits || 0,
-        e.nb_pv || 0,
-        e.sve || 0,
-        e.votants || 0,
-        e.carence ? 'Carence' : 'PV',
-        cgtPresent ? 'Oui' : 'Non',
-        escapeCsv(e.date_election !== 'Non renseignée' ? e.date_election : ''),
-        e.jours_restants !== null ? e.jours_restants : '',
-        escapeCsv((e.invitations_pap || []).join(', ')),
-        escapeCsv(e.fd || ''),
-        escapeCsv(e.ud || ''),
-        escapeCsv(e.idcc || ''),
-        escapeCsv((e.colleges || []).join(', ')),
-        escapeCsv((e.implantations_syndicales || []).join(', ')),
-        e.voix_organisations && e.voix_organisations['CGT'] ? e.voix_organisations['CGT'] : '',
-        e.voix_organisations && e.voix_organisations['CGT'] && e.sve ? ((e.voix_organisations['CGT'] / e.sve) * 100).toFixed(1) : '',
-        escapeCsv(analyses.join(' | '))
-      ].join(',');
+      return {
+        'Priorité': priorite,
+        'Raison Sociale': e.raison_sociale || '',
+        'SIRET': e.siret || '',
+        'Ville': e.ville || '',
+        'Département': e.departement || '',
+        'Région': e.region || '',
+        'Inscrits': e.inscrits || 0,
+        'Nb PV': e.nb_pv || 0,
+        'SVE': e.sve || 0,
+        'Votants': e.votants || 0,
+        'Status': e.carence ? 'Carence' : 'PV',
+        'CGT Présent': cgtPresent ? 'Oui' : 'Non',
+        'Date Élection': e.date_election !== 'Non renseignée' ? e.date_election : '',
+        'Jours Restants': e.jours_restants !== null ? e.jours_restants : '',
+        'Invitations PAP': (e.invitations_pap || []).join(', '),
+        'FD': e.fd || '',
+        'UD': e.ud || '',
+        'IDCC': e.idcc || '',
+        'Collèges': (e.colleges || []).join(', '),
+        'Implantations Syndicales': (e.implantations_syndicales || []).join(', '),
+        'Voix CGT': e.voix_organisations && e.voix_organisations['CGT'] ? e.voix_organisations['CGT'] : '',
+        'CGT %': e.voix_organisations && e.voix_organisations['CGT'] && e.sve ? ((e.voix_organisations['CGT'] / e.sve) * 100).toFixed(1) : '',
+        'Analyses': analyses.join(' | ')
+      };
     };
 
-    // En-tête CSV
-    const headers = [
-      'Priorité',
-      'Raison Sociale',
-      'SIRET',
-      'Ville',
-      'Département',
-      'Région',
-      'Inscrits',
-      'Nb PV',
-      'SVE',
-      'Votants',
-      'Status',
-      'CGT Présent',
-      'Date Élection',
-      'Jours Restants',
-      'Invitations PAP',
-      'FD',
-      'UD',
-      'IDCC',
-      'Collèges',
-      'Implantations Syndicales',
-      'Voix CGT',
-      'CGT %',
-      'Analyses'
-    ].join(',');
-
-    // Générer le contenu CSV
-    const rows = [
-      headers,
+    // Créer les données pour Excel
+    const data = [
       ...p1Filtrees.map(e => formatEntreprise(e, 'Priorité 1')),
       ...p2Filtrees.map(e => formatEntreprise(e, 'Priorité 2'))
     ];
 
-    const csvContent = '\uFEFF' + rows.join('\n'); // BOM UTF-8 pour Excel
+    // Créer le workbook et la feuille
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
 
-    // Créer et télécharger le fichier
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rapport-analyse-avancee-pap-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Définir la largeur des colonnes
+    const colWidths = [
+      { wch: 12 },  // Priorité
+      { wch: 35 },  // Raison Sociale
+      { wch: 15 },  // SIRET
+      { wch: 20 },  // Ville
+      { wch: 12 },  // Département
+      { wch: 20 },  // Région
+      { wch: 10 },  // Inscrits
+      { wch: 8 },   // Nb PV
+      { wch: 10 },  // SVE
+      { wch: 10 },  // Votants
+      { wch: 10 },  // Status
+      { wch: 12 },  // CGT Présent
+      { wch: 15 },  // Date Élection
+      { wch: 15 },  // Jours Restants
+      { wch: 20 },  // Invitations PAP
+      { wch: 25 },  // FD
+      { wch: 15 },  // UD
+      { wch: 10 },  // IDCC
+      { wch: 30 },  // Collèges
+      { wch: 40 },  // Implantations Syndicales
+      { wch: 10 },  // Voix CGT
+      { wch: 10 },  // CGT %
+      { wch: 60 }   // Analyses
+    ];
+    ws['!cols'] = colWidths;
+
+    // Ajouter la feuille au classeur
+    XLSX.utils.book_append_sheet(wb, ws, 'Rapport Analyse Avancée PAP');
+
+    // Télécharger le fichier
+    const fileName = `rapport-analyse-avancee-pap-${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
 
   } catch (error) {
     console.error('Erreur lors de l\'export Excel:', error);
