@@ -1426,6 +1426,82 @@ function genererTableauEntreprises(entreprises) {
               `;
             }
 
+            // Générer les analyses contextuelles intelligentes
+            const analyses = [];
+
+            // Analyse audience
+            if (e.inscrits >= 10000) {
+              analyses.push('🎯 Très forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
+            } else if (e.inscrits >= 5000) {
+              analyses.push('🎯 Forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
+            } else if (e.inscrits >= 1000) {
+              analyses.push('🎯 Audience significative (' + e.inscrits.toLocaleString() + ' inscrits)');
+            }
+
+            // Analyse implantation CGT
+            if (cgtPresent) {
+              if (e.voix_organisations && e.voix_organisations['CGT']) {
+                const pctCGT = e.sve && e.sve > 0 ? ((e.voix_organisations['CGT'] / e.sve) * 100) : 0;
+                const position = Object.entries(e.voix_organisations)
+                  .sort((a, b) => b[1] - a[1])
+                  .findIndex(([org]) => org === 'CGT') + 1;
+
+                if (position === 1 && pctCGT >= 30) {
+                  analyses.push('✅ CGT DOMINANTE - Consolidation prioritaire (' + pctCGT.toFixed(1) + '%)');
+                } else if (position === 1) {
+                  analyses.push('✅ CGT EN TÊTE - Renforcer la position (' + pctCGT.toFixed(1) + '%)');
+                } else if (pctCGT >= 20) {
+                  analyses.push('📈 CGT bien implantée à renforcer (' + pctCGT.toFixed(1) + '%)');
+                } else {
+                  analyses.push('📈 CGT présente, potentiel de progression (' + pctCGT.toFixed(1) + '%)');
+                }
+              } else {
+                analyses.push('✅ CGT IMPLANTÉE - Obtenir les résultats électoraux');
+              }
+            } else {
+              if (e.inscrits >= 1000) {
+                analyses.push('⚠️ CGT ABSENTE - CIBLE PRIORITAIRE pour implantation');
+              } else {
+                analyses.push('ℹ️ CGT non implantée');
+              }
+            }
+
+            // Analyse invitation PAP
+            if (e.invitations_pap && e.invitations_pap.length > 0) {
+              analyses.push('📬 Invitation(s) PAP reçue(s) (' + e.invitations_pap.length + ')');
+            } else {
+              analyses.push('ℹ️ Pas d\'invitation PAP détectée');
+            }
+
+            // Analyse collèges
+            if (e.colleges && e.colleges.length > 3) {
+              analyses.push('🏢 Nombreux collèges (' + e.colleges.length + ') - Structure complexe');
+            } else if (e.colleges && e.colleges.length > 1) {
+              analyses.push('🏢 Pluralité de collèges (' + e.colleges.length + ')');
+            }
+
+            // Analyse concurrence
+            if (e.implantations_syndicales && e.implantations_syndicales.length >= 5) {
+              analyses.push('⚔️ Forte concurrence syndicale (' + e.implantations_syndicales.length + ' organisations)');
+            } else if (e.implantations_syndicales && e.implantations_syndicales.length >= 3) {
+              analyses.push('⚔️ Concurrence modérée (' + e.implantations_syndicales.length + ' organisations)');
+            }
+
+            // Analyse élection imminente
+            if (e.jours_restants !== null && e.jours_restants <= 30) {
+              analyses.push('🚨 ÉLECTION IMMINENTE (J-' + e.jours_restants + ') - Action urgente');
+            } else if (e.jours_restants !== null && e.jours_restants <= 90) {
+              analyses.push('⏰ Élection proche (J-' + e.jours_restants + ') - Préparer la campagne');
+            }
+
+            const analysesHtml = analyses.length > 0
+              ? `<div class="mt-2 pt-2 border-t border-gray-200">
+                  <div class="text-xs space-y-0.5 text-gray-700">
+                    ${analyses.map(a => `<div>${a}</div>`).join('')}
+                  </div>
+                </div>`
+              : '';
+
             return `
               <tr class="${rowBg} hover:bg-purple-50 transition">
                 <td class="px-4 py-3">
@@ -1433,6 +1509,7 @@ function genererTableauEntreprises(entreprises) {
                   <div class="text-xs text-gray-500 font-mono">${e.siret}</div>
                   <div class="text-xs text-gray-600 mt-0.5">${e.ville} (${e.departement})</div>
                   ${e.region && e.region !== 'Non renseignée' ? `<div class="text-xs text-gray-500">${e.region}</div>` : ''}
+                  ${analysesHtml}
                 </td>
                 <td class="px-3 py-3 text-center">
                   <div class="font-bold text-gray-900">${e.inscrits.toLocaleString()}</div>
