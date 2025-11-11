@@ -567,14 +567,27 @@ def _ensure_super_admin_exists():
             if existing_admin:
                 # Le super admin existe déjà
                 # S'assurer qu'il a bien le role admin et qu'il est approuvé
-                if existing_admin.role != "admin" or not existing_admin.is_approved:
+                updated = False
+
+                if existing_admin.role != "admin" or not existing_admin.is_approved or not existing_admin.is_active:
                     existing_admin.role = "admin"
                     existing_admin.is_approved = True
                     existing_admin.is_active = True
+                    updated = True
+                    logger.info(f"✅ Super admin {super_admin_email} - role et statut mis à jour")
+
+                # Mettre à jour le mot de passe si SUPER_ADMIN_PASSWORD est défini
+                if super_admin_password:
+                    existing_admin.hashed_password = hash_password(super_admin_password)
+                    updated = True
+                    logger.info(f"✅ Super admin {super_admin_email} - mot de passe mis à jour depuis SUPER_ADMIN_PASSWORD")
+
+                if updated:
                     session.commit()
-                    logger.info(f"✅ Super admin {super_admin_email} mis à jour avec le role admin")
+                    logger.info(f"🔄 Super admin {super_admin_email} mis à jour avec succès")
                 else:
-                    logger.info(f"✅ Super admin {super_admin_email} existe déjà")
+                    logger.info(f"✅ Super admin {super_admin_email} existe déjà et est à jour")
+
                 return
 
             # Générer un mot de passe aléatoire si non fourni
