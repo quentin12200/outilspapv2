@@ -3004,7 +3004,7 @@ def approve_user(
     # Approuver l'utilisateur
     user.is_approved = True
     user.approved_at = datetime.now()
-    user.approved_by = current_user
+    user.approved_by = current_user.email  # current_user est maintenant un objet User
     db.commit()
 
     return {
