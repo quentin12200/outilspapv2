@@ -207,6 +207,13 @@ SIRET_SUMMARY_NEW_COLUMNS = [
     ("nom_groupe_sbf120", "TEXT"),
 ]
 
+# Colonnes pour statistiques de connexion des utilisateurs
+USER_SESSION_TRACKING_COLUMNS = [
+    ("login_count", "INTEGER DEFAULT 0 NOT NULL"),
+    ("session_start", "DATETIME"),
+    ("total_session_duration", "INTEGER DEFAULT 0 NOT NULL"),
+]
+
 
 def column_exists(table_name: str, column_name: str) -> bool:
     """Vérifie si une colonne existe dans une table."""
@@ -280,6 +287,11 @@ def add_pv_events_columns_if_needed():
 def add_siret_summary_columns_if_needed():
     """Ajoute les nouvelles colonnes v1.0.0 à la table siret_summary."""
     add_columns_to_table("siret_summary", SIRET_SUMMARY_NEW_COLUMNS)
+
+
+def add_user_session_tracking_columns_if_needed():
+    """Ajoute les colonnes de suivi de session à la table users."""
+    add_columns_to_table("users", USER_SESSION_TRACKING_COLUMNS)
 
 
 def _normalize_raw_key(key: str) -> str:
@@ -530,6 +542,9 @@ def run_migrations():
 
         # Migration données invitations
         fill_invitation_columns_from_raw()
+
+        # Migration statistiques de connexion utilisateurs
+        add_user_session_tracking_columns_if_needed()
 
         logger.info("✅ Toutes les migrations ont été exécutées avec succès!")
     except Exception as e:

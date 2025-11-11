@@ -346,6 +346,12 @@
                 {% if user.last_login %}
                 · <i class="fas fa-sign-in-alt mr-1"></i>Dernière connexion: {{ user.last_login.strftime('%d/%m/%Y à %H:%M') }}
                 {% endif %}
+                {% if user.login_count and user.login_count > 0 %}
+                · <i class="fas fa-chart-line mr-1"></i>{{ user.login_count }} connexion{{ 's' if user.login_count > 1 else '' }}
+                {% endif %}
+                {% if user.total_session_duration and user.total_session_duration > 0 %}
+                · <i class="fas fa-clock mr-1"></i>Durée totale: {{ user.formatted_total_duration }}
+                {% endif %}
               </div>
             </div>
           </div>

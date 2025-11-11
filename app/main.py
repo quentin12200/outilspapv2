@@ -2810,6 +2810,12 @@ def user_login_post(
         # Créer le token de session
         session_token = create_user_session_token(user.id, user.email)
 
+        # Enregistrer les statistiques de connexion
+        user.last_login = datetime.now()
+        user.login_count = (user.login_count or 0) + 1
+        user.session_start = datetime.now()
+        db.commit()
+
         # Rediriger vers l'accueil avec le cookie de session
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
@@ -2844,8 +2850,26 @@ def user_login_post(
 
 
 @app.get("/logout")
-def user_logout():
+def user_logout(
+    request: Request,
+    db: Session = Depends(get_session)
+):
     """Déconnexion de l'utilisateur"""
+    # Enregistrer la durée de la session avant de déconnecter
+    try:
+        user = get_current_user_or_none(request, db)
+        if user and user.session_start:
+            # Calculer la durée de la session
+            session_duration = int((datetime.now() - user.session_start).total_seconds())
+            # Ajouter à la durée totale
+            user.total_session_duration = (user.total_session_duration or 0) + session_duration
+            # Réinitialiser session_start
+            user.session_start = None
+            db.commit()
+    except Exception as e:
+        # En cas d'erreur, continuer quand même la déconnexion
+        logger.error(f"Erreur lors de l'enregistrement de la durée de session: {e}")
+
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
     return response

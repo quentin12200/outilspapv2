@@ -447,6 +447,11 @@ class User(Base):
     approved_by = Column(String(255))  # Admin qui a approuvé
     last_login = Column(DateTime)  # Dernière connexion
 
+    # Statistiques de connexion
+    login_count = Column(Integer, default=0, nullable=False)  # Nombre total de connexions
+    session_start = Column(DateTime)  # Début de la session en cours
+    total_session_duration = Column(Integer, default=0, nullable=False)  # Durée totale en secondes
+
     # Métadonnées de la demande
     registration_reason = Column(Text)  # Raison de la demande d'accès
     registration_ip = Column(String(45))  # IP lors de l'inscription
@@ -455,6 +460,26 @@ class User(Base):
     def full_name(self) -> str:
         """Retourne le nom complet de l'utilisateur"""
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def current_session_duration(self) -> int:
+        """Calcule la durée de la session en cours en secondes"""
+        if self.session_start:
+            return int((datetime.now() - self.session_start).total_seconds())
+        return 0
+
+    @property
+    def formatted_total_duration(self) -> str:
+        """Retourne la durée totale formatée (ex: 2h 15min)"""
+        if not self.total_session_duration:
+            return "0 min"
+
+        hours = self.total_session_duration // 3600
+        minutes = (self.total_session_duration % 3600) // 60
+
+        if hours > 0:
+            return f"{hours}h {minutes}min"
+        return f"{minutes}min"
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, name={self.full_name}, is_approved={self.is_approved})>"
