@@ -32,10 +32,7 @@ vers son emplacement.
 ## 🔐 Vérification d’intégrité
 Pour vérifier que le fichier téléchargé n’a pas été altéré, comparez le SHA-256 :
 
-```bash
-sha256sum papcse.db
-# 36f5a979939849c7429d2ea3f06d376de3485dc645b59daf26b2be2eb866d6b8  papcse.db
-```
+
 
 👉 **Déploiement :** l’application calcule cette empreinte au démarrage si la variable
 `DB_SHA256` est renseignée. Par défaut, elle continue à fonctionner même si le hash ne
