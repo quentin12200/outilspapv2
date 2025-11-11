@@ -38,8 +38,6 @@ PUBLIC_ROUTES = {
     "/signup",
     "/login",
     "/logout",
-    "/admin/login",
-    "/admin/logout",
     "/static",
     "/mentions-legales"
 }

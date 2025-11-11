@@ -35,14 +35,6 @@ from .services.calcul_elus_cse import (
     ORGANISATIONS_LABELS
 )
 from .auth import ADMIN_API_KEY
-from .admin_auth import (
-    get_current_admin_user,
-    verify_credentials,
-    create_session_token,
-    SESSION_COOKIE_NAME,
-    SESSION_MAX_AGE,
-    AdminAuthException
-)
 from .user_auth import (
     hash_password,
     verify_password,
@@ -53,6 +45,7 @@ from .user_auth import (
     create_user_session_token,
     get_current_user_or_none,
     get_current_user,
+    require_admin_user,
     is_admin_user,
     is_public_route,
     USER_SESSION_COOKIE_NAME,
@@ -332,13 +325,6 @@ from .routers import api_chatbot  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
-# Gestionnaire d'exceptions pour l'authentification admin
-@app.exception_handler(AdminAuthException)
-async def admin_auth_exception_handler(request: Request, exc: AdminAuthException):
-    """Redirige vers la page de login quand l'authentification admin échoue"""
-    return RedirectResponse(url=exc.redirect_url, status_code=303)
-
-
 # Gestionnaire d'exceptions pour l'authentification utilisateur
 @app.exception_handler(UserAuthException)
 async def user_auth_exception_handler(request: Request, exc: UserAuthException):
@@ -459,53 +445,40 @@ def _check_and_fix_schema():
     from sqlalchemy import inspect, text
 
     try:
-        print("🔍 [STARTUP] Creating inspector...")
+        logger.debug("Creating database inspector...")
         inspector = inspect(engine)
 
-        print("🔍 [STARTUP] Checking if table exists...")
+        logger.debug("Checking if siret_summary table exists...")
         if not inspector.has_table('siret_summary'):
-            msg = "✓ Table siret_summary does not exist yet, will be created by create_all"
-            print(msg)
-            logger.info(msg)
+            logger.info("✓ Table siret_summary does not exist yet, will be created by create_all")
             return
 
-        print("🔍 [STARTUP] Getting existing columns...")
+        logger.debug("Getting existing columns from siret_summary...")
         existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
-        print(f"🔍 [STARTUP] Found {len(existing_columns)} existing columns")
+        logger.debug(f"Found {len(existing_columns)} existing columns")
 
-        print("🔍 [STARTUP] Getting required columns...")
+        logger.debug("Getting required columns from model...")
         required_columns = {col.name for col in SiretSummary.__table__.columns}
-        print(f"🔍 [STARTUP] Need {len(required_columns)} required columns")
+        logger.debug(f"Need {len(required_columns)} required columns")
 
         missing = required_columns - existing_columns
         if not missing:
-            msg = "✓ siret_summary schema is up to date"
-            print(msg)
-            logger.info(msg)
+            logger.info("✓ siret_summary schema is up to date")
             return
 
         # Schema mismatch - on doit recréer la table
-        msg = f"⚠️  Schema mismatch: siret_summary is missing {len(missing)} columns: {', '.join(sorted(missing)[:10])}"
-        print(msg)
-        logger.warning(msg)
-
-        msg = "🔧 Dropping and recreating siret_summary table..."
-        print(msg)
-        logger.info(msg)
+        logger.warning(f"⚠️  Schema mismatch: siret_summary is missing {len(missing)} columns: {', '.join(sorted(missing)[:10])}")
+        logger.info("🔧 Dropping and recreating siret_summary table...")
 
         # Utiliser une connexion raw pour le DROP
-        print("🔍 [STARTUP] Executing DROP TABLE...")
+        logger.debug("Executing DROP TABLE...")
         with engine.connect() as conn:
             conn.execute(text("DROP TABLE IF EXISTS siret_summary"))
             conn.commit()
 
-        msg = "✓ Old table dropped, will be recreated by create_all"
-        print(msg)
-        logger.info(msg)
+        logger.info("✓ Old table dropped, will be recreated by create_all")
     except Exception as e:
-        msg = f"❌ ERROR in _check_and_fix_schema: {e}"
-        print(msg)
-        logger.exception(msg)
+        logger.exception(f"❌ ERROR in _check_and_fix_schema: {e}")
         raise
 
 @app.on_event("startup")
@@ -2654,61 +2627,6 @@ def cartographie_page(request: Request, db: Session = Depends(get_session)):
 
 
 # =========================================================
-# Routes d'authentification admin
-# =========================================================
-
-@app.get("/admin/login", response_class=HTMLResponse)
-def admin_login_page(request: Request):
-    """Page de connexion à l'espace admin"""
-    return templates.TemplateResponse(
-        "admin_login.html",
-        {
-            "request": request,
-            "error": None,
-            "login_value": ""
-        }
-    )
-
-
-@app.post("/admin/login", response_class=HTMLResponse)
-def admin_login_post(request: Request, login: str = Form(...), password: str = Form(...)):
-    """Traitement de la connexion admin"""
-    if verify_credentials(login, password):
-        # Créer le token de session
-        session_token = create_session_token(login)
-
-        # Rediriger vers l'admin avec le cookie de session
-        response = RedirectResponse(url="/admin", status_code=303)
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=session_token,
-            max_age=SESSION_MAX_AGE,
-            httponly=True,
-            samesite="lax"
-        )
-        return response
-    else:
-        # Identifiants incorrects
-        return templates.TemplateResponse(
-            "admin_login.html",
-            {
-                "request": request,
-                "error": "Identifiant ou mot de passe incorrect",
-                "login_value": login
-            },
-            status_code=401
-        )
-
-
-@app.get("/admin/logout")
-def admin_logout():
-    """Déconnexion de l'espace admin"""
-    response = RedirectResponse(url="/admin/login", status_code=303)
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
-    return response
-
-
-# =========================================================
 # Routes d'authentification utilisateur (signup/login)
 # =========================================================
 
@@ -3048,7 +2966,7 @@ def admin_page(
 def approve_user(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Approuver une demande d'inscription utilisateur"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3075,7 +2993,7 @@ def approve_user(
 def reject_user(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Rejeter une demande d'inscription utilisateur (suppression)"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3100,7 +3018,7 @@ def reject_user(
 def deactivate_user(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Désactiver un compte utilisateur"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3121,7 +3039,7 @@ def deactivate_user(
 def activate_user(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Réactiver un compte utilisateur"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3142,7 +3060,7 @@ def activate_user(
 def make_user_admin(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Promouvoir un utilisateur au rôle admin"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3166,7 +3084,7 @@ def make_user_admin(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Supprimer un utilisateur définitivement"""
     user = db.query(User).filter(User.id == user_id).first()
@@ -3196,7 +3114,7 @@ def delete_user(
 def admin_diagnostics(
     request: Request,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Page de diagnostic des doublons d'invitations"""
 
@@ -3274,7 +3192,7 @@ def admin_diagnostics(
 @app.post("/admin/diagnostics/remove-duplicates")
 def remove_duplicates(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Supprime les doublons d'invitations (garde le plus récent par SIRET)"""
 
@@ -3303,7 +3221,7 @@ def remove_duplicates(
 @app.post("/admin/diagnostics/migrate-columns")
 def migrate_columns(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Remplit les colonnes structurées depuis le champ raw"""
 
@@ -3433,7 +3351,7 @@ def migrate_columns(
 @app.get("/admin/clean-nan", response_class=HTMLResponse)
 def clean_nan_page(
     request: Request,
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Page simple pour exécuter le nettoyage des valeurs 'nan'"""
     html = """
@@ -3592,7 +3510,7 @@ def clean_nan_page(
 @app.post("/admin/clean-nan/execute")
 def clean_nan_values(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """
     Nettoie toutes les valeurs 'nan' dans les tables et les convertit en NULL.
