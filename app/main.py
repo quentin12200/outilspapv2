@@ -810,50 +810,12 @@ def test_kpi(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(
-    request: Request,
-    db: Session = Depends(get_session)
-):
+def index(request: Request):
     """
-    Simplified dashboard homepage showing only KPIs and top departments.
-    Detailed data viewing is now on dedicated pages (/invitations, /calendrier, etc.)
+    Page d'accueil publique - Plateforme interne
     """
-
-    # Get top 10 departments by invitation count
-    latest_inv_subq = (
-        db.query(
-            Invitation.siret.label("siret"),
-            func.max(Invitation.date_invit).label("latest_date"),
-        )
-        .group_by(Invitation.siret)
-        .subquery()
-    )
-
-    top_departments_query = (
-        db.query(
-            SiretSummary.dep.label("dep"),
-            func.count(SiretSummary.siret).label("count"),
-        )
-        .join(
-            latest_inv_subq,
-            latest_inv_subq.c.siret == SiretSummary.siret,
-        )
-        .filter(SiretSummary.dep.isnot(None))
-        .group_by(SiretSummary.dep)
-        .order_by(func.count(SiretSummary.siret).desc())
-        .limit(10)
-        .all()
-    )
-
-    top_departments = [
-        {"dep": dep or "Non renseigné", "count": count}
-        for dep, count in top_departments_query
-    ]
-
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "top_departments": top_departments,
-        "admin_api_key": ADMIN_API_KEY,
     })
 
 
@@ -2993,6 +2955,9 @@ def admin_page(
     # Récupérer les demandes en attente
     pending_user_requests = db.query(User).filter(User.is_approved == False).order_by(User.created_at.desc()).all()
 
+    # Récupérer tous les utilisateurs pour la section de gestion
+    all_users = db.query(User).order_by(User.created_at.desc()).all()
+
     last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
     last_invitation_date = db.query(func.max(Invitation.date_invit)).scalar()
 
@@ -3069,6 +3034,7 @@ def admin_page(
             "pending_users": pending_users,
             "approved_users": approved_users,
             "pending_user_requests": pending_user_requests,
+            "all_users": all_users,
         },
     )
 
@@ -3168,6 +3134,60 @@ def activate_user(
     return {
         "success": True,
         "message": f"Compte de {user.full_name} ({user.email}) réactivé"
+    }
+
+
+@app.post("/admin/users/{user_id}/make-admin")
+def make_user_admin(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Promouvoir un utilisateur au rôle admin"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.role == "admin":
+        return {"success": False, "error": "Cet utilisateur est déjà administrateur"}
+
+    user.role = "admin"
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"{user.full_name} ({user.email}) est maintenant administrateur"
+    }
+
+
+@app.post("/admin/users/{user_id}/delete")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Supprimer un utilisateur définitivement"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.role == "admin":
+        # Compter le nombre d'admins
+        admin_count = db.query(func.count(User.id)).filter(User.role == "admin").scalar()
+        if admin_count <= 1:
+            return {"success": False, "error": "Impossible de supprimer le dernier administrateur"}
+
+    name = user.full_name
+    email = user.email
+
+    db.delete(user)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Utilisateur {name} ({email}) supprimé définitivement"
     }
 
 

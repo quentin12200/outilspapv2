@@ -217,6 +217,187 @@
 </section>
 {% endif %}
 
+<!-- Section complète Gestion des utilisateurs -->
+<section id="users-section" class="mb-10">
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+          <i class="fas fa-users text-indigo-500 mr-3"></i>
+          Gestion des utilisateurs
+        </h2>
+        <p class="text-sm text-gray-600 mt-1">
+          {{ total_users }} utilisateur{{ 's' if total_users > 1 else '' }} ·
+          {{ approved_users }} approuvé{{ 's' if approved_users > 1 else '' }} ·
+          {{ pending_users }} en attente
+        </p>
+      </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="mb-6 flex flex-col md:flex-row gap-4">
+      <div class="flex-1">
+        <div class="relative">
+          <input
+            type="text"
+            id="user-search"
+            placeholder="Rechercher par nom, email, organisation..."
+            class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            onkeyup="filterUsers()"
+          >
+          <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="filterByStatus('all')" class="filter-btn active px-4 py-2 rounded-lg font-medium transition" data-status="all">
+          Tous
+        </button>
+        <button onclick="filterByStatus('approved')" class="filter-btn px-4 py-2 rounded-lg font-medium transition" data-status="approved">
+          Approuvés
+        </button>
+        <button onclick="filterByStatus('pending')" class="filter-btn px-4 py-2 rounded-lg font-medium transition" data-status="pending">
+          En attente
+        </button>
+        <button onclick="filterByStatus('admin')" class="filter-btn px-4 py-2 rounded-lg font-medium transition" data-status="admin">
+          Admins
+        </button>
+      </div>
+    </div>
+
+    <!-- Liste des utilisateurs -->
+    <div class="space-y-3" id="users-list">
+      {% for user in all_users %}
+      <div class="user-item bg-gray-50 rounded-lg p-5 hover:bg-gray-100 transition"
+           data-status="{{ 'admin' if user.role == 'admin' else ('approved' if user.is_approved else 'pending') }}"
+           data-search="{{ user.first_name|lower }} {{ user.last_name|lower }} {{ user.email|lower }} {{ user.organization|lower if user.organization else '' }}">
+
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+
+          <!-- Informations utilisateur -->
+          <div class="flex-1 flex items-start space-x-4">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 bg-gradient-to-br {{ 'from-purple-500 to-indigo-600' if user.role == 'admin' else 'from-cgt-red to-cgt-darkred' }} text-white rounded-full flex items-center justify-center text-lg font-bold">
+                {{ user.first_name[0] }}{{ user.last_name[0] }}
+              </div>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <!-- Nom et badges -->
+              <div class="flex items-center space-x-2 mb-2 flex-wrap">
+                <h3 class="text-lg font-semibold text-gray-800">
+                  {{ user.first_name }} {{ user.last_name }}
+                </h3>
+
+                {% if user.role == "admin" %}
+                <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-xs font-bold rounded">
+                  <i class="fas fa-crown mr-1"></i>ADMIN
+                </span>
+                {% endif %}
+
+                {% if user.is_approved %}
+                <span class="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  <i class="fas fa-check-circle mr-1"></i>Approuvé
+                </span>
+                {% else %}
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
+                  <i class="fas fa-clock mr-1"></i>En attente
+                </span>
+                {% endif %}
+
+                {% if not user.is_active %}
+                <span class="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs font-medium rounded">
+                  <i class="fas fa-ban mr-1"></i>Désactivé
+                </span>
+                {% endif %}
+              </div>
+
+              <!-- Coordonnées -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                <div class="flex items-center space-x-2">
+                  <i class="fas fa-envelope text-gray-400"></i>
+                  <a href="mailto:{{ user.email }}" class="text-indigo-600 hover:underline truncate">{{ user.email }}</a>
+                </div>
+
+                {% if user.organization %}
+                <div class="flex items-center space-x-2">
+                  <i class="fas fa-building text-gray-400"></i>
+                  <span class="truncate">{{ user.organization }}</span>
+                </div>
+                {% endif %}
+
+                {% if user.phone %}
+                <div class="flex items-center space-x-2">
+                  <i class="fas fa-phone text-gray-400"></i>
+                  <span>{{ user.phone }}</span>
+                </div>
+                {% endif %}
+
+                {% if user.responsibility %}
+                <div class="flex items-center space-x-2">
+                  <i class="fas fa-user-tie text-gray-400"></i>
+                  <span class="truncate">{{ user.responsibility }}</span>
+                </div>
+                {% endif %}
+              </div>
+
+              <!-- Métadonnées -->
+              <div class="mt-2 text-xs text-gray-500">
+                <i class="fas fa-calendar mr-1"></i>Inscrit le {{ user.created_at.strftime('%d/%m/%Y') }}
+                {% if user.last_login %}
+                · <i class="fas fa-sign-in-alt mr-1"></i>Dernière connexion: {{ user.last_login.strftime('%d/%m/%Y à %H:%M') }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex flex-wrap gap-2 lg:flex-col lg:min-w-[180px]">
+            {% if not user.is_approved %}
+            <button onclick="approveUser({{ user.id }})" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center space-x-1 flex-1 lg:flex-initial">
+              <i class="fas fa-check text-xs"></i>
+              <span>Approuver</span>
+            </button>
+            {% endif %}
+
+            {% if user.is_active %}
+            <button onclick="deactivateUser({{ user.id }})" class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center space-x-1 flex-1 lg:flex-initial">
+              <i class="fas fa-ban text-xs"></i>
+              <span>Désactiver</span>
+            </button>
+            {% else %}
+            <button onclick="reactivateUser({{ user.id }})" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center space-x-1 flex-1 lg:flex-initial">
+              <i class="fas fa-check-circle text-xs"></i>
+              <span>Réactiver</span>
+            </button>
+            {% endif %}
+
+            {% if user.role != "admin" %}
+            <button onclick="makeAdmin({{ user.id }})" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center space-x-1 flex-1 lg:flex-initial">
+              <i class="fas fa-crown text-xs"></i>
+              <span>Promouvoir</span>
+            </button>
+            {% endif %}
+
+            <button onclick="deleteUser({{ user.id }})" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center space-x-1 flex-1 lg:flex-initial">
+              <i class="fas fa-trash text-xs"></i>
+              <span>Supprimer</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if total_users == 0 %}
+    <div class="text-center py-12 text-gray-500">
+      <i class="fas fa-users text-4xl mb-3"></i>
+      <p>Aucun utilisateur pour le moment</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
 <!-- Quick actions -->
 <section class="mb-10">
   <h2 class="text-2xl font-bold text-gray-800 mb-4">Raccourcis & nouvelles fonctionnalités</h2>
@@ -251,6 +432,14 @@
         <p class="text-xs text-gray-500">Détection & nettoyage des invitations importées plusieurs fois</p>
       </div>
       <i class="fas fa-stethoscope text-red-500 text-xl"></i>
+    </a>
+
+    <a href="#users-section" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-indigo-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Gestion des utilisateurs</p>
+        <p class="text-xs text-gray-500">Voir et gérer tous les comptes utilisateurs</p>
+      </div>
+      <i class="fas fa-users text-indigo-500 text-xl"></i>
     </a>
 
     {% if current_user and current_user.role == "admin" %}
@@ -2222,6 +2411,197 @@ async function rejectUser(userId) {
     showToast('Erreur lors du rejet', 'error');
   }
 }
+
+//============================================================
+// Nouvelles fonctions de gestion des utilisateurs
+// =========================================================
+
+async function deactivateUser(userId) {
+  if (!confirm('Êtes-vous sûr de vouloir désactiver ce compte utilisateur ?')) {
+    return;
+  }
+
+  try {
+    showLoading();
+    const response = await fetch(`/admin/users/${userId}/deactivate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    hideLoading();
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(data.error || 'Erreur lors de la désactivation', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    console.error('Erreur:', error);
+    showToast('Erreur lors de la désactivation', 'error');
+  }
+}
+
+async function reactivateUser(userId) {
+  if (!confirm('Êtes-vous sûr de vouloir réactiver ce compte utilisateur ?')) {
+    return;
+  }
+
+  try {
+    showLoading();
+    const response = await fetch(`/admin/users/${userId}/activate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    hideLoading();
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(data.error || 'Erreur lors de la réactivation', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    console.error('Erreur:', error);
+    showToast('Erreur lors de la réactivation', 'error');
+  }
+}
+
+async function makeAdmin(userId) {
+  if (!confirm('Êtes-vous sûr de vouloir promouvoir cet utilisateur au rôle d\'administrateur ?')) {
+    return;
+  }
+
+  try {
+    showLoading();
+    const response = await fetch(`/admin/users/${userId}/make-admin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    hideLoading();
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(data.error || 'Erreur lors de la promotion', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    console.error('Erreur:', error);
+    showToast('Erreur lors de la promotion', 'error');
+  }
+}
+
+async function deleteUser(userId) {
+  if (!confirm('⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ? Cette action est IRRÉVERSIBLE.')) {
+    return;
+  }
+
+  try {
+    showLoading();
+    const response = await fetch(`/admin/users/${userId}/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    hideLoading();
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(data.error || 'Erreur lors de la suppression', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    console.error('Erreur:', error);
+    showToast('Erreur lors de la suppression', 'error');
+  }
+}
+
+// =========================================================
+// Filtrage et recherche des utilisateurs
+// =========================================================
+
+let currentFilter = 'all';
+
+function filterByStatus(status) {
+  currentFilter = status;
+
+  // Mettre à jour les boutons actifs
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.remove('active', 'bg-indigo-600', 'text-white');
+    btn.classList.add('bg-gray-200', 'text-gray-700');
+  });
+
+  const activeBtn = document.querySelector(`.filter-btn[data-status="${status}"]`);
+  if (activeBtn) {
+    activeBtn.classList.add('active', 'bg-indigo-600', 'text-white');
+    activeBtn.classList.remove('bg-gray-200', 'text-gray-700');
+  }
+
+  // Filtrer les utilisateurs
+  applyFilters();
+}
+
+function filterUsers() {
+  applyFilters();
+}
+
+function applyFilters() {
+  const searchText = document.getElementById('user-search').value.toLowerCase();
+  const userItems = document.querySelectorAll('.user-item');
+
+  userItems.forEach(item => {
+    const itemStatus = item.getAttribute('data-status');
+    const itemSearch = item.getAttribute('data-search');
+
+    // Vérifier le filtre de statut
+    const statusMatch = currentFilter === 'all' || itemStatus === currentFilter;
+
+    // Vérifier la recherche
+    const searchMatch = !searchText || itemSearch.includes(searchText);
+
+    // Afficher ou masquer
+    if (statusMatch && searchMatch) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+// Initialiser les styles des boutons de filtrage
+document.addEventListener('DOMContentLoaded', function() {
+  // Activer le bouton "Tous" par défaut
+  const allBtn = document.querySelector('.filter-btn[data-status="all"]');
+  if (allBtn) {
+    allBtn.classList.add('bg-indigo-600', 'text-white');
+    allBtn.classList.remove('bg-gray-200', 'text-gray-700');
+  }
+
+  // Initialiser les autres boutons
+  document.querySelectorAll('.filter-btn:not(.active)').forEach(btn => {
+    btn.classList.add('bg-gray-200', 'text-gray-700');
+  });
+});
 </script>
 
 {% endblock %}
