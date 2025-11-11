@@ -544,6 +544,81 @@ def on_startup():
     except Exception:  # pragma: no cover - protection démarrage
         logger.exception("Unable to rebuild siret_summary at startup")
 
+    # Créer le compte super admin si il n'existe pas
+    _ensure_super_admin_exists()
+
+
+def _ensure_super_admin_exists():
+    """
+    Crée automatiquement le compte super admin au démarrage si il n'existe pas.
+
+    L'email du super admin est défini par SUPER_ADMIN_EMAIL (défaut: leyrat.quentin@gmail.com).
+    Le mot de passe initial est défini par SUPER_ADMIN_PASSWORD (défaut: généré aléatoirement).
+    """
+    super_admin_email = os.getenv("SUPER_ADMIN_EMAIL", "leyrat.quentin@gmail.com")
+    super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
+
+    try:
+        with SessionLocal() as session:
+            # Vérifier si le super admin existe déjà
+            existing_admin = session.query(User).filter(User.email == super_admin_email).first()
+
+            if existing_admin:
+                # Le super admin existe déjà
+                # S'assurer qu'il a bien le role admin et qu'il est approuvé
+                if existing_admin.role != "admin" or not existing_admin.is_approved:
+                    existing_admin.role = "admin"
+                    existing_admin.is_approved = True
+                    existing_admin.is_active = True
+                    session.commit()
+                    logger.info(f"✅ Super admin {super_admin_email} mis à jour avec le role admin")
+                else:
+                    logger.info(f"✅ Super admin {super_admin_email} existe déjà")
+                return
+
+            # Générer un mot de passe aléatoire si non fourni
+            if not super_admin_password:
+                import string
+                import random
+                # Générer un mot de passe sécurisé de 16 caractères
+                chars = string.ascii_letters + string.digits + "!@#$%^&*"
+                super_admin_password = ''.join(random.choice(chars) for _ in range(16))
+                logger.warning(
+                    f"⚠️  Mot de passe super admin généré automatiquement: {super_admin_password}\n"
+                    f"    Définissez SUPER_ADMIN_PASSWORD dans les variables d'environnement pour un mot de passe personnalisé."
+                )
+
+            # Créer le super admin
+            super_admin = User(
+                email=super_admin_email,
+                hashed_password=hash_password(super_admin_password),
+                first_name="Quentin",
+                last_name="Leyrat",
+                phone=None,
+                organization="CGT",
+                fd=None,
+                ud=None,
+                region=None,
+                responsibility="Super Administrateur",
+                registration_reason="Compte super admin créé automatiquement",
+                registration_ip="127.0.0.1",
+                is_approved=True,  # Automatiquement approuvé
+                is_active=True,
+                role="admin"  # Role admin
+            )
+
+            session.add(super_admin)
+            session.commit()
+
+            logger.info(f"🎉 Super admin créé avec succès : {super_admin_email}")
+            if not os.getenv("SUPER_ADMIN_PASSWORD"):
+                logger.warning(f"    Mot de passe: {super_admin_password}")
+                logger.warning(f"    ⚠️  IMPORTANT : Changez ce mot de passe après la première connexion !")
+
+    except Exception as e:
+        logger.exception(f"❌ Erreur lors de la création du super admin: {e}")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
