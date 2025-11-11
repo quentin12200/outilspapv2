@@ -2,6 +2,126 @@
 {% block title %}Accueil — Plateforme interne{% endblock %}
 
 {% block content %}
+{% if current_user %}
+<!-- Menu pour utilisateurs connectés -->
+<div class="max-w-4xl mx-auto">
+  <div class="mb-8 text-center">
+    <h1 class="text-4xl font-bold text-gray-900 mb-3">
+      Bienvenue, {{ current_user.first_name }} !
+    </h1>
+    <p class="text-gray-600">
+      Plateforme de gestion PAP/CSE
+    </p>
+  </div>
+
+  <!-- Menu principal -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    <a href="/stats" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-chart-line text-2xl text-purple-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Statistiques</h3>
+      <p class="text-sm text-gray-600">Tableaux de bord et analyses</p>
+    </a>
+
+    <a href="/invitations" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-envelope-open-text text-2xl text-blue-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Invitations PAP</h3>
+      <p class="text-sm text-gray-600">Liste complète des invitations</p>
+    </a>
+
+    <a href="/calendrier" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-calendar-alt text-2xl text-green-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Calendrier +1000</h3>
+      <p class="text-sm text-gray-600">Prochaines élections</p>
+    </a>
+
+    <a href="/cartographie" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-map text-2xl text-indigo-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Cartographie</h3>
+      <p class="text-sm text-gray-600">Carte de France interactive</p>
+    </a>
+
+    <a href="/ciblage" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-crosshairs text-2xl text-orange-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Ciblage</h3>
+      <p class="text-sm text-gray-600">Analyse de la cible prioritaire</p>
+    </a>
+
+    <a href="/recherche-siret" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Ajout PAP</h3>
+      <p class="text-sm text-gray-600">Ajouter une invitation</p>
+    </a>
+
+    {% if current_user.role == "admin" %}
+    <a href="/admin" class="bg-gradient-to-br from-cgt-red to-cgt-darkred text-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-cog text-2xl text-white"></i>
+        </div>
+        <i class="fas fa-arrow-right text-white/70"></i>
+      </div>
+      <h3 class="text-lg font-bold mb-2">Administration</h3>
+      <p class="text-sm text-white/80">Gestion de la plateforme</p>
+    </a>
+    {% endif %}
+
+    <a href="/presentation" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-bullseye text-2xl text-pink-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Présentation</h3>
+      <p class="text-sm text-gray-600">Présentation cible PAP</p>
+    </a>
+
+    <a href="/extraction" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+          <i class="fas fa-scan text-2xl text-yellow-600"></i>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">Scanner PAP</h3>
+      <p class="text-sm text-gray-600">Extraction de données</p>
+    </a>
+  </div>
+</div>
+
+{% else %}
+<!-- Page publique pour visiteurs non connectés -->
 <div class="flex items-center justify-center min-h-[70vh]">
   <div class="text-center">
     <div class="mb-8">
@@ -25,4 +145,5 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}
