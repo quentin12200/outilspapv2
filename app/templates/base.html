@@ -197,6 +197,18 @@
             <i class="fas fa-calendar-check"></i>
             <span>Calendrier +1000</span>
           </a>
+
+          <!-- Boutons connexion/inscription -->
+          <div class="flex items-center space-x-2 border-l border-white/30 pl-4">
+            <a href="/login" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+              <i class="fas fa-sign-in-alt"></i>
+              <span>Connexion</span>
+            </a>
+            <a href="/signup" class="px-4 py-2 rounded-lg bg-cgt-green hover:bg-green-700 text-white font-semibold shadow transition flex items-center space-x-2">
+              <i class="fas fa-user-plus"></i>
+              <span>Inscription</span>
+            </a>
+          </div>
         </div>
 
         <!-- Mobile menu button -->
@@ -277,6 +289,16 @@
         <a href="/calendrier" class="block px-3 py-3 mt-2 rounded-md bg-white text-cgt-red font-semibold shadow hover:bg-gray-100 transition" @click="mobileMenuOpen = false">
           <i class="fas fa-calendar-check mr-2"></i> Calendrier +1000
         </a>
+
+        <!-- Boutons connexion/inscription mobile -->
+        <div class="mt-4 pt-4 border-t border-white/20 space-y-2">
+          <a href="/login" class="block px-3 py-3 rounded-md bg-white/10 text-white font-medium hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+            <i class="fas fa-sign-in-alt mr-2"></i> Connexion
+          </a>
+          <a href="/signup" class="block px-3 py-3 rounded-md bg-cgt-green text-white font-semibold hover:bg-green-700 transition shadow" @click="mobileMenuOpen = false">
+            <i class="fas fa-user-plus mr-2"></i> Inscription
+          </a>
+        </div>
       </div>
     </div>
   </nav>
