@@ -43,6 +43,19 @@ from .admin_auth import (
     SESSION_MAX_AGE,
     AdminAuthException
 )
+from .user_auth import (
+    hash_password,
+    verify_password,
+    validate_email,
+    validate_password_strength,
+    authenticate_user,
+    get_client_ip,
+    create_user_session_token,
+    USER_SESSION_COOKIE_NAME,
+    USER_SESSION_MAX_AGE,
+    UserAuthException
+)
+from .models import User
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -2555,6 +2568,231 @@ def admin_logout():
 
 
 # =========================================================
+# Routes d'authentification utilisateur (signup/login)
+# =========================================================
+
+@app.get("/signup", response_class=HTMLResponse)
+def signup_page(request: Request):
+    """Page d'inscription pour les nouveaux utilisateurs"""
+    return templates.TemplateResponse(
+        "signup.html",
+        {
+            "request": request,
+            "error": None,
+            "success": False,
+            "form_data": {}
+        }
+    )
+
+
+@app.post("/signup", response_class=HTMLResponse)
+def signup_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    phone: str = Form(""),
+    organization: str = Form(""),
+    fd: str = Form(""),
+    ud: str = Form(""),
+    region: str = Form(""),
+    responsibility: str = Form(""),
+    registration_reason: str = Form("")
+):
+    """Traitement de l'inscription d'un nouvel utilisateur"""
+
+    # Conserver les données du formulaire pour les réafficher en cas d'erreur
+    form_data = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "phone": phone,
+        "organization": organization,
+        "fd": fd,
+        "ud": ud,
+        "region": region,
+        "responsibility": responsibility,
+        "registration_reason": registration_reason
+    }
+
+    # Validation de l'email
+    if not validate_email(email):
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Adresse email invalide",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Vérifier si l'email existe déjà
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Cette adresse email est déjà utilisée",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Vérifier que les mots de passe correspondent
+    if password != password_confirm:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Les mots de passe ne correspondent pas",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Valider la force du mot de passe
+    is_valid, error_message = validate_password_strength(password)
+    if not is_valid:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": error_message,
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Créer le nouvel utilisateur
+    try:
+        new_user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone or None,
+            organization=organization or None,
+            fd=fd or None,
+            ud=ud or None,
+            region=region or None,
+            responsibility=responsibility or None,
+            registration_reason=registration_reason or None,
+            registration_ip=get_client_ip(request),
+            is_approved=False,  # Nécessite l'approbation d'un admin
+            is_active=True,
+            role="user"
+        )
+
+        db.add(new_user)
+        db.commit()
+
+        # Afficher le message de succès
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": None,
+                "success": True,
+                "form_data": {}
+            }
+        )
+
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Erreur lors de l'inscription: {e}")
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Une erreur est survenue lors de l'inscription. Veuillez réessayer.",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=500
+        )
+
+
+@app.get("/login", response_class=HTMLResponse)
+def user_login_page(request: Request):
+    """Page de connexion pour les utilisateurs"""
+    return templates.TemplateResponse(
+        "user_login.html",
+        {
+            "request": request,
+            "error": None,
+            "info": None,
+            "email_value": ""
+        }
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+def user_login_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    email: str = Form(...),
+    password: str = Form(...)
+):
+    """Traitement de la connexion utilisateur"""
+
+    # Tenter l'authentification
+    user = authenticate_user(db, email, password)
+
+    if user:
+        # Créer le token de session
+        session_token = create_user_session_token(user.id, user.email)
+
+        # Rediriger vers l'accueil avec le cookie de session
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie(
+            key=USER_SESSION_COOKIE_NAME,
+            value=session_token,
+            max_age=USER_SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        return response
+    else:
+        # Vérifier si l'utilisateur existe mais n'est pas approuvé
+        user_exists = db.query(User).filter(User.email == email).first()
+
+        if user_exists and not user_exists.is_approved:
+            error_message = "Votre compte est en attente d'approbation par un administrateur"
+        elif user_exists and not user_exists.is_active:
+            error_message = "Votre compte a été désactivé. Contactez un administrateur."
+        else:
+            error_message = "Email ou mot de passe incorrect"
+
+        return templates.TemplateResponse(
+            "user_login.html",
+            {
+                "request": request,
+                "error": error_message,
+                "info": None,
+                "email_value": email
+            },
+            status_code=401
+        )
+
+
+@app.get("/logout")
+def user_logout():
+    """Déconnexion de l'utilisateur"""
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
+    return response
+
+
+# =========================================================
 # Routes admin (protégées par authentification)
 # =========================================================
 
@@ -2568,6 +2806,14 @@ def admin_page(
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
     total_summary = db.query(func.count(SiretSummary.siret)).scalar() or 0
     total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
+
+    # Statistiques utilisateurs
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    pending_users = db.query(func.count(User.id)).filter(User.is_approved == False).scalar() or 0
+    approved_users = db.query(func.count(User.id)).filter(User.is_approved == True).scalar() or 0
+
+    # Récupérer les demandes en attente
+    pending_user_requests = db.query(User).filter(User.is_approved == False).order_by(User.created_at.desc()).all()
 
     last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
     last_invitation_date = db.query(func.max(Invitation.date_invit)).scalar()
@@ -2641,8 +2887,111 @@ def admin_page(
             "upcoming_preview": upcoming_preview,
             "upcoming_threshold": 1000,
             "admin_api_key": ADMIN_API_KEY,
+            "total_users": total_users,
+            "pending_users": pending_users,
+            "approved_users": approved_users,
+            "pending_user_requests": pending_user_requests,
         },
     )
+
+
+# =========================================================
+# Routes API admin pour gestion des utilisateurs
+# =========================================================
+
+@app.post("/admin/users/{user_id}/approve")
+def approve_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Approuver une demande d'inscription utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.is_approved:
+        return {"success": False, "error": "Utilisateur déjà approuvé"}
+
+    # Approuver l'utilisateur
+    user.is_approved = True
+    user.approved_at = datetime.now()
+    user.approved_by = current_user
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Utilisateur {user.full_name} ({user.email}) approuvé avec succès"
+    }
+
+
+@app.post("/admin/users/{user_id}/reject")
+def reject_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Rejeter une demande d'inscription utilisateur (suppression)"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    email = user.email
+    name = user.full_name
+
+    # Supprimer l'utilisateur
+    db.delete(user)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Demande de {name} ({email}) rejetée et supprimée"
+    }
+
+
+@app.post("/admin/users/{user_id}/deactivate")
+def deactivate_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Désactiver un compte utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    user.is_active = False
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Compte de {user.full_name} ({user.email}) désactivé"
+    }
+
+
+@app.post("/admin/users/{user_id}/activate")
+def activate_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: str = Depends(get_current_admin_user)
+):
+    """Réactiver un compte utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    user.is_active = True
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Compte de {user.full_name} ({user.email}) réactivé"
+    }
+
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
 def admin_diagnostics(
