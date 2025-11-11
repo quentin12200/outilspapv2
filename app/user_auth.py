@@ -8,12 +8,13 @@ import secrets
 from datetime import datetime
 from typing import Optional
 from passlib.context import CryptContext
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, status, Depends
 from fastapi.responses import RedirectResponse
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sqlalchemy.orm import Session
 
 from .models import User
+from .db import get_session
 
 # Configuration du hachage de mots de passe avec bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -292,7 +293,7 @@ def get_current_user_or_none(request: Request, db: Session) -> Optional[User]:
         return None
 
 
-def require_admin_user(request: Request, db: Session) -> User:
+def require_admin_user(request: Request, db: Session = Depends(get_session)) -> User:
     """
     Vérifie que l'utilisateur connecté est un administrateur.
     Utilisé comme dépendance FastAPI pour protéger les routes admin.
@@ -307,8 +308,6 @@ def require_admin_user(request: Request, db: Session) -> User:
     Raises:
         HTTPException: Si l'utilisateur n'est pas admin
     """
-    from fastapi import HTTPException, status
-
     user = get_current_user(request, db)
 
     if user.role != "admin":
