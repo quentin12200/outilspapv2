@@ -52,6 +52,7 @@ from .user_auth import (
     get_client_ip,
     create_user_session_token,
     get_current_user_or_none,
+    get_current_user,
     is_admin_user,
     is_public_route,
     USER_SESSION_COOKIE_NAME,
@@ -2940,7 +2941,7 @@ def user_logout():
 def admin_page(
     request: Request,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_user)
 ):
     total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
