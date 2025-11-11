@@ -32,6 +32,18 @@ USER_SESSION_COOKIE_NAME = "user_session"
 USER_SESSION_MAX_AGE = int(os.getenv("USER_SESSION_MAX_AGE", 604800))
 
 
+# Routes publiques qui ne nécessitent pas d'authentification
+PUBLIC_ROUTES = {
+    "/signup",
+    "/login",
+    "/logout",
+    "/admin/login",
+    "/admin/logout",
+    "/static",
+    "/mentions-legales"
+}
+
+
 def hash_password(password: str) -> str:
     """
     Hash un mot de passe avec bcrypt.
@@ -278,3 +290,50 @@ def get_current_user_or_none(request: Request, db: Session) -> Optional[User]:
         return get_current_user(request, db)
     except UserAuthException:
         return None
+
+
+def is_public_route(path: str) -> bool:
+    """
+    Vérifie si une route est publique (accessible sans authentification utilisateur).
+
+    Les routes admin ont leur propre système d'authentification et ne sont pas
+    vérifiées par le middleware utilisateur.
+
+    Args:
+        path: Le chemin de la route
+
+    Returns:
+        True si la route est publique ou admin, False sinon
+    """
+    # Routes exactes
+    if path in PUBLIC_ROUTES:
+        return True
+
+    # Routes qui commencent par /static, /api, ou /admin (ont leur propre auth)
+    if path.startswith("/static/") or path.startswith("/api/") or path.startswith("/admin"):
+        return True
+
+    return False
+
+
+def require_user_auth(request: Request, db: Session) -> Optional[User]:
+    """
+    Middleware pour vérifier l'authentification utilisateur sur les routes protégées.
+    Redirige vers /login si l'utilisateur n'est pas connecté.
+
+    Args:
+        request: La requête FastAPI
+        db: Session SQLAlchemy
+
+    Returns:
+        L'utilisateur connecté ou None pour les routes publiques
+
+    Raises:
+        UserAuthException: Si l'utilisateur n'est pas connecté sur une route protégée
+    """
+    # Vérifier si la route est publique
+    if is_public_route(request.url.path):
+        return None
+
+    # Pour les routes protégées, vérifier l'authentification
+    return get_current_user(request, db)

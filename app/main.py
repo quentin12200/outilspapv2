@@ -51,6 +51,8 @@ from .user_auth import (
     authenticate_user,
     get_client_ip,
     create_user_session_token,
+    get_current_user_or_none,
+    is_public_route,
     USER_SESSION_COOKIE_NAME,
     USER_SESSION_MAX_AGE,
     UserAuthException
@@ -334,6 +336,62 @@ async def admin_auth_exception_handler(request: Request, exc: AdminAuthException
     """Redirige vers la page de login quand l'authentification admin échoue"""
     return RedirectResponse(url=exc.redirect_url, status_code=303)
 
+
+# Gestionnaire d'exceptions pour l'authentification utilisateur
+@app.exception_handler(UserAuthException)
+async def user_auth_exception_handler(request: Request, exc: UserAuthException):
+    """Redirige vers la page de login utilisateur quand l'authentification échoue"""
+    return RedirectResponse(url=exc.redirect_url, status_code=303)
+
+
+# Middleware pour vérifier l'authentification utilisateur
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    """
+    Middleware pour protéger les routes et rediriger les utilisateurs non connectés.
+    Les routes publiques (signup, login, static, etc.) ne sont pas protégées.
+    """
+    path = request.url.path
+
+    # Vérifier si la route est publique
+    if is_public_route(path):
+        response = await call_next(request)
+        return response
+
+    # Pour les routes protégées, vérifier l'authentification
+    session_token = request.cookies.get(USER_SESSION_COOKIE_NAME)
+
+    if not session_token:
+        # Pas de session, rediriger vers login
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Vérifier que le token est valide
+    from .user_auth import verify_user_session_token
+    session_data = verify_user_session_token(session_token)
+
+    if not session_data:
+        # Token invalide ou expiré, rediriger vers login
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Vérifier que l'utilisateur existe et est approuvé
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(
+            User.id == session_data["user_id"],
+            User.is_approved == True,
+            User.is_active == True
+        ).first()
+
+        if not user:
+            # Utilisateur non trouvé, pas approuvé, ou inactif
+            return RedirectResponse(url="/login", status_code=303)
+
+        # Utilisateur authentifié, continuer
+        response = await call_next(request)
+        return response
+    finally:
+        db.close()
+
 # Activer l'audit logging middleware
 from .audit import create_audit_middleware
 app.middleware("http")(create_audit_middleware())
@@ -360,6 +418,37 @@ def clean_nan_filter(value):
     return value
 
 templates.env.filters["clean_nan"] = clean_nan_filter
+
+
+# Ajouter une fonction globale pour récupérer l'utilisateur connecté dans les templates
+def get_current_user_from_request(request):
+    """Fonction globale Jinja2 pour récupérer l'utilisateur connecté"""
+    return getattr(request.state, "current_user", None)
+
+
+templates.env.globals["get_current_user"] = get_current_user_from_request
+
+
+# Ajouter un context processor pour injecter l'utilisateur connecté dans tous les templates
+@app.middleware("http")
+async def add_user_to_context(request: Request, call_next):
+    """
+    Middleware pour ajouter l'utilisateur connecté au contexte de tous les templates.
+    """
+    # Essayer de récupérer l'utilisateur connecté
+    db = SessionLocal()
+    try:
+        current_user = get_current_user_or_none(request, db)
+        # Stocker l'utilisateur dans request.state pour qu'il soit accessible
+        request.state.current_user = current_user
+    except Exception:
+        request.state.current_user = None
+    finally:
+        db.close()
+
+    response = await call_next(request)
+    return response
+
 
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
