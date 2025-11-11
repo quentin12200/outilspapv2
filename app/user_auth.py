@@ -292,6 +292,53 @@ def get_current_user_or_none(request: Request, db: Session) -> Optional[User]:
         return None
 
 
+def require_admin_user(request: Request, db: Session) -> User:
+    """
+    Vérifie que l'utilisateur connecté est un administrateur.
+    Utilisé comme dépendance FastAPI pour protéger les routes admin.
+
+    Args:
+        request: La requête FastAPI
+        db: Session SQLAlchemy
+
+    Returns:
+        L'objet User de l'utilisateur connecté (avec role admin)
+
+    Raises:
+        HTTPException: Si l'utilisateur n'est pas admin
+    """
+    from fastapi import HTTPException, status
+
+    user = get_current_user(request, db)
+
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès refusé. Seuls les administrateurs peuvent effectuer cette action."
+        )
+
+    return user
+
+
+def is_admin_user(request: Request, db: Session) -> bool:
+    """
+    Vérifie si l'utilisateur connecté est un administrateur.
+    Version non-bloquante pour les templates.
+
+    Args:
+        request: La requête FastAPI
+        db: Session SQLAlchemy
+
+    Returns:
+        True si l'utilisateur est admin, False sinon
+    """
+    try:
+        user = get_current_user(request, db)
+        return user.role == "admin"
+    except (UserAuthException, Exception):
+        return False
+
+
 def is_public_route(path: str) -> bool:
     """
     Vérifie si une route est publique (accessible sans authentification utilisateur).
