@@ -117,8 +117,16 @@
 
         <!-- Desktop Navigation -->
         <div class="hidden md:flex items-center space-x-2 ml-auto">
+          {% if current_user %}
+          <!-- Bouton Accueil pour utilisateurs connectés -->
+          <a href="/" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-home"></i>
+            <span>Accueil</span>
+          </a>
+          {% endif %}
+
           <!-- Boutons connexion/inscription ou profil utilisateur -->
-          <div class="flex items-center space-x-2 border-l border-white/30 pl-4">
+          <div class="flex items-center space-x-2 {% if current_user %}border-l border-white/30 pl-4{% endif %}">
             {% if current_user %}
             <!-- Menu utilisateur connecté -->
             <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @focusin="open = true" @focusout="open = false" @keydown.escape.window="open = false">
@@ -171,6 +179,14 @@
          x-transition:enter-end="opacity-100 transform translate-y-0"
          class="md:hidden bg-cgt-darkred border-t border-white/20">
       <div class="px-2 pt-2 pb-4 space-y-1">
+        {% if current_user %}
+        <!-- Bouton Accueil mobile -->
+        <a href="/" class="flex items-center justify-between px-3 py-3 rounded-md text-white hover:bg-white/20 transition" @click="mobileMenuOpen = false">
+          <span><i class="fas fa-home mr-2"></i> Accueil</span>
+          <i class="fas fa-chevron-right text-white/70"></i>
+        </a>
+        {% endif %}
+
         <!-- Boutons connexion/inscription ou profil utilisateur mobile -->
         <div class="mt-4 pt-4 border-t border-white/20 space-y-2">
           {% if current_user %}

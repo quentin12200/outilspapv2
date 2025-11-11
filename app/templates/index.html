@@ -4,14 +4,19 @@
 {% block content %}
 {% if current_user %}
 <!-- Menu pour utilisateurs connectés -->
-<div class="max-w-4xl mx-auto">
-  <div class="mb-8 text-center">
+<div class="max-w-5xl mx-auto">
+  <div class="mb-10 text-center">
     <h1 class="text-4xl font-bold text-gray-900 mb-3">
       Bienvenue, {{ current_user.first_name }} !
     </h1>
-    <p class="text-gray-600">
+    <p class="text-gray-600 mb-4">
       Plateforme de gestion PAP/CSE
     </p>
+    <div class="max-w-3xl mx-auto bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-xl p-6 border border-cgt-red/20">
+      <p class="text-gray-700 leading-relaxed">
+        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant IA pour répondre à vos questions.
+      </p>
+    </div>
   </div>
 
   <!-- Menu principal -->
@@ -117,8 +122,62 @@
       <h3 class="text-lg font-bold text-gray-900 mb-2">Scanner PAP</h3>
       <p class="text-sm text-gray-600">Extraction de données</p>
     </a>
+
+    <!-- Carte Chatbot Assistant IA -->
+    <button onclick="ouvrirChatbot()" class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-indigo-600 text-left group">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-comments text-2xl text-white"></i>
+        </div>
+        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
+      </div>
+      <h3 class="text-lg font-bold mb-2 flex items-center gap-2">
+        <span class="px-2 py-0.5 bg-yellow-400 text-yellow-900 rounded text-xs font-bold">IA</span>
+        Assistant Expert
+      </h3>
+      <p class="text-sm text-white/90">Posez vos questions à l'IA</p>
+    </button>
+
+    <!-- Carte Super Rapport Intelligent -->
+    <button onclick="genererSuperRapport()" class="bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-pink-600 text-left group">
+      <div class="flex items-center justify-between mb-4">
+        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-chart-line text-2xl text-white"></i>
+        </div>
+        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
+      </div>
+      <h3 class="text-lg font-bold mb-2 flex items-center gap-2">
+        <span class="px-2 py-0.5 bg-yellow-400 text-yellow-900 rounded text-xs font-bold">⚡</span>
+        Super Rapport IA
+      </h3>
+      <p class="text-sm text-white/90">Analyse avancée des cibles PAP</p>
+    </button>
   </div>
 </div>
+
+<!-- Modals pour Chatbot et Rapport - Charger depuis admin.html -->
+<script>
+// Redirection vers la page admin avec les modals
+function ouvrirChatbot() {
+  window.location.href = '/admin#chatbot';
+  // Si on est déjà sur admin, ouvrir directement la modal
+  if (window.location.pathname === '/admin') {
+    if (typeof ouvrirAssistantExpert === 'function') {
+      ouvrirAssistantExpert();
+    }
+  }
+}
+
+function genererSuperRapport() {
+  window.location.href = '/admin#rapport';
+  // Si on est déjà sur admin, ouvrir directement la modal
+  if (window.location.pathname === '/admin') {
+    if (typeof genererRapportIA === 'function') {
+      genererRapportIA();
+    }
+  }
+}
+</script>
 
 {% else %}
 <!-- Page publique pour visiteurs non connectés -->
