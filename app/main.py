@@ -2941,7 +2941,7 @@ def user_logout():
 def admin_page(
     request: Request,
     db: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
