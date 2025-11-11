@@ -217,7 +217,7 @@ class UserAuthException(Exception):
         super().__init__("Non authentifié")
 
 
-def get_current_user(request: Request, db: Session) -> User:
+def get_current_user(request: Request, db: Session = Depends(get_session)) -> User:
     """
     Récupère l'utilisateur connecté depuis la session.
     Utilisé comme dépendance FastAPI pour protéger les routes utilisateur.
@@ -256,7 +256,7 @@ def get_current_user(request: Request, db: Session) -> User:
     return user
 
 
-def is_user_authenticated(request: Request, db: Session) -> bool:
+def is_user_authenticated(request: Request, db: Session = Depends(get_session)) -> bool:
     """
     Vérifie si l'utilisateur est authentifié.
     Version non-bloquante pour les templates.
@@ -275,7 +275,7 @@ def is_user_authenticated(request: Request, db: Session) -> bool:
         return False
 
 
-def get_current_user_or_none(request: Request, db: Session) -> Optional[User]:
+def get_current_user_or_none(request: Request, db: Session = Depends(get_session)) -> Optional[User]:
     """
     Récupère l'utilisateur connecté ou None.
     Version non-bloquante pour les templates.
@@ -319,7 +319,7 @@ def require_admin_user(request: Request, db: Session = Depends(get_session)) -> 
     return user
 
 
-def is_admin_user(request: Request, db: Session) -> bool:
+def is_admin_user(request: Request, db: Session = Depends(get_session)) -> bool:
     """
     Vérifie si l'utilisateur connecté est un administrateur.
     Version non-bloquante pour les templates.
