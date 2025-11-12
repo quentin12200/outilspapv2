@@ -16,7 +16,7 @@
 
   <!-- Menu principal -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-    <a href="/stats" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/stats" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-chart-line text-2xl text-purple-600"></i>
@@ -27,7 +27,7 @@
       <p class="text-sm text-gray-600">Consultez les indicateurs clés, graphiques et tableaux de bord pour suivre vos invitations PAP et la couverture syndicale.</p>
     </a>
 
-    <a href="/invitations" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/invitations" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-envelope-open-text text-2xl text-blue-600"></i>
@@ -38,7 +38,7 @@
       <p class="text-sm text-gray-600">Accédez à la liste complète des invitations PAP Cycle 5 avec filtres, recherche et export des données.</p>
     </a>
 
-    <a href="/calendrier" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/calendrier" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-calendar-alt text-2xl text-green-600"></i>
@@ -49,15 +49,15 @@
       <p class="text-sm text-gray-600">Visualisez les prochaines élections CSE pour les établissements de plus de 1000 salariés avec dates de scrutin.</p>
     </a>
 
-    <div class="md:col-span-2 lg:col-span-3 flex justify-center">
-      <div class="max-w-3xl w-full bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-xl p-6 border border-cgt-red/20 text-center">
+    <div class="md:col-span-2 lg:col-span-1 lg:col-start-2 flex justify-center">
+      <div class="max-w-lg w-full bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-2xl p-6 border border-cgt-red/20 text-center">
         <p class="text-gray-700 leading-relaxed">
           Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant pour répondre à vos questions.
         </p>
       </div>
     </div>
 
-    <a href="/cartographie" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/cartographie" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-map text-2xl text-indigo-600"></i>
@@ -68,7 +68,7 @@
       <p class="text-sm text-gray-600">Explorez la carte de France interactive pour visualiser la répartition géographique des invitations PAP par département.</p>
     </a>
 
-    <a href="/ciblage" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/ciblage" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-crosshairs text-2xl text-orange-600"></i>
@@ -79,7 +79,7 @@
       <p class="text-sm text-gray-600">Identifiez et analysez les établissements prioritaires selon vos critères (effectifs, secteur, région) pour optimiser vos actions.</p>
     </a>
 
-    <a href="/recherche-siret" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/recherche-siret" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
@@ -91,7 +91,7 @@
     </a>
 
     {% if current_user.role == "admin" %}
-    <a href="/admin" class="bg-gradient-to-br from-cgt-red to-cgt-darkred text-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-cgt-red">
+    <a href="/admin" class="bg-gradient-to-br from-cgt-red to-cgt-darkred text-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
           <i class="fas fa-cog text-2xl text-white"></i>
@@ -103,7 +103,7 @@
     </a>
     {% endif %}
 
-    <a href="/presentation" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/presentation" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-bullseye text-2xl text-pink-600"></i>
@@ -114,7 +114,7 @@
       <p class="text-sm text-gray-600">Découvrez la présentation détaillée de la cible PAP Cycle 5 et les objectifs de la campagne syndicale.</p>
     </a>
 
-    <a href="/extraction" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
+    <a href="/extraction" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
           <i class="fas fa-scan text-2xl text-yellow-600"></i>
@@ -126,7 +126,7 @@
     </a>
 
     <!-- Carte Chatbot -->
-    <button onclick="ouvrirAssistantExpert()" class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-indigo-600 text-left group">
+    <button onclick="ouvrirAssistantExpert()" class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl shadow-md hover:shadow-2xl transition p-6 border-2 border-indigo-600 text-left group">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
           <i class="fas fa-comments text-2xl text-white"></i>
@@ -140,7 +140,7 @@
     </button>
 
     <!-- Carte Super Rapport -->
-    <button onclick="genererRapportIA()" class="bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-pink-600 text-left group">
+    <button onclick="genererRapportIA()" class="bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-2xl shadow-md hover:shadow-2xl transition p-6 border-2 border-pink-600 text-left group">
       <div class="flex items-center justify-between mb-4">
         <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
           <i class="fas fa-chart-line text-2xl text-white"></i>
