@@ -4,155 +4,208 @@
 {% block content %}
 {% if current_user %}
 <!-- Menu pour utilisateurs connectés -->
-<div class="max-w-5xl mx-auto">
-  <div class="mb-10 text-center">
-    <h1 class="text-4xl font-bold text-gray-900 mb-3">
-      Bienvenue, {{ current_user.first_name }} !
-    </h1>
-    <p class="text-gray-600 mb-4">
-      Plateforme de gestion PAP/CSE
-    </p>
-    <div class="max-w-3xl mx-auto bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-xl p-6 border border-cgt-red/20">
-      <p class="text-gray-700 leading-relaxed">
-        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant IA pour répondre à vos questions.
+<style>
+  .homepage-shell {
+    padding: 4rem 1.5rem 5rem;
+    background: #f8fafc;
+  }
+
+  .homepage-intro {
+    max-width: 720px;
+    margin: 0 auto 2.5rem;
+    text-align: center;
+  }
+
+  .homepage-intro h1 {
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+  }
+
+  .homepage-intro p {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #475569;
+    margin: 0;
+  }
+
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .module-card {
+    background: #ffffff;
+    border-radius: 1.25rem;
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 18px 45px -28px rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .module-card:hover,
+  .module-card:focus-visible {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 60px -28px rgba(79, 70, 229, 0.35);
+    outline: none;
+  }
+
+  .module-card:focus-visible {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25);
+  }
+
+  .module-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.95rem;
+    background: rgba(79, 70, 229, 0.12);
+    color: #4338ca;
+    font-size: 1.35rem;
+  }
+
+  .module-card h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+  }
+
+  .module-card p {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+
+  button.module-card {
+    border: none;
+    background: #ffffff;
+    cursor: pointer;
+  }
+
+  @media (max-width: 768px) {
+    .homepage-shell {
+      padding: 3rem 1rem 3.75rem;
+    }
+
+    .homepage-intro {
+      margin-bottom: 2rem;
+    }
+  }
+</style>
+
+<div class="max-w-6xl mx-auto px-4">
+  <div class="homepage-shell">
+    <div class="homepage-intro">
+      <h1>Bienvenue, {{ current_user.first_name }} !</h1>
+      <p>
+        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports détaillés et trouvez rapidement des réponses à vos questions.
       </p>
     </div>
-  </div>
 
-  <!-- Menu principal -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-    <a href="/stats" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-chart-line text-2xl text-purple-600"></i>
+    <div class="modules-grid">
+      <a href="/stats" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-chart-line"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Statistiques</h3>
-      <p class="text-sm text-gray-600">Consultez les indicateurs clés, graphiques et tableaux de bord pour suivre vos invitations PAP et la couverture syndicale.</p>
-    </a>
+        <h3>Statistiques</h3>
+        <p>Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
+      </a>
 
-    <a href="/invitations" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-envelope-open-text text-2xl text-blue-600"></i>
+      <a href="/invitations" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-envelope-open-text"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Invitations PAP</h3>
-      <p class="text-sm text-gray-600">Accédez à la liste complète des invitations PAP Cycle 5 avec filtres, recherche et export des données.</p>
-    </a>
+        <h3>Invitations PAP</h3>
+        <p>Gérez la liste complète des invitations PAP Cycle 5.</p>
+      </a>
 
-    <a href="/calendrier" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-calendar-alt text-2xl text-green-600"></i>
+      <a href="/calendrier" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-calendar-alt"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Calendrier +1000</h3>
-      <p class="text-sm text-gray-600">Visualisez les prochaines élections CSE pour les établissements de plus de 1000 salariés avec dates de scrutin.</p>
-    </a>
+        <h3>Calendrier +1000</h3>
+        <p>Visualisez les prochaines échéances électorales majeures.</p>
+      </a>
 
-    <a href="/cartographie" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-map text-2xl text-indigo-600"></i>
+      <a href="/cartographie" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-map"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Cartographie</h3>
-      <p class="text-sm text-gray-600">Explorez la carte de France interactive pour visualiser la répartition géographique des invitations PAP par département.</p>
-    </a>
+        <h3>Cartographie</h3>
+        <p>Explorez la couverture territoriale de la CGT.</p>
+      </a>
 
-    <a href="/ciblage" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-crosshairs text-2xl text-orange-600"></i>
+      <a href="/ciblage" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-crosshairs"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Ciblage</h3>
-      <p class="text-sm text-gray-600">Identifiez et analysez les établissements prioritaires selon vos critères (effectifs, secteur, région) pour optimiser vos actions.</p>
-    </a>
+        <h3>Ciblage</h3>
+        <p>Repérez les établissements prioritaires selon vos critères.</p>
+      </a>
 
-    <a href="/recherche-siret" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
+      <a href="/recherche-siret" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-plus-circle"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Ajout PAP</h3>
-      <p class="text-sm text-gray-600">Recherchez un établissement par SIRET ou raison sociale et ajoutez manuellement une nouvelle invitation PAP.</p>
-    </a>
+        <h3>Ajout PAP</h3>
+        <p>Ajoutez manuellement une nouvelle invitation PAP.</p>
+      </a>
 
-    {% if current_user.role == "admin" %}
-    <a href="/admin" class="bg-gradient-to-br from-cgt-red to-cgt-darkred text-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-cog text-2xl text-white"></i>
+      <a href="/presentation" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-bullseye"></i>
         </div>
-        <i class="fas fa-arrow-right text-white/70"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">Administration</h3>
-      <p class="text-sm text-white/80">Gérez les imports de données, les utilisateurs et accédez aux outils d'administration de la plateforme.</p>
-    </a>
-    {% endif %}
+        <h3>Présentation</h3>
+        <p>Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
+      </a>
 
-    <a href="/presentation" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-bullseye text-2xl text-pink-600"></i>
+      <a href="/extraction" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-scan"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Présentation</h3>
-      <p class="text-sm text-gray-600">Découvrez la présentation détaillée de la cible PAP Cycle 5 et les objectifs de la campagne syndicale.</p>
-    </a>
+        <h3>Scanner PAP</h3>
+        <p>Analysez automatiquement vos documents PAP.</p>
+      </a>
 
-    <a href="/extraction" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-scan text-2xl text-yellow-600"></i>
+      <button type="button" class="module-card module-card--action" onclick="ouvrirAssistantExpert()">
+        <div class="module-icon">
+          <i class="fas fa-comments"></i>
         </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Scanner PAP</h3>
-      <p class="text-sm text-gray-600">Scannez et analysez automatiquement vos documents PAP pour extraire les informations clés des invitations.</p>
-    </a>
+        <h3>Chatbot</h3>
+        <p>Posez vos questions et obtenez des réponses ciblées.</p>
+      </button>
 
-    <!-- Carte Chatbot -->
-    <button onclick="ouvrirAssistantExpert()" class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-indigo-600 text-left group">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-comments text-2xl text-white"></i>
+      <button type="button" class="module-card module-card--action" onclick="genererRapportIA()">
+        <div class="module-icon">
+          <i class="fas fa-chart-pie"></i>
         </div>
-        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">
-        Chatbot
-      </h3>
-      <p class="text-sm text-white/90">Discutez avec notre assistant intelligent qui répond à vos questions sur vos données PAP en langage naturel.</p>
-    </button>
+        <h3>Super rapport</h3>
+        <p>Générez un rapport stratégique en quelques clics.</p>
+      </button>
 
-    <!-- Carte Super Rapport -->
-    <button onclick="genererRapportIA()" class="bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-2xl transition p-6 border-2 border-pink-600 text-left group">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-chart-line text-2xl text-white"></i>
+      {% if current_user.role == "admin" %}
+      <a href="/admin" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-cog"></i>
         </div>
-        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">
-        Super rapport
-      </h3>
-      <p class="text-sm text-white/90">Générez automatiquement un rapport complet avec analyses approfondies et recommandations stratégiques sur vos cibles PAP.</p>
-    </button>
+        <h3>Administration</h3>
+        <p>Pilotez les imports, utilisateurs et outils avancés.</p>
+      </a>
+      {% endif %}
+    </div>
   </div>
 </div>
-
 <!-- Inclure les modals chatbot et rapport -->
 {% include '_chat_rapport_modals.html' %}
 
