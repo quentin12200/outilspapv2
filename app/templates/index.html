@@ -4,154 +4,316 @@
 {% block content %}
 {% if current_user %}
 <!-- Menu pour utilisateurs connectés -->
-<div class="max-w-5xl mx-auto">
-  <div class="mb-8 text-center">
-    <h1 class="text-4xl font-bold text-gray-900 mb-3">
-      Bienvenue, {{ current_user.first_name }} !
-    </h1>
-    <p class="text-gray-600 mb-4">
-      Plateforme de gestion PAP/CSE
-    </p>
-  </div>
+<style>
+  .homepage-shell {
+    display: flex;
+    justify-content: center;
+    padding: 2rem 0 5rem;
+  }
 
-  <!-- Menu principal -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-    <a href="/stats" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-chart-line text-2xl text-purple-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Statistiques</h3>
-      <p class="text-sm text-gray-600">Consultez les indicateurs clés, graphiques et tableaux de bord pour suivre vos invitations PAP et la couverture syndicale.</p>
-    </a>
+  .orbit-layout {
+    --r: clamp(9rem, 28vw, 17rem);
+    --bubble-size: clamp(8rem, 13vw, 10.5rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    position: relative;
+    width: min(100%, 48rem);
+  }
 
-    <a href="/invitations" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-envelope-open-text text-2xl text-blue-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Invitations PAP</h3>
-      <p class="text-sm text-gray-600">Accédez à la liste complète des invitations PAP Cycle 5 avec filtres, recherche et export des données.</p>
-    </a>
+  .orbit-center-card {
+    width: min(100%, 32rem);
+    padding: 2.5rem;
+    border-radius: 1.75rem;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(124, 58, 237, 0.12));
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    text-align: center;
+    box-shadow: 0 35px 60px -40px rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+  }
 
-    <a href="/calendrier" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-calendar-alt text-2xl text-green-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Calendrier +1000</h3>
-      <p class="text-sm text-gray-600">Visualisez les prochaines élections CSE pour les établissements de plus de 1000 salariés avec dates de scrutin.</p>
-    </a>
+  .orbit-center-card h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.75rem;
+  }
 
-    <div class="md:col-span-2 lg:col-span-3 flex justify-center">
-      <div class="max-w-3xl w-full bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-2xl p-6 border border-cgt-red/20 text-center">
-        <p class="text-gray-700 leading-relaxed">
+  .orbit-center-card p {
+    color: #374151;
+    line-height: 1.6;
+  }
+
+  .orbit-ring {
+    position: relative;
+    width: calc(var(--r) * 2 + var(--bubble-size));
+    min-height: calc(var(--r) * 2 + var(--bubble-size));
+    margin: 0 auto;
+  }
+
+  .orbit-bubble {
+    --bubble-bg: #ffffff;
+    --bubble-fg: #1f2937;
+    --bubble-border: rgba(209, 213, 219, 0.55);
+    --distance: 1;
+    --delay: 0s;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--bubble-size);
+    aspect-ratio: 1 / 1;
+    transform: translate(-50%, -50%)
+      translate(
+        calc(cos(var(--angle)) * var(--r) * var(--distance)),
+        calc(sin(var(--angle)) * var(--r) * var(--distance))
+      );
+    text-decoration: none;
+    color: inherit;
+  }
+
+  button.orbit-bubble {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .bubble-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    text-align: center;
+    background: var(--bubble-bg);
+    color: var(--bubble-fg);
+    border: 2px solid var(--bubble-border);
+    box-shadow: 0 25px 60px -40px rgba(15, 23, 42, 0.45);
+    transition: box-shadow 0.35s ease, transform 0.35s ease;
+    animation: float 7s ease-in-out infinite;
+    animation-delay: var(--delay);
+  }
+
+  .bubble-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  .bubble-description {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: inherit;
+  }
+
+  .bubble-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    color: inherit;
+  }
+
+  .orbit-bubble:hover .bubble-inner,
+  .orbit-bubble:focus-visible .bubble-inner {
+    animation-play-state: paused;
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 35px 75px -40px rgba(91, 33, 182, 0.6);
+  }
+
+  .orbit-bubble:focus-visible {
+    outline: none;
+  }
+
+  .orbit-bubble:focus-visible .bubble-inner {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.35);
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translate3d(0, -6px, 0);
+    }
+    50% {
+      transform: translate3d(0, 6px, 0);
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .orbit-layout {
+      --r: clamp(8rem, 32vw, 15rem);
+      --bubble-size: clamp(7.25rem, 22vw, 9.5rem);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .homepage-shell {
+      padding-bottom: 3rem;
+    }
+
+    .orbit-layout {
+      --r: 0;
+      width: 100%;
+      gap: 2.5rem;
+    }
+
+    .orbit-center-card {
+      padding: 2rem 1.75rem;
+    }
+
+    .orbit-ring {
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      width: 100%;
+      min-height: unset;
+    }
+
+    .orbit-bubble {
+      position: static;
+      transform: none;
+      width: 100%;
+    }
+
+    .bubble-inner {
+      aspect-ratio: 1 / 1;
+      padding: 1.25rem;
+    }
+  }
+</style>
+
+<div class="max-w-5xl mx-auto px-4">
+  <div class="homepage-shell">
+    <div class="orbit-layout">
+      <div class="orbit-center-card">
+        <h1>Bienvenue, {{ current_user.first_name }} !</h1>
+        <p class="text-sm uppercase tracking-[0.25em] text-cgt-red/80 mb-4">Plateforme de gestion PAP/CSE</p>
+        <p>
           Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant pour répondre à vos questions.
         </p>
       </div>
+
+      <div class="orbit-ring">
+        <a href="/stats" class="orbit-bubble" style="--angle: -90deg; --distance: 1; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), rgba(59, 7, 100, 0.45)); --bubble-fg: #1e1b4b; --bubble-border: rgba(79, 70, 229, 0.35); --delay: 0s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-chart-line text-xl"></i>
+            </div>
+            <div class="bubble-title">Statistiques</div>
+            <p class="bubble-description">Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
+          </div>
+        </a>
+
+        <a href="/invitations" class="orbit-bubble" style="--angle: -54deg; --distance: 1.05; --bubble-bg: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.18), rgba(30, 64, 175, 0.5)); --bubble-fg: #1d4ed8; --bubble-border: rgba(59, 130, 246, 0.35); --delay: 0.6s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-envelope-open-text text-xl"></i>
+            </div>
+            <div class="bubble-title">Invitations PAP</div>
+            <p class="bubble-description">Gérez la liste complète des invitations PAP Cycle 5.</p>
+          </div>
+        </a>
+
+        <a href="/calendrier" class="orbit-bubble" style="--angle: -18deg; --distance: 0.92; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(16, 185, 129, 0.2), rgba(5, 46, 22, 0.45)); --bubble-fg: #065f46; --bubble-border: rgba(16, 185, 129, 0.4); --delay: 1.2s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-calendar-alt text-xl"></i>
+            </div>
+            <div class="bubble-title">Calendrier +1000</div>
+            <p class="bubble-description">Visualisez les prochaines échéances électorales majeures.</p>
+          </div>
+        </a>
+
+        <a href="/cartographie" class="orbit-bubble" style="--angle: 18deg; --distance: 1.08; --bubble-bg: radial-gradient(circle at 30% 70%, rgba(129, 140, 248, 0.2), rgba(55, 48, 163, 0.45)); --bubble-fg: #3730a3; --bubble-border: rgba(99, 102, 241, 0.35); --delay: 1.8s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-map text-xl"></i>
+            </div>
+            <div class="bubble-title">Cartographie</div>
+            <p class="bubble-description">Explorez la couverture territoriale de la CGT.</p>
+          </div>
+        </a>
+
+        <a href="/ciblage" class="orbit-bubble" style="--angle: 54deg; --distance: 0.9; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(249, 115, 22, 0.22), rgba(124, 45, 18, 0.55)); --bubble-fg: #7c2d12; --bubble-border: rgba(249, 115, 22, 0.35); --delay: 2.4s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-crosshairs text-xl"></i>
+            </div>
+            <div class="bubble-title">Ciblage</div>
+            <p class="bubble-description">Repérez les établissements prioritaires selon vos critères.</p>
+          </div>
+        </a>
+
+        <a href="/recherche-siret" class="orbit-bubble" style="--angle: 90deg; --distance: 1.02; --bubble-bg: radial-gradient(circle at 25% 75%, rgba(45, 212, 191, 0.22), rgba(19, 78, 74, 0.55)); --bubble-fg: #134e4a; --bubble-border: rgba(45, 212, 191, 0.4); --delay: 3s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-plus-circle text-xl"></i>
+            </div>
+            <div class="bubble-title">Ajout PAP</div>
+            <p class="bubble-description">Ajoutez manuellement une nouvelle invitation PAP.</p>
+          </div>
+        </a>
+
+        <a href="/presentation" class="orbit-bubble" style="--angle: 126deg; --distance: 0.88; --bubble-bg: radial-gradient(circle at 75% 30%, rgba(244, 114, 182, 0.24), rgba(131, 24, 67, 0.55)); --bubble-fg: #831843; --bubble-border: rgba(244, 114, 182, 0.4); --delay: 3.6s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-bullseye text-xl"></i>
+            </div>
+            <div class="bubble-title">Présentation</div>
+            <p class="bubble-description">Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
+          </div>
+        </a>
+
+        <a href="/extraction" class="orbit-bubble" style="--angle: 162deg; --distance: 1.06; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(250, 204, 21, 0.24), rgba(113, 63, 18, 0.55)); --bubble-fg: #713f12; --bubble-border: rgba(250, 204, 21, 0.4); --delay: 4.2s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-scan text-xl"></i>
+            </div>
+            <div class="bubble-title">Scanner PAP</div>
+            <p class="bubble-description">Analysez automatiquement vos documents PAP.</p>
+          </div>
+        </a>
+
+        <button onclick="ouvrirAssistantExpert()" class="orbit-bubble" style="--angle: 198deg; --distance: 0.94; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(79, 70, 229, 0.28), rgba(59, 7, 100, 0.65)); --bubble-fg: #f8fafc; --bubble-border: rgba(129, 140, 248, 0.55); --delay: 4.8s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-comments text-xl"></i>
+            </div>
+            <div class="bubble-title">Chatbot</div>
+            <p class="bubble-description">Posez vos questions et obtenez des réponses ciblées.</p>
+          </div>
+        </button>
+
+        <button onclick="genererRapportIA()" class="orbit-bubble" style="--angle: 234deg; --distance: 1.04; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), rgba(126, 34, 206, 0.6)); --bubble-fg: #fdf2f8; --bubble-border: rgba(236, 72, 153, 0.55); --delay: 5.4s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-chart-pie text-xl"></i>
+            </div>
+            <div class="bubble-title">Super rapport</div>
+            <p class="bubble-description">Générez un rapport stratégique en quelques clics.</p>
+          </div>
+        </button>
+
+        {% if current_user.role == "admin" %}
+        <a href="/admin" class="orbit-bubble" style="--angle: 270deg; --distance: 1; --bubble-bg: radial-gradient(circle at 40% 60%, rgba(239, 68, 68, 0.32), rgba(136, 19, 55, 0.62)); --bubble-fg: #fee2e2; --bubble-border: rgba(239, 68, 68, 0.6); --delay: 6s;">
+          <div class="bubble-inner">
+            <div class="bubble-icon">
+              <i class="fas fa-cog text-xl"></i>
+            </div>
+            <div class="bubble-title">Administration</div>
+            <p class="bubble-description">Pilotez les imports, utilisateurs et outils avancés.</p>
+          </div>
+        </a>
+        {% endif %}
+      </div>
     </div>
-
-    <a href="/cartographie" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-map text-2xl text-indigo-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Cartographie</h3>
-      <p class="text-sm text-gray-600">Explorez la carte de France interactive pour visualiser la répartition géographique des invitations PAP par département.</p>
-    </a>
-
-    <a href="/ciblage" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-crosshairs text-2xl text-orange-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Ciblage</h3>
-      <p class="text-sm text-gray-600">Identifiez et analysez les établissements prioritaires selon vos critères (effectifs, secteur, région) pour optimiser vos actions.</p>
-    </a>
-
-    <a href="/recherche-siret" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Ajout PAP</h3>
-      <p class="text-sm text-gray-600">Recherchez un établissement par SIRET ou raison sociale et ajoutez manuellement une nouvelle invitation PAP.</p>
-    </a>
-
-    {% if current_user.role == "admin" %}
-    <a href="/admin" class="bg-gradient-to-br from-cgt-red to-cgt-darkred text-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-cog text-2xl text-white"></i>
-        </div>
-        <i class="fas fa-arrow-right text-white/70"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">Administration</h3>
-      <p class="text-sm text-white/80">Gérez les imports de données, les utilisateurs et accédez aux outils d'administration de la plateforme.</p>
-    </a>
-    {% endif %}
-
-    <a href="/presentation" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-bullseye text-2xl text-pink-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Présentation</h3>
-      <p class="text-sm text-gray-600">Découvrez la présentation détaillée de la cible PAP Cycle 5 et les objectifs de la campagne syndicale.</p>
-    </a>
-
-    <a href="/extraction" class="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-          <i class="fas fa-scan text-2xl text-yellow-600"></i>
-        </div>
-        <i class="fas fa-arrow-right text-gray-400"></i>
-      </div>
-      <h3 class="text-lg font-bold text-gray-900 mb-2">Scanner PAP</h3>
-      <p class="text-sm text-gray-600">Scannez et analysez automatiquement vos documents PAP pour extraire les informations clés des invitations.</p>
-    </a>
-
-    <!-- Carte Chatbot -->
-    <button onclick="ouvrirAssistantExpert()" class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl shadow-md hover:shadow-2xl transition p-6 border-2 border-indigo-600 text-left group">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-comments text-2xl text-white"></i>
-        </div>
-        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">
-        Chatbot
-      </h3>
-      <p class="text-sm text-white/90">Discutez avec notre assistant intelligent qui répond à vos questions sur vos données PAP en langage naturel.</p>
-    </button>
-
-    <!-- Carte Super Rapport -->
-    <button onclick="genererRapportIA()" class="bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-2xl shadow-md hover:shadow-2xl transition p-6 border-2 border-pink-600 text-left group">
-      <div class="flex items-center justify-between mb-4">
-        <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-          <i class="fas fa-chart-line text-2xl text-white"></i>
-        </div>
-        <i class="fas fa-arrow-right text-white/70 group-hover:text-white"></i>
-      </div>
-      <h3 class="text-lg font-bold mb-2">
-        Super rapport
-      </h3>
-      <p class="text-sm text-white/90">Générez automatiquement un rapport complet avec analyses approfondies et recommandations stratégiques sur vos cibles PAP.</p>
-    </button>
   </div>
 </div>
 
