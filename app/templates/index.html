@@ -81,12 +81,9 @@ document.addEventListener('alpine:init', () => {
         <span class="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] rounded-full bg-white/10 mb-4">
           Pilotage
         </span>
-        <h1 class="text-4xl lg:text-5xl font-black leading-tight mb-4">
+        <h1 class="text-4xl lg:text-5xl font-black leading-tight mb-6">
           Tableau de bord PAP/CSE
         </h1>
-        <p class="text-white/80 text-lg mb-6">
-          Pilotez vos invitations PAP Cycle 5, suivez les échéances et analysez la couverture syndicale CGT.
-        </p>
 
         <!-- Quick Actions -->
         <div class="flex flex-wrap gap-4">
@@ -204,6 +201,48 @@ document.addEventListener('alpine:init', () => {
       <p class="text-sm text-gray-500 mt-2">
         Scrutins à venir
       </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section texte principal centré -->
+<section class="mb-12">
+  <div class="max-w-4xl mx-auto">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-white to-gray-50 shadow-xl border-2 border-cgt-red/20">
+      <!-- Décoration d'arrière-plan -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-cgt-red/5 rounded-full -mr-32 -mt-32"></div>
+      <div class="absolute bottom-0 left-0 w-48 h-48 bg-cgt-red/5 rounded-full -ml-24 -mb-24"></div>
+
+      <!-- Contenu -->
+      <div class="relative px-8 py-10 lg:px-12 lg:py-12 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cgt-red to-cgt-darkred mb-6 shadow-lg">
+          <i class="fas fa-bullseye text-2xl text-white"></i>
+        </div>
+
+        <h2 class="text-3xl lg:text-4xl font-black text-gray-900 mb-4 leading-tight">
+          Pilotez vos actions syndicales
+        </h2>
+
+        <p class="text-lg text-gray-700 leading-relaxed max-w-2xl mx-auto mb-6">
+          Suivez en temps réel vos invitations PAP Cycle 5, anticipez les échéances électorales
+          et analysez la couverture syndicale CGT pour renforcer votre stratégie d'implantation.
+        </p>
+
+        <div class="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-check-circle text-cgt-red"></i>
+            <span class="font-semibold">Suivi en temps réel</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <i class="fas fa-check-circle text-cgt-red"></i>
+            <span class="font-semibold">Analyses stratégiques</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <i class="fas fa-check-circle text-cgt-red"></i>
+            <span class="font-semibold">Cartographie complète</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
