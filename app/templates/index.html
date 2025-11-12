@@ -6,357 +6,206 @@
 <!-- Menu pour utilisateurs connectés -->
 <style>
   .homepage-shell {
-    display: flex;
-    justify-content: center;
-    padding: 4rem 1.5rem 6rem;
+    padding: 4rem 1.5rem 5rem;
+    background: #f8fafc;
   }
 
-  .orbit-layout {
-    /* Taille commune réutilisable dans les calculs */
-    --orbit: clamp(51.25rem, 68vw, 61.25rem);
-    --orbit-center-width: clamp(28.75rem, 42vw, 37.5rem);
-    --bubble-size: clamp(7.5rem, 12vw, 10rem);
-    --gap: 1.75rem;
-
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: var(--orbit);
-    height: var(--orbit);
-
-    /* Rayon = demi-orbit - demi centre - demi bulle - marge */
-    --r: calc(
-      (var(--orbit) / 2)
-      - (var(--orbit-center-width) / 2)
-      - (var(--bubble-size) / 2)
-      - var(--gap)
-    );
-  }
-
-  .orbit-center-card {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: var(--orbit-center-width);
-    padding: 2.5rem;
-    border-radius: 1.75rem;
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(124, 58, 237, 0.12));
-    border: 1px solid rgba(220, 38, 38, 0.18);
+  .homepage-intro {
+    max-width: 720px;
+    margin: 0 auto 2.5rem;
     text-align: center;
-    box-shadow: 0 32px 70px -48px rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(4px);
-    z-index: 2;
   }
 
-  .orbit-center-card h1 {
-    font-size: clamp(2rem, 4.5vw, 2.65rem);
+  .homepage-intro h1 {
+    font-size: clamp(2rem, 4vw, 2.75rem);
     font-weight: 700;
-    color: #111827;
+    color: #0f172a;
     margin-bottom: 0.75rem;
   }
 
-  .orbit-center-card p {
-    color: #374151;
+  .homepage-intro p {
+    font-size: 1.05rem;
     line-height: 1.6;
+    color: #475569;
+    margin: 0;
   }
 
-  .orbit-ring {
-    position: relative;
-    width: 100%;
-    height: 100%;
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
   }
 
-  .orbit-bubble {
-    --bubble-bg: #ffffff;
-    --bubble-fg: #1f2937;
-    --bubble-border: rgba(209, 213, 219, 0.55);
-    --delay: 0s;
-    --angle: calc((var(--i) / var(--count)) * 1turn);
-    --lift: 0px;
-    --distance: 1;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: var(--bubble-size);
-    aspect-ratio: 1 / 1;
+  .module-card {
+    background: #ffffff;
+    border-radius: 1.25rem;
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 18px 45px -28px rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(226, 232, 240, 0.9);
     text-decoration: none;
     color: inherit;
-    z-index: 1;
-    transform: translate(-50%, -50%)
-      translate(
-        calc(cos(var(--angle)) * (var(--r) + var(--lift)) * var(--distance)),
-        calc(sin(var(--angle)) * (var(--r) + var(--lift)) * var(--distance))
-      );
-    transition: transform 0.35s ease;
-  }
-
-  button.orbit-bubble {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .bubble-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    text-align: center;
-    background: var(--bubble-bg);
-    color: var(--bubble-fg);
-    border: 2px solid var(--bubble-border);
-    box-shadow: 0 25px 60px -40px rgba(15, 23, 42, 0.45);
-    transition: box-shadow 0.35s ease, transform 0.35s ease;
-    animation: float 7s ease-in-out infinite;
-    animation-delay: var(--delay);
+    gap: 0.9rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .bubble-title {
-    font-size: 1.05rem;
-    font-weight: 600;
+  .module-card:hover,
+  .module-card:focus-visible {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 60px -28px rgba(79, 70, 229, 0.35);
+    outline: none;
   }
 
-  .bubble-description {
-    font-size: 0.8rem;
-    line-height: 1.35;
-    color: inherit;
+  .module-card:focus-visible {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25);
   }
 
-  .bubble-icon {
+  .module-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 3rem;
     height: 3rem;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.35);
-    color: inherit;
+    border-radius: 0.95rem;
+    background: rgba(79, 70, 229, 0.12);
+    color: #4338ca;
+    font-size: 1.35rem;
   }
 
-  .orbit-bubble:hover .bubble-inner,
-  .orbit-bubble:focus-visible .bubble-inner {
-    animation-play-state: paused;
-    transform: translateY(-6px) scale(1.05);
-    box-shadow: 0 40px 90px -45px rgba(91, 33, 182, 0.5);
+  .module-card h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
   }
 
-  .orbit-bubble:hover,
-  .orbit-bubble:focus-visible {
-    --lift: 4px;
+  .module-card p {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.5;
+    font-size: 0.95rem;
   }
 
-  .orbit-bubble:focus-visible {
-    outline: none;
+  button.module-card {
+    border: none;
+    background: #ffffff;
+    cursor: pointer;
   }
 
-  .orbit-bubble:focus-visible .bubble-inner {
-    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.35);
-  }
-
-  @keyframes float {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0);
-    }
-    50% {
-      transform: translate3d(0, -8px, 0);
-    }
-  }
-
-  @media (max-width: 1023px) {
-    .orbit-layout {
-      --orbit: clamp(37.5rem, 82vw, 45rem);
-      --orbit-center-width: clamp(23.75rem, 56vw, 31rem);
-      --bubble-size: clamp(6.5rem, 18vw, 8.75rem);
-      --gap: 1.5rem;
-    }
-  }
-
-  @media (max-width: 820px) {
+  @media (max-width: 768px) {
     .homepage-shell {
-      padding: 3rem 1.25rem 4rem;
+      padding: 3rem 1rem 3.75rem;
     }
 
-    .orbit-layout {
-      --orbit: 100vw;
-      --orbit-center-width: min(92vw, 40rem);
-      --bubble-size: clamp(7.5rem, 42vw, 10rem);
-      width: 100%;
-      height: auto;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.75rem;
-      justify-items: center;
-    }
-
-    .orbit-center-card {
-      position: static;
-      transform: none;
-      margin: 0 auto 0.75rem;
-      width: min(100%, var(--orbit-center-width));
-      z-index: 2;
-    }
-
-    .orbit-ring {
-      position: static;
-      width: 100%;
-      display: contents;
-    }
-
-    .orbit-bubble {
-      position: static;
-      transform: none;
-      transition: none;
-      width: var(--bubble-size);
-      aspect-ratio: 1 / 1;
-      z-index: 1;
-    }
-
-    .bubble-inner {
-      height: auto;
-      aspect-ratio: 1 / 1;
-      padding: 1.25rem;
-      animation: none;
+    .homepage-intro {
+      margin-bottom: 2rem;
     }
   }
 </style>
 
-<div class="max-w-5xl mx-auto px-4">
+<div class="max-w-6xl mx-auto px-4">
   <div class="homepage-shell">
-    {% set bubble_count = 10 + (1 if current_user.role == "admin" else 0) %}
-    <div class="orbit-layout" style="--count: {{ bubble_count }};">
-      <div class="orbit-center-card">
-        <h1>Bienvenue, {{ current_user.first_name }} !</h1>
-        <p class="text-sm uppercase tracking-[0.25em] text-cgt-red/80 mb-4">Plateforme de gestion PAP/CSE</p>
-        <p>
-          Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant pour répondre à vos questions.
-        </p>
-      </div>
+    <div class="homepage-intro">
+      <h1>Bienvenue, {{ current_user.first_name }} !</h1>
+      <p>
+        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant pour répondre à vos questions.
+      </p>
+    </div>
 
-      <div class="orbit-ring">
-        <a href="/stats" class="orbit-bubble" style="--i: 0; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), rgba(59, 7, 100, 0.45)); --bubble-fg: #1e1b4b; --bubble-border: rgba(79, 70, 229, 0.35); --delay: 0s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-chart-line text-xl"></i>
-            </div>
-            <div class="bubble-title">Statistiques</div>
-            <p class="bubble-description">Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
-          </div>
-        </a>
+    <div class="modules-grid">
+      <a href="/stats" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <h3>Statistiques</h3>
+        <p>Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
+      </a>
 
-        <a href="/invitations" class="orbit-bubble" style="--i: 1; --bubble-bg: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.18), rgba(30, 64, 175, 0.5)); --bubble-fg: #1d4ed8; --bubble-border: rgba(59, 130, 246, 0.35); --delay: 0.35s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-envelope-open-text text-xl"></i>
-            </div>
-            <div class="bubble-title">Invitations PAP</div>
-            <p class="bubble-description">Gérez la liste complète des invitations PAP Cycle 5.</p>
-          </div>
-        </a>
+      <a href="/invitations" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-envelope-open-text"></i>
+        </div>
+        <h3>Invitations PAP</h3>
+        <p>Gérez la liste complète des invitations PAP Cycle 5.</p>
+      </a>
 
-        <a href="/calendrier" class="orbit-bubble" style="--i: 2; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(16, 185, 129, 0.2), rgba(5, 46, 22, 0.45)); --bubble-fg: #065f46; --bubble-border: rgba(16, 185, 129, 0.4); --delay: 0.7s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-calendar-alt text-xl"></i>
-            </div>
-            <div class="bubble-title">Calendrier +1000</div>
-            <p class="bubble-description">Visualisez les prochaines échéances électorales majeures.</p>
-          </div>
-        </a>
+      <a href="/calendrier" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <h3>Calendrier +1000</h3>
+        <p>Visualisez les prochaines échéances électorales majeures.</p>
+      </a>
 
-        <a href="/cartographie" class="orbit-bubble" style="--i: 3; --bubble-bg: radial-gradient(circle at 30% 70%, rgba(129, 140, 248, 0.2), rgba(55, 48, 163, 0.45)); --bubble-fg: #3730a3; --bubble-border: rgba(99, 102, 241, 0.35); --delay: 1.05s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-map text-xl"></i>
-            </div>
-            <div class="bubble-title">Cartographie</div>
-            <p class="bubble-description">Explorez la couverture territoriale de la CGT.</p>
-          </div>
-        </a>
+      <a href="/cartographie" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-map"></i>
+        </div>
+        <h3>Cartographie</h3>
+        <p>Explorez la couverture territoriale de la CGT.</p>
+      </a>
 
-        <a href="/ciblage" class="orbit-bubble" style="--i: 4; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(249, 115, 22, 0.22), rgba(124, 45, 18, 0.55)); --bubble-fg: #7c2d12; --bubble-border: rgba(249, 115, 22, 0.35); --delay: 1.4s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-crosshairs text-xl"></i>
-            </div>
-            <div class="bubble-title">Ciblage</div>
-            <p class="bubble-description">Repérez les établissements prioritaires selon vos critères.</p>
-          </div>
-        </a>
+      <a href="/ciblage" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-crosshairs"></i>
+        </div>
+        <h3>Ciblage</h3>
+        <p>Repérez les établissements prioritaires selon vos critères.</p>
+      </a>
 
-        <a href="/recherche-siret" class="orbit-bubble" style="--i: 5; --bubble-bg: radial-gradient(circle at 25% 75%, rgba(45, 212, 191, 0.22), rgba(19, 78, 74, 0.55)); --bubble-fg: #134e4a; --bubble-border: rgba(45, 212, 191, 0.4); --delay: 1.75s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-plus-circle text-xl"></i>
-            </div>
-            <div class="bubble-title">Ajout PAP</div>
-            <p class="bubble-description">Ajoutez manuellement une nouvelle invitation PAP.</p>
-          </div>
-        </a>
+      <a href="/recherche-siret" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-plus-circle"></i>
+        </div>
+        <h3>Ajout PAP</h3>
+        <p>Ajoutez manuellement une nouvelle invitation PAP.</p>
+      </a>
 
-        <a href="/presentation" class="orbit-bubble" style="--i: 6; --bubble-bg: radial-gradient(circle at 75% 30%, rgba(244, 114, 182, 0.24), rgba(131, 24, 67, 0.55)); --bubble-fg: #831843; --bubble-border: rgba(244, 114, 182, 0.4); --delay: 2.1s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-bullseye text-xl"></i>
-            </div>
-            <div class="bubble-title">Présentation</div>
-            <p class="bubble-description">Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
-          </div>
-        </a>
+      <a href="/presentation" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-bullseye"></i>
+        </div>
+        <h3>Présentation</h3>
+        <p>Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
+      </a>
 
-        <a href="/extraction" class="orbit-bubble" style="--i: 7; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(250, 204, 21, 0.24), rgba(113, 63, 18, 0.55)); --bubble-fg: #713f12; --bubble-border: rgba(250, 204, 21, 0.4); --delay: 2.45s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-scan text-xl"></i>
-            </div>
-            <div class="bubble-title">Scanner PAP</div>
-            <p class="bubble-description">Analysez automatiquement vos documents PAP.</p>
-          </div>
-        </a>
+      <a href="/extraction" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-scan"></i>
+        </div>
+        <h3>Scanner PAP</h3>
+        <p>Analysez automatiquement vos documents PAP.</p>
+      </a>
 
-        <button onclick="ouvrirAssistantExpert()" class="orbit-bubble" style="--i: 8; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(79, 70, 229, 0.28), rgba(59, 7, 100, 0.65)); --bubble-fg: #f8fafc; --bubble-border: rgba(129, 140, 248, 0.55); --delay: 2.8s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-comments text-xl"></i>
-            </div>
-            <div class="bubble-title">Chatbot</div>
-            <p class="bubble-description">Posez vos questions et obtenez des réponses ciblées.</p>
-          </div>
-        </button>
+      <button type="button" class="module-card module-card--action" onclick="ouvrirAssistantExpert()">
+        <div class="module-icon">
+          <i class="fas fa-comments"></i>
+        </div>
+        <h3>Chatbot</h3>
+        <p>Posez vos questions et obtenez des réponses ciblées.</p>
+      </button>
 
-        <button onclick="genererRapportIA()" class="orbit-bubble" style="--i: 9; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), rgba(126, 34, 206, 0.6)); --bubble-fg: #fdf2f8; --bubble-border: rgba(236, 72, 153, 0.55); --delay: 3.15s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-chart-pie text-xl"></i>
-            </div>
-            <div class="bubble-title">Super rapport</div>
-            <p class="bubble-description">Générez un rapport stratégique en quelques clics.</p>
-          </div>
-        </button>
+      <button type="button" class="module-card module-card--action" onclick="genererRapportIA()">
+        <div class="module-icon">
+          <i class="fas fa-chart-pie"></i>
+        </div>
+        <h3>Super rapport</h3>
+        <p>Générez un rapport stratégique en quelques clics.</p>
+      </button>
 
-        {% if current_user.role == "admin" %}
-        <a href="/admin" class="orbit-bubble" style="--i: 10; --bubble-bg: radial-gradient(circle at 40% 60%, rgba(239, 68, 68, 0.32), rgba(136, 19, 55, 0.62)); --bubble-fg: #fee2e2; --bubble-border: rgba(239, 68, 68, 0.6); --delay: 3.5s;">
-          <div class="bubble-inner">
-            <div class="bubble-icon">
-              <i class="fas fa-cog text-xl"></i>
-            </div>
-            <div class="bubble-title">Administration</div>
-            <p class="bubble-description">Pilotez les imports, utilisateurs et outils avancés.</p>
-          </div>
-        </a>
-        {% endif %}
-      </div>
+      {% if current_user.role == "admin" %}
+      <a href="/admin" class="module-card">
+        <div class="module-icon">
+          <i class="fas fa-cog"></i>
+        </div>
+        <h3>Administration</h3>
+        <p>Pilotez les imports, utilisateurs et outils avancés.</p>
+      </a>
+      {% endif %}
     </div>
   </div>
 </div>
-
 <!-- Inclure les modals chatbot et rapport -->
 {% include '_chat_rapport_modals.html' %}
 
