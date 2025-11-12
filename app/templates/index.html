@@ -5,6 +5,11 @@
 {% if current_user %}
 <!-- Menu pour utilisateurs connectés -->
 <style>
+  :root {
+    /* Largeur réutilisable pour le panneau central */
+    --orbit-center-width: clamp(22rem, 36vw, 32rem);
+  }
+
   .homepage-shell {
     display: flex;
     justify-content: center;
@@ -19,7 +24,13 @@
     aspect-ratio: 1 / 1;
     gap: 2rem;
     --bubble-size: clamp(7.5rem, 11vw, 9.75rem);
-    --r: calc(min(60vw, 34rem) / 2 - var(--bubble-size) / 2 - 0.75rem);
+    /* Rayon = demi scène - demi centre - demi bulle - marge de respiration */
+    --r: calc(
+      (min(70vw, 55rem) / 2)
+      - (var(--orbit-center-width) / 2)
+      - (var(--bubble-size) / 2)
+      - 1.25rem
+    );
   }
 
   .orbit-center-card {
@@ -27,7 +38,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    width: clamp(22rem, 36vw, 32rem);
+    width: var(--orbit-center-width);
     padding: 2.5rem;
     border-radius: 1.75rem;
     background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(124, 58, 237, 0.12));
@@ -161,7 +172,12 @@
     .orbit-layout {
       width: clamp(520px, 80vw, 720px);
       --bubble-size: clamp(6.5rem, 16vw, 8.5rem);
-      --r: calc(min(70vw, 28rem) / 2 - var(--bubble-size) / 2 - 0.5rem);
+      --r: calc(
+        (min(80vw, 45rem) / 2)
+        - (var(--orbit-center-width) / 2)
+        - (var(--bubble-size) / 2)
+        - 1rem
+      );
     }
   }
 
@@ -183,7 +199,7 @@
     .orbit-center-card {
       position: static;
       transform: none;
-      width: min(100%, 32rem);
+      width: min(100%, var(--orbit-center-width));
       padding: 2.25rem 1.75rem;
     }
 
