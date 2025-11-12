@@ -5,22 +5,24 @@
 {% if current_user %}
 <!-- Menu pour utilisateurs connectés -->
 <div class="max-w-5xl mx-auto">
-  <div class="mb-10 text-center">
+  <div class="mb-8 text-center">
     <h1 class="text-4xl font-bold text-gray-900 mb-3">
       Bienvenue, {{ current_user.first_name }} !
     </h1>
     <p class="text-gray-600 mb-4">
       Plateforme de gestion PAP/CSE
     </p>
-    <div class="max-w-3xl mx-auto bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-xl p-6 border border-cgt-red/20">
-      <p class="text-gray-700 leading-relaxed">
-        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant IA pour répondre à vos questions.
-      </p>
-    </div>
   </div>
 
   <!-- Menu principal -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+    <div class="md:col-span-2 lg:col-span-3 flex justify-center">
+      <div class="max-w-3xl w-full bg-gradient-to-r from-cgt-red/10 to-purple-100 rounded-xl p-6 border border-cgt-red/20 text-center">
+        <p class="text-gray-700 leading-relaxed">
+          Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports intelligents et utilisez notre assistant pour répondre à vos questions.
+        </p>
+      </div>
+    </div>
 
     <a href="/stats" class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-2 border-transparent hover:border-cgt-red">
       <div class="flex items-center justify-between mb-4">
