@@ -8,33 +8,37 @@
   .homepage-shell {
     display: flex;
     justify-content: center;
-    padding: 2rem 0 5rem;
+    padding: 4rem 1.5rem 6rem;
   }
 
   .orbit-layout {
-    --r: clamp(9rem, 28vw, 17rem);
-    --bubble-size: clamp(8rem, 13vw, 10.5rem);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3rem;
     position: relative;
-    width: min(100%, 48rem);
+    display: grid;
+    place-items: center;
+    width: clamp(680px, 70vw, 880px);
+    aspect-ratio: 1 / 1;
+    gap: 2rem;
+    --bubble-size: clamp(7.5rem, 11vw, 9.75rem);
+    --r: calc(min(60vw, 34rem) / 2 - var(--bubble-size) / 2 - 0.75rem);
   }
 
   .orbit-center-card {
-    width: min(100%, 32rem);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(22rem, 36vw, 32rem);
     padding: 2.5rem;
     border-radius: 1.75rem;
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(124, 58, 237, 0.12));
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(124, 58, 237, 0.12));
     border: 1px solid rgba(220, 38, 38, 0.18);
     text-align: center;
-    box-shadow: 0 35px 60px -40px rgba(15, 23, 42, 0.45);
+    box-shadow: 0 32px 70px -48px rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(4px);
   }
 
   .orbit-center-card h1 {
-    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-size: clamp(2rem, 4.5vw, 2.65rem);
     font-weight: 700;
     color: #111827;
     margin-bottom: 0.75rem;
@@ -47,29 +51,31 @@
 
   .orbit-ring {
     position: relative;
-    width: calc(var(--r) * 2 + var(--bubble-size));
-    min-height: calc(var(--r) * 2 + var(--bubble-size));
-    margin: 0 auto;
+    width: 100%;
+    height: 100%;
   }
 
   .orbit-bubble {
     --bubble-bg: #ffffff;
     --bubble-fg: #1f2937;
     --bubble-border: rgba(209, 213, 219, 0.55);
-    --distance: 1;
     --delay: 0s;
+    --angle: calc((var(--i) / var(--count)) * 1turn);
+    --lift: 0px;
+    --distance: 1;
     position: absolute;
     top: 50%;
     left: 50%;
     width: var(--bubble-size);
     aspect-ratio: 1 / 1;
-    transform: translate(-50%, -50%)
-      translate(
-        calc(cos(var(--angle)) * var(--r) * var(--distance)),
-        calc(sin(var(--angle)) * var(--r) * var(--distance))
-      );
     text-decoration: none;
     color: inherit;
+    transform: translate(-50%, -50%)
+      translate(
+        calc(cos(var(--angle)) * (var(--r) + var(--lift)) * var(--distance)),
+        calc(sin(var(--angle)) * (var(--r) + var(--lift)) * var(--distance))
+      );
+    transition: transform 0.35s ease;
   }
 
   button.orbit-bubble {
@@ -124,8 +130,13 @@
   .orbit-bubble:hover .bubble-inner,
   .orbit-bubble:focus-visible .bubble-inner {
     animation-play-state: paused;
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 35px 75px -40px rgba(91, 33, 182, 0.6);
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 40px 90px -45px rgba(91, 33, 182, 0.5);
+  }
+
+  .orbit-bubble:hover,
+  .orbit-bubble:focus-visible {
+    --lift: 4px;
   }
 
   .orbit-bubble:focus-visible {
@@ -139,59 +150,70 @@
   @keyframes float {
     0%,
     100% {
-      transform: translate3d(0, -6px, 0);
+      transform: translate3d(0, 0, 0);
     }
     50% {
-      transform: translate3d(0, 6px, 0);
+      transform: translate3d(0, -8px, 0);
     }
   }
 
   @media (max-width: 1023px) {
     .orbit-layout {
-      --r: clamp(8rem, 32vw, 15rem);
-      --bubble-size: clamp(7.25rem, 22vw, 9.5rem);
+      width: clamp(520px, 80vw, 720px);
+      --bubble-size: clamp(6.5rem, 16vw, 8.5rem);
+      --r: calc(min(70vw, 28rem) / 2 - var(--bubble-size) / 2 - 0.5rem);
     }
   }
 
   @media (max-width: 767px) {
     .homepage-shell {
-      padding-bottom: 3rem;
+      padding: 3rem 1.25rem 4rem;
     }
 
     .orbit-layout {
-      --r: 0;
       width: 100%;
-      gap: 2.5rem;
+      aspect-ratio: auto;
+      display: grid;
+      gap: 1.75rem;
+      justify-items: center;
+      --bubble-size: clamp(7.5rem, 42vw, 9.5rem);
+      --r: 0;
     }
 
     .orbit-center-card {
-      padding: 2rem 1.75rem;
+      position: static;
+      transform: none;
+      width: min(100%, 32rem);
+      padding: 2.25rem 1.75rem;
     }
 
     .orbit-ring {
-      display: grid;
-      gap: 1.5rem;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      position: static;
       width: 100%;
-      min-height: unset;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.25rem;
     }
 
     .orbit-bubble {
       position: static;
       transform: none;
-      width: 100%;
+      transition: none;
     }
 
     .bubble-inner {
+      height: auto;
       aspect-ratio: 1 / 1;
       padding: 1.25rem;
+      animation: none;
     }
   }
 </style>
 
 <div class="max-w-5xl mx-auto px-4">
   <div class="homepage-shell">
-    <div class="orbit-layout">
+    {% set bubble_count = 10 + (1 if current_user.role == "admin" else 0) %}
+    <div class="orbit-layout" style="--count: {{ bubble_count }};">
       <div class="orbit-center-card">
         <h1>Bienvenue, {{ current_user.first_name }} !</h1>
         <p class="text-sm uppercase tracking-[0.25em] text-cgt-red/80 mb-4">Plateforme de gestion PAP/CSE</p>
@@ -201,7 +223,7 @@
       </div>
 
       <div class="orbit-ring">
-        <a href="/stats" class="orbit-bubble" style="--angle: -90deg; --distance: 1; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), rgba(59, 7, 100, 0.45)); --bubble-fg: #1e1b4b; --bubble-border: rgba(79, 70, 229, 0.35); --delay: 0s;">
+        <a href="/stats" class="orbit-bubble" style="--i: 0; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), rgba(59, 7, 100, 0.45)); --bubble-fg: #1e1b4b; --bubble-border: rgba(79, 70, 229, 0.35); --delay: 0s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-chart-line text-xl"></i>
@@ -211,7 +233,7 @@
           </div>
         </a>
 
-        <a href="/invitations" class="orbit-bubble" style="--angle: -54deg; --distance: 1.05; --bubble-bg: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.18), rgba(30, 64, 175, 0.5)); --bubble-fg: #1d4ed8; --bubble-border: rgba(59, 130, 246, 0.35); --delay: 0.6s;">
+        <a href="/invitations" class="orbit-bubble" style="--i: 1; --bubble-bg: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.18), rgba(30, 64, 175, 0.5)); --bubble-fg: #1d4ed8; --bubble-border: rgba(59, 130, 246, 0.35); --delay: 0.35s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-envelope-open-text text-xl"></i>
@@ -221,7 +243,7 @@
           </div>
         </a>
 
-        <a href="/calendrier" class="orbit-bubble" style="--angle: -18deg; --distance: 0.92; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(16, 185, 129, 0.2), rgba(5, 46, 22, 0.45)); --bubble-fg: #065f46; --bubble-border: rgba(16, 185, 129, 0.4); --delay: 1.2s;">
+        <a href="/calendrier" class="orbit-bubble" style="--i: 2; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(16, 185, 129, 0.2), rgba(5, 46, 22, 0.45)); --bubble-fg: #065f46; --bubble-border: rgba(16, 185, 129, 0.4); --delay: 0.7s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-calendar-alt text-xl"></i>
@@ -231,7 +253,7 @@
           </div>
         </a>
 
-        <a href="/cartographie" class="orbit-bubble" style="--angle: 18deg; --distance: 1.08; --bubble-bg: radial-gradient(circle at 30% 70%, rgba(129, 140, 248, 0.2), rgba(55, 48, 163, 0.45)); --bubble-fg: #3730a3; --bubble-border: rgba(99, 102, 241, 0.35); --delay: 1.8s;">
+        <a href="/cartographie" class="orbit-bubble" style="--i: 3; --bubble-bg: radial-gradient(circle at 30% 70%, rgba(129, 140, 248, 0.2), rgba(55, 48, 163, 0.45)); --bubble-fg: #3730a3; --bubble-border: rgba(99, 102, 241, 0.35); --delay: 1.05s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-map text-xl"></i>
@@ -241,7 +263,7 @@
           </div>
         </a>
 
-        <a href="/ciblage" class="orbit-bubble" style="--angle: 54deg; --distance: 0.9; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(249, 115, 22, 0.22), rgba(124, 45, 18, 0.55)); --bubble-fg: #7c2d12; --bubble-border: rgba(249, 115, 22, 0.35); --delay: 2.4s;">
+        <a href="/ciblage" class="orbit-bubble" style="--i: 4; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(249, 115, 22, 0.22), rgba(124, 45, 18, 0.55)); --bubble-fg: #7c2d12; --bubble-border: rgba(249, 115, 22, 0.35); --delay: 1.4s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-crosshairs text-xl"></i>
@@ -251,7 +273,7 @@
           </div>
         </a>
 
-        <a href="/recherche-siret" class="orbit-bubble" style="--angle: 90deg; --distance: 1.02; --bubble-bg: radial-gradient(circle at 25% 75%, rgba(45, 212, 191, 0.22), rgba(19, 78, 74, 0.55)); --bubble-fg: #134e4a; --bubble-border: rgba(45, 212, 191, 0.4); --delay: 3s;">
+        <a href="/recherche-siret" class="orbit-bubble" style="--i: 5; --bubble-bg: radial-gradient(circle at 25% 75%, rgba(45, 212, 191, 0.22), rgba(19, 78, 74, 0.55)); --bubble-fg: #134e4a; --bubble-border: rgba(45, 212, 191, 0.4); --delay: 1.75s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-plus-circle text-xl"></i>
@@ -261,7 +283,7 @@
           </div>
         </a>
 
-        <a href="/presentation" class="orbit-bubble" style="--angle: 126deg; --distance: 0.88; --bubble-bg: radial-gradient(circle at 75% 30%, rgba(244, 114, 182, 0.24), rgba(131, 24, 67, 0.55)); --bubble-fg: #831843; --bubble-border: rgba(244, 114, 182, 0.4); --delay: 3.6s;">
+        <a href="/presentation" class="orbit-bubble" style="--i: 6; --bubble-bg: radial-gradient(circle at 75% 30%, rgba(244, 114, 182, 0.24), rgba(131, 24, 67, 0.55)); --bubble-fg: #831843; --bubble-border: rgba(244, 114, 182, 0.4); --delay: 2.1s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-bullseye text-xl"></i>
@@ -271,7 +293,7 @@
           </div>
         </a>
 
-        <a href="/extraction" class="orbit-bubble" style="--angle: 162deg; --distance: 1.06; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(250, 204, 21, 0.24), rgba(113, 63, 18, 0.55)); --bubble-fg: #713f12; --bubble-border: rgba(250, 204, 21, 0.4); --delay: 4.2s;">
+        <a href="/extraction" class="orbit-bubble" style="--i: 7; --bubble-bg: radial-gradient(circle at 70% 70%, rgba(250, 204, 21, 0.24), rgba(113, 63, 18, 0.55)); --bubble-fg: #713f12; --bubble-border: rgba(250, 204, 21, 0.4); --delay: 2.45s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-scan text-xl"></i>
@@ -281,7 +303,7 @@
           </div>
         </a>
 
-        <button onclick="ouvrirAssistantExpert()" class="orbit-bubble" style="--angle: 198deg; --distance: 0.94; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(79, 70, 229, 0.28), rgba(59, 7, 100, 0.65)); --bubble-fg: #f8fafc; --bubble-border: rgba(129, 140, 248, 0.55); --delay: 4.8s;">
+        <button onclick="ouvrirAssistantExpert()" class="orbit-bubble" style="--i: 8; --bubble-bg: radial-gradient(circle at 30% 30%, rgba(79, 70, 229, 0.28), rgba(59, 7, 100, 0.65)); --bubble-fg: #f8fafc; --bubble-border: rgba(129, 140, 248, 0.55); --delay: 2.8s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-comments text-xl"></i>
@@ -291,7 +313,7 @@
           </div>
         </button>
 
-        <button onclick="genererRapportIA()" class="orbit-bubble" style="--angle: 234deg; --distance: 1.04; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), rgba(126, 34, 206, 0.6)); --bubble-fg: #fdf2f8; --bubble-border: rgba(236, 72, 153, 0.55); --delay: 5.4s;">
+        <button onclick="genererRapportIA()" class="orbit-bubble" style="--i: 9; --bubble-bg: radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), rgba(126, 34, 206, 0.6)); --bubble-fg: #fdf2f8; --bubble-border: rgba(236, 72, 153, 0.55); --delay: 3.15s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-chart-pie text-xl"></i>
@@ -302,7 +324,7 @@
         </button>
 
         {% if current_user.role == "admin" %}
-        <a href="/admin" class="orbit-bubble" style="--angle: 270deg; --distance: 1; --bubble-bg: radial-gradient(circle at 40% 60%, rgba(239, 68, 68, 0.32), rgba(136, 19, 55, 0.62)); --bubble-fg: #fee2e2; --bubble-border: rgba(239, 68, 68, 0.6); --delay: 6s;">
+        <a href="/admin" class="orbit-bubble" style="--i: 10; --bubble-bg: radial-gradient(circle at 40% 60%, rgba(239, 68, 68, 0.32), rgba(136, 19, 55, 0.62)); --bubble-fg: #fee2e2; --bubble-border: rgba(239, 68, 68, 0.6); --delay: 3.5s;">
           <div class="bubble-inner">
             <div class="bubble-icon">
               <i class="fas fa-cog text-xl"></i>
