@@ -765,6 +765,18 @@ def presentation(request: Request, db: Session = Depends(get_session)):
     )
 
 
+@app.get("/guide-exploitation", response_class=HTMLResponse)
+def guide_exploitation(request: Request):
+    """Page de synthèse interactive du guide d'exploitation IA."""
+
+    return templates.TemplateResponse(
+        "guide_exploitation.html",
+        {
+            "request": request,
+        },
+    )
+
+
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
     """Page dédiée aux visualisations statistiques du tableau de bord."""
