@@ -37,7 +37,12 @@
   }
 
   .module-card {
-    background: #ffffff;
+    --card-bg: #ffffff;
+    --card-ink: #111827;
+    --card-muted: #4b5563;
+    --card-icon-bg: rgba(79, 70, 229, 0.12);
+    --card-icon-color: #4338ca;
+    background: var(--card-bg);
     border-radius: 1.25rem;
     padding: 1.75rem 1.5rem;
     box-shadow: 0 18px 45px -28px rgba(15, 23, 42, 0.45);
@@ -68,29 +73,117 @@
     width: 3rem;
     height: 3rem;
     border-radius: 0.95rem;
-    background: rgba(79, 70, 229, 0.12);
-    color: #4338ca;
+    background: var(--card-icon-bg);
+    color: var(--card-icon-color);
     font-size: 1.35rem;
   }
 
   .module-card h3 {
     font-size: 1.15rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--card-ink);
     margin: 0;
   }
 
   .module-card p {
     margin: 0;
-    color: #4b5563;
+    color: var(--card-muted);
     line-height: 1.5;
     font-size: 0.95rem;
   }
 
   button.module-card {
     border: none;
-    background: #ffffff;
+    background: var(--card-bg);
     cursor: pointer;
+  }
+
+  .module-card--indigo {
+    --card-bg: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+    --card-ink: #1e1b4b;
+    --card-muted: rgba(30, 27, 75, 0.8);
+    --card-icon-bg: rgba(79, 70, 229, 0.25);
+    --card-icon-color: #4338ca;
+  }
+
+  .module-card--rose {
+    --card-bg: linear-gradient(135deg, #ffe4e6, #fecdd3);
+    --card-ink: #881337;
+    --card-muted: rgba(136, 19, 55, 0.8);
+    --card-icon-bg: rgba(244, 114, 182, 0.35);
+    --card-icon-color: #be185d;
+  }
+
+  .module-card--emerald {
+    --card-bg: linear-gradient(135deg, #d1fae5, #bbf7d0);
+    --card-ink: #064e3b;
+    --card-muted: rgba(6, 78, 59, 0.8);
+    --card-icon-bg: rgba(16, 185, 129, 0.35);
+    --card-icon-color: #047857;
+  }
+
+  .module-card--amber {
+    --card-bg: linear-gradient(135deg, #fef3c7, #fde68a);
+    --card-ink: #78350f;
+    --card-muted: rgba(120, 53, 15, 0.8);
+    --card-icon-bg: rgba(251, 191, 36, 0.35);
+    --card-icon-color: #d97706;
+  }
+
+  .module-card--sky {
+    --card-bg: linear-gradient(135deg, #e0f2fe, #bae6fd);
+    --card-ink: #0c4a6e;
+    --card-muted: rgba(12, 74, 110, 0.8);
+    --card-icon-bg: rgba(56, 189, 248, 0.35);
+    --card-icon-color: #0284c7;
+  }
+
+  .module-card--violet {
+    --card-bg: linear-gradient(135deg, #ede9fe, #ddd6fe);
+    --card-ink: #4c1d95;
+    --card-muted: rgba(76, 29, 149, 0.8);
+    --card-icon-bg: rgba(167, 139, 250, 0.35);
+    --card-icon-color: #7c3aed;
+  }
+
+  .module-card--teal {
+    --card-bg: linear-gradient(135deg, #ccfbf1, #99f6e4);
+    --card-ink: #134e4a;
+    --card-muted: rgba(19, 78, 74, 0.8);
+    --card-icon-bg: rgba(45, 212, 191, 0.35);
+    --card-icon-color: #0f766e;
+  }
+
+  .module-card--cyan {
+    --card-bg: linear-gradient(135deg, #cffafe, #a5f3fc);
+    --card-ink: #155e75;
+    --card-muted: rgba(21, 94, 117, 0.8);
+    --card-icon-bg: rgba(6, 182, 212, 0.35);
+    --card-icon-color: #0e7490;
+  }
+
+  .module-card--red {
+    --card-bg: linear-gradient(135deg, #fee2e2, #fecaca);
+    --card-ink: #7f1d1d;
+    --card-muted: rgba(127, 29, 29, 0.8);
+    --card-icon-bg: rgba(248, 113, 113, 0.35);
+    --card-icon-color: #b91c1c;
+  }
+
+  .module-card--slate {
+    --card-bg: linear-gradient(135deg, #e2e8f0, #cbd5f5);
+    --card-ink: #0f172a;
+    --card-muted: rgba(15, 23, 42, 0.75);
+    --card-icon-bg: rgba(100, 116, 139, 0.25);
+    --card-icon-color: #1e293b;
+  }
+
+  .module-card--stone {
+    --card-bg: linear-gradient(135deg, #f5f5f4, #e7e5e4);
+    --card-ink: #1c1917;
+    --card-muted: rgba(28, 25, 23, 0.75);
+    --card-icon-bg: rgba(120, 113, 108, 0.25);
+    --card-icon-color: #57534e;
   }
 
   @media (max-width: 768px) {
@@ -114,7 +207,7 @@
     </div>
 
     <div class="modules-grid">
-      <a href="/stats" class="module-card">
+      <a href="/stats" class="module-card module-card--indigo">
         <div class="module-icon">
           <i class="fas fa-chart-line"></i>
         </div>
@@ -122,7 +215,7 @@
         <p>Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
       </a>
 
-      <a href="/invitations" class="module-card">
+      <a href="/invitations" class="module-card module-card--rose">
         <div class="module-icon">
           <i class="fas fa-envelope-open-text"></i>
         </div>
@@ -130,7 +223,7 @@
         <p>Gérez la liste complète des invitations PAP Cycle 5.</p>
       </a>
 
-      <a href="/calendrier" class="module-card">
+      <a href="/calendrier" class="module-card module-card--emerald">
         <div class="module-icon">
           <i class="fas fa-calendar-alt"></i>
         </div>
@@ -138,7 +231,7 @@
         <p>Visualisez les prochaines échéances électorales majeures.</p>
       </a>
 
-      <a href="/cartographie" class="module-card">
+      <a href="/cartographie" class="module-card module-card--amber">
         <div class="module-icon">
           <i class="fas fa-map"></i>
         </div>
@@ -146,7 +239,7 @@
         <p>Explorez la couverture territoriale de la CGT.</p>
       </a>
 
-      <a href="/ciblage" class="module-card">
+      <a href="/ciblage" class="module-card module-card--sky">
         <div class="module-icon">
           <i class="fas fa-crosshairs"></i>
         </div>
@@ -154,7 +247,7 @@
         <p>Repérez les établissements prioritaires selon vos critères.</p>
       </a>
 
-      <a href="/recherche-siret" class="module-card">
+      <a href="/recherche-siret" class="module-card module-card--violet">
         <div class="module-icon">
           <i class="fas fa-plus-circle"></i>
         </div>
@@ -162,7 +255,7 @@
         <p>Ajoutez manuellement une nouvelle invitation PAP.</p>
       </a>
 
-      <a href="/presentation" class="module-card">
+      <a href="/presentation" class="module-card module-card--teal">
         <div class="module-icon">
           <i class="fas fa-bullseye"></i>
         </div>
@@ -170,7 +263,7 @@
         <p>Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
       </a>
 
-      <a href="/extraction" class="module-card">
+      <a href="/extraction" class="module-card module-card--cyan">
         <div class="module-icon">
           <i class="fas fa-scan"></i>
         </div>
@@ -178,7 +271,7 @@
         <p>Analysez automatiquement vos documents PAP.</p>
       </a>
 
-      <button type="button" class="module-card module-card--action" onclick="ouvrirAssistantExpert()">
+      <button type="button" class="module-card module-card--action module-card--red" onclick="ouvrirAssistantExpert()">
         <div class="module-icon">
           <i class="fas fa-comments"></i>
         </div>
@@ -186,7 +279,7 @@
         <p>Posez vos questions et obtenez des réponses ciblées.</p>
       </button>
 
-      <button type="button" class="module-card module-card--action" onclick="genererRapportIA()">
+      <button type="button" class="module-card module-card--action module-card--slate" onclick="genererRapportIA()">
         <div class="module-icon">
           <i class="fas fa-chart-pie"></i>
         </div>
@@ -195,7 +288,7 @@
       </button>
 
       {% if current_user.role == "admin" %}
-      <a href="/admin" class="module-card">
+      <a href="/admin" class="module-card module-card--stone">
         <div class="module-icon">
           <i class="fas fa-cog"></i>
         </div>
