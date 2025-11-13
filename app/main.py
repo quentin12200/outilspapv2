@@ -1,11 +1,13 @@
 # app/main.py
 
 import os
+import glob
 import hashlib
 import urllib.request
 import logging
 import math
 import re
+import shutil
 import unicodedata
 import tempfile
 import calendar
@@ -70,10 +72,10 @@ INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 _DEFAULT_KIT_PDF_PRIMARY = (
-    "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
+    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
 )
 _DEFAULT_KIT_PDF_FALLBACK = (
-    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
+    "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
 )
 
 KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
@@ -83,6 +85,10 @@ KIT_PDF_FILENAME = os.getenv(
 ).strip()
 KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
 KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
+KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
+KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
+
+_DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
 
 _DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
 KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
@@ -173,6 +179,74 @@ def _split_url_list(raw: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+def _split_path_list(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[\s,;]+", raw)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _build_local_kit_candidates() -> list[str]:
+    hints: list[str] = []
+
+    if KIT_PDF_CACHE_ENABLED and KIT_PDF_CACHE_PATH:
+        hints.append(KIT_PDF_CACHE_PATH)
+
+    for raw in (KIT_PDF_LOCAL_PATH, KIT_PDF_LOCAL_PATHS):
+        for entry in _split_path_list(raw):
+            hints.append(entry)
+
+    if KIT_PDF_FILENAME:
+        hints.append(os.path.join(_DEFAULT_DATA_DIR, KIT_PDF_FILENAME))
+        hints.append(os.path.join(_DEFAULT_DATA_DIR, "kit", KIT_PDF_FILENAME))
+
+    hints.append(os.path.join(_DEFAULT_DATA_DIR, "kit", "Kit.renforcement.compile.30.06.2025.pour.impression.pdf"))
+    hints.append(os.path.join(_DEFAULT_DATA_DIR, "Kit.renforcement.compile.30.06.2025.pour.impression.pdf"))
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for hint in hints:
+        if not hint:
+            continue
+        abs_path = os.path.abspath(os.path.expanduser(hint))
+        if abs_path not in seen:
+            normalized.append(abs_path)
+            seen.add(abs_path)
+    return normalized
+
+
+KIT_PDF_LOCAL_HINTS = _build_local_kit_candidates()
+KIT_PDF_LOCAL_GLOBS = [
+    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.pdf"),
+    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.PDF"),
+    os.path.join(_DEFAULT_DATA_DIR, "*.pdf"),
+    os.path.join(_DEFAULT_DATA_DIR, "*.PDF"),
+]
+
+
+def _find_local_kit_pdf() -> str | None:
+    """Retourne le chemin d'un PDF déjà présent dans app/data (ou via les hints)."""
+
+    for candidate in KIT_PDF_LOCAL_HINTS:
+        if not candidate:
+            continue
+        try:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                return candidate
+        except OSError:
+            continue
+
+    for pattern in KIT_PDF_LOCAL_GLOBS:
+        for match in sorted(glob.glob(pattern)):
+            try:
+                if os.path.exists(match) and os.path.getsize(match) > 0:
+                    return os.path.abspath(match)
+            except OSError:
+                continue
+
+    return None
+
+
 def _kit_pdf_cache_ready() -> bool:
     if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
         return False
@@ -184,9 +258,24 @@ def _kit_pdf_cache_ready() -> bool:
 
 def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
     if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
-        return None
+        local_path = _find_local_kit_pdf()
+        return local_path
 
     if _kit_pdf_cache_ready() and not force_refresh:
+        return KIT_PDF_CACHE_PATH
+
+    local_source = _find_local_kit_pdf()
+    if local_source:
+        os.makedirs(os.path.dirname(KIT_PDF_CACHE_PATH), exist_ok=True)
+        if os.path.abspath(local_source) != os.path.abspath(KIT_PDF_CACHE_PATH):
+            shutil.copy2(local_source, KIT_PDF_CACHE_PATH)
+            logger.info(
+                "Kit renforcement copié depuis %s vers %s",
+                local_source,
+                KIT_PDF_CACHE_PATH,
+            )
+        else:
+            logger.info("Kit renforcement déjà présent dans %s", KIT_PDF_CACHE_PATH)
         return KIT_PDF_CACHE_PATH
 
     if not KIT_PDF_URL_CANDIDATES:
@@ -237,6 +326,14 @@ def _build_kit_url_candidates() -> list[str]:
 
 KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
 KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
+
+
+def _kit_pdf_available_flag() -> bool:
+    if KIT_PDF_CACHE_ENABLED:
+        if _kit_pdf_cache_ready():
+            return True
+        return _find_local_kit_pdf() is not None
+    return bool(_find_local_kit_pdf() or KIT_PDF_URL_CANDIDATES)
 
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
 
@@ -955,10 +1052,10 @@ def presentation(request: Request, db: Session = Depends(get_session)):
 def guide_exploitation(request: Request):
     """Page de synthèse interactive du guide d'exploitation IA."""
 
-    if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM and KIT_PDF_URL_CANDIDATES:
+    if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM:
         _ensure_kit_pdf_cached()
 
-    kit_available = _kit_pdf_cache_ready() if KIT_PDF_CACHE_ENABLED else bool(KIT_PDF_URL_CANDIDATES)
+    kit_available = _kit_pdf_available_flag()
 
     return templates.TemplateResponse(
         "guide_exploitation.html",
