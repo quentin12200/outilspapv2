@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping, Iterator
+from typing import Any, Mapping, Iterator, Sequence
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
@@ -69,14 +69,20 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-KIT_PDF_URL = os.getenv(
-    "KIT_PDF_URL",
-    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
-).strip()
+_DEFAULT_KIT_PDF_PRIMARY = (
+    "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
+)
+_DEFAULT_KIT_PDF_FALLBACK = (
+    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
+)
+
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
 KIT_PDF_FILENAME = os.getenv(
     "KIT_PDF_FILENAME",
     "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
 ).strip()
+KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
 
 
 def _infer_invitation_urls() -> list[str]:
@@ -138,6 +144,26 @@ def _safe_int(value: str | None, default: int) -> int:
         return default
 
 
+def _split_url_list(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[\s,]+", raw)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _build_kit_url_candidates() -> list[str]:
+    ordered_sources = [KIT_PDF_URL, KIT_PDF_URLS, KIT_PDF_URL_FALLBACKS]
+    urls: list[str] = []
+    seen: set[str] = set()
+    for source in ordered_sources:
+        for candidate in _split_url_list(source):
+            if candidate not in seen:
+                urls.append(candidate)
+                seen.add(candidate)
+    return urls
+
+
+KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
 KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
 
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
@@ -218,24 +244,49 @@ def _log_or_raise_hash_mismatch(label: str, expected: str, got: str, downloaded:
     logger.log(level, "%s -- continuing.", message)
 
 
-def _stream_remote_asset(url: str, *, accept: str = "application/octet-stream") -> tuple[Iterator[bytes], int | None]:
-    """Retourne un itérateur streaming + longueur depuis une ressource distante."""
+def _stream_remote_asset(
+    url_or_urls: str | Sequence[str], *, accept: str = "application/octet-stream"
+) -> tuple[Iterator[bytes], int | None]:
+    """Retourne un itérateur streaming + longueur depuis une ou plusieurs URLs distantes."""
 
-    if not url:
+    if isinstance(url_or_urls, str):
+        candidates = [url_or_urls]
+    else:
+        candidates = list(url_or_urls)
+
+    candidates = [candidate for candidate in candidates if candidate]
+    if not candidates:
         raise HTTPException(status_code=404, detail="Aucune ressource distante configurée")
 
-    headers = {"Accept": accept}
-    request = urllib.request.Request(url, headers=headers)
+    last_error: Exception | None = None
+    headers = {
+        "Accept": accept,
+        "User-Agent": "PAPCSE/1.0 (+https://outilspap.cgt.fr)",
+    }
 
-    try:
-        response = urllib.request.urlopen(request, timeout=KIT_PDF_TIMEOUT)
-    except Exception as exc:  # pragma: no cover - dépend du réseau
-        raise HTTPException(status_code=502, detail="Impossible de récupérer le document distant") from exc
+    response = None
+    for candidate in candidates:
+        request = urllib.request.Request(candidate, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=KIT_PDF_TIMEOUT)
+            logger.info("Kit PDF récupéré via %s", candidate)
+            break
+        except Exception as exc:  # pragma: no cover - dépend du réseau
+            last_error = exc
+            logger.warning("Échec du chargement %s: %s", candidate, exc)
+            continue
+    else:
+        raise HTTPException(
+            status_code=502,
+            detail="Impossible de récupérer le document distant",
+        ) from last_error
 
-    def iterator() -> Iterator[bytes]:
-        with response:
+    assert response is not None  # pour les analyseurs statiques
+
+    def iterator(resp=response) -> Iterator[bytes]:
+        with resp:
             while True:
-                chunk = response.read(1024 * 64)
+                chunk = resp.read(1024 * 64)
                 if not chunk:
                     break
                 yield chunk
@@ -825,7 +876,7 @@ def guide_exploitation(request: Request):
         "guide_exploitation.html",
         {
             "request": request,
-            "kit_pdf_available": bool(KIT_PDF_URL),
+            "kit_pdf_available": bool(KIT_PDF_URL_CANDIDATES),
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
         },
     )
@@ -835,7 +886,9 @@ def guide_exploitation(request: Request):
 def kit_pdf_document(download: bool = False):
     """Diffuse le PDF du kit de renforcement via le même domaine (embed + téléchargement)."""
 
-    iterator_factory, content_length = _stream_remote_asset(KIT_PDF_URL, accept="application/pdf")
+    iterator_factory, content_length = _stream_remote_asset(
+        KIT_PDF_URL_CANDIDATES, accept="application/pdf"
+    )
 
     disposition = "attachment" if download else "inline"
     filename = KIT_PDF_FILENAME or "Kit-renforcement.pdf"
