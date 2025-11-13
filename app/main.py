@@ -328,12 +328,26 @@ KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
 KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
 
 
-def _kit_pdf_available_flag() -> bool:
+def _kit_pdf_status() -> dict[str, bool]:
+    """Expose l'état actuel du kit PDF pour l'interface (inline vs streaming)."""
+
+    inline_ready = False
+
     if KIT_PDF_CACHE_ENABLED:
         if _kit_pdf_cache_ready():
-            return True
-        return _find_local_kit_pdf() is not None
-    return bool(_find_local_kit_pdf() or KIT_PDF_URL_CANDIDATES)
+            inline_ready = True
+        else:
+            inline_ready = _find_local_kit_pdf() is not None
+    else:
+        inline_ready = _find_local_kit_pdf() is not None
+
+    download_ready = inline_ready or bool(KIT_PDF_URL_CANDIDATES)
+
+    return {
+        "inline_ready": inline_ready,
+        "download_ready": download_ready,
+        "remote_only": download_ready and not inline_ready,
+    }
 
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
 
@@ -1055,13 +1069,15 @@ def guide_exploitation(request: Request):
     if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM:
         _ensure_kit_pdf_cached()
 
-    kit_available = _kit_pdf_available_flag()
+    kit_status = _kit_pdf_status()
 
     return templates.TemplateResponse(
         "guide_exploitation.html",
         {
             "request": request,
-            "kit_pdf_available": kit_available,
+            "kit_pdf_available": kit_status["download_ready"],
+            "kit_pdf_inline_ready": kit_status["inline_ready"],
+            "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
         },
     )
