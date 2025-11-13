@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON
+from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON, Index
 from sqlalchemy.orm import synonym, deferred
 from .db import Base
 
@@ -406,3 +406,84 @@ class BackgroundTask(Base):
 
     def __repr__(self):
         return f"<BackgroundTask(id={self.id}, status={self.status}, description={self.description})>"
+
+
+class User(Base):
+    """
+    Table des utilisateurs pour l'accès au site.
+
+    Les utilisateurs s'inscrivent via un formulaire et doivent être approuvés
+    par un administrateur avant de pouvoir se connecter.
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Identifiants
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+
+    # Informations personnelles
+    first_name = Column(String(255), nullable=False)  # Prénom
+    last_name = Column(String(255), nullable=False)  # Nom
+    phone = Column(String(20))  # Téléphone
+
+    # Informations syndicales
+    organization = Column(String(255))  # Organisation / Syndicat
+    fd = Column(String(80))  # Fédération
+    ud = Column(String(80))  # Union Départementale
+    region = Column(String(100))  # Région
+    responsibility = Column(String(255))  # Responsabilité dans l'organisation
+
+    # Statut du compte
+    is_approved = Column(Boolean, default=False, nullable=False, index=True)  # Approuvé par admin
+    is_active = Column(Boolean, default=True, nullable=False)  # Compte actif
+    role = Column(String(20), default="user", nullable=False)  # user, admin
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+    approved_at = Column(DateTime)  # Date d'approbation par l'admin
+    approved_by = Column(String(255))  # Admin qui a approuvé
+    last_login = Column(DateTime)  # Dernière connexion
+
+    # Statistiques de connexion
+    login_count = Column(Integer, default=0, nullable=False)  # Nombre total de connexions
+    session_start = Column(DateTime)  # Début de la session en cours
+    total_session_duration = Column(Integer, default=0, nullable=False)  # Durée totale en secondes
+
+    # Métadonnées de la demande
+    registration_reason = Column(Text)  # Raison de la demande d'accès
+    registration_ip = Column(String(45))  # IP lors de l'inscription
+
+    @property
+    def full_name(self) -> str:
+        """Retourne le nom complet de l'utilisateur"""
+        return f"{self.first_name} {self.last_name}"
+
+    @property
+    def current_session_duration(self) -> int:
+        """Calcule la durée de la session en cours en secondes"""
+        if self.session_start:
+            return int((datetime.now() - self.session_start).total_seconds())
+        return 0
+
+    @property
+    def formatted_total_duration(self) -> str:
+        """Retourne la durée totale formatée (ex: 2h 15min)"""
+        if not self.total_session_duration:
+            return "0 min"
+
+        hours = self.total_session_duration // 3600
+        minutes = (self.total_session_duration % 3600) // 60
+
+        if hours > 0:
+            return f"{hours}h {minutes}min"
+        return f"{minutes}min"
+
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, name={self.full_name}, is_approved={self.is_approved})>"
+
+    __table_args__ = (
+        Index('idx_user_email_approved', 'email', 'is_approved'),
+    )

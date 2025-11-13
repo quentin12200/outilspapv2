@@ -1,0 +1,1095 @@
+<script>
+async function checkChatbotStatus() {
+  try {
+    const response = await fetch('/api/chatbot/health');
+    const data = await response.json();
+
+    const statusEl = document.getElementById('chatbot-status');
+    if (data.openai_configured) {
+      statusEl.textContent = '✓ Opérationnel';
+      statusEl.classList.remove('bg-gray-200', 'text-gray-600');
+      statusEl.classList.add('bg-green-100', 'text-green-700');
+    } else {
+      statusEl.textContent = '✗ Non configuré';
+      statusEl.classList.remove('bg-gray-200', 'text-gray-600');
+      statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+    }
+  } catch (error) {
+    console.error('Erreur lors de la vérification du chatbot:', error);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('chat-form');
+  if (!form) return;
+
+  const input = document.getElementById('chat-input');
+  const submitBtn = document.getElementById('chat-submit');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const question = input.value.trim();
+    if (!question) return;
+
+    input.value = '';
+    addUserMessage(question);
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
+    }
+
+    try {
+      const response = await fetch('/api/chatbot/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question })
+      });
+
+      const data = await response.json();
+      addBotMessage(data);
+
+    } catch (error) {
+      console.error('Erreur:', error);
+      addBotMessage({
+        answer: '❌ Une erreur est survenue. Veuillez réessayer.',
+        error: error.message
+      });
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
+      }
+      if (input) {
+        input.focus();
+      }
+    }
+  });
+
+  const statusEl = document.getElementById('chatbot-status');
+  if (statusEl) {
+    checkChatbotStatus();
+  }
+});
+
+// Add user message to chat
+function addUserMessage(question) {
+  const messagesDiv = document.getElementById('chat-messages');
+  const messageEl = document.createElement('div');
+  messageEl.className = 'flex items-start gap-3 justify-end';
+  messageEl.innerHTML = `
+    <div class="max-w-2xl bg-indigo-500 text-white rounded-lg p-4 shadow-sm">
+      <p class="text-sm">${escapeHtml(question)}</p>
+    </div>
+    <div class="flex-shrink-0 w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+      <i class="fas fa-user text-gray-600"></i>
+    </div>
+  `;
+  messagesDiv.appendChild(messageEl);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Add bot message to chat
+function addBotMessage(data) {
+  const messagesDiv = document.getElementById('chat-messages');
+  const messageEl = document.createElement('div');
+  messageEl.className = 'flex items-start gap-3';
+
+  let content = `
+    <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+      <i class="fas fa-comments text-white"></i>
+    </div>
+    <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
+      <div class="prose prose-sm max-w-none">
+        ${formatMarkdown(data.answer)}
+      </div>
+  `;
+
+  // Add SQL query if available (collapsible)
+  if (data.sql) {
+    content += `
+      <div class="mt-3 pt-3 border-t border-gray-200">
+        <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+          <i class="fas fa-code"></i>
+          Voir la requête SQL générée
+          <i class="fas fa-chevron-down ml-1"></i>
+        </button>
+        <div class="hidden mt-2">
+          <p class="text-xs text-gray-600 mb-1">${escapeHtml(data.sql_explanation || '')}</p>
+          <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto"><code>${escapeHtml(data.sql)}</code></pre>
+          ${data.total_results ? `<p class="text-xs text-gray-500 mt-1">${data.total_results} résultat(s) trouvé(s)</p>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  content += `</div>`;
+  messageEl.innerHTML = content;
+  messagesDiv.appendChild(messageEl);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Ask a predefined question
+function askPredefinedQuestion(question) {
+  const input = document.getElementById('chat-input');
+  input.value = question;
+  document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+}
+
+// Show more examples
+async function showMoreExamples() {
+  try {
+    const response = await fetch('/api/chatbot/examples');
+    const data = await response.json();
+
+    const messagesDiv = document.getElementById('chat-messages');
+    const messageEl = document.createElement('div');
+    messageEl.className = 'flex items-start gap-3';
+
+    let examplesHtml = '<div class="space-y-3">';
+    for (const category of data.examples) {
+      examplesHtml += `
+        <div>
+          <h4 class="font-semibold text-gray-800 mb-2">${escapeHtml(category.category)}</h4>
+          <div class="space-y-1">
+      `;
+      for (const question of category.questions) {
+        examplesHtml += `
+        <button type="button" onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            ${escapeHtml(question)}
+          </button>
+        `;
+      }
+      examplesHtml += '</div></div>';
+    }
+    examplesHtml += '</div>';
+
+    messageEl.innerHTML = `
+      <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+        <i class="fas fa-comments text-white"></i>
+      </div>
+      <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
+        <p class="text-sm font-semibold text-gray-800 mb-3">✨ Voici plus d'exemples de questions :</p>
+        ${examplesHtml}
+      </div>
+    `;
+
+    messagesDiv.appendChild(messageEl);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  } catch (error) {
+    console.error('Erreur lors du chargement des exemples:', error);
+  }
+}
+
+// Utility: Escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Utility: Format markdown-like text (basic)
+function formatMarkdown(text) {
+  if (!text) return '';
+
+  // Convert **bold** to <strong>
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Convert *italic* to <em>
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Convert newlines to <br>
+  text = text.replace(/\n/g, '<br>');
+
+  // Convert lists (lines starting with - or •)
+  text = text.replace(/^[•\-]\s(.+)/gm, '<li>$1</li>');
+  text = text.replace(/(<li>.*<\/li>)/s, '<ul class="list-disc list-inside space-y-1">$1</ul>');
+
+  // Convert numbered lists
+  text = text.replace(/^\d+\.\s(.+)/gm, '<li>$1</li>');
+
+  return text;
+}
+
+// RAPPORT IA PAP
+// ============================================
+
+async function genererRapportIA() {
+  // Affiche la modal
+  const modal = document.getElementById('rapport-ia-modal');
+  const modalContent = document.getElementById('rapport-ia-content');
+
+  modal.classList.remove('hidden');
+
+  // Affiche le loader
+  modalContent.innerHTML = `
+    <div class="flex flex-col items-center justify-center py-12">
+      <i class="fas fa-chart-line fa-3x text-purple-600 mb-4 animate-pulse"></i>
+      <p class="text-lg font-semibold text-gray-700">Analyse en cours...</p>
+      <p class="text-sm text-gray-500 mt-2">Traitement des entreprises prioritaires</p>
+      <div class="mt-4">
+        <i class="fas fa-spinner fa-spin text-2xl text-purple-600"></i>
+      </div>
+    </div>
+  `;
+
+  try {
+    const response = await fetch('/api/rapport-ia-pap');
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error('Erreur lors de la génération du rapport');
+    }
+
+    // Affiche le rapport
+    afficherRapportIA(data);
+
+  } catch (error) {
+    modalContent.innerHTML = `
+      <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
+        <i class="fas fa-exclamation-circle text-red-600 mr-2"></i>
+        <span class="text-red-800">Erreur: ${error.message}</span>
+      </div>
+    `;
+  }
+}
+
+function afficherRapportIA(data) {
+  const modalContent = document.getElementById('rapport-ia-content');
+  const stats = data.statistiques;
+  const p1 = data.priorite_1;
+  const p2 = data.priorite_2;
+
+  let html = `
+    <!-- Header -->
+    <div class="mb-6">
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">⚡ Analyse Avancée PAP - Cibles Prioritaires</h2>
+      <p class="text-sm text-gray-500">Généré le ${data.date_generation}</p>
+    </div>
+
+    <!-- Statistiques globales -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-purple-50 rounded-lg p-4">
+        <p class="text-xs text-purple-600 font-semibold uppercase">Priorité 1</p>
+        <p class="text-2xl font-bold text-purple-900">${stats.total_priorite_1}</p>
+        <p class="text-xs text-purple-700">${stats.total_inscrits_p1.toLocaleString()} inscrits</p>
+      </div>
+      <div class="bg-blue-50 rounded-lg p-4">
+        <p class="text-xs text-blue-600 font-semibold uppercase">Priorité 2</p>
+        <p class="text-2xl font-bold text-blue-900">${stats.total_priorite_2}</p>
+        <p class="text-xs text-blue-700">${stats.total_inscrits_p2.toLocaleString()} inscrits</p>
+      </div>
+      <div class="bg-green-50 rounded-lg p-4">
+        <p class="text-xs text-green-600 font-semibold uppercase">CGT Implantée</p>
+        <p class="text-2xl font-bold text-green-900">${stats.cgt_implantee_p1 + stats.cgt_implantee_p2}</p>
+        <p class="text-xs text-green-700">P1: ${stats.cgt_implantee_p1} | P2: ${stats.cgt_implantee_p2}</p>
+      </div>
+      <div class="bg-orange-50 rounded-lg p-4">
+        <p class="text-xs text-orange-600 font-semibold uppercase">En Carence</p>
+        <p class="text-2xl font-bold text-orange-900">${stats.carence_p1 + stats.carence_p2}</p>
+        <p class="text-xs text-orange-700">P1: ${stats.carence_p1} | P2: ${stats.carence_p2}</p>
+      </div>
+    </div>
+
+    <!-- Filtre par région -->
+    <div class="mb-6">
+      <p class="text-sm font-semibold text-gray-700 mb-2">Filtrer par région:</p>
+      <div class="flex flex-wrap gap-2" id="region-tabs">
+        <!-- Les onglets de régions seront générés dynamiquement -->
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-6">
+      <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <button onclick="switchTab('priorite-1')" id="tab-priorite-1" class="rapport-tab active border-b-2 border-purple-600 py-4 px-1 text-sm font-semibold text-purple-600">
+            Priorité 1 (<span id="count-p1">${stats.total_priorite_1}</span>)
+          </button>
+          <button onclick="switchTab('priorite-2')" id="tab-priorite-2" class="rapport-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+            Priorité 2 (<span id="count-p2">${stats.total_priorite_2}</span>)
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Content Priorité 1 -->
+    <div id="content-priorite-1" class="rapport-content">
+      <div class="mb-4">
+        <h3 class="text-xl font-bold text-gray-800">${p1.titre}</h3>
+        <p class="text-sm text-gray-600">${p1.description}</p>
+      </div>
+      <div class="space-y-4 max-h-[600px] overflow-y-auto">
+        ${genererTableauEntreprises(p1.entreprises)}
+      </div>
+    </div>
+
+    <!-- Content Priorité 2 -->
+    <div id="content-priorite-2" class="rapport-content hidden">
+      <div class="mb-4">
+        <h3 class="text-xl font-bold text-gray-800">${p2.titre}</h3>
+        <p class="text-sm text-gray-600">${p2.description}</p>
+      </div>
+      <div class="space-y-4 max-h-[600px] overflow-y-auto">
+        ${genererTableauEntreprises(p2.entreprises)}
+      </div>
+    </div>
+
+    <!-- Export button -->
+    <div class="mt-6 flex justify-end space-x-3">
+      <button onclick="exporterRapportPDF()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+        <i class="fas fa-file-pdf mr-2"></i>
+        Télécharger PDF
+      </button>
+      <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
+        <i class="fas fa-download mr-2"></i>
+        Télécharger JSON
+      </button>
+      <button onclick="fermerRapportIA()" class="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
+        Fermer
+      </button>
+    </div>
+  `;
+
+  modalContent.innerHTML = html;
+
+  // Générer et afficher les onglets de régions
+  genererOngletsRegions(p1, p2);
+
+  // Stocker les données globalement pour le filtrage
+  window.rapportData = { p1, p2 };
+  window.regionSelectionnee = 'toutes';
+}
+
+function genererOngletsRegions(p1, p2) {
+  // Collecter toutes les régions uniques
+  const regions = new Set();
+  [...p1.entreprises, ...p2.entreprises].forEach(e => {
+    if (e.region && e.region !== 'Non renseignée') {
+      regions.add(e.region);
+    }
+  });
+
+  const regionsArray = Array.from(regions).sort();
+  const regionTabsContainer = document.getElementById('region-tabs');
+
+  // Bouton "Toutes régions"
+  let html = `
+    <button onclick="filtrerParRegion('toutes')" id="region-tab-toutes"
+            class="region-tab px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white">
+      Toutes régions
+    </button>
+  `;
+
+  // Boutons pour chaque région
+  regionsArray.forEach(region => {
+    html += `
+      <button onclick="filtrerParRegion('${region}')" id="region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}"
+              class="region-tab px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
+        ${region}
+      </button>
+    `;
+  });
+
+  regionTabsContainer.innerHTML = html;
+}
+
+function filtrerParRegion(region) {
+  window.regionSelectionnee = region;
+
+  // Mettre à jour l'apparence des onglets de régions
+  document.querySelectorAll('.region-tab').forEach(tab => {
+    tab.classList.remove('bg-purple-600', 'text-white');
+    tab.classList.add('bg-gray-100', 'text-gray-700');
+  });
+
+  const tabId = region === 'toutes' ? 'region-tab-toutes' : `region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  const activeTab = document.getElementById(tabId);
+  if (activeTab) {
+    activeTab.classList.remove('bg-gray-100', 'text-gray-700');
+    activeTab.classList.add('bg-purple-600', 'text-white');
+  }
+
+  // Filtrer les entreprises
+  const { p1, p2 } = window.rapportData;
+
+  const p1Filtrees = region === 'toutes'
+    ? p1.entreprises
+    : p1.entreprises.filter(e => e.region === region);
+
+  const p2Filtrees = region === 'toutes'
+    ? p2.entreprises
+    : p2.entreprises.filter(e => e.region === region);
+
+  // Mettre à jour les compteurs
+  document.getElementById('count-p1').textContent = p1Filtrees.length;
+  document.getElementById('count-p2').textContent = p2Filtrees.length;
+
+  // Mettre à jour le contenu
+  document.querySelector('#content-priorite-1 .space-y-4').innerHTML =
+    p1Filtrees.length > 0 ? genererTableauEntreprises(p1Filtrees) :
+    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
+
+  document.querySelector('#content-priorite-2 .space-y-4').innerHTML =
+    p2Filtrees.length > 0 ? genererTableauEntreprises(p2Filtrees) :
+    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
+}
+
+function genererTableauEntreprises(entreprises) {
+  return `
+    <div class="overflow-auto">
+      <table class="w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gradient-to-r from-purple-600 to-pink-600 text-white sticky top-0 z-10">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Entreprise / Localisation</th>
+            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Effectifs</th>
+            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dates Élection / PAP</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">FD / UD / Collèges</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Résultats CGT</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${entreprises.map((e, index) => {
+            const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+            const cgtPresent = e.implantations_syndicales.includes('CGT');
+
+            // Badges status compacts
+            const carenceBadge = e.carence
+              ? '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-red-100 text-red-700">CAR</span>'
+              : '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-green-100 text-green-700">PV</span>';
+
+            const cgtBadge = cgtPresent
+              ? '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-green-100 text-green-700">CGT</span>'
+              : '<span class="inline-block px-1.5 py-0.5 text-xs rounded bg-gray-200 text-gray-600">—</span>';
+
+            // Date élection avec urgence
+            let dateElectionHtml = '<span class="text-gray-400 text-xs">—</span>';
+            if (e.date_election !== 'Non renseignée') {
+              const joursColor = e.jours_restants <= 30
+                ? 'text-red-700 font-bold'
+                : e.jours_restants <= 90
+                  ? 'text-orange-700 font-semibold'
+                  : 'text-blue-700';
+              dateElectionHtml = `
+                <div class="text-xs">
+                  <div class="font-bold text-gray-900">🗳️ ${e.date_election}</div>
+                  ${e.jours_restants !== null && e.jours_restants !== undefined
+                    ? `<div class="${joursColor}">J-${e.jours_restants}</div>`
+                    : ''}
+                </div>
+              `;
+            }
+
+            // Invitations PAP
+            const invitPapHtml = e.invitations_pap && e.invitations_pap.length > 0
+              ? `<div class="text-xs mt-1">${e.invitations_pap.map(date =>
+                  `<div class="text-purple-700">📬 ${date}</div>`
+                ).join('')}</div>`
+              : '';
+
+            // Collèges (limité à 3)
+            const collegesText = e.colleges && e.colleges.length > 0
+              ? e.colleges.slice(0, 3).join(', ') + (e.colleges.length > 3 ? `... (+${e.colleges.length - 3})` : '')
+              : '';
+
+            // Organisation compacte
+            const orgHtml = `
+              <div class="text-xs space-y-1">
+                ${e.fd ? `<div><strong class="text-blue-700">FD:</strong> ${e.fd}</div>` : ''}
+                ${e.ud ? `<div><strong class="text-blue-700">UD:</strong> ${e.ud}</div>` : ''}
+                ${e.idcc ? `<div><strong class="text-blue-700">IDCC:</strong> ${e.idcc}</div>` : ''}
+                ${collegesText ? `<div class="text-gray-600 mt-1">${collegesText}</div>` : ''}
+              </div>
+            `;
+
+            // Résultats CGT
+            let cgtResultatHtml = '<span class="text-gray-400 text-xs">—</span>';
+            if (e.voix_organisations && e.voix_organisations['CGT']) {
+              const voixCGT = e.voix_organisations['CGT'];
+              const pct = e.sve && e.sve > 0 ? ((voixCGT / e.sve) * 100).toFixed(1) : '0';
+              const totalOrgs = Object.keys(e.voix_organisations).length;
+              const position = Object.entries(e.voix_organisations)
+                .sort((a, b) => b[1] - a[1])
+                .findIndex(([org]) => org === 'CGT') + 1;
+
+              cgtResultatHtml = `
+                <div class="text-xs">
+                  <div class="font-bold text-red-700">${voixCGT.toLocaleString()} voix</div>
+                  <div class="text-red-600">${pct}% (${position}/${totalOrgs})</div>
+                  ${e.implantations_syndicales && e.implantations_syndicales.length > 1
+                    ? `<div class="text-gray-500 mt-1 text-xs">vs ${e.implantations_syndicales.filter(o => o !== 'CGT').slice(0, 2).join(', ')}</div>`
+                    : ''}
+                </div>
+              `;
+            } else if (e.implantations_syndicales && e.implantations_syndicales.length > 0) {
+              cgtResultatHtml = `
+                <div class="text-xs text-gray-600">
+                  Pas de voix CGT<br/>
+                  <span class="text-xs text-gray-500">Présents: ${e.implantations_syndicales.slice(0, 3).join(', ')}</span>
+                </div>
+              `;
+            }
+
+            // Générer les analyses contextuelles intelligentes
+            const analyses = [];
+
+            // Analyse audience
+            if (e.inscrits >= 10000) {
+              analyses.push('🎯 Très forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
+            } else if (e.inscrits >= 5000) {
+              analyses.push('🎯 Forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
+            } else if (e.inscrits >= 1000) {
+              analyses.push('🎯 Audience significative (' + e.inscrits.toLocaleString() + ' inscrits)');
+            }
+
+            // Analyse implantation CGT
+            if (cgtPresent) {
+              if (e.voix_organisations && e.voix_organisations['CGT']) {
+                const pctCGT = e.sve && e.sve > 0 ? ((e.voix_organisations['CGT'] / e.sve) * 100) : 0;
+                const position = Object.entries(e.voix_organisations)
+                  .sort((a, b) => b[1] - a[1])
+                  .findIndex(([org]) => org === 'CGT') + 1;
+
+                if (position === 1 && pctCGT >= 30) {
+                  analyses.push('✅ CGT DOMINANTE - Consolidation prioritaire (' + pctCGT.toFixed(1) + '%)');
+                } else if (position === 1) {
+                  analyses.push('✅ CGT EN TÊTE - Renforcer la position (' + pctCGT.toFixed(1) + '%)');
+                } else if (pctCGT >= 20) {
+                  analyses.push('📈 CGT bien implantée à renforcer (' + pctCGT.toFixed(1) + '%)');
+                } else {
+                  analyses.push('📈 CGT présente, potentiel de progression (' + pctCGT.toFixed(1) + '%)');
+                }
+              } else {
+                analyses.push('✅ CGT IMPLANTÉE - Obtenir les résultats électoraux');
+              }
+            } else {
+              if (e.inscrits >= 1000) {
+                analyses.push('⚠️ CGT ABSENTE - CIBLE PRIORITAIRE pour implantation');
+              } else {
+                analyses.push('ℹ️ CGT non implantée');
+              }
+            }
+
+            // Analyse invitation PAP
+            if (e.invitations_pap && e.invitations_pap.length > 0) {
+              analyses.push('📬 Invitation(s) PAP reçue(s) (' + e.invitations_pap.length + ')');
+            } else {
+              analyses.push('ℹ️ Pas d\'invitation PAP détectée');
+            }
+
+            // Analyse collèges
+            if (e.colleges && e.colleges.length > 3) {
+              analyses.push('🏢 Nombreux collèges (' + e.colleges.length + ') - Structure complexe');
+            } else if (e.colleges && e.colleges.length > 1) {
+              analyses.push('🏢 Pluralité de collèges (' + e.colleges.length + ')');
+            }
+
+            // Analyse concurrence
+            if (e.implantations_syndicales && e.implantations_syndicales.length >= 5) {
+              analyses.push('⚔️ Forte concurrence syndicale (' + e.implantations_syndicales.length + ' organisations)');
+            } else if (e.implantations_syndicales && e.implantations_syndicales.length >= 3) {
+              analyses.push('⚔️ Concurrence modérée (' + e.implantations_syndicales.length + ' organisations)');
+            }
+
+            // Analyse élection imminente
+            if (e.jours_restants !== null && e.jours_restants <= 30) {
+              analyses.push('🚨 ÉLECTION IMMINENTE (J-' + e.jours_restants + ') - Action urgente');
+            } else if (e.jours_restants !== null && e.jours_restants <= 90) {
+              analyses.push('⏰ Élection proche (J-' + e.jours_restants + ') - Préparer la campagne');
+            }
+
+            const analysesHtml = analyses.length > 0
+              ? `<div class="mt-2 pt-2 border-t border-gray-200">
+                  <div class="text-xs space-y-0.5 text-gray-700">
+                    ${analyses.map(a => `<div>${a}</div>`).join('')}
+                  </div>
+                </div>`
+              : '';
+
+            return `
+              <tr class="${rowBg} hover:bg-purple-50 transition">
+                <td class="px-4 py-3">
+                  <div class="font-bold text-gray-900 text-sm">${e.raison_sociale}</div>
+                  <div class="text-xs text-gray-500 font-mono">${e.siret}</div>
+                  <div class="text-xs text-gray-600 mt-0.5">${e.ville} (${e.departement})</div>
+                  ${e.region && e.region !== 'Non renseignée' ? `<div class="text-xs text-gray-500">${e.region}</div>` : ''}
+                  ${analysesHtml}
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="font-bold text-gray-900">${e.inscrits.toLocaleString()}</div>
+                  <div class="text-xs text-gray-500">inscrits</div>
+                  ${e.nb_pv ? `<div class="text-xs text-blue-600 font-semibold mt-1">${e.nb_pv} PV</div>` : ''}
+                  ${e.sve ? `<div class="text-xs text-gray-500 mt-0.5">${e.sve.toLocaleString()} SVE</div>` : ''}
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="flex flex-col items-center gap-1">
+                    ${carenceBadge}
+                    ${cgtBadge}
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  ${dateElectionHtml}
+                  ${invitPapHtml}
+                </td>
+                <td class="px-4 py-3">${orgHtml}</td>
+                <td class="px-4 py-3">${cgtResultatHtml}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function genererCarteEntreprise(e) {
+  const carenceBadge = e.carence
+    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">CARENCE</span>'
+    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">PV</span>';
+
+  const cgtBadge = e.implantations_syndicales.includes('CGT')
+    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CGT ✓</span>'
+    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-600">CGT ✗</span>';
+
+  // Badge de date d'élection avec couleur selon urgence
+  let dateBadge = '';
+  if (e.jours_restants !== null && e.jours_restants !== undefined) {
+    const joursColor = e.jours_restants <= 30
+      ? 'bg-red-100 text-red-700'
+      : e.jours_restants <= 90
+        ? 'bg-orange-100 text-orange-700'
+        : 'bg-blue-100 text-blue-700';
+    dateBadge = `<span class="px-2 py-1 text-xs font-semibold rounded-full ${joursColor}">J-${e.jours_restants}</span>`;
+  }
+
+  return `
+    <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1">
+          <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
+          <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
+        </div>
+        <div class="flex flex-col items-end space-y-1">
+          ${dateBadge}
+          ${carenceBadge}
+          ${cgtBadge}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
+        <div>
+          <p class="text-xs text-gray-500">Inscrits</p>
+          <p class="font-semibold text-gray-800">${e.inscrits.toLocaleString()}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">PV</p>
+          <p class="font-semibold text-gray-800">${e.nb_pv}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Département</p>
+          <p class="font-semibold text-gray-800">${e.departement}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Ville</p>
+          <p class="font-semibold text-gray-800">${e.ville}</p>
+        </div>
+      </div>
+
+      ${e.date_election !== 'Non renseignée' || (e.invitations_pap && e.invitations_pap.length > 0) ? `
+      <div class="mb-3 bg-purple-50 p-3 rounded border border-purple-200">
+        <p class="text-xs text-purple-700 font-semibold mb-2">📅 DATES IMPORTANTES</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+          ${e.date_election !== 'Non renseignée' ? `
+          <div class="flex items-center gap-2">
+            <span class="text-purple-600">🗳️</span>
+            <div>
+              <p class="text-xs text-purple-600 font-medium">Prochaine élection</p>
+              <p class="font-bold text-purple-900">${e.date_election}</p>
+              ${e.jours_restants !== null && e.jours_restants !== undefined ? `<p class="text-xs text-purple-700">Dans ${e.jours_restants} jours</p>` : ''}
+            </div>
+          </div>
+          ` : ''}
+          ${e.invitations_pap && e.invitations_pap.length > 0 ? `
+          <div class="flex items-center gap-2">
+            <span class="text-purple-600">📬</span>
+            <div>
+              <p class="text-xs text-purple-600 font-medium">Invitation(s) PAP</p>
+              <p class="font-bold text-purple-900">${e.invitations_pap.join(', ')}</p>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm bg-blue-50 p-2 rounded border border-blue-200">
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">FD (Fédération)</p>
+          <p class="font-semibold text-gray-800">${e.fd || 'Non renseignée'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">UD</p>
+          <p class="font-semibold text-gray-800">${e.ud || 'Non renseigné'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-blue-600 font-semibold">IDCC</p>
+          <p class="font-semibold text-gray-800">${e.idcc || 'Non renseigné'}</p>
+        </div>
+      </div>
+
+      ${e.sve || e.votants ? `
+      <div class="grid grid-cols-2 gap-3 mb-3 text-sm bg-gray-50 p-2 rounded border border-gray-200">
+        <div>
+          <p class="text-xs text-gray-600 font-semibold">SVE</p>
+          <p class="font-semibold text-gray-800">${(e.sve || 0).toLocaleString()}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-600 font-semibold">Votants</p>
+          <p class="font-semibold text-gray-800">${(e.votants || 0).toLocaleString()}</p>
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
+        <div class="flex flex-wrap gap-1">
+          ${e.implantations_syndicales.map(org =>
+            `<span class="px-2 py-1 text-xs rounded-full ${org === 'CGT' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}">${org}</span>`
+          ).join('')}
+        </div>
+      </div>
+
+      ${e.voix_organisations && Object.keys(e.voix_organisations).length > 0 ? `
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Résultats électoraux (voix):</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          ${Object.entries(e.voix_organisations).sort((a, b) => b[1] - a[1]).map(([org, voix]) => {
+            const pct = e.sve && e.sve > 0 ? ((voix / e.sve) * 100).toFixed(1) : '0';
+            const bgColor = org === 'CGT' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200';
+            const textColor = org === 'CGT' ? 'text-red-700' : 'text-gray-700';
+            return `<div class="p-2 rounded border ${bgColor}">
+              <span class="font-semibold ${textColor}">${org}</span>:
+              <span class="font-bold">${voix.toLocaleString()}</span>
+              <span class="text-gray-500">(${pct}%)</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      ` : ''}
+
+      ${e.colleges && e.colleges.length > 0 ? `
+      <div class="mb-3">
+        <p class="text-xs text-gray-500 mb-1">Collèges électoraux (${e.colleges.length}):</p>
+        <div class="flex flex-wrap gap-1">
+          ${e.colleges.map(college =>
+            `<span class="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200">${college}</span>`
+          ).join('')}
+        </div>
+      </div>
+      ` : ''}
+
+      <div>
+        <p class="text-xs text-gray-500 mb-1">Enjeux identifiés:</p>
+        <ul class="space-y-1">
+          ${e.enjeux.map(enjeu =>
+            `<li class="text-xs text-gray-700 flex items-start">
+              <i class="fas fa-chevron-right text-purple-500 mr-2 mt-1 text-xs"></i>
+              <span>${enjeu}</span>
+            </li>`
+          ).join('')}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+function switchTab(tabName) {
+  // Reset all tabs
+  document.querySelectorAll('.rapport-tab').forEach(tab => {
+    tab.classList.remove('active', 'border-purple-600', 'text-purple-600');
+    tab.classList.add('border-transparent', 'text-gray-500');
+  });
+
+  // Hide all contents
+  document.querySelectorAll('.rapport-content').forEach(content => {
+    content.classList.add('hidden');
+  });
+
+  // Activate selected tab
+  const selectedTab = document.getElementById(`tab-${tabName}`);
+  selectedTab.classList.remove('border-transparent', 'text-gray-500');
+  selectedTab.classList.add('active', 'border-purple-600', 'text-purple-600');
+
+  // Show selected content
+  document.getElementById(`content-${tabName}`).classList.remove('hidden');
+}
+
+let rapportDataGlobal = null;
+
+function exporterRapportPDF() {
+  // Sauvegarder l'état original
+  const contentP1 = document.querySelector('#content-priorite-1 .space-y-4');
+  const contentP2 = document.querySelector('#content-priorite-2 .space-y-4');
+  const modalFooter = document.querySelector('#rapport-ia-modal .mt-6');
+
+  // Sauvegarder les classes originales
+  const originalClassP1 = contentP1.className;
+  const originalClassP2 = contentP2.className;
+
+  // Masquer les boutons d'export
+  if (modalFooter) {
+    modalFooter.style.display = 'none';
+  }
+
+  // Retirer la limitation de hauteur pour l'impression
+  contentP1.classList.remove('max-h-[600px]', 'overflow-y-auto');
+  contentP2.classList.remove('max-h-[600px]', 'overflow-y-auto');
+
+  // Forcer l'affichage complet du tableau
+  contentP1.style.maxHeight = 'none';
+  contentP2.style.maxHeight = 'none';
+  contentP1.style.overflow = 'visible';
+  contentP2.style.overflow = 'visible';
+
+  // Lancer l'impression
+  setTimeout(() => {
+    window.print();
+
+    // Restaurer l'état original après impression
+    setTimeout(() => {
+      contentP1.className = originalClassP1;
+      contentP2.className = originalClassP2;
+      contentP1.style.maxHeight = '';
+      contentP2.style.maxHeight = '';
+      contentP1.style.overflow = '';
+      contentP2.style.overflow = '';
+
+      if (modalFooter) {
+        modalFooter.style.display = 'flex';
+      }
+    }, 100);
+  }, 100);
+}
+
+async function exporterRapportJSON() {
+  try {
+    const response = await fetch('/api/rapport-ia-pap');
+    const data = await response.json();
+
+    // Crée un blob JSON
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    // Crée un lien de téléchargement
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport-ia-pap-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Erreur lors de l\'export: ' + error.message);
+  }
+}
+
+function fermerRapportIA() {
+  const modal = document.getElementById('rapport-ia-modal');
+  modal.classList.add('hidden');
+}
+
+// ============================================
+// Assistant Expert Modal Functions
+
+function ouvrirAssistantExpert() {
+  const modal = document.getElementById('assistant-expert-modal');
+  modal.classList.remove('hidden');
+
+  // Check chatbot status when opening
+  checkChatbotStatus();
+
+  // Focus on input
+  setTimeout(() => {
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
+  }, 100);
+}
+
+function fermerAssistantExpert() {
+  const modal = document.getElementById('assistant-expert-modal');
+  modal.classList.add('hidden');
+}
+</script>
+
+<style>
+@media print {
+  /* Masquer TOUT sauf le modal du rapport */
+  body > *:not(#rapport-ia-modal) {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage du modal rapport même avec classe hidden */
+  #rapport-ia-modal {
+    display: block !important;
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #rapport-ia-modal > div {
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  #rapport-ia-content {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Masquer les boutons d'export */
+  #rapport-ia-modal .mt-6 {
+    display: none !important;
+  }
+
+  /* Masquer les onglets de région */
+  #region-tabs {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage complet des tableaux */
+  #content-priorite-1 .space-y-4,
+  #content-priorite-2 .space-y-4 {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Tableaux - Optimisation impression */
+  table {
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* Taille de police optimisée */
+  body {
+    font-size: 9pt;
+  }
+
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  /* Masquer navigation, header, footer, etc. */
+  nav, header, footer, .navbar, aside {
+    display: none !important;
+  }
+}
+</style>
+
+<!-- Modal Rapport IA -->
+<div id="rapport-ia-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div class="p-6 overflow-y-auto max-h-[90vh]" id="rapport-ia-content">
+      <!-- Le contenu sera injecté ici -->
+    </div>
+  </div>
+</div>
+
+<!-- Modal Assistant Expert -->
+<div id="assistant-expert-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-500 to-purple-600">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
+          <i class="fas fa-comments text-white text-2xl"></i>
+        </span>
+        <div>
+          <h2 class="text-2xl font-bold text-white">Assistant Expert</h2>
+          <p class="text-sm text-indigo-100">Posez vos questions sur les données PAP/CSE en langage naturel</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="chatbot-status" class="px-3 py-1 text-xs font-semibold bg-white/20 text-white rounded-full">Vérification...</span>
+        <button onclick="fermerAssistantExpert()" class="text-white hover:bg-white/20 rounded-lg p-2 transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chat messages area -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+      <!-- Welcome message -->
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+          <i class="fas fa-comments text-white"></i>
+        </div>
+        <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
+          <p class="text-sm text-gray-800 mb-3">
+            👋 Bonjour ! Je suis votre assistant expert pour analyser les données PAP/CSE.
+          </p>
+          <p class="text-sm text-gray-700 mb-3">
+            <strong>Exemples de questions que vous pouvez me poser :</strong>
+          </p>
+          <div class="space-y-2 text-xs">
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+              💭 "Combien d'invitations PAP dans la base ?"
+            </button>
+            <button type="button" onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+              📅 "Quelles entreprises ont une élection ce mois-ci ?"
+            </button>
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+              🔴 "Combien d'invitations en retard dans le 75 ?"
+            </button>
+            <button type="button" onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+              🏢 "Top 5 des fédérations avec le plus d'invitations"
+            </button>
+            <button type="button" onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
+              ✨ Voir plus d'exemples
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="border-t border-gray-200 p-4 bg-white">
+      <form id="chat-form" class="flex gap-3">
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="Posez votre question... (ex: Combien d'invitations en retard dans le 75 ?)"
+          class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          autocomplete="off"
+        />
+        <button
+          type="submit"
+          id="chat-submit"
+          class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition flex items-center gap-2 font-semibold"
+        >
+          <i class="fas fa-paper-plane"></i>
+          Envoyer
+        </button>
+      </form>
+      <p class="text-xs text-gray-500 mt-2">
+        <i class="fas fa-lightbulb mr-1"></i>
+        Astuce : Soyez précis dans vos questions pour obtenir les meilleurs résultats
+      </p>
+    </div>
+  </div>
+</div>

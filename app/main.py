@@ -1,23 +1,25 @@
 # app/main.py
 
 import os
+import glob
 import hashlib
 import urllib.request
 import logging
 import math
 import re
+import shutil
 import unicodedata
 import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping
+from typing import Any, Mapping, Iterator, Sequence
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
@@ -35,14 +37,24 @@ from .services.calcul_elus_cse import (
     ORGANISATIONS_LABELS
 )
 from .auth import ADMIN_API_KEY
-from .admin_auth import (
-    get_current_admin_user,
-    verify_credentials,
-    create_session_token,
-    SESSION_COOKIE_NAME,
-    SESSION_MAX_AGE,
-    AdminAuthException
+from .user_auth import (
+    hash_password,
+    verify_password,
+    validate_email,
+    validate_password_strength,
+    authenticate_user,
+    get_client_ip,
+    create_user_session_token,
+    get_current_user_or_none,
+    get_current_user,
+    require_admin_user,
+    is_admin_user,
+    is_public_route,
+    USER_SESSION_COOKIE_NAME,
+    USER_SESSION_MAX_AGE,
+    UserAuthException
 )
+from .models import User
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -58,6 +70,47 @@ INVITATIONS_SHA256 = os.getenv("INVITATIONS_SHA256", "").lower().strip()
 INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TOKEN
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+_DEFAULT_KIT_PDF_PRIMARY = (
+    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
+)
+_DEFAULT_KIT_PDF_FALLBACK = (
+    "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
+)
+
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
+KIT_PDF_FILENAME = os.getenv(
+    "KIT_PDF_FILENAME",
+    "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
+).strip()
+KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
+KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
+KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
+
+_DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
+
+_DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
+KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+KIT_PDF_AUTO_WARM = os.getenv("KIT_PDF_AUTO_WARM", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+KIT_PDF_CACHE_DIR = os.getenv("KIT_PDF_CACHE_DIR", _DEFAULT_KIT_CACHE_DIR).strip() or _DEFAULT_KIT_CACHE_DIR
+if KIT_PDF_CACHE_ENABLED:
+    KIT_PDF_CACHE_PATH = os.path.join(
+        KIT_PDF_CACHE_DIR,
+        KIT_PDF_FILENAME or "Kit-renforcement.pdf",
+    )
+else:
+    KIT_PDF_CACHE_PATH = ""
 
 
 def _infer_invitation_urls() -> list[str]:
@@ -109,6 +162,193 @@ INVITATIONS_EFFECTIVE_URL: str | None = None
 def _is_truthy(value: str) -> bool:
     return value in {"1", "true", "yes", "on"}
 
+
+def _safe_int(value: str | None, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _split_url_list(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[\s,]+", raw)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _split_path_list(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[\s,;]+", raw)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _build_local_kit_candidates() -> list[str]:
+    hints: list[str] = []
+
+    if KIT_PDF_CACHE_ENABLED and KIT_PDF_CACHE_PATH:
+        hints.append(KIT_PDF_CACHE_PATH)
+
+    for raw in (KIT_PDF_LOCAL_PATH, KIT_PDF_LOCAL_PATHS):
+        for entry in _split_path_list(raw):
+            hints.append(entry)
+
+    if KIT_PDF_FILENAME:
+        hints.append(os.path.join(_DEFAULT_DATA_DIR, KIT_PDF_FILENAME))
+        hints.append(os.path.join(_DEFAULT_DATA_DIR, "kit", KIT_PDF_FILENAME))
+
+    hints.append(os.path.join(_DEFAULT_DATA_DIR, "kit", "Kit.renforcement.compile.30.06.2025.pour.impression.pdf"))
+    hints.append(os.path.join(_DEFAULT_DATA_DIR, "Kit.renforcement.compile.30.06.2025.pour.impression.pdf"))
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for hint in hints:
+        if not hint:
+            continue
+        abs_path = os.path.abspath(os.path.expanduser(hint))
+        if abs_path not in seen:
+            normalized.append(abs_path)
+            seen.add(abs_path)
+    return normalized
+
+
+KIT_PDF_LOCAL_HINTS = _build_local_kit_candidates()
+KIT_PDF_LOCAL_GLOBS = [
+    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.pdf"),
+    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.PDF"),
+    os.path.join(_DEFAULT_DATA_DIR, "*.pdf"),
+    os.path.join(_DEFAULT_DATA_DIR, "*.PDF"),
+]
+
+
+def _find_local_kit_pdf() -> str | None:
+    """Retourne le chemin d'un PDF déjà présent dans app/data (ou via les hints)."""
+
+    for candidate in KIT_PDF_LOCAL_HINTS:
+        if not candidate:
+            continue
+        try:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                return candidate
+        except OSError:
+            continue
+
+    for pattern in KIT_PDF_LOCAL_GLOBS:
+        for match in sorted(glob.glob(pattern)):
+            try:
+                if os.path.exists(match) and os.path.getsize(match) > 0:
+                    return os.path.abspath(match)
+            except OSError:
+                continue
+
+    return None
+
+
+def _kit_pdf_cache_ready() -> bool:
+    if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
+        return False
+    try:
+        return os.path.exists(KIT_PDF_CACHE_PATH) and os.path.getsize(KIT_PDF_CACHE_PATH) > 0
+    except OSError:
+        return False
+
+
+def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
+    if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
+        local_path = _find_local_kit_pdf()
+        return local_path
+
+    if _kit_pdf_cache_ready() and not force_refresh:
+        return KIT_PDF_CACHE_PATH
+
+    local_source = _find_local_kit_pdf()
+    if local_source:
+        os.makedirs(os.path.dirname(KIT_PDF_CACHE_PATH), exist_ok=True)
+        if os.path.abspath(local_source) != os.path.abspath(KIT_PDF_CACHE_PATH):
+            shutil.copy2(local_source, KIT_PDF_CACHE_PATH)
+            logger.info(
+                "Kit renforcement copié depuis %s vers %s",
+                local_source,
+                KIT_PDF_CACHE_PATH,
+            )
+        else:
+            logger.info("Kit renforcement déjà présent dans %s", KIT_PDF_CACHE_PATH)
+        return KIT_PDF_CACHE_PATH
+
+    if not KIT_PDF_URL_CANDIDATES:
+        return KIT_PDF_CACHE_PATH if _kit_pdf_cache_ready() else None
+
+    os.makedirs(os.path.dirname(KIT_PDF_CACHE_PATH), exist_ok=True)
+
+    last_error: Exception | None = None
+    for candidate in KIT_PDF_URL_CANDIDATES:
+        tmp_path: str | None = None
+        try:
+            logger.info("Téléchargement du kit de renforcement via %s", candidate)
+            tmp_path = _download_to_temp(candidate, timeout=KIT_PDF_TIMEOUT)
+            with open(tmp_path, "rb") as handle:
+                header = handle.read(5)
+                if not header.startswith(b"%PDF-"):
+                    raise ValueError("La ressource récupérée n'est pas un PDF valide")
+            os.replace(tmp_path, KIT_PDF_CACHE_PATH)
+            tmp_path = None
+            logger.info("Kit renforcement mis en cache (%s)", KIT_PDF_CACHE_PATH)
+            return KIT_PDF_CACHE_PATH
+        except Exception as exc:  # pragma: no cover - dépend du réseau
+            last_error = exc
+            logger.warning("Échec du téléchargement du kit via %s: %s", candidate, exc)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    if last_error:
+        logger.error("Impossible de mettre en cache le kit PDF: %s", last_error)
+    return None
+
+
+def _build_kit_url_candidates() -> list[str]:
+    ordered_sources = [KIT_PDF_URL, KIT_PDF_URLS, KIT_PDF_URL_FALLBACKS]
+    urls: list[str] = []
+    seen: set[str] = set()
+    for source in ordered_sources:
+        for candidate in _split_url_list(source):
+            if candidate not in seen:
+                urls.append(candidate)
+                seen.add(candidate)
+    return urls
+
+
+KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
+KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
+
+
+def _kit_pdf_status() -> dict[str, bool]:
+    """Expose l'état actuel du kit PDF pour l'interface (inline vs streaming)."""
+
+    inline_ready = False
+
+    if KIT_PDF_CACHE_ENABLED:
+        if _kit_pdf_cache_ready():
+            inline_ready = True
+        else:
+            inline_ready = _find_local_kit_pdf() is not None
+    else:
+        inline_ready = _find_local_kit_pdf() is not None
+
+    download_ready = inline_ready or bool(KIT_PDF_URL_CANDIDATES)
+
+    return {
+        "inline_ready": inline_ready,
+        "download_ready": download_ready,
+        "remote_only": download_ready and not inline_ready,
+    }
+
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
 
 
@@ -147,24 +387,35 @@ def _sqlite_path_from_engine() -> str | None:
         pass
     return None
 
-def _download(url: str, dest: str, token: str | None = None) -> None:
+def _download(
+    url: str,
+    dest: str,
+    token: str | None = None,
+    *,
+    timeout: int | float | None = None,
+) -> None:
     headers = {"Accept": "application/octet-stream"}
     if token:
         headers["Authorization"] = f"token {token}"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
+    with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as f:
         f.write(resp.read())
 
 logger = logging.getLogger(__name__)
 
 
-def _download_to_temp(url: str, token: str | None = None) -> str:
+def _download_to_temp(
+    url: str,
+    token: str | None = None,
+    *,
+    timeout: int | float | None = None,
+) -> str:
     """Télécharge un fichier distant vers un fichier temporaire et retourne son chemin."""
     suffix = os.path.splitext(urlparse(url).path)[1]
     fd, tmp_path = tempfile.mkstemp(prefix="papcse-asset-", suffix=suffix or "")
     os.close(fd)
     try:
-        _download(url, tmp_path, token=token)
+        _download(url, tmp_path, token=token, timeout=timeout)
         return tmp_path
     except Exception:
         try:
@@ -185,6 +436,62 @@ def _log_or_raise_hash_mismatch(label: str, expected: str, got: str, downloaded:
 
     level = logging.ERROR if downloaded else logging.WARNING
     logger.log(level, "%s -- continuing.", message)
+
+
+def _stream_remote_asset(
+    url_or_urls: str | Sequence[str], *, accept: str = "application/octet-stream"
+) -> tuple[Iterator[bytes], int | None]:
+    """Retourne un itérateur streaming + longueur depuis une ou plusieurs URLs distantes."""
+
+    if isinstance(url_or_urls, str):
+        candidates = [url_or_urls]
+    else:
+        candidates = list(url_or_urls)
+
+    candidates = [candidate for candidate in candidates if candidate]
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Aucune ressource distante configurée")
+
+    last_error: Exception | None = None
+    headers = {
+        "Accept": accept,
+        "User-Agent": "PAPCSE/1.0 (+https://outilspap.cgt.fr)",
+    }
+
+    response = None
+    for candidate in candidates:
+        request = urllib.request.Request(candidate, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=KIT_PDF_TIMEOUT)
+            logger.info("Kit PDF récupéré via %s", candidate)
+            break
+        except Exception as exc:  # pragma: no cover - dépend du réseau
+            last_error = exc
+            logger.warning("Échec du chargement %s: %s", candidate, exc)
+            continue
+    else:
+        raise HTTPException(
+            status_code=502,
+            detail="Impossible de récupérer le document distant",
+        ) from last_error
+
+    assert response is not None  # pour les analyseurs statiques
+
+    def iterator(resp=response) -> Iterator[bytes]:
+        with resp:
+            while True:
+                chunk = resp.read(1024 * 64)
+                if not chunk:
+                    break
+                yield chunk
+
+    content_length = response.headers.get("Content-Length")
+    try:
+        length_value = int(content_length) if content_length else None
+    except (TypeError, ValueError):
+        length_value = None
+
+    return iterator, length_value
 
 
 def ensure_sqlite_asset() -> None:
@@ -315,11 +622,60 @@ from .routers import api_chatbot  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
-# Gestionnaire d'exceptions pour l'authentification admin
-@app.exception_handler(AdminAuthException)
-async def admin_auth_exception_handler(request: Request, exc: AdminAuthException):
-    """Redirige vers la page de login quand l'authentification admin échoue"""
+# Gestionnaire d'exceptions pour l'authentification utilisateur
+@app.exception_handler(UserAuthException)
+async def user_auth_exception_handler(request: Request, exc: UserAuthException):
+    """Redirige vers la page de login utilisateur quand l'authentification échoue"""
     return RedirectResponse(url=exc.redirect_url, status_code=303)
+
+
+# Middleware pour vérifier l'authentification utilisateur
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    """
+    Middleware pour protéger les routes et rediriger les utilisateurs non connectés.
+    Les routes publiques (signup, login, static, etc.) ne sont pas protégées.
+    """
+    path = request.url.path
+
+    # Vérifier si la route est publique
+    if is_public_route(path):
+        response = await call_next(request)
+        return response
+
+    # Pour les routes protégées, vérifier l'authentification
+    session_token = request.cookies.get(USER_SESSION_COOKIE_NAME)
+
+    if not session_token:
+        # Pas de session, rediriger vers login
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Vérifier que le token est valide
+    from .user_auth import verify_user_session_token
+    session_data = verify_user_session_token(session_token)
+
+    if not session_data:
+        # Token invalide ou expiré, rediriger vers login
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Vérifier que l'utilisateur existe et est approuvé
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(
+            User.id == session_data["user_id"],
+            User.is_approved == True,
+            User.is_active == True
+        ).first()
+
+        if not user:
+            # Utilisateur non trouvé, pas approuvé, ou inactif
+            return RedirectResponse(url="/login", status_code=303)
+
+        # Utilisateur authentifié, continuer
+        response = await call_next(request)
+        return response
+    finally:
+        db.close()
 
 # Activer l'audit logging middleware
 from .audit import create_audit_middleware
@@ -348,6 +704,37 @@ def clean_nan_filter(value):
 
 templates.env.filters["clean_nan"] = clean_nan_filter
 
+
+# Ajouter une fonction globale pour récupérer l'utilisateur connecté dans les templates
+def get_current_user_from_request(request):
+    """Fonction globale Jinja2 pour récupérer l'utilisateur connecté"""
+    return getattr(request.state, "current_user", None)
+
+
+templates.env.globals["get_current_user"] = get_current_user_from_request
+
+
+# Ajouter un context processor pour injecter l'utilisateur connecté dans tous les templates
+@app.middleware("http")
+async def add_user_to_context(request: Request, call_next):
+    """
+    Middleware pour ajouter l'utilisateur connecté au contexte de tous les templates.
+    """
+    # Essayer de récupérer l'utilisateur connecté
+    db = SessionLocal()
+    try:
+        current_user = get_current_user_or_none(request, db)
+        # Stocker l'utilisateur dans request.state pour qu'il soit accessible
+        request.state.current_user = current_user
+    except Exception:
+        request.state.current_user = None
+    finally:
+        db.close()
+
+    response = await call_next(request)
+    return response
+
+
 def _check_and_fix_schema():
     """Vérifie que le schéma de siret_summary est à jour et le recrée si nécessaire."""
     logger.info("🔍 [STARTUP] Checking siret_summary schema...")
@@ -355,53 +742,40 @@ def _check_and_fix_schema():
     from sqlalchemy import inspect, text
 
     try:
-        print("🔍 [STARTUP] Creating inspector...")
+        logger.debug("Creating database inspector...")
         inspector = inspect(engine)
 
-        print("🔍 [STARTUP] Checking if table exists...")
+        logger.debug("Checking if siret_summary table exists...")
         if not inspector.has_table('siret_summary'):
-            msg = "✓ Table siret_summary does not exist yet, will be created by create_all"
-            print(msg)
-            logger.info(msg)
+            logger.info("✓ Table siret_summary does not exist yet, will be created by create_all")
             return
 
-        print("🔍 [STARTUP] Getting existing columns...")
+        logger.debug("Getting existing columns from siret_summary...")
         existing_columns = {col['name'] for col in inspector.get_columns('siret_summary')}
-        print(f"🔍 [STARTUP] Found {len(existing_columns)} existing columns")
+        logger.debug(f"Found {len(existing_columns)} existing columns")
 
-        print("🔍 [STARTUP] Getting required columns...")
+        logger.debug("Getting required columns from model...")
         required_columns = {col.name for col in SiretSummary.__table__.columns}
-        print(f"🔍 [STARTUP] Need {len(required_columns)} required columns")
+        logger.debug(f"Need {len(required_columns)} required columns")
 
         missing = required_columns - existing_columns
         if not missing:
-            msg = "✓ siret_summary schema is up to date"
-            print(msg)
-            logger.info(msg)
+            logger.info("✓ siret_summary schema is up to date")
             return
 
         # Schema mismatch - on doit recréer la table
-        msg = f"⚠️  Schema mismatch: siret_summary is missing {len(missing)} columns: {', '.join(sorted(missing)[:10])}"
-        print(msg)
-        logger.warning(msg)
-
-        msg = "🔧 Dropping and recreating siret_summary table..."
-        print(msg)
-        logger.info(msg)
+        logger.warning(f"⚠️  Schema mismatch: siret_summary is missing {len(missing)} columns: {', '.join(sorted(missing)[:10])}")
+        logger.info("🔧 Dropping and recreating siret_summary table...")
 
         # Utiliser une connexion raw pour le DROP
-        print("🔍 [STARTUP] Executing DROP TABLE...")
+        logger.debug("Executing DROP TABLE...")
         with engine.connect() as conn:
             conn.execute(text("DROP TABLE IF EXISTS siret_summary"))
             conn.commit()
 
-        msg = "✓ Old table dropped, will be recreated by create_all"
-        print(msg)
-        logger.info(msg)
+        logger.info("✓ Old table dropped, will be recreated by create_all")
     except Exception as e:
-        msg = f"❌ ERROR in _check_and_fix_schema: {e}"
-        print(msg)
-        logger.exception(msg)
+        logger.exception(f"❌ ERROR in _check_and_fix_schema: {e}")
         raise
 
 @app.on_event("startup")
@@ -441,6 +815,94 @@ def on_startup():
                     )
     except Exception:  # pragma: no cover - protection démarrage
         logger.exception("Unable to rebuild siret_summary at startup")
+
+    # Créer le compte super admin si il n'existe pas
+    _ensure_super_admin_exists()
+
+
+def _ensure_super_admin_exists():
+    """
+    Crée automatiquement le compte super admin au démarrage si il n'existe pas.
+
+    L'email du super admin est défini par SUPER_ADMIN_EMAIL (défaut: leyrat.quentin@gmail.com).
+    Le mot de passe initial est défini par SUPER_ADMIN_PASSWORD (défaut: généré aléatoirement).
+    """
+    super_admin_email = os.getenv("SUPER_ADMIN_EMAIL", "leyrat.quentin@gmail.com")
+    super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
+
+    try:
+        with SessionLocal() as session:
+            # Vérifier si le super admin existe déjà
+            existing_admin = session.query(User).filter(User.email == super_admin_email).first()
+
+            if existing_admin:
+                # Le super admin existe déjà
+                # S'assurer qu'il a bien le role admin et qu'il est approuvé
+                updated = False
+
+                if existing_admin.role != "admin" or not existing_admin.is_approved or not existing_admin.is_active:
+                    existing_admin.role = "admin"
+                    existing_admin.is_approved = True
+                    existing_admin.is_active = True
+                    updated = True
+                    logger.info(f"✅ Super admin {super_admin_email} - role et statut mis à jour")
+
+                # Mettre à jour le mot de passe si SUPER_ADMIN_PASSWORD est défini
+                if super_admin_password:
+                    existing_admin.hashed_password = hash_password(super_admin_password)
+                    updated = True
+                    logger.info(f"✅ Super admin {super_admin_email} - mot de passe mis à jour depuis SUPER_ADMIN_PASSWORD")
+
+                if updated:
+                    session.commit()
+                    logger.info(f"🔄 Super admin {super_admin_email} mis à jour avec succès")
+                else:
+                    logger.info(f"✅ Super admin {super_admin_email} existe déjà et est à jour")
+
+                return
+
+            # Générer un mot de passe aléatoire si non fourni
+            if not super_admin_password:
+                import string
+                import random
+                # Générer un mot de passe sécurisé de 16 caractères
+                chars = string.ascii_letters + string.digits + "!@#$%^&*"
+                super_admin_password = ''.join(random.choice(chars) for _ in range(16))
+                logger.warning(
+                    f"⚠️  Mot de passe super admin généré automatiquement: {super_admin_password}\n"
+                    f"    Définissez SUPER_ADMIN_PASSWORD dans les variables d'environnement pour un mot de passe personnalisé."
+                )
+
+            # Créer le super admin
+            super_admin = User(
+                email=super_admin_email,
+                hashed_password=hash_password(super_admin_password),
+                first_name="Quentin",
+                last_name="Leyrat",
+                phone=None,
+                organization="CGT",
+                fd=None,
+                ud=None,
+                region=None,
+                responsibility="Super Administrateur",
+                registration_reason="Compte super admin créé automatiquement",
+                registration_ip="127.0.0.1",
+                is_approved=True,  # Automatiquement approuvé
+                is_active=True,
+                role="admin"  # Role admin
+            )
+
+            session.add(super_admin)
+            session.commit()
+
+            logger.info(f"🎉 Super admin créé avec succès : {super_admin_email}")
+            if not os.getenv("SUPER_ADMIN_PASSWORD"):
+                logger.warning(f"    Mot de passe: {super_admin_password}")
+                logger.warning(f"    ⚠️  IMPORTANT : Changez ce mot de passe après la première connexion !")
+
+    except Exception as e:
+        logger.exception(f"❌ Erreur lors de la création du super admin: {e}")
+
 
 @app.get("/health")
 def health():
@@ -600,6 +1062,69 @@ def presentation(request: Request, db: Session = Depends(get_session)):
     )
 
 
+@app.get("/guide-exploitation", response_class=HTMLResponse)
+def guide_exploitation(request: Request):
+    """Page de synthèse interactive du guide d'exploitation IA."""
+
+    if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM:
+        _ensure_kit_pdf_cached()
+
+    kit_status = _kit_pdf_status()
+    kit_pdf_endpoint = request.app.url_path_for("kit_pdf_document")
+
+    return templates.TemplateResponse(
+        "guide_exploitation.html",
+        {
+            "request": request,
+            "kit_pdf_available": kit_status["download_ready"],
+            "kit_pdf_inline_ready": kit_status["inline_ready"],
+            "kit_pdf_remote_only": kit_status["remote_only"],
+            "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
+            "kit_pdf_endpoint": kit_pdf_endpoint,
+        },
+    )
+
+
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+
+
+@app.get("/kit-renforcement/document", name="kit_pdf_document")
+def kit_pdf_document(download: bool = False):
+    """Diffuse le PDF du kit de renforcement via le même domaine (embed + téléchargement)."""
+
+    disposition = "attachment" if download else "inline"
+    filename = KIT_PDF_FILENAME or "Kit-renforcement.pdf"
+
+    cached_path = _ensure_kit_pdf_cached()
+    if cached_path:
+        response = FileResponse(
+            cached_path,
+            media_type="application/pdf",
+            filename=filename,
+        )
+        response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
+    try:
+        iterator_factory, content_length = _stream_remote_asset(
+            KIT_PDF_URL_CANDIDATES, accept="application/pdf"
+        )
+    except HTTPException as exc:
+        logger.warning("Kit PDF indisponible: %s", exc)
+        if download:
+            raise
+        return HTMLResponse(_KIT_PDF_PLACEHOLDER_HTML, status_code=200)
+
+    response = StreamingResponse(iterator_factory(), media_type="application/pdf")
+    response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    if content_length is not None:
+        response.headers["Content-Length"] = str(content_length)
+
+    return response
+
+
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
     """Page dédiée aux visualisations statistiques du tableau de bord."""
@@ -619,50 +1144,12 @@ def test_kpi(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(
-    request: Request,
-    db: Session = Depends(get_session)
-):
+def index(request: Request):
     """
-    Simplified dashboard homepage showing only KPIs and top departments.
-    Detailed data viewing is now on dedicated pages (/invitations, /calendrier, etc.)
+    Page d'accueil publique - Plateforme interne
     """
-
-    # Get top 10 departments by invitation count
-    latest_inv_subq = (
-        db.query(
-            Invitation.siret.label("siret"),
-            func.max(Invitation.date_invit).label("latest_date"),
-        )
-        .group_by(Invitation.siret)
-        .subquery()
-    )
-
-    top_departments_query = (
-        db.query(
-            SiretSummary.dep.label("dep"),
-            func.count(SiretSummary.siret).label("count"),
-        )
-        .join(
-            latest_inv_subq,
-            latest_inv_subq.c.siret == SiretSummary.siret,
-        )
-        .filter(SiretSummary.dep.isnot(None))
-        .group_by(SiretSummary.dep)
-        .order_by(func.count(SiretSummary.siret).desc())
-        .limit(10)
-        .all()
-    )
-
-    top_departments = [
-        {"dep": dep or "Non renseigné", "count": count}
-        for dep, count in top_departments_query
-    ]
-
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "top_departments": top_departments,
-        "admin_api_key": ADMIN_API_KEY,
     })
 
 
@@ -2500,57 +2987,251 @@ def cartographie_page(request: Request, db: Session = Depends(get_session)):
 
 
 # =========================================================
-# Routes d'authentification admin
+# Routes d'authentification utilisateur (signup/login)
 # =========================================================
 
-@app.get("/admin/login", response_class=HTMLResponse)
-def admin_login_page(request: Request):
-    """Page de connexion à l'espace admin"""
+@app.get("/signup", response_class=HTMLResponse)
+def signup_page(request: Request):
+    """Page d'inscription pour les nouveaux utilisateurs"""
     return templates.TemplateResponse(
-        "admin_login.html",
+        "signup.html",
         {
             "request": request,
             "error": None,
-            "login_value": ""
+            "success": False,
+            "form_data": {}
         }
     )
 
 
-@app.post("/admin/login", response_class=HTMLResponse)
-def admin_login_post(request: Request, login: str = Form(...), password: str = Form(...)):
-    """Traitement de la connexion admin"""
-    if verify_credentials(login, password):
-        # Créer le token de session
-        session_token = create_session_token(login)
+@app.post("/signup", response_class=HTMLResponse)
+def signup_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    phone: str = Form(""),
+    organization: str = Form(""),
+    fd: str = Form(""),
+    ud: str = Form(""),
+    region: str = Form(""),
+    responsibility: str = Form(""),
+    registration_reason: str = Form("")
+):
+    """Traitement de l'inscription d'un nouvel utilisateur"""
 
-        # Rediriger vers l'admin avec le cookie de session
-        response = RedirectResponse(url="/admin", status_code=303)
+    # Conserver les données du formulaire pour les réafficher en cas d'erreur
+    form_data = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "phone": phone,
+        "organization": organization,
+        "fd": fd,
+        "ud": ud,
+        "region": region,
+        "responsibility": responsibility,
+        "registration_reason": registration_reason
+    }
+
+    # Validation de l'email
+    if not validate_email(email):
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Adresse email invalide",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Vérifier si l'email existe déjà
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Cette adresse email est déjà utilisée",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Vérifier que les mots de passe correspondent
+    if password != password_confirm:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Les mots de passe ne correspondent pas",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Valider la force du mot de passe
+    is_valid, error_message = validate_password_strength(password)
+    if not is_valid:
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": error_message,
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=400
+        )
+
+    # Créer le nouvel utilisateur
+    try:
+        new_user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone or None,
+            organization=organization or None,
+            fd=fd or None,
+            ud=ud or None,
+            region=region or None,
+            responsibility=responsibility or None,
+            registration_reason=registration_reason or None,
+            registration_ip=get_client_ip(request),
+            is_approved=False,  # Nécessite l'approbation d'un admin
+            is_active=True,
+            role="user"
+        )
+
+        db.add(new_user)
+        db.commit()
+
+        # Afficher le message de succès
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": None,
+                "success": True,
+                "form_data": {}
+            }
+        )
+
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Erreur lors de l'inscription: {e}")
+        return templates.TemplateResponse(
+            "signup.html",
+            {
+                "request": request,
+                "error": "Une erreur est survenue lors de l'inscription. Veuillez réessayer.",
+                "success": False,
+                "form_data": form_data
+            },
+            status_code=500
+        )
+
+
+@app.get("/login", response_class=HTMLResponse)
+def user_login_page(request: Request):
+    """Page de connexion pour les utilisateurs"""
+    return templates.TemplateResponse(
+        "user_login.html",
+        {
+            "request": request,
+            "error": None,
+            "info": None,
+            "email_value": ""
+        }
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+def user_login_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    email: str = Form(...),
+    password: str = Form(...)
+):
+    """Traitement de la connexion utilisateur"""
+
+    # Tenter l'authentification
+    user = authenticate_user(db, email, password)
+
+    if user:
+        # Créer le token de session
+        session_token = create_user_session_token(user.id, user.email)
+
+        # Enregistrer les statistiques de connexion
+        user.last_login = datetime.now()
+        user.login_count = (user.login_count or 0) + 1
+        user.session_start = datetime.now()
+        db.commit()
+
+        # Rediriger vers l'accueil avec le cookie de session
+        response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
-            key=SESSION_COOKIE_NAME,
+            key=USER_SESSION_COOKIE_NAME,
             value=session_token,
-            max_age=SESSION_MAX_AGE,
+            max_age=USER_SESSION_MAX_AGE,
             httponly=True,
             samesite="lax"
         )
         return response
     else:
-        # Identifiants incorrects
+        # Vérifier si l'utilisateur existe mais n'est pas approuvé
+        user_exists = db.query(User).filter(User.email == email).first()
+
+        if user_exists and not user_exists.is_approved:
+            error_message = "Votre compte est en attente d'approbation par un administrateur"
+        elif user_exists and not user_exists.is_active:
+            error_message = "Votre compte a été désactivé. Contactez un administrateur."
+        else:
+            error_message = "Email ou mot de passe incorrect"
+
         return templates.TemplateResponse(
-            "admin_login.html",
+            "user_login.html",
             {
                 "request": request,
-                "error": "Identifiant ou mot de passe incorrect",
-                "login_value": login
+                "error": error_message,
+                "info": None,
+                "email_value": email
             },
             status_code=401
         )
 
 
-@app.get("/admin/logout")
-def admin_logout():
-    """Déconnexion de l'espace admin"""
-    response = RedirectResponse(url="/admin/login", status_code=303)
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
+@app.get("/logout")
+def user_logout(
+    request: Request,
+    db: Session = Depends(get_session)
+):
+    """Déconnexion de l'utilisateur"""
+    # Enregistrer la durée de la session avant de déconnecter
+    try:
+        user = get_current_user_or_none(request, db)
+        if user and user.session_start:
+            # Calculer la durée de la session
+            session_duration = int((datetime.now() - user.session_start).total_seconds())
+            # Ajouter à la durée totale
+            user.total_session_duration = (user.total_session_duration or 0) + session_duration
+            # Réinitialiser session_start
+            user.session_start = None
+            db.commit()
+    except Exception as e:
+        # En cas d'erreur, continuer quand même la déconnexion
+        logger.error(f"Erreur lors de l'enregistrement de la durée de session: {e}")
+
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
     return response
 
 
@@ -2562,12 +3243,23 @@ def admin_logout():
 def admin_page(
     request: Request,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(get_current_user)
 ):
     total_pv = db.query(func.count(PVEvent.id)).scalar() or 0
     total_sirets = db.query(func.count(func.distinct(PVEvent.siret))).scalar() or 0
     total_summary = db.query(func.count(SiretSummary.siret)).scalar() or 0
     total_invitations = db.query(func.count(Invitation.id)).scalar() or 0
+
+    # Statistiques utilisateurs
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    pending_users = db.query(func.count(User.id)).filter(User.is_approved == False).scalar() or 0
+    approved_users = db.query(func.count(User.id)).filter(User.is_approved == True).scalar() or 0
+
+    # Récupérer les demandes en attente
+    pending_user_requests = db.query(User).filter(User.is_approved == False).order_by(User.created_at.desc()).all()
+
+    # Récupérer tous les utilisateurs pour la section de gestion
+    all_users = db.query(User).order_by(User.created_at.desc()).all()
 
     last_summary_date = db.query(func.max(SiretSummary.date_pv_max)).scalar()
     last_invitation_date = db.query(func.max(Invitation.date_invit)).scalar()
@@ -2641,14 +3333,172 @@ def admin_page(
             "upcoming_preview": upcoming_preview,
             "upcoming_threshold": 1000,
             "admin_api_key": ADMIN_API_KEY,
+            "total_users": total_users,
+            "pending_users": pending_users,
+            "approved_users": approved_users,
+            "pending_user_requests": pending_user_requests,
+            "all_users": all_users,
         },
     )
+
+
+# =========================================================
+# Routes API admin pour gestion des utilisateurs
+# =========================================================
+
+@app.post("/admin/users/{user_id}/approve")
+def approve_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Approuver une demande d'inscription utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.is_approved:
+        return {"success": False, "error": "Utilisateur déjà approuvé"}
+
+    # Approuver l'utilisateur
+    user.is_approved = True
+    user.approved_at = datetime.now()
+    user.approved_by = current_user.email  # current_user est maintenant un objet User
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Utilisateur {user.full_name} ({user.email}) approuvé avec succès"
+    }
+
+
+@app.post("/admin/users/{user_id}/reject")
+def reject_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Rejeter une demande d'inscription utilisateur (suppression)"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    email = user.email
+    name = user.full_name
+
+    # Supprimer l'utilisateur
+    db.delete(user)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Demande de {name} ({email}) rejetée et supprimée"
+    }
+
+
+@app.post("/admin/users/{user_id}/deactivate")
+def deactivate_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Désactiver un compte utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    user.is_active = False
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Compte de {user.full_name} ({user.email}) désactivé"
+    }
+
+
+@app.post("/admin/users/{user_id}/activate")
+def activate_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Réactiver un compte utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    user.is_active = True
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Compte de {user.full_name} ({user.email}) réactivé"
+    }
+
+
+@app.post("/admin/users/{user_id}/make-admin")
+def make_user_admin(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Promouvoir un utilisateur au rôle admin"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.role == "admin":
+        return {"success": False, "error": "Cet utilisateur est déjà administrateur"}
+
+    user.role = "admin"
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"{user.full_name} ({user.email}) est maintenant administrateur"
+    }
+
+
+@app.post("/admin/users/{user_id}/delete")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Supprimer un utilisateur définitivement"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    if user.role == "admin":
+        # Compter le nombre d'admins
+        admin_count = db.query(func.count(User.id)).filter(User.role == "admin").scalar()
+        if admin_count <= 1:
+            return {"success": False, "error": "Impossible de supprimer le dernier administrateur"}
+
+    name = user.full_name
+    email = user.email
+
+    db.delete(user)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Utilisateur {name} ({email}) supprimé définitivement"
+    }
+
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
 def admin_diagnostics(
     request: Request,
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Page de diagnostic des doublons d'invitations"""
 
@@ -2726,7 +3576,7 @@ def admin_diagnostics(
 @app.post("/admin/diagnostics/remove-duplicates")
 def remove_duplicates(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Supprime les doublons d'invitations (garde le plus récent par SIRET)"""
 
@@ -2755,7 +3605,7 @@ def remove_duplicates(
 @app.post("/admin/diagnostics/migrate-columns")
 def migrate_columns(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Remplit les colonnes structurées depuis le champ raw"""
 
@@ -2885,7 +3735,7 @@ def migrate_columns(
 @app.get("/admin/clean-nan", response_class=HTMLResponse)
 def clean_nan_page(
     request: Request,
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """Page simple pour exécuter le nettoyage des valeurs 'nan'"""
     html = """
@@ -3044,7 +3894,7 @@ def clean_nan_page(
 @app.post("/admin/clean-nan/execute")
 def clean_nan_values(
     db: Session = Depends(get_session),
-    current_user: str = Depends(get_current_admin_user)
+    current_user = Depends(require_admin_user)
 ):
     """
     Nettoie toutes les valeurs 'nan' dans les tables et les convertit en NULL.

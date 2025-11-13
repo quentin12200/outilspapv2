@@ -1,715 +1,331 @@
 {% extends "base.html" %}
-{% block title %}Accueil — PAP/CSE{% endblock %}
-
-{% block head %}
-<!-- KPI Dashboard Component - MUST be before Alpine.js loads -->
-<script>
-document.addEventListener('alpine:init', () => {
-  Alpine.data('dashboardKPIs', () => ({
-    loading: true,
-    kpis: {},
-    error: null,
-    async loadKPIs() {
-      this.loading = true;
-      this.error = null;
-      try {
-        console.log('Chargement des KPIs depuis /api/stats/enriched...');
-        const response = await fetch('/api/stats/enriched');
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('KPIs chargés:', data);
-        this.kpis = data;
-      } catch (error) {
-        console.error('Erreur chargement KPIs:', error);
-        this.error = error.message;
-        // Valeurs par défaut si erreur
-        this.kpis = {
-          total_invitations: 0,
-          audience_threshold: 1000,
-          pap_pv_overlap_percent: 0,
-          cgt_implanted_count: 0,
-          cgt_implanted_percent: 0,
-          elections_next_30_days: 0
-        };
-      } finally {
-        this.loading = false;
-      }
-    }
-  }));
-});
-</script>
-
-<style>
-  .kpi-card {
-    transition: all 0.3s ease;
-  }
-  .kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
-  }
-  .quick-access-card {
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
-  }
-  .quick-access-card:hover {
-    transform: translateY(-4px);
-    border-color: #d5001c;
-    box-shadow: 0 12px 24px -8px rgba(213, 0, 28, 0.3);
-  }
-  .add-pap-card {
-    background: linear-gradient(135deg, #d5001c 0%, #a00015 100%);
-    transition: all 0.3s ease;
-  }
-  .add-pap-card:hover {
-    transform: scale(1.02);
-    box-shadow: 0 16px 32px -8px rgba(213, 0, 28, 0.4);
-  }
-</style>
-{% endblock %}
+{% block title %}Accueil — Plateforme interne{% endblock %}
 
 {% block content %}
-<!-- Hero Section with Quick Actions -->
-<section class="mb-10">
-  <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cgt-red via-cgt-darkred to-gray-900 text-white shadow-2xl">
-    <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.8),transparent_60%)]"></div>
-    <div class="relative px-8 py-12 lg:px-16">
-      <div class="max-w-4xl">
-        <span class="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] rounded-full bg-white/10 mb-4">
-          Pilotage
-        </span>
-        <h1 class="text-4xl lg:text-5xl font-black leading-tight mb-6">
-          Tableau de bord PAP/CSE
-        </h1>
+{% if current_user %}
+<!-- Menu pour utilisateurs connectés -->
+<style>
+  .homepage-shell {
+    padding: 4rem 1.5rem 5rem;
+    background: #f8fafc;
+  }
 
-        <!-- Quick Actions -->
-        <div class="flex flex-wrap gap-4">
-          <a href="/stats" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-cgt-red font-semibold shadow-lg hover:bg-gray-100 transition">
-            <i class="fas fa-chart-line"></i>
-            Statistiques complètes
-          </a>
-          <a href="/invitations" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-white/60 text-white font-semibold hover:bg-white/10 transition">
-            <i class="fas fa-envelope-open-text"></i>
-            Voir les invitations
-          </a>
-          <a href="/admin" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-white/40 text-white/90 font-semibold hover:bg-white/10 transition">
-            <i class="fas fa-cog"></i>
-            Administration
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+  .homepage-intro {
+    max-width: 720px;
+    margin: 0 auto 2.5rem;
+    text-align: center;
+  }
 
-<!-- KPIs Section -->
-<section class="mb-10" x-data="dashboardKPIs()" x-init="loadKPIs()">
-  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-    <i class="fas fa-tachometer-alt text-cgt-red"></i>
-    Indicateurs clés
-  </h2>
+  .homepage-intro h1 {
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+  }
 
-  <!-- Error message si chargement échoue -->
-  <div x-show="error" class="mb-6 p-4 rounded-lg bg-red-100 border border-red-300 text-red-800">
-    <div class="flex items-center gap-2">
-      <i class="fas fa-exclamation-triangle text-xl"></i>
-      <div>
-        <p class="font-semibold">Erreur de chargement des indicateurs</p>
-        <p class="text-sm mt-1" x-text="error"></p>
-        <p class="text-sm mt-2">Vérifiez que le serveur FastAPI est démarré et accessible.</p>
-      </div>
-    </div>
-  </div>
+  .homepage-intro p {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #475569;
+    margin: 0;
+  }
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-    <!-- KPI 1: Total Invitations PAP C5 -->
-    <div class="kpi-card bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-      <div class="flex items-start justify-between mb-3">
-        <div class="p-3 rounded-xl bg-blue-100">
-          <i class="fas fa-envelope text-2xl text-blue-600"></i>
-        </div>
-        <span x-show="loading" class="text-xs text-gray-400">
-          <i class="fas fa-spinner fa-spin"></i>
-        </span>
-      </div>
-      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
-        Invitations PAP C5
-      </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.total_invitations !== undefined ? kpis.total_invitations : '—'">—</p>
-      <p class="text-sm text-gray-500 mt-2">
-        Cible ≥ <span x-text="kpis.audience_threshold || 1000">1000</span> inscrits
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .module-card {
+    --card-bg: #ffffff;
+    --card-ink: #111827;
+    --card-muted: #4b5563;
+    --card-icon-bg: rgba(79, 70, 229, 0.12);
+    --card-icon-color: #4338ca;
+    background: var(--card-bg);
+    border-radius: 1.25rem;
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 18px 45px -28px rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .module-card:hover,
+  .module-card:focus-visible {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 60px -28px rgba(79, 70, 229, 0.35);
+    outline: none;
+  }
+
+  .module-card:focus-visible {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25);
+  }
+
+  .module-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.95rem;
+    background: var(--card-icon-bg);
+    color: var(--card-icon-color);
+    font-size: 1.35rem;
+  }
+
+  .module-card h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--card-ink);
+    margin: 0;
+  }
+
+  .module-card p {
+    margin: 0;
+    color: var(--card-muted);
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+
+  button.module-card {
+    border: none;
+    background: var(--card-bg);
+    cursor: pointer;
+  }
+
+  .module-card--indigo {
+    --card-bg: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+    --card-ink: #1e1b4b;
+    --card-muted: rgba(30, 27, 75, 0.8);
+    --card-icon-bg: rgba(79, 70, 229, 0.25);
+    --card-icon-color: #4338ca;
+  }
+
+  .module-card--rose {
+    --card-bg: linear-gradient(135deg, #ffe4e6, #fecdd3);
+    --card-ink: #881337;
+    --card-muted: rgba(136, 19, 55, 0.8);
+    --card-icon-bg: rgba(244, 114, 182, 0.35);
+    --card-icon-color: #be185d;
+  }
+
+  .module-card--emerald {
+    --card-bg: linear-gradient(135deg, #d1fae5, #bbf7d0);
+    --card-ink: #064e3b;
+    --card-muted: rgba(6, 78, 59, 0.8);
+    --card-icon-bg: rgba(16, 185, 129, 0.35);
+    --card-icon-color: #047857;
+  }
+
+  .module-card--amber {
+    --card-bg: linear-gradient(135deg, #fef3c7, #fde68a);
+    --card-ink: #78350f;
+    --card-muted: rgba(120, 53, 15, 0.8);
+    --card-icon-bg: rgba(251, 191, 36, 0.35);
+    --card-icon-color: #d97706;
+  }
+
+  .module-card--sky {
+    --card-bg: linear-gradient(135deg, #e0f2fe, #bae6fd);
+    --card-ink: #0c4a6e;
+    --card-muted: rgba(12, 74, 110, 0.8);
+    --card-icon-bg: rgba(56, 189, 248, 0.35);
+    --card-icon-color: #0284c7;
+  }
+
+  .module-card--violet {
+    --card-bg: linear-gradient(135deg, #ede9fe, #ddd6fe);
+    --card-ink: #4c1d95;
+    --card-muted: rgba(76, 29, 149, 0.8);
+    --card-icon-bg: rgba(167, 139, 250, 0.35);
+    --card-icon-color: #7c3aed;
+  }
+
+  .module-card--teal {
+    --card-bg: linear-gradient(135deg, #ccfbf1, #99f6e4);
+    --card-ink: #134e4a;
+    --card-muted: rgba(19, 78, 74, 0.8);
+    --card-icon-bg: rgba(45, 212, 191, 0.35);
+    --card-icon-color: #0f766e;
+  }
+
+  .module-card--cyan {
+    --card-bg: linear-gradient(135deg, #cffafe, #a5f3fc);
+    --card-ink: #155e75;
+    --card-muted: rgba(21, 94, 117, 0.8);
+    --card-icon-bg: rgba(6, 182, 212, 0.35);
+    --card-icon-color: #0e7490;
+  }
+
+  .module-card--red {
+    --card-bg: linear-gradient(135deg, #fee2e2, #fecaca);
+    --card-ink: #7f1d1d;
+    --card-muted: rgba(127, 29, 29, 0.8);
+    --card-icon-bg: rgba(248, 113, 113, 0.35);
+    --card-icon-color: #b91c1c;
+  }
+
+  .module-card--slate {
+    --card-bg: linear-gradient(135deg, #e2e8f0, #cbd5f5);
+    --card-ink: #0f172a;
+    --card-muted: rgba(15, 23, 42, 0.75);
+    --card-icon-bg: rgba(100, 116, 139, 0.25);
+    --card-icon-color: #1e293b;
+  }
+
+  .module-card--stone {
+    --card-bg: linear-gradient(135deg, #f5f5f4, #e7e5e4);
+    --card-ink: #1c1917;
+    --card-muted: rgba(28, 25, 23, 0.75);
+    --card-icon-bg: rgba(120, 113, 108, 0.25);
+    --card-icon-color: #57534e;
+  }
+
+  @media (max-width: 768px) {
+    .homepage-shell {
+      padding: 3rem 1rem 3.75rem;
+    }
+
+    .homepage-intro {
+      margin-bottom: 2rem;
+    }
+  }
+</style>
+
+<div class="max-w-6xl mx-auto px-4">
+  <div class="homepage-shell">
+    <div class="homepage-intro">
+      <h1>Bienvenue, {{ current_user.first_name }} !</h1>
+      <p>
+        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports détaillés et trouvez rapidement des réponses à vos questions.
       </p>
     </div>
 
-    <!-- KPI 2: Taux de couverture -->
-    <div class="kpi-card bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-      <div class="flex items-start justify-between mb-3">
-        <div class="p-3 rounded-xl bg-green-100">
-          <i class="fas fa-chart-pie text-2xl text-green-600"></i>
+    <div class="modules-grid">
+      <a href="/stats" class="module-card module-card--indigo">
+        <div class="module-icon">
+          <i class="fas fa-chart-line"></i>
         </div>
-        <span x-show="loading" class="text-xs text-gray-400">
-          <i class="fas fa-spinner fa-spin"></i>
-        </span>
-      </div>
-      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
-        Couverture PAP ↔ PV
-      </h3>
-      <p class="text-3xl font-black text-gray-900">
-        <span x-text="kpis.pap_pv_overlap_percent !== undefined ? kpis.pap_pv_overlap_percent.toFixed(1) : '—'">—</span><span class="text-2xl">%</span>
-      </p>
-      <p class="text-sm text-gray-500 mt-2">
-        Des invitations ont un PV C5
-      </p>
-    </div>
+        <h3>Statistiques</h3>
+        <p>Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
+      </a>
 
-    <!-- KPI 3: CGT Implantée -->
-    <div class="kpi-card bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-      <div class="flex items-start justify-between mb-3">
-        <div class="p-3 rounded-xl bg-red-100">
-          <i class="fas fa-flag text-2xl text-red-600"></i>
+      <a href="/invitations" class="module-card module-card--rose">
+        <div class="module-icon">
+          <i class="fas fa-envelope-open-text"></i>
         </div>
-        <span x-show="loading" class="text-xs text-gray-400">
-          <i class="fas fa-spinner fa-spin"></i>
-        </span>
-      </div>
-      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
-        CGT Implantée
-      </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.cgt_implanted_count !== undefined ? kpis.cgt_implanted_count : '—'">—</p>
-      <p class="text-sm text-gray-500 mt-2">
-        <span x-text="kpis.cgt_implanted_percent !== undefined ? kpis.cgt_implanted_percent.toFixed(1) + '%' : '—'">—</span> de la cible
-      </p>
-    </div>
+        <h3>Invitations PAP</h3>
+        <p>Gérez la liste complète des invitations PAP Cycle 5.</p>
+      </a>
 
-    <!-- KPI 4: Prochaines échéances -->
-    <div class="kpi-card bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-      <div class="flex items-start justify-between mb-3">
-        <div class="p-3 rounded-xl bg-orange-100">
-          <i class="fas fa-calendar-days text-2xl text-orange-600"></i>
+      <a href="/calendrier" class="module-card module-card--emerald">
+        <div class="module-icon">
+          <i class="fas fa-calendar-alt"></i>
         </div>
-        <span x-show="loading" class="text-xs text-gray-400">
-          <i class="fas fa-spinner fa-spin"></i>
-        </span>
-      </div>
-      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
-        Élections +1000 (30j)
-      </h3>
-      <p class="text-3xl font-black text-gray-900" x-text="kpis.elections_next_30_days !== undefined ? kpis.elections_next_30_days : '—'">—</p>
-      <p class="text-sm text-gray-500 mt-2">
-        Scrutins à venir
-      </p>
-    </div>
-  </div>
-</section>
+        <h3>Calendrier +1000</h3>
+        <p>Visualisez les prochaines échéances électorales majeures.</p>
+      </a>
 
-<!-- Section texte principal centré -->
-<section class="mb-12">
-  <div class="max-w-4xl mx-auto">
-    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-white to-gray-50 shadow-xl border-2 border-cgt-red/20">
-      <!-- Décoration d'arrière-plan -->
-      <div class="absolute top-0 right-0 w-64 h-64 bg-cgt-red/5 rounded-full -mr-32 -mt-32"></div>
-      <div class="absolute bottom-0 left-0 w-48 h-48 bg-cgt-red/5 rounded-full -ml-24 -mb-24"></div>
-
-      <!-- Contenu -->
-      <div class="relative px-8 py-10 lg:px-12 lg:py-12 text-center">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cgt-red to-cgt-darkred mb-6 shadow-lg">
-          <i class="fas fa-bullseye text-2xl text-white"></i>
+      <a href="/cartographie" class="module-card module-card--amber">
+        <div class="module-icon">
+          <i class="fas fa-map"></i>
         </div>
+        <h3>Cartographie</h3>
+        <p>Explorez la couverture territoriale de la CGT.</p>
+      </a>
 
-        <h2 class="text-3xl lg:text-4xl font-black text-gray-900 mb-4 leading-tight">
-          Pilotez vos actions syndicales
-        </h2>
-
-        <p class="text-lg text-gray-700 leading-relaxed max-w-2xl mx-auto mb-6">
-          Suivez en temps réel vos invitations PAP Cycle 5, anticipez les échéances électorales
-          et analysez la couverture syndicale CGT pour renforcer votre stratégie d'implantation.
-        </p>
-
-        <div class="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-          <div class="flex items-center gap-2">
-            <i class="fas fa-check-circle text-cgt-red"></i>
-            <span class="font-semibold">Suivi en temps réel</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <i class="fas fa-check-circle text-cgt-red"></i>
-            <span class="font-semibold">Analyses stratégiques</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <i class="fas fa-check-circle text-cgt-red"></i>
-            <span class="font-semibold">Cartographie complète</span>
-          </div>
+      <a href="/ciblage" class="module-card module-card--sky">
+        <div class="module-icon">
+          <i class="fas fa-crosshairs"></i>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+        <h3>Ciblage</h3>
+        <p>Repérez les établissements prioritaires selon vos critères.</p>
+      </a>
 
-<!-- Main Actions Grid -->
-<section class="mb-10">
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <!-- Left Column: Add PAP + Search -->
-    <div class="space-y-6">
-      <!-- Add PAP Card -->
-      <div class="add-pap-card rounded-2xl shadow-lg p-8 text-white cursor-pointer" onclick="openAddPAPModal()">
-        <div class="flex items-start justify-between mb-4">
-          <div class="p-4 rounded-2xl bg-white/20">
-            <i class="fas fa-plus-circle text-4xl"></i>
-          </div>
-          <i class="fas fa-arrow-right text-2xl opacity-60"></i>
-        </div>
-        <h3 class="text-2xl font-black mb-2">Ajouter une invitation PAP</h3>
-        <p class="text-white/80 text-sm mb-4">
-          Enregistrez manuellement une nouvelle invitation au PAP Cycle 5
-        </p>
-        <div class="flex items-center gap-2 text-sm font-semibold">
-          <span>Saisir les informations</span>
-          <i class="fas fa-chevron-right"></i>
-        </div>
-      </div>
-
-      <!-- Search Card -->
-      <div class="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i class="fas fa-search text-cgt-red"></i>
-          Recherche rapide
-        </h3>
-
-        <form action="/" method="get"
-              x-data="{
-                searchQuery: '',
-                searchResults: [],
-                showResults: false,
-                async searchAutocomplete() {
-                  if (this.searchQuery.length < 2) {
-                    this.searchResults = [];
-                    this.showResults = false;
-                    return;
-                  }
-                  try {
-                    const response = await fetch(\`/api/search/autocomplete?q=\${encodeURIComponent(this.searchQuery)}\`);
-                    this.searchResults = await response.json();
-                    this.showResults = this.searchResults.length > 0;
-                  } catch (error) {
-                    console.error('Erreur autocomplete:', error);
-                  }
-                },
-                selectResult(result) {
-                  window.location.href = \`/siret/\${result.siret}\`;
-                }
-              }">
-          <div class="relative">
-            <input type="text"
-                   name="q"
-                   x-model="searchQuery"
-                   @input.debounce.300ms="searchAutocomplete"
-                   @focus="if (searchQuery.length >= 2) searchAutocomplete()"
-                   @click.away="showResults = false"
-                   placeholder="SIRET ou raison sociale..."
-                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
-
-            <!-- Autocomplete Results -->
-            <div x-show="showResults"
-                 x-transition
-                 class="absolute z-50 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-y-auto">
-              <template x-for="result in searchResults" :key="result.siret">
-                <div @click="selectResult(result)"
-                     class="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0">
-                  <p class="font-semibold text-gray-800 text-sm" x-text="result.raison_sociale"></p>
-                  <p class="text-xs text-gray-600 mt-1">
-                    <span class="font-mono text-blue-600" x-text="result.siret"></span>
-                    <span x-show="result.ville" class="ml-2">• <span x-text="result.ville"></span></span>
-                  </p>
-                </div>
-              </template>
-            </div>
-          </div>
-        </form>
-
-        <p class="text-xs text-gray-500 mt-3">
-          <i class="fas fa-info-circle mr-1"></i>
-          Tapez au moins 2 caractères pour lancer la recherche
-        </p>
-      </div>
-    </div>
-
-    <!-- Middle + Right Columns: Quick Access Cards -->
-    <div class="lg:col-span-2">
-      <h3 class="text-xl font-bold text-gray-800 mb-4">Accès rapides</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        <!-- Stats Card -->
-        <a href="/stats" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-purple-100 group-hover:bg-purple-200 transition">
-              <i class="fas fa-chart-line text-2xl text-purple-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Statistiques</h4>
-          <p class="text-sm text-gray-600">Tableaux de bord complets avec graphiques et analyses</p>
-        </a>
-
-        <!-- Invitations Card -->
-        <a href="/invitations" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-blue-100 group-hover:bg-blue-200 transition">
-              <i class="fas fa-envelope-open-text text-2xl text-blue-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Invitations PAP</h4>
-          <p class="text-sm text-gray-600">Liste complète avec filtres et pagination</p>
-        </a>
-
-        <!-- Calendrier Card -->
-        <a href="/calendrier" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-green-100 group-hover:bg-green-200 transition">
-              <i class="fas fa-calendar-alt text-2xl text-green-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Calendrier +1000</h4>
-          <p class="text-sm text-gray-600">Prochaines élections pour établissements ≥1000</p>
-        </a>
-
-        <!-- Cartographie Card -->
-        <a href="/cartographie" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 transition">
-              <i class="fas fa-map text-2xl text-indigo-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Cartographie</h4>
-          <p class="text-sm text-gray-600">Carte de France interactive avec statistiques</p>
-        </a>
-
-        <!-- Ciblage Card -->
-        <a href="/ciblage" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-orange-100 group-hover:bg-orange-200 transition">
-              <i class="fas fa-crosshairs text-2xl text-orange-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Ciblage</h4>
-          <p class="text-sm text-gray-600">Analyse de la cible prioritaire</p>
-        </a>
-
-        <!-- Ajout PAP Card -->
-        <a href="/recherche-siret" class="quick-access-card bg-white rounded-xl shadow-md border border-gray-200 p-6 block group">
-          <div class="flex items-start justify-between mb-3">
-            <div class="p-3 rounded-xl bg-teal-100 group-hover:bg-teal-200 transition">
-              <i class="fas fa-plus-circle text-2xl text-teal-600"></i>
-            </div>
-            <i class="fas fa-arrow-right text-gray-400 group-hover:text-cgt-red transition"></i>
-          </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2">Ajout PAP</h4>
-          <p class="text-sm text-gray-600">Ajouter une invitation PAP ou rechercher un SIRET</p>
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Top Departments Section -->
-<section class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-  <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-    <i class="fas fa-trophy text-yellow-500"></i>
-    Top 10 départements - Invitations PAP C5
-  </h3>
-
-  {% if top_departments %}
-  <div class="overflow-x-auto rounded-lg border border-gray-200">
-    <table class="min-w-full divide-y divide-gray-200" data-sortable="true">
-      <thead class="bg-gradient-to-r from-cgt-red to-cgt-darkred text-white">
-        <tr>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Rang</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase">Département</th>
-          <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="numeric">Nombre d'invitations</th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        {% for entry in top_departments %}
-        <tr class="hover:bg-gray-50 transition">
-          <td class="px-4 py-3 font-semibold text-gray-700" data-rank-cell data-sort-value="{{ loop.index }}">
-            {% if loop.index == 1 %}
-              <span class="inline-flex items-center gap-2">
-                <i class="fas fa-crown text-yellow-500"></i> #{{ loop.index }}
-              </span>
-            {% elif loop.index == 2 %}
-              <span class="inline-flex items-center gap-2">
-                <i class="fas fa-medal text-gray-400"></i> #{{ loop.index }}
-              </span>
-            {% elif loop.index == 3 %}
-              <span class="inline-flex items-center gap-2">
-                <i class="fas fa-medal text-orange-600"></i> #{{ loop.index }}
-              </span>
-            {% else %}
-              #{{ loop.index }}
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 whitespace-nowrap font-semibold text-gray-800">{{ entry.dep }}</td>
-          <td class="px-4 py-3" data-sort-value="{{ entry.count }}">
-            <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
-              {{ entry.count }} invitations
-            </span>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="text-center py-12 text-gray-500">
-    <i class="fas fa-inbox text-4xl mb-4"></i>
-    <p>Aucune invitation PAP C5 n'a encore été enregistrée.</p>
-  </div>
-  {% endif %}
-</section>
-
-<!-- Add PAP Modal -->
-<div id="addPAPModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeAddPAPModal()">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-    <div class="sticky top-0 bg-gradient-to-r from-cgt-red to-cgt-darkred text-white px-8 py-6 rounded-t-2xl">
-      <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold flex items-center gap-3">
+      <a href="/recherche-siret" class="module-card module-card--violet">
+        <div class="module-icon">
           <i class="fas fa-plus-circle"></i>
-          Ajouter une invitation PAP
-        </h2>
-        <button onclick="closeAddPAPModal()" class="text-white/80 hover:text-white text-2xl">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
+        </div>
+        <h3>Ajout PAP</h3>
+        <p>Ajoutez manuellement une nouvelle invitation PAP.</p>
+      </a>
+
+      <a href="/presentation" class="module-card module-card--teal">
+        <div class="module-icon">
+          <i class="fas fa-bullseye"></i>
+        </div>
+        <h3>Présentation</h3>
+        <p>Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
+      </a>
+
+      <a href="/extraction" class="module-card module-card--cyan">
+        <div class="module-icon">
+          <i class="fas fa-scan"></i>
+        </div>
+        <h3>Scanner PAP</h3>
+        <p>Analysez automatiquement vos documents PAP.</p>
+      </a>
+
+      <button type="button" class="module-card module-card--action module-card--red" onclick="ouvrirAssistantExpert()">
+        <div class="module-icon">
+          <i class="fas fa-comments"></i>
+        </div>
+        <h3>Chatbot</h3>
+        <p>Posez vos questions et obtenez des réponses ciblées.</p>
+      </button>
+
+      <button type="button" class="module-card module-card--action module-card--slate" onclick="genererRapportIA()">
+        <div class="module-icon">
+          <i class="fas fa-chart-pie"></i>
+        </div>
+        <h3>Super rapport</h3>
+        <p>Générez un rapport stratégique en quelques clics.</p>
+      </button>
+
+      {% if current_user.role == "admin" %}
+      <a href="/admin" class="module-card module-card--stone">
+        <div class="module-icon">
+          <i class="fas fa-cog"></i>
+        </div>
+        <h3>Administration</h3>
+        <p>Pilotez les imports, utilisateurs et outils avancés.</p>
+      </a>
+      {% endif %}
     </div>
-
-    <form id="addPAPForm" class="p-8 space-y-6" onsubmit="submitAddPAP(event)">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- SIRET -->
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-building text-cgt-red mr-1"></i>
-            SIRET <span class="text-red-500">*</span>
-          </label>
-          <input type="text" name="siret" required minlength="14" maxlength="14" pattern="[0-9]{14}"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="12345678901234">
-          <p class="text-xs text-gray-500 mt-1">14 chiffres</p>
-        </div>
-
-        <!-- Raison sociale -->
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-briefcase text-cgt-red mr-1"></i>
-            Raison sociale <span class="text-red-500">*</span>
-          </label>
-          <input type="text" name="raison_sociale" required
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="Nom de l'entreprise">
-        </div>
-
-        <!-- Ville -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-map-marker-alt text-cgt-red mr-1"></i>
-            Ville <span class="text-red-500">*</span>
-          </label>
-          <input type="text" name="ville" required
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="Paris">
-        </div>
-
-        <!-- Code postal -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-location-dot text-cgt-red mr-1"></i>
-            Code postal <span class="text-red-500">*</span>
-          </label>
-          <input type="text" name="code_postal" required pattern="[0-9]{5}"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="75001">
-        </div>
-
-        <!-- Date invitation -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-calendar text-cgt-red mr-1"></i>
-            Date invitation <span class="text-red-500">*</span>
-          </label>
-          <input type="date" name="date_invit" required
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
-        </div>
-
-        <!-- Date réception (optionnel) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-calendar-check text-gray-500 mr-1"></i>
-            Date réception (optionnel)
-          </label>
-          <input type="date" name="date_reception"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
-        </div>
-
-        <!-- UD (optionnel) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-flag-checkered text-gray-500 mr-1"></i>
-            Union Départementale
-          </label>
-          <input type="text" name="ud"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="UD 75">
-        </div>
-
-        <!-- FD (optionnel) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-building text-gray-500 mr-1"></i>
-            Fédération
-          </label>
-          <input type="text" name="fd"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="Métallurgie">
-        </div>
-
-        <!-- IDCC (optionnel) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-file-contract text-gray-500 mr-1"></i>
-            IDCC
-          </label>
-          <input type="text" name="idcc"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="3248">
-        </div>
-
-        <!-- Effectif (optionnel) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-users text-gray-500 mr-1"></i>
-            Effectif connu
-          </label>
-          <input type="number" name="effectif_connu" min="0"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
-                 placeholder="1250">
-        </div>
-      </div>
-
-      <!-- Messages -->
-      <div id="addPAPMessage" class="hidden p-4 rounded-lg"></div>
-
-      <!-- Buttons -->
-      <div class="flex gap-4 pt-4">
-        <button type="button" onclick="closeAddPAPModal()"
-                class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold">
-          Annuler
-        </button>
-        <button type="submit"
-                class="flex-1 px-6 py-3 bg-cgt-red text-white rounded-lg hover:bg-cgt-darkred transition font-semibold flex items-center justify-center gap-2">
-          <i class="fas fa-plus-circle"></i>
-          Ajouter l'invitation
-        </button>
-      </div>
-    </form>
   </div>
 </div>
+<!-- Inclure les modals chatbot et rapport -->
+{% include '_chat_rapport_modals.html' %}
 
-<script>
-// Add PAP Modal Functions
-function openAddPAPModal() {
-  document.getElementById('addPAPModal').classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeAddPAPModal() {
-  document.getElementById('addPAPModal').classList.add('hidden');
-  document.body.style.overflow = '';
-  document.getElementById('addPAPForm').reset();
-  document.getElementById('addPAPMessage').classList.add('hidden');
-}
-
-async function submitAddPAP(event) {
-  event.preventDefault();
-
-  const form = event.target;
-  const formData = new FormData(form);
-  const messageDiv = document.getElementById('addPAPMessage');
-
-  // Build query string
-  const params = new URLSearchParams();
-  for (const [key, value] of formData.entries()) {
-    if (value) params.append(key, value);
-  }
-
-  // Show loading
-  const submitBtn = form.querySelector('button[type="submit"]');
-  const originalText = submitBtn.innerHTML;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Ajout en cours...';
-  submitBtn.disabled = true;
-
-  try {
-    const response = await fetch(\`/api/invitation/add?\${params.toString()}\`, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': '{{ admin_api_key }}'
-      }
-    });
-
-    const result = await response.json();
-
-    if (response.ok && result.success) {
-      // Success
-      messageDiv.className = 'p-4 rounded-lg bg-green-100 border border-green-300 text-green-800';
-      messageDiv.innerHTML = \`
-        <div class="flex items-center gap-2">
-          <i class="fas fa-check-circle text-xl"></i>
-          <div>
-            <p class="font-semibold">\${result.message}</p>
-            <p class="text-sm mt-1">L'invitation a été ajoutée avec succès.</p>
-          </div>
-        </div>
-      \`;
-      messageDiv.classList.remove('hidden');
-
-      // Reset form and close after delay
-      setTimeout(() => {
-        closeAddPAPModal();
-        // Optionally reload KPIs
-        location.reload();
-      }, 2000);
-    } else {
-      throw new Error(result.message || 'Erreur lors de l\'ajout');
-    }
-  } catch (error) {
-    // Error
-    messageDiv.className = 'p-4 rounded-lg bg-red-100 border border-red-300 text-red-800';
-    messageDiv.innerHTML = \`
-      <div class="flex items-center gap-2">
-        <i class="fas fa-exclamation-triangle text-xl"></i>
-        <div>
-          <p class="font-semibold">Erreur</p>
-          <p class="text-sm mt-1">\${error.message}</p>
-        </div>
-      </div>
-    \`;
-    messageDiv.classList.remove('hidden');
-  } finally {
-    // Restore button
-    submitBtn.innerHTML = originalText;
-    submitBtn.disabled = false;
-  }
-}
-
-// Close modal on ESC key
-document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') {
-    closeAddPAPModal();
-  }
-});
-</script>
+{% else %}
+<!-- Page publique pour visiteurs non connectés -->
+<div class="flex items-center justify-center min-h-[70vh]">
+  <div class="text-center">
+    <div class="mb-8">
+      <i class="fas fa-lock text-6xl text-cgt-red mb-4"></i>
+    </div>
+    <h1 class="text-5xl font-bold text-gray-900 mb-4">
+      Plateforme interne
+    </h1>
+    <p class="text-xl text-gray-600 mb-8">
+      Accès réservé aux utilisateurs autorisés
+    </p>
+    <div class="flex justify-center gap-4">
+      <a href="/login" class="inline-flex items-center gap-2 px-8 py-4 bg-cgt-red hover:bg-cgt-darkred text-white font-semibold rounded-lg shadow-lg transition">
+        <i class="fas fa-sign-in-alt"></i>
+        Se connecter
+      </a>
+      <a href="/signup" class="inline-flex items-center gap-2 px-8 py-4 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg shadow-lg transition">
+        <i class="fas fa-user-plus"></i>
+        S'inscrire
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -8,13 +8,13 @@ import logging
 
 from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
-from ..models import SiretSummary, PVEvent, Invitation
+from ..models import SiretSummary, PVEvent, Invitation, User
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
-from ..auth import require_api_key
+from ..user_auth import require_admin_user
 from ..models import AuditLog
 from ..audit import log_admin_action
 
@@ -45,11 +45,12 @@ def _month_bucket_expression(db: Session, column):
 
 @router.post("/ingest/pv")
 async def ingest_pv(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
-    """Ingestion de PV (requiert authentification API Key)"""
+    """Ingestion de PV (requiert role administrateur)"""
     # Valider le fichier Excel
     validate_excel_file(file)
 
@@ -63,11 +64,12 @@ async def ingest_pv(
 
 @router.post("/ingest/invit")
 async def ingest_invit(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
-    """Ingestion d'invitations (requiert authentification API Key)"""
+    """Ingestion d'invitations (requiert role administrateur)"""
     # Valider le fichier Excel
     validate_excel_file(file)
 
@@ -81,15 +83,17 @@ async def ingest_invit(
 
 @router.post("/build/summary")
 def build_summary(
+    request: Request,
     background_tasks: BackgroundTasks,
-    api_key: str = Depends(require_api_key)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Lance la reconstruction de la table siret_summary en arrière-plan.
     Retourne immédiatement avec un statut "en cours".
     Utiliser GET /api/build/summary/status pour suivre la progression.
 
-    Requiert authentification API Key.
+    Requiert role administrateur.
     """
     # Vérifier si une tâche est déjà en cours
     task_id = "build_siret_summary"
@@ -157,15 +161,17 @@ def get_build_summary_status():
 
 @router.post("/enrichir/idcc")
 def enrichir_idcc(
+    request: Request,
     background_tasks: BackgroundTasks,
-    api_key: str = Depends(require_api_key)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Lance l'enrichissement des IDCC manquants en arrière-plan via l'API SIRENE.
     Retourne immédiatement avec un statut "en cours".
     Utiliser GET /api/enrichir/idcc/status pour suivre la progression.
 
-    Requiert authentification API Key.
+    Requiert role administrateur.
     """
     # Vérifier si une tâche est déjà en cours
     task_id = "enrichir_invitations_idcc"
@@ -1074,7 +1080,7 @@ async def sirene_search(
 async def enrichir_un_siret(
     siret: str,
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Enrichit une invitation avec les données de l'API Sirene.
@@ -1131,7 +1137,7 @@ async def enrichir_un_siret(
 async def enrichir_toutes_invitations(
     force: bool = Query(False, description="Forcer le réenrichissement même si déjà fait"),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     [DEPRECATED] Enrichit toutes les invitations qui n'ont pas encore été enrichies.
@@ -1523,7 +1529,7 @@ def add_pap_invitation(
     structure_saisie: str = Query(None),
     source: str = Query("Manuel"),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Ajoute une nouvelle invitation PAP manuellement.
@@ -1641,7 +1647,7 @@ def get_audit_logs(
     success: bool = Query(None, description="Filtrer par succès/échec"),
     action: str = Query(None, description="Filtrer par action"),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Récupère les audit logs pour monitoring et conformité.
@@ -1709,7 +1715,7 @@ def get_audit_logs(
 def get_audit_stats(
     days: int = Query(7, ge=1, le=90, description="Nombre de jours à analyser"),
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Récupère des statistiques sur les audit logs.
@@ -1794,7 +1800,7 @@ def get_audit_stats(
 async def update_fd_from_idcc(
     request: Request,
     db: Session = Depends(get_session),
-    api_key: str = Depends(require_api_key)
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Met à jour les FD (Fédérations) à partir des IDCC en utilisant le mapping idcc_to_fd_mapping.json

@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}Demande d'inscription — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<div class="min-h-[80vh] flex items-center justify-center py-12">
+  <div class="w-full max-w-2xl">
+
+    <!-- Card d'inscription -->
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-cgt-red/10 text-cgt-red rounded-full mb-4">
+          <i class="fas fa-user-plus text-2xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">
+          Demande d'accès
+        </h1>
+        <p class="text-gray-600">
+          Remplissez le formulaire pour demander un accès au site
+        </p>
+        <p class="text-sm text-amber-600 mt-2">
+          <i class="fas fa-clock mr-1"></i>
+          Votre demande sera validée par un administrateur
+        </p>
+      </div>
+
+      <!-- Message de succès -->
+      {% if success %}
+      <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div class="flex items-start">
+          <i class="fas fa-check-circle text-green-500 mt-0.5 mr-3"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-green-800">Demande envoyée avec succès !</p>
+            <p class="text-sm text-green-700 mt-1">Vous recevrez un email dès que votre compte sera approuvé.</p>
+          </div>
+        </div>
+      </div>
+      <div class="text-center">
+        <a href="/" class="text-cgt-red hover:text-cgt-darkred font-medium">
+          <i class="fas fa-arrow-left mr-1"></i>
+          Retour à l'accueil
+        </a>
+      </div>
+      {% else %}
+
+      <!-- Message d'erreur -->
+      {% if error %}
+      <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-start">
+          <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-red-800">{{ error }}</p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Formulaire d'inscription -->
+      <form method="POST" action="/signup" class="space-y-6">
+
+        <!-- Section Informations personnelles -->
+        <div class="bg-gray-50 rounded-lg p-6 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-user text-cgt-red mr-2"></i>
+            Informations personnelles
+          </h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Prénom -->
+            <div>
+              <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">
+                Prénom <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="first_name"
+                name="first_name"
+                required
+                class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Votre prénom"
+                value="{{ form_data.first_name or '' }}"
+              />
+            </div>
+
+            <!-- Nom -->
+            <div>
+              <label for="last_name" class="block text-sm font-medium text-gray-700 mb-2">
+                Nom <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="last_name"
+                name="last_name"
+                required
+                class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Votre nom"
+                value="{{ form_data.last_name or '' }}"
+              />
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+              Email <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fas fa-envelope text-gray-400"></i>
+              </div>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                required
+                autocomplete="email"
+                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="votre.email@exemple.fr"
+                value="{{ form_data.email or '' }}"
+              />
+            </div>
+          </div>
+
+          <!-- Téléphone -->
+          <div>
+            <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
+              Téléphone
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fas fa-phone text-gray-400"></i>
+              </div>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="06 12 34 56 78"
+                value="{{ form_data.phone or '' }}"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Informations syndicales -->
+        <div class="bg-gray-50 rounded-lg p-6 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-building text-cgt-red mr-2"></i>
+            Informations syndicales
+          </h2>
+
+          <!-- Organisation -->
+          <div>
+            <label for="organization" class="block text-sm font-medium text-gray-700 mb-2">
+              Organisation
+            </label>
+            <input
+              type="text"
+              id="organization"
+              name="organization"
+              class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+              placeholder="Ex: CGT, Union locale, Fédération..."
+              value="{{ form_data.organization or '' }}"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- FD -->
+            <div>
+              <label for="fd" class="block text-sm font-medium text-gray-700 mb-2">
+                Fédération (FD)
+              </label>
+              <input
+                type="text"
+                id="fd"
+                name="fd"
+                class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Ex: Métallurgie, Santé..."
+                value="{{ form_data.fd or '' }}"
+              />
+            </div>
+
+            <!-- UD -->
+            <div>
+              <label for="ud" class="block text-sm font-medium text-gray-700 mb-2">
+                Union Départementale (UD)
+              </label>
+              <input
+                type="text"
+                id="ud"
+                name="ud"
+                class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Ex: UD 75, UD 13..."
+                value="{{ form_data.ud or '' }}"
+              />
+            </div>
+          </div>
+
+          <!-- Région -->
+          <div>
+            <label for="region" class="block text-sm font-medium text-gray-700 mb-2">
+              Région
+            </label>
+            <input
+              type="text"
+              id="region"
+              name="region"
+              class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+              placeholder="Ex: Île-de-France, PACA..."
+              value="{{ form_data.region or '' }}"
+            />
+          </div>
+
+          <!-- Responsabilité -->
+          <div>
+            <label for="responsibility" class="block text-sm font-medium text-gray-700 mb-2">
+              Responsabilité dans l'organisation
+            </label>
+            <input
+              type="text"
+              id="responsibility"
+              name="responsibility"
+              class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+              placeholder="Ex: Secrétaire, Trésorier, Militant..."
+              value="{{ form_data.responsibility or '' }}"
+            />
+          </div>
+        </div>
+
+        <!-- Section Mot de passe -->
+        <div class="bg-gray-50 rounded-lg p-6 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-lock text-cgt-red mr-2"></i>
+            Mot de passe
+          </h2>
+
+          <!-- Mot de passe -->
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+              Mot de passe <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fas fa-key text-gray-400"></i>
+              </div>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                required
+                minlength="8"
+                autocomplete="new-password"
+                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Minimum 8 caractères"
+              />
+            </div>
+            <p class="mt-2 text-xs text-gray-500">
+              <i class="fas fa-info-circle mr-1"></i>
+              Au moins 8 caractères avec majuscules, minuscules et chiffres
+            </p>
+          </div>
+
+          <!-- Confirmation mot de passe -->
+          <div>
+            <label for="password_confirm" class="block text-sm font-medium text-gray-700 mb-2">
+              Confirmer le mot de passe <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fas fa-key text-gray-400"></i>
+              </div>
+              <input
+                type="password"
+                id="password_confirm"
+                name="password_confirm"
+                required
+                minlength="8"
+                autocomplete="new-password"
+                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+                placeholder="Répétez le mot de passe"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Raison de la demande (optionnel) -->
+        <div>
+          <label for="registration_reason" class="block text-sm font-medium text-gray-700 mb-2">
+            Raison de votre demande d'accès (optionnel)
+          </label>
+          <textarea
+            id="registration_reason"
+            name="registration_reason"
+            rows="3"
+            class="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            placeholder="Expliquez brièvement pourquoi vous souhaitez accéder au site..."
+          >{{ form_data.registration_reason or '' }}</textarea>
+        </div>
+
+        <!-- Bouton d'inscription -->
+        <button
+          type="submit"
+          class="w-full bg-cgt-red hover:bg-cgt-darkred text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        >
+          <i class="fas fa-paper-plane mr-2"></i>
+          Envoyer ma demande
+        </button>
+
+      </form>
+      {% endif %}
+
+      <!-- Footer -->
+      <div class="mt-6 pt-6 border-t border-gray-200 text-center space-y-2">
+        <p class="text-sm text-gray-600">
+          Vous avez déjà un compte ?
+          <a href="/login" class="text-cgt-red hover:text-cgt-darkred font-medium">
+            Se connecter
+          </a>
+        </p>
+        <a href="/" class="text-sm text-gray-600 hover:text-cgt-red transition-colors inline-block">
+          <i class="fas fa-arrow-left mr-1"></i>
+          Retour à l'accueil
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Info sécurité -->
+    <div class="mt-6 text-center">
+      <p class="text-sm text-gray-500">
+        <i class="fas fa-shield-alt mr-1"></i>
+        Vos données sont sécurisées et ne seront utilisées que pour la gestion de votre compte
+      </p>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

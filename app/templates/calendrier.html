@@ -327,7 +327,7 @@
       <div class="px-6 pt-4">
         <div class="scroll-help">
           <i class="fas fa-info-circle"></i>
-          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (28 au total : 8 voix + 8 élus par organisation + total sièges). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
+          <span><strong>Astuces :</strong> Cliquez sur les en-têtes de colonnes pour trier (↕ ↑ ↓). Faites défiler horizontalement pour voir toutes les colonnes (28 au total : 8 voix + 8 élus par organisation + total élus). Utilisez le bouton "Plein écran" pour un affichage optimal.</span>
         </div>
       </div>
 
@@ -474,12 +474,12 @@
 
               <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort-type="numeric">
                 <div class="flex items-center justify-center gap-1">
-                  <span>Total</span>
+                  <span>Total élus</span>
                   <span class="relative group cursor-help">
                     <i class="fas fa-info-circle text-gray-400 text-xs"></i>
                     <div class="hidden group-hover:block absolute z-10 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg -left-24 top-6">
-                      <strong>Total des sièges CSE (max 35)</strong><br>
-                      Nombre total de sièges à répartir selon le barème légal. Plafonné à 35 sièges maximum pour 10 000+ inscrits.
+                      <strong>Total estimé d'élus</strong><br>
+                      Somme des élus par organisation affichés ci-dessus. Si aucun quorum n'a été atteint pour le SIRET, ce total reste vide.
                     </div>
                   </span>
                 </div>
@@ -712,10 +712,10 @@
                   {% endif %}
                 </td>
 
-                <td class="px-4 py-2 text-sm text-center font-bold text-gray-900" data-sort-value="{{ item.nb_sieges_cse or 0 }}">
-                  {% if item.nb_sieges_cse %}
-                    <div class="text-lg">{{ item.nb_sieges_cse }}</div>
-                    <div class="text-xs text-gray-500 font-normal">sièges</div>
+                <td class="px-4 py-2 text-sm text-center font-bold text-gray-900" data-sort-value="{{ total_elus }}">
+                  {% if total_elus > 0 %}
+                    <div class="text-lg">{{ total_elus }}</div>
+                    <div class="text-xs text-gray-500 font-normal">élus estimés{% if item.nb_sieges_cse %} · {{ item.nb_sieges_cse }} sièges{% endif %}</div>
                   {% else %}
                     <span class="text-gray-400">—</span>
                   {% endif %}
