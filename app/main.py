@@ -11,13 +11,13 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping
+from typing import Any, Mapping, Iterator, Sequence
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
@@ -69,6 +69,43 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
+_DEFAULT_KIT_PDF_PRIMARY = (
+    "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
+)
+_DEFAULT_KIT_PDF_FALLBACK = (
+    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
+)
+
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
+KIT_PDF_FILENAME = os.getenv(
+    "KIT_PDF_FILENAME",
+    "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
+).strip()
+KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
+
+_DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
+KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+KIT_PDF_AUTO_WARM = os.getenv("KIT_PDF_AUTO_WARM", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+KIT_PDF_CACHE_DIR = os.getenv("KIT_PDF_CACHE_DIR", _DEFAULT_KIT_CACHE_DIR).strip() or _DEFAULT_KIT_CACHE_DIR
+if KIT_PDF_CACHE_ENABLED:
+    KIT_PDF_CACHE_PATH = os.path.join(
+        KIT_PDF_CACHE_DIR,
+        KIT_PDF_FILENAME or "Kit-renforcement.pdf",
+    )
+else:
+    KIT_PDF_CACHE_PATH = ""
+
 
 def _infer_invitation_urls() -> list[str]:
     """Tente de déduire les URLs possibles des invitations à partir de `DB_URL`.
@@ -119,6 +156,88 @@ INVITATIONS_EFFECTIVE_URL: str | None = None
 def _is_truthy(value: str) -> bool:
     return value in {"1", "true", "yes", "on"}
 
+
+def _safe_int(value: str | None, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _split_url_list(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[\s,]+", raw)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _kit_pdf_cache_ready() -> bool:
+    if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
+        return False
+    try:
+        return os.path.exists(KIT_PDF_CACHE_PATH) and os.path.getsize(KIT_PDF_CACHE_PATH) > 0
+    except OSError:
+        return False
+
+
+def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
+    if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
+        return None
+
+    if _kit_pdf_cache_ready() and not force_refresh:
+        return KIT_PDF_CACHE_PATH
+
+    if not KIT_PDF_URL_CANDIDATES:
+        return KIT_PDF_CACHE_PATH if _kit_pdf_cache_ready() else None
+
+    os.makedirs(os.path.dirname(KIT_PDF_CACHE_PATH), exist_ok=True)
+
+    last_error: Exception | None = None
+    for candidate in KIT_PDF_URL_CANDIDATES:
+        tmp_path: str | None = None
+        try:
+            logger.info("Téléchargement du kit de renforcement via %s", candidate)
+            tmp_path = _download_to_temp(candidate, timeout=KIT_PDF_TIMEOUT)
+            with open(tmp_path, "rb") as handle:
+                header = handle.read(5)
+                if not header.startswith(b"%PDF-"):
+                    raise ValueError("La ressource récupérée n'est pas un PDF valide")
+            os.replace(tmp_path, KIT_PDF_CACHE_PATH)
+            tmp_path = None
+            logger.info("Kit renforcement mis en cache (%s)", KIT_PDF_CACHE_PATH)
+            return KIT_PDF_CACHE_PATH
+        except Exception as exc:  # pragma: no cover - dépend du réseau
+            last_error = exc
+            logger.warning("Échec du téléchargement du kit via %s: %s", candidate, exc)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    if last_error:
+        logger.error("Impossible de mettre en cache le kit PDF: %s", last_error)
+    return None
+
+
+def _build_kit_url_candidates() -> list[str]:
+    ordered_sources = [KIT_PDF_URL, KIT_PDF_URLS, KIT_PDF_URL_FALLBACKS]
+    urls: list[str] = []
+    seen: set[str] = set()
+    for source in ordered_sources:
+        for candidate in _split_url_list(source):
+            if candidate not in seen:
+                urls.append(candidate)
+                seen.add(candidate)
+    return urls
+
+
+KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
+KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
+
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
 
 
@@ -157,24 +276,35 @@ def _sqlite_path_from_engine() -> str | None:
         pass
     return None
 
-def _download(url: str, dest: str, token: str | None = None) -> None:
+def _download(
+    url: str,
+    dest: str,
+    token: str | None = None,
+    *,
+    timeout: int | float | None = None,
+) -> None:
     headers = {"Accept": "application/octet-stream"}
     if token:
         headers["Authorization"] = f"token {token}"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
+    with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as f:
         f.write(resp.read())
 
 logger = logging.getLogger(__name__)
 
 
-def _download_to_temp(url: str, token: str | None = None) -> str:
+def _download_to_temp(
+    url: str,
+    token: str | None = None,
+    *,
+    timeout: int | float | None = None,
+) -> str:
     """Télécharge un fichier distant vers un fichier temporaire et retourne son chemin."""
     suffix = os.path.splitext(urlparse(url).path)[1]
     fd, tmp_path = tempfile.mkstemp(prefix="papcse-asset-", suffix=suffix or "")
     os.close(fd)
     try:
-        _download(url, tmp_path, token=token)
+        _download(url, tmp_path, token=token, timeout=timeout)
         return tmp_path
     except Exception:
         try:
@@ -195,6 +325,62 @@ def _log_or_raise_hash_mismatch(label: str, expected: str, got: str, downloaded:
 
     level = logging.ERROR if downloaded else logging.WARNING
     logger.log(level, "%s -- continuing.", message)
+
+
+def _stream_remote_asset(
+    url_or_urls: str | Sequence[str], *, accept: str = "application/octet-stream"
+) -> tuple[Iterator[bytes], int | None]:
+    """Retourne un itérateur streaming + longueur depuis une ou plusieurs URLs distantes."""
+
+    if isinstance(url_or_urls, str):
+        candidates = [url_or_urls]
+    else:
+        candidates = list(url_or_urls)
+
+    candidates = [candidate for candidate in candidates if candidate]
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Aucune ressource distante configurée")
+
+    last_error: Exception | None = None
+    headers = {
+        "Accept": accept,
+        "User-Agent": "PAPCSE/1.0 (+https://outilspap.cgt.fr)",
+    }
+
+    response = None
+    for candidate in candidates:
+        request = urllib.request.Request(candidate, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=KIT_PDF_TIMEOUT)
+            logger.info("Kit PDF récupéré via %s", candidate)
+            break
+        except Exception as exc:  # pragma: no cover - dépend du réseau
+            last_error = exc
+            logger.warning("Échec du chargement %s: %s", candidate, exc)
+            continue
+    else:
+        raise HTTPException(
+            status_code=502,
+            detail="Impossible de récupérer le document distant",
+        ) from last_error
+
+    assert response is not None  # pour les analyseurs statiques
+
+    def iterator(resp=response) -> Iterator[bytes]:
+        with resp:
+            while True:
+                chunk = resp.read(1024 * 64)
+                if not chunk:
+                    break
+                yield chunk
+
+    content_length = response.headers.get("Content-Length")
+    try:
+        length_value = int(content_length) if content_length else None
+    except (TypeError, ValueError):
+        length_value = None
+
+    return iterator, length_value
 
 
 def ensure_sqlite_asset() -> None:
@@ -763,6 +949,65 @@ def presentation(request: Request, db: Session = Depends(get_session)):
             "faq_entries": faq_entries,
         },
     )
+
+
+@app.get("/guide-exploitation", response_class=HTMLResponse)
+def guide_exploitation(request: Request):
+    """Page de synthèse interactive du guide d'exploitation IA."""
+
+    if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM and KIT_PDF_URL_CANDIDATES:
+        _ensure_kit_pdf_cached()
+
+    kit_available = _kit_pdf_cache_ready() if KIT_PDF_CACHE_ENABLED else bool(KIT_PDF_URL_CANDIDATES)
+
+    return templates.TemplateResponse(
+        "guide_exploitation.html",
+        {
+            "request": request,
+            "kit_pdf_available": kit_available,
+            "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
+        },
+    )
+
+
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+
+
+@app.get("/kit-renforcement/document", name="kit_pdf_document")
+def kit_pdf_document(download: bool = False):
+    """Diffuse le PDF du kit de renforcement via le même domaine (embed + téléchargement)."""
+
+    disposition = "attachment" if download else "inline"
+    filename = KIT_PDF_FILENAME or "Kit-renforcement.pdf"
+
+    cached_path = _ensure_kit_pdf_cached()
+    if cached_path:
+        response = FileResponse(
+            cached_path,
+            media_type="application/pdf",
+            filename=filename,
+        )
+        response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
+    try:
+        iterator_factory, content_length = _stream_remote_asset(
+            KIT_PDF_URL_CANDIDATES, accept="application/pdf"
+        )
+    except HTTPException as exc:
+        logger.warning("Kit PDF indisponible: %s", exc)
+        if download:
+            raise
+        return HTMLResponse(_KIT_PDF_PLACEHOLDER_HTML, status_code=200)
+
+    response = StreamingResponse(iterator_factory(), media_type="application/pdf")
+    response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    if content_length is not None:
+        response.headers["Content-Length"] = str(content_length)
+
+    return response
 
 
 @app.get("/stats", response_class=HTMLResponse)

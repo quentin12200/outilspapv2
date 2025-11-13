@@ -105,7 +105,7 @@ function addBotMessage(data) {
   if (data.sql) {
     content += `
       <div class="mt-3 pt-3 border-t border-gray-200">
-        <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+        <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
           <i class="fas fa-code"></i>
           Voir la requête SQL générée
           <i class="fas fa-chevron-down ml-1"></i>
@@ -151,7 +151,7 @@ async function showMoreExamples() {
       `;
       for (const question of category.questions) {
         examplesHtml += `
-          <button onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
+        <button type="button" onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
             ${escapeHtml(question)}
           </button>
         `;
@@ -1040,19 +1040,19 @@ function fermerAssistantExpert() {
             <strong>Exemples de questions que vous pouvez me poser :</strong>
           </p>
           <div class="space-y-2 text-xs">
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               💭 "Combien d'invitations PAP dans la base ?"
             </button>
-            <button onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               📅 "Quelles entreprises ont une élection ce mois-ci ?"
             </button>
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               🔴 "Combien d'invitations en retard dans le 75 ?"
             </button>
-            <button onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               🏢 "Top 5 des fédérations avec le plus d'invitations"
             </button>
-            <button onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
+            <button type="button" onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
               ✨ Voir plus d'exemples
             </button>
           </div>
