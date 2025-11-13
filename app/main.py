@@ -1070,6 +1070,7 @@ def guide_exploitation(request: Request):
         _ensure_kit_pdf_cached()
 
     kit_status = _kit_pdf_status()
+    kit_pdf_endpoint = request.app.url_path_for("kit_pdf_document")
 
     return templates.TemplateResponse(
         "guide_exploitation.html",
@@ -1079,6 +1080,7 @@ def guide_exploitation(request: Request):
             "kit_pdf_inline_ready": kit_status["inline_ready"],
             "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
+            "kit_pdf_endpoint": kit_pdf_endpoint,
         },
     )
 
