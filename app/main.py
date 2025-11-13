@@ -11,13 +11,13 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping
+from typing import Any, Mapping, Iterator
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
@@ -69,6 +69,15 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
+KIT_PDF_URL = os.getenv(
+    "KIT_PDF_URL",
+    "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
+).strip()
+KIT_PDF_FILENAME = os.getenv(
+    "KIT_PDF_FILENAME",
+    "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
+).strip()
+
 
 def _infer_invitation_urls() -> list[str]:
     """Tente de déduire les URLs possibles des invitations à partir de `DB_URL`.
@@ -118,6 +127,18 @@ INVITATIONS_EFFECTIVE_URL: str | None = None
 
 def _is_truthy(value: str) -> bool:
     return value in {"1", "true", "yes", "on"}
+
+
+def _safe_int(value: str | None, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
 
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
 
@@ -195,6 +216,37 @@ def _log_or_raise_hash_mismatch(label: str, expected: str, got: str, downloaded:
 
     level = logging.ERROR if downloaded else logging.WARNING
     logger.log(level, "%s -- continuing.", message)
+
+
+def _stream_remote_asset(url: str, *, accept: str = "application/octet-stream") -> tuple[Iterator[bytes], int | None]:
+    """Retourne un itérateur streaming + longueur depuis une ressource distante."""
+
+    if not url:
+        raise HTTPException(status_code=404, detail="Aucune ressource distante configurée")
+
+    headers = {"Accept": accept}
+    request = urllib.request.Request(url, headers=headers)
+
+    try:
+        response = urllib.request.urlopen(request, timeout=KIT_PDF_TIMEOUT)
+    except Exception as exc:  # pragma: no cover - dépend du réseau
+        raise HTTPException(status_code=502, detail="Impossible de récupérer le document distant") from exc
+
+    def iterator() -> Iterator[bytes]:
+        with response:
+            while True:
+                chunk = response.read(1024 * 64)
+                if not chunk:
+                    break
+                yield chunk
+
+    content_length = response.headers.get("Content-Length")
+    try:
+        length_value = int(content_length) if content_length else None
+    except (TypeError, ValueError):
+        length_value = None
+
+    return iterator, length_value
 
 
 def ensure_sqlite_asset() -> None:
@@ -773,8 +825,28 @@ def guide_exploitation(request: Request):
         "guide_exploitation.html",
         {
             "request": request,
+            "kit_pdf_available": bool(KIT_PDF_URL),
+            "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
         },
     )
+
+
+@app.get("/kit-renforcement/document", name="kit_pdf_document")
+def kit_pdf_document(download: bool = False):
+    """Diffuse le PDF du kit de renforcement via le même domaine (embed + téléchargement)."""
+
+    iterator_factory, content_length = _stream_remote_asset(KIT_PDF_URL, accept="application/pdf")
+
+    disposition = "attachment" if download else "inline"
+    filename = KIT_PDF_FILENAME or "Kit-renforcement.pdf"
+
+    response = StreamingResponse(iterator_factory(), media_type="application/pdf")
+    response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    if content_length is not None:
+        response.headers["Content-Length"] = str(content_length)
+
+    return response
 
 
 @app.get("/stats", response_class=HTMLResponse)
