@@ -19,52 +19,59 @@ async function checkChatbotStatus() {
   }
 }
 
-// Handle chat form submission
-document.getElementById('chat-form').addEventListener('submit', async function(e) {
-  e.preventDefault();
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('chat-form');
+  if (!form) return;
 
   const input = document.getElementById('chat-input');
-  const question = input.value.trim();
-
-  if (!question) return;
-
-  // Clear input
-  input.value = '';
-
-  // Add user message to chat
-  addUserMessage(question);
-
-  // Disable submit button
   const submitBtn = document.getElementById('chat-submit');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
 
-  try {
-    // Send question to chatbot
-    const response = await fetch('/api/chatbot/ask', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ question })
-    });
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-    const data = await response.json();
+    const question = input.value.trim();
+    if (!question) return;
 
-    // Add bot response to chat
-    addBotMessage(data);
+    input.value = '';
+    addUserMessage(question);
 
-  } catch (error) {
-    console.error('Erreur:', error);
-    addBotMessage({
-      answer: '❌ Une erreur est survenue. Veuillez réessayer.',
-      error: error.message
-    });
-  } finally {
-    // Re-enable submit button
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
-    input.focus();
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
+    }
+
+    try {
+      const response = await fetch('/api/chatbot/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question })
+      });
+
+      const data = await response.json();
+      addBotMessage(data);
+
+    } catch (error) {
+      console.error('Erreur:', error);
+      addBotMessage({
+        answer: '❌ Une erreur est survenue. Veuillez réessayer.',
+        error: error.message
+      });
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
+      }
+      if (input) {
+        input.focus();
+      }
+    }
+  });
+
+  const statusEl = document.getElementById('chatbot-status');
+  if (statusEl) {
+    checkChatbotStatus();
   }
 });
 
