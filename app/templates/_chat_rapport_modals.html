@@ -19,52 +19,59 @@ async function checkChatbotStatus() {
   }
 }
 
-// Handle chat form submission
-document.getElementById('chat-form').addEventListener('submit', async function(e) {
-  e.preventDefault();
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('chat-form');
+  if (!form) return;
 
   const input = document.getElementById('chat-input');
-  const question = input.value.trim();
-
-  if (!question) return;
-
-  // Clear input
-  input.value = '';
-
-  // Add user message to chat
-  addUserMessage(question);
-
-  // Disable submit button
   const submitBtn = document.getElementById('chat-submit');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
 
-  try {
-    // Send question to chatbot
-    const response = await fetch('/api/chatbot/ask', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ question })
-    });
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-    const data = await response.json();
+    const question = input.value.trim();
+    if (!question) return;
 
-    // Add bot response to chat
-    addBotMessage(data);
+    input.value = '';
+    addUserMessage(question);
 
-  } catch (error) {
-    console.error('Erreur:', error);
-    addBotMessage({
-      answer: '❌ Une erreur est survenue. Veuillez réessayer.',
-      error: error.message
-    });
-  } finally {
-    // Re-enable submit button
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
-    input.focus();
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
+    }
+
+    try {
+      const response = await fetch('/api/chatbot/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question })
+      });
+
+      const data = await response.json();
+      addBotMessage(data);
+
+    } catch (error) {
+      console.error('Erreur:', error);
+      addBotMessage({
+        answer: '❌ Une erreur est survenue. Veuillez réessayer.',
+        error: error.message
+      });
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
+      }
+      if (input) {
+        input.focus();
+      }
+    }
+  });
+
+  const statusEl = document.getElementById('chatbot-status');
+  if (statusEl) {
+    checkChatbotStatus();
   }
 });
 
@@ -105,7 +112,7 @@ function addBotMessage(data) {
   if (data.sql) {
     content += `
       <div class="mt-3 pt-3 border-t border-gray-200">
-        <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+        <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
           <i class="fas fa-code"></i>
           Voir la requête SQL générée
           <i class="fas fa-chevron-down ml-1"></i>
@@ -151,7 +158,7 @@ async function showMoreExamples() {
       `;
       for (const question of category.questions) {
         examplesHtml += `
-          <button onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
+        <button type="button" onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
             ${escapeHtml(question)}
           </button>
         `;
@@ -337,9 +344,9 @@ function afficherRapportIA(data) {
         <i class="fas fa-file-pdf mr-2"></i>
         Télécharger PDF
       </button>
-      <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
-        <i class="fas fa-download mr-2"></i>
-        Télécharger JSON
+      <button id="export-excel-btn" onclick="exporterRapportExcel()" class="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition">
+        <i class="fas fa-file-excel mr-2"></i>
+        Exporter Excel (vue)
       </button>
       <button onclick="fermerRapportIA()" class="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
         Fermer
@@ -355,6 +362,7 @@ function afficherRapportIA(data) {
   // Stocker les données globalement pour le filtrage
   window.rapportData = { p1, p2 };
   window.regionSelectionnee = 'toutes';
+  window.prioriteSelectionnee = 'priorite-1';
 }
 
 function genererOngletsRegions(p1, p2) {
@@ -819,6 +827,8 @@ function switchTab(tabName) {
 
   // Show selected content
   document.getElementById(`content-${tabName}`).classList.remove('hidden');
+
+  window.prioriteSelectionnee = tabName;
 }
 
 let rapportDataGlobal = null;
@@ -868,25 +878,51 @@ function exporterRapportPDF() {
   }, 100);
 }
 
-async function exporterRapportJSON() {
+async function exporterRapportExcel() {
+  const priorite = window.prioriteSelectionnee || 'priorite-1';
+  const region = window.regionSelectionnee || 'toutes';
+  const button = document.getElementById('export-excel-btn');
+  const originalLabel = button ? button.innerHTML : null;
+
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Export...';
+  }
+
   try {
-    const response = await fetch('/api/rapport-ia-pap');
-    const data = await response.json();
+    const response = await fetch('/api/rapport-ia-pap/export-excel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ priorite, region })
+    });
 
-    // Crée un blob JSON
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    if (!response.ok) {
+      throw new Error('Export impossible.');
+    }
 
-    // Crée un lien de téléchargement
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+
+    const regionSlug = (region && region.toLowerCase() !== 'toutes')
+      ? region.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'toutes-regions'
+      : 'toutes-regions';
+
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `rapport-ia-pap-${new Date().toISOString().split('T')[0]}.json`;
+    a.href = downloadUrl;
+    a.download = `rapport-${priorite}-${regionSlug}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(downloadUrl);
   } catch (error) {
-    alert('Erreur lors de l\'export: ' + error.message);
+    alert('Erreur lors de l\'export Excel : ' + error.message);
+  } finally {
+    if (button && originalLabel !== null) {
+      button.disabled = false;
+      button.innerHTML = originalLabel;
+    }
   }
 }
 
@@ -1040,19 +1076,19 @@ function fermerAssistantExpert() {
             <strong>Exemples de questions que vous pouvez me poser :</strong>
           </p>
           <div class="space-y-2 text-xs">
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               💭 "Combien d'invitations PAP dans la base ?"
             </button>
-            <button onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               📅 "Quelles entreprises ont une élection ce mois-ci ?"
             </button>
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               🔴 "Combien d'invitations en retard dans le 75 ?"
             </button>
-            <button onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+            <button type="button" onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               🏢 "Top 5 des fédérations avec le plus d'invitations"
             </button>
-            <button onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
+            <button type="button" onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
               ✨ Voir plus d'exemples
             </button>
           </div>
