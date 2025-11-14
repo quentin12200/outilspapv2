@@ -1,10 +1,22 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException, BackgroundTasks, Request
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends,
+    Query,
+    HTTPException,
+    BackgroundTasks,
+    Request,
+    Body,
+)
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
 from typing import List
 from datetime import datetime, timedelta, date
 import re
 import logging
+from io import BytesIO
 
 from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
@@ -17,6 +29,9 @@ from ..validators import validate_siret, validate_date, validate_excel_file, Val
 from ..user_auth import require_admin_user
 from ..models import AuditLog
 from ..audit import log_admin_action
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, Alignment
 
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -2466,3 +2481,140 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "entreprises": priorite_2
         }
     }
+
+
+def _slugify_filename(value: str, default: str = "export") -> str:
+    """Simplifie une chaîne pour l'utiliser dans un nom de fichier."""
+
+    if not value:
+        return default
+
+    simplified = re.sub(r"[^\w\-]+", "-", value.lower()).strip("-")
+    return simplified or default
+
+
+@router.post("/rapport-ia-pap/export-excel")
+def exporter_rapport_ia_excel(
+    payload: dict = Body(...),
+    db: Session = Depends(get_session)
+):
+    """Exporte la vue courante du rapport IA (priorité + région) en Excel."""
+
+    priorite = (payload.get("priorite") or "priorite-1").strip().lower()
+    region = (payload.get("region") or "toutes").strip()
+
+    priorite_map = {
+        "priorite-1": ("priorite_1", "Priorité 1"),
+        "priorite-2": ("priorite_2", "Priorité 2"),
+    }
+
+    if priorite not in priorite_map:
+        raise HTTPException(status_code=400, detail="Priorité inconnue")
+
+    priorite_key, priorite_label = priorite_map[priorite]
+
+    rapport = generer_rapport_ia_pap(db)
+    section = rapport.get(priorite_key, {})
+    entreprises = section.get("entreprises", [])
+
+    if region and region.lower() not in {"toutes", "all", "toutes régions", "toutes-regions"}:
+        entreprises = [
+            e for e in entreprises
+            if (e.get("region") or "").strip().lower() == region.strip().lower()
+        ]
+        region_label = region
+    else:
+        region_label = "Toutes régions"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (f"{priorite_label} - {region_label}")[:31]
+
+    headers = [
+        "SIRET",
+        "Raison sociale",
+        "Département",
+        "Ville",
+        "Région",
+        "Effectifs",
+        "Statut",
+        "Invitations PAP",
+        "Date élection",
+        "Jours restants",
+        "FD",
+        "UD",
+        "IDCC",
+        "Collèges",
+        "Implantations",
+        "Résultats CGT",
+        "Organisations (voix)",
+        "Enjeux",
+    ]
+    ws.append(headers)
+
+    header_font = Font(bold=True)
+    header_align = Alignment(horizontal="center")
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.alignment = header_align
+
+    for entreprise in entreprises:
+        voix_org = entreprise.get("voix_organisations") or {}
+        voix_sorted = sorted(voix_org.items(), key=lambda item: item[1], reverse=True)
+        voix_resume = ", ".join(
+            f"{org}:{voix}" for org, voix in voix_sorted
+        ) if voix_sorted else ""
+
+        cgt_voix = voix_org.get("CGT")
+        cgt_pct = None
+        if cgt_voix and entreprise.get("sve"):
+            try:
+                cgt_pct = round((cgt_voix / entreprise["sve"]) * 100, 1)
+            except ZeroDivisionError:
+                cgt_pct = None
+
+        cgt_resume = ""
+        if cgt_voix:
+            cgt_resume = f"{cgt_voix} voix"
+            if cgt_pct is not None:
+                cgt_resume += f" ({cgt_pct}%)"
+
+        ws.append([
+            entreprise.get("siret"),
+            entreprise.get("raison_sociale"),
+            entreprise.get("departement"),
+            entreprise.get("ville"),
+            entreprise.get("region"),
+            entreprise.get("inscrits"),
+            "Carence" if entreprise.get("carence") else "PV reçu",
+            ", ".join(entreprise.get("invitations_pap") or []),
+            entreprise.get("date_election"),
+            entreprise.get("jours_restants"),
+            entreprise.get("fd"),
+            entreprise.get("ud"),
+            entreprise.get("idcc"),
+            ", ".join(entreprise.get("colleges") or []),
+            ", ".join(entreprise.get("implantations_syndicales") or []),
+            cgt_resume,
+            voix_resume,
+            " | ".join(entreprise.get("enjeux") or []),
+        ])
+
+    column_widths = [18, 32, 14, 18, 20, 12, 12, 26, 16, 14, 12, 12, 12, 20, 22, 18, 32, 42]
+    for idx, width in enumerate(column_widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    region_slug = _slugify_filename(region_label, default="toutes-regions")
+    filename = f"rapport-{priorite}-{region_slug}-{datetime.now().strftime('%Y%m%d')}.xlsx"
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        },
+    )
