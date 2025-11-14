@@ -369,14 +369,16 @@ def _infer_tab_for_bucket(bucket: str, metadata: dict[str, Any] | None) -> str |
     if normalized in _KIT_FOLDER_TAB_OVERRIDES:
         return _KIT_FOLDER_TAB_OVERRIDES[normalized]
 
-    digits = re.sub(r"[^0-9]", "", normalized)
-    if digits:
+    digit_groups = re.findall(r"\d+", normalized)
+    for group in digit_groups:
+        if not group:
+            continue
         try:
-            index = int(digits)
-            if index in _KIT_DIGIT_TAB_MAPPING:
-                return _KIT_DIGIT_TAB_MAPPING[index]
+            index = int(group.lstrip("0") or "0")
         except ValueError:
-            pass
+            continue
+        if index in _KIT_DIGIT_TAB_MAPPING:
+            return _KIT_DIGIT_TAB_MAPPING[index]
 
     return None
 
