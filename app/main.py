@@ -11,6 +11,8 @@ import shutil
 import unicodedata
 import tempfile
 import calendar
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
@@ -87,6 +89,59 @@ KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
 KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
 KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
 KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
+KIT_RESOURCE_DIRS_RAW = os.getenv("KIT_RESOURCE_DIRS", "")
+
+_KIT_TAB_SLUGS = ("vision", "method", "plan", "pasapas", "formations")
+_KIT_TAB_TITLES = {
+    "vision": "Vision politique",
+    "method": "Méthode confédérale",
+    "plan": "Ciblage national",
+    "pasapas": "Pas-à-pas terrain",
+    "formations": "Formations & ressources",
+}
+
+_KIT_DIGIT_TAB_MAPPING = {
+    0: "vision",
+    1: "method",
+    2: "plan",
+    3: "pasapas",
+    4: "plan",
+    5: "formations",
+    6: "formations",
+}
+_KIT_FOLDER_TAB_OVERRIDES = {
+    "04": "plan",
+    "04-plan": "plan",
+    "vision": "vision",
+    "politique": "vision",
+    "method": "method",
+    "methode": "method",
+    "plan": "plan",
+    "pasapas": "pasapas",
+    "pas-a-pas": "pasapas",
+    "formations": "formations",
+    "ressources": "formations",
+}
+
+_KIT_RESOURCE_META_FILENAMES = ("meta.json", "metadata.json", "kit.json")
+_KIT_RESOURCE_ALLOWED_EXTS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".odt",
+    ".ods",
+    ".xlsx",
+    ".xls",
+    ".csv",
+    ".txt",
+    ".md",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".zip",
+}
 
 _DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
 
@@ -186,6 +241,9 @@ def _split_path_list(raw: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+KIT_RESOURCE_DIRS = _split_path_list(KIT_RESOURCE_DIRS_RAW)
+
+
 def _build_local_kit_candidates() -> list[str]:
     hints: list[str] = []
 
@@ -222,6 +280,230 @@ KIT_PDF_LOCAL_GLOBS = [
     os.path.join(_DEFAULT_DATA_DIR, "*.pdf"),
     os.path.join(_DEFAULT_DATA_DIR, "*.PDF"),
 ]
+
+
+def _kit_resource_roots() -> list[Path]:
+    """Retourne les répertoires dans lesquels chercher les dossiers Doc 0-6."""
+
+    roots: list[Path] = []
+    seen: set[str] = set()
+
+    for raw in KIT_RESOURCE_DIRS:
+        if not raw:
+            continue
+        candidate = Path(os.path.expanduser(raw))
+        key = str(candidate.resolve()) if candidate.exists() else str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(candidate)
+
+    default_candidates = [Path(_DEFAULT_DATA_DIR), Path(os.getcwd())]
+    for candidate in default_candidates:
+        key = str(candidate.resolve()) if candidate.exists() else str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(candidate)
+
+    return roots
+
+
+def _kit_resource_bucket_paths() -> dict[str, Path]:
+    buckets: dict[str, Path] = {}
+
+    for root in _kit_resource_roots():
+        if not root.exists():
+            continue
+        try:
+            entries = list(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.is_dir():
+                continue
+            slug = entry.name.strip()
+            if not slug:
+                continue
+            buckets.setdefault(slug, entry)
+
+    return buckets
+
+
+def _human_file_size(num_bytes: int) -> str:
+    if num_bytes <= 0:
+        return "0 o"
+    units = ["o", "Ko", "Mo", "Go", "To"]
+    idx = min(int(math.log(num_bytes, 1024)), len(units) - 1)
+    value = num_bytes / (1024**idx)
+    if idx == 0:
+        return f"{int(value)} {units[idx]}"
+    return f"{value:.1f} {units[idx]}"
+
+
+def _read_kit_folder_metadata(folder: Path) -> dict[str, Any] | None:
+    for filename in _KIT_RESOURCE_META_FILENAMES:
+        candidate = folder / filename
+        if not candidate.is_file():
+            continue
+        try:
+            with candidate.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception as exc:  # pragma: no cover - robust parsing
+            logger.warning("Impossible de lire %s: %s", candidate, exc)
+    return None
+
+
+def _infer_tab_for_bucket(bucket: str, metadata: dict[str, Any] | None) -> str | None:
+    if metadata:
+        tab = str(metadata.get("tab", "")).strip().lower()
+        if tab in _KIT_TAB_SLUGS:
+            return tab
+
+    normalized = re.sub(r"[^0-9a-z]+", "", bucket.lower())
+    if normalized in _KIT_FOLDER_TAB_OVERRIDES:
+        return _KIT_FOLDER_TAB_OVERRIDES[normalized]
+
+    digits = re.sub(r"[^0-9]", "", normalized)
+    if digits:
+        try:
+            index = int(digits)
+            if index in _KIT_DIGIT_TAB_MAPPING:
+                return _KIT_DIGIT_TAB_MAPPING[index]
+        except ValueError:
+            pass
+
+    return None
+
+
+def _build_folder_label(bucket: str, tab: str, metadata: dict[str, Any] | None) -> str:
+    if metadata:
+        for key in ("title", "label", "name"):
+            value = metadata.get(key)
+            if value:
+                return str(value)
+    base = f"Dossier {bucket}".strip()
+    if tab in _KIT_TAB_TITLES:
+        return f"{_KIT_TAB_TITLES[tab]} · {base}"
+    return base
+
+
+def _is_allowed_kit_resource_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    if path.name.startswith("."):
+        return False
+    if path.name in _KIT_RESOURCE_META_FILENAMES:
+        return False
+    ext = path.suffix.lower()
+    if not ext:
+        return True
+    return ext in _KIT_RESOURCE_ALLOWED_EXTS
+
+
+def _collect_kit_resource_folders() -> dict[str, list[dict[str, Any]]]:
+    resources: dict[str, list[dict[str, Any]]] = {slug: [] for slug in _KIT_TAB_SLUGS}
+
+    for bucket, folder in _kit_resource_bucket_paths().items():
+        metadata = _read_kit_folder_metadata(folder)
+        tab = _infer_tab_for_bucket(bucket, metadata)
+        if not tab:
+            continue
+        label = _build_folder_label(bucket, tab, metadata)
+        description = ""
+        if metadata:
+            description = str(metadata.get("description", "")).strip()
+        files: list[dict[str, Any]] = []
+        try:
+            for file_path in sorted(folder.rglob("*")):
+                if not _is_allowed_kit_resource_file(file_path):
+                    continue
+                rel_path = file_path.relative_to(folder).as_posix()
+                size = _human_file_size(file_path.stat().st_size)
+                files.append(
+                    {
+                        "bucket": bucket,
+                        "relative_path": rel_path,
+                        "name": file_path.name,
+                        "size": size,
+                    }
+                )
+        except OSError:
+            continue
+
+        if files:
+            resources[tab].append(
+                {
+                    "bucket": bucket,
+                    "label": label,
+                    "description": description,
+                    "files": files,
+                }
+            )
+
+    def sort_key(entry: dict[str, Any]) -> tuple[int, str]:
+        digits = re.sub(r"[^0-9]", "", entry.get("bucket", ""))
+        try:
+            return (int(digits), entry.get("bucket", ""))
+        except ValueError:
+            return (999, entry.get("bucket", ""))
+
+    for tab in resources:
+        resources[tab].sort(key=sort_key)
+
+    return resources
+
+
+def _build_kit_resource_payload(request: Request) -> dict[str, list[dict[str, Any]]]:
+    raw_resources = _collect_kit_resource_folders()
+    payload: dict[str, list[dict[str, Any]]] = {slug: [] for slug in _KIT_TAB_SLUGS}
+
+    for tab, folders in raw_resources.items():
+        for folder in folders:
+            folder_payload = {
+                "label": folder["label"],
+                "description": folder.get("description") or "",
+                "bucket": folder["bucket"],
+                "files": [],
+            }
+            for file_entry in folder["files"]:
+                try:
+                    url = request.url_for(
+                        "kit_resource_file",
+                        bucket=file_entry["bucket"],
+                        file_path=file_entry["relative_path"],
+                    )
+                except Exception:
+                    continue
+                folder_payload["files"].append(
+                    {
+                        "name": file_entry["name"],
+                        "size": file_entry["size"],
+                        "url": url,
+                    }
+                )
+            if folder_payload["files"]:
+                payload[tab].append(folder_payload)
+
+    return payload
+
+
+def _resolve_kit_resource_path(bucket: str, relative_path: str) -> Path | None:
+    bucket_paths = _kit_resource_bucket_paths()
+    folder = bucket_paths.get(bucket)
+    if not folder or not relative_path:
+        return None
+    normalized = Path(relative_path)
+    target = (folder / normalized).resolve()
+    try:
+        base = folder.resolve()
+    except FileNotFoundError:
+        return None
+    if not str(target).startswith(str(base)):
+        return None
+    if not target.is_file():
+        return None
+    return target
 
 
 def _find_local_kit_pdf() -> str | None:
@@ -1071,6 +1353,7 @@ def guide_exploitation(request: Request):
 
     kit_status = _kit_pdf_status()
     kit_pdf_endpoint = request.app.url_path_for("kit_pdf_document")
+    kit_resource_payload = _build_kit_resource_payload(request)
 
     return templates.TemplateResponse(
         "guide_exploitation.html",
@@ -1081,11 +1364,20 @@ def guide_exploitation(request: Request):
             "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
             "kit_pdf_endpoint": kit_pdf_endpoint,
+            "kit_resources": kit_resource_payload,
         },
     )
 
 
 _KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+
+
+@app.get("/kit-renforcement/ressource/{bucket}/{file_path:path}", name="kit_resource_file")
+def kit_resource_file(bucket: str, file_path: str):
+    resolved = _resolve_kit_resource_path(bucket, file_path)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Document introuvable")
+    return FileResponse(resolved, filename=resolved.name)
 
 
 @app.get("/kit-renforcement/document", name="kit_pdf_document")
