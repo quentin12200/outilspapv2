@@ -303,7 +303,12 @@ def _kit_resource_roots() -> list[Path]:
         seen.add(key)
         roots.append(candidate)
 
-    default_candidates = [Path(_DEFAULT_DATA_DIR), Path(os.getcwd())]
+    default_candidates = [
+        Path(_DEFAULT_DATA_DIR),
+        Path(_DEFAULT_DATA_DIR) / "kit",
+        Path(os.getcwd()),
+        Path(os.getcwd()) / "kit",
+    ]
     for candidate in default_candidates:
         key = str(candidate.resolve()) if candidate.exists() else str(candidate)
         if key in seen:
