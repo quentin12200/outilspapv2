@@ -1,0 +1,130 @@
+%!Adobe-FontList 1.23
+%Locale:0x409
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:Invalid
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/AdobeFnt23.lst
+FileLength:2911
+FileModTime:710853272
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Arial-BoldItalicMT
+FamilyName:Arial
+StyleName:Bold Italic
+MenuName:Arial
+StyleBits:3
+WeightClass:700
+WidthClass:5
+AngleClass:1
+FullName:Arial Bold Italic
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/Arial Bold Italic.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:558672
+FileModTime:688639413
+NameArray:0,Mac,4,Arial Bold Italic
+NameArray:0,Win,1,Arial
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Barlow-Black
+FamilyName:Barlow
+StyleName:Black
+MenuName:Barlow Black
+StyleBits:0
+WeightClass:900
+WidthClass:5
+AngleClass:0
+FullName:Barlow Black
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/Barlow-Black.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:105888
+FileModTime:685517230
+NameArray:0,Win,1,Barlow Black
+NameArray:0,Win,16,Barlow
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Barlow-ExtraBoldItalic
+FamilyName:Barlow
+StyleName:ExtraBold Italic
+MenuName:Barlow ExtraBold
+StyleBits:1
+WeightClass:800
+WidthClass:5
+AngleClass:1
+FullName:Barlow ExtraBold Italic
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/Barlow-ExtraBoldItalic.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:107620
+FileModTime:685517230
+NameArray:0,Win,1,Barlow ExtraBold
+NameArray:0,Win,16,Barlow
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Barlow-Regular
+FamilyName:Barlow
+StyleName:Regular
+MenuName:Barlow
+StyleBits:0
+WeightClass:400
+WidthClass:5
+AngleClass:0
+FullName:Barlow Regular
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/Barlow-Regular.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:98812
+FileModTime:685517230
+NameArray:0,Win,1,Barlow
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Barlow-SemiBold
+FamilyName:Barlow
+StyleName:SemiBold
+MenuName:Barlow SemiBold
+StyleBits:0
+WeightClass:600
+WidthClass:5
+AngleClass:0
+FullName:Barlow SemiBold
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele1/Dossier modele1/Document fonts/Barlow-SemiBold.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:103016
+FileModTime:685517230
+NameArray:0,Win,1,Barlow SemiBold
+NameArray:0,Win,16,Barlow
+%EndFont
+

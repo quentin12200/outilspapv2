@@ -1,0 +1,35 @@
+%!Adobe-FontList 1.23
+%Locale:0x409
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:Invalid
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele2/Dossier modele2/Document fonts/AdobeFnt23.lst
+FileLength:601
+FileModTime:710861083
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Barlow-Black
+FamilyName:Barlow
+StyleName:Black
+MenuName:Barlow Black
+StyleBits:0
+WeightClass:900
+WidthClass:5
+AngleClass:0
+FullName:Barlow Black
+WritingScript:Roman
+OutlineFileName:/Users/c.lente/Creative Cloud Files/2023_Encours/20230622-refonte-tracts-jevotecgt/modele2/Dossier modele2/Document fonts/Barlow-Black.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:105888
+FileModTime:685517230
+NameArray:0,Win,1,Barlow Black
+NameArray:0,Win,16,Barlow
+%EndFont
+
