@@ -145,6 +145,11 @@ _KIT_RESOURCE_ALLOWED_EXTS = {
 
 _DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
 
+_KIT_RESOURCE_STATIC_BUCKETS = {
+    "app-data": Path(_DEFAULT_DATA_DIR),
+}
+_KIT_RESOURCE_STATIC_KEYS = set(_KIT_RESOURCE_STATIC_BUCKETS.keys())
+
 _DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
 KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
     "1",
@@ -310,7 +315,7 @@ def _kit_resource_roots() -> list[Path]:
 
 
 def _kit_resource_bucket_paths() -> dict[str, Path]:
-    buckets: dict[str, Path] = {}
+    buckets: dict[str, Path] = dict(_KIT_RESOURCE_STATIC_BUCKETS)
 
     for root in _kit_resource_roots():
         if not root.exists():
@@ -323,7 +328,7 @@ def _kit_resource_bucket_paths() -> dict[str, Path]:
             if not entry.is_dir():
                 continue
             slug = entry.name.strip()
-            if not slug:
+            if not slug or slug.startswith('.'):
                 continue
             buckets.setdefault(slug, entry)
 
@@ -405,6 +410,8 @@ def _collect_kit_resource_folders() -> dict[str, list[dict[str, Any]]]:
     resources: dict[str, list[dict[str, Any]]] = {slug: [] for slug in _KIT_TAB_SLUGS}
 
     for bucket, folder in _kit_resource_bucket_paths().items():
+        if bucket in _KIT_RESOURCE_STATIC_KEYS:
+            continue
         metadata = _read_kit_folder_metadata(folder)
         tab = _infer_tab_for_bucket(bucket, metadata)
         if not tab:
@@ -441,6 +448,12 @@ def _collect_kit_resource_folders() -> dict[str, list[dict[str, Any]]]:
                 }
             )
 
+    for inline_entry in _collect_app_data_root_files():
+        tab = inline_entry.pop("tab", None)
+        if not tab or not inline_entry.get("files"):
+            continue
+        resources[tab].append(inline_entry)
+
     def sort_key(entry: dict[str, Any]) -> tuple[int, str]:
         digits = re.sub(r"[^0-9]", "", entry.get("bucket", ""))
         try:
@@ -452,6 +465,48 @@ def _collect_kit_resource_folders() -> dict[str, list[dict[str, Any]]]:
         resources[tab].sort(key=sort_key)
 
     return resources
+
+
+def _collect_app_data_root_files() -> list[dict[str, Any]]:
+    folder = Path(_DEFAULT_DATA_DIR)
+    if not folder.exists():
+        return []
+
+    grouped: dict[str, list[Path]] = {}
+
+    try:
+        entries = sorted(folder.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return []
+
+    for file_path in entries:
+        if not _is_allowed_kit_resource_file(file_path):
+            continue
+        tab = _infer_tab_for_bucket(file_path.stem, None) or "formations"
+        grouped.setdefault(tab, []).append(file_path)
+
+    payload: list[dict[str, Any]] = []
+
+    for tab, files in grouped.items():
+        payload.append(
+            {
+                "tab": tab,
+                "bucket": "app-data",
+                "label": f"{_KIT_TAB_TITLES.get(tab, tab.title())} · Fichiers app/data",
+                "description": "Fichiers déposés directement dans app/data (racine du dépôt).",
+                "files": [
+                    {
+                        "bucket": "app-data",
+                        "relative_path": file_path.name,
+                        "name": file_path.name,
+                        "size": _human_file_size(file_path.stat().st_size),
+                    }
+                    for file_path in files
+                ],
+            }
+        )
+
+    return payload
 
 
 def _build_kit_resource_payload(request: Request) -> dict[str, list[dict[str, Any]]]:
@@ -486,6 +541,20 @@ def _build_kit_resource_payload(request: Request) -> dict[str, list[dict[str, An
                 payload[tab].append(folder_payload)
 
     return payload
+
+
+def _summarize_kit_resources(payload: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    summary = {
+        "total": 0,
+        "by_tab": {slug: 0 for slug in _KIT_TAB_SLUGS},
+    }
+
+    for tab, folders in payload.items():
+        tab_total = sum(len(folder.get("files", [])) for folder in folders)
+        summary["by_tab"][tab] = tab_total
+        summary["total"] += tab_total
+
+    return summary
 
 
 def _resolve_kit_resource_path(bucket: str, relative_path: str) -> Path | None:
@@ -1354,6 +1423,7 @@ def guide_exploitation(request: Request):
     kit_status = _kit_pdf_status()
     kit_pdf_endpoint = request.app.url_path_for("kit_pdf_document")
     kit_resource_payload = _build_kit_resource_payload(request)
+    kit_resource_summary = _summarize_kit_resources(kit_resource_payload)
 
     return templates.TemplateResponse(
         "guide_exploitation.html",
@@ -1365,6 +1435,7 @@ def guide_exploitation(request: Request):
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
             "kit_pdf_endpoint": kit_pdf_endpoint,
             "kit_resources": kit_resource_payload,
+            "kit_resource_summary": kit_resource_summary,
         },
     )
 
