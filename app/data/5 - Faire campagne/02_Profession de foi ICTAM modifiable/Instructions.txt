@@ -1,0 +1,91 @@
+INSTRUCTIONS D'IMPRESSION ADOBE INDESIGN POUR LE RAPPORT DU PRESTATAIRE DE SERVICES
+
+NOM DE LA COMPOSITION : UGICT PROFESSION DE FOI ENTREPRISES PRIVEES 20180807.indd
+
+DATE D'ASSEMBLAGE : 20/08/2018 17:17
+Date de création : 20/08/2018
+Date de modification : 20/08/2018
+
+INFORMATIONS DE CONTACT
+
+Nom de la société : 
+Contact : 
+Adresse : 
+
+
+
+
+
+Téléphone : 
+Télécopie : 
+Adresse électronique : 
+
+INSTRUCTIONS SPECIALES ET AUTRES REMARQUES
+
+
+
+
+
+
+Modules externes 0
+Objets non opaques :Sans
+
+POLICES
+4 Police(s) utilisée(s); 0 Manquant(e)(s), 0 Incorporé(e)(s), 0 Incomplète(s), 0 Protégée(s)
+
+Polices assemblées
+- Nom : Montserrat-Black; Type : OpenType TrueType, Etat : OK
+- Nom : Raleway-Bold; Type : OpenType TrueType, Etat : OK
+- Nom : Raleway-ExtraBold; Type : OpenType TrueType, Etat : OK
+- Nom : Raleway-Regular; Type : OpenType TrueType, Etat : OK
+
+
+COULEURS ET ENCRES
+4 Encre(s) quadri; 0 Encre(s) de tons directs
+
+- Nom et type : Cyan quadri; Angle : 0,000; Lignes/pouce : 0,000
+- Nom et type : Magenta quadri; Angle : 0,000; Lignes/pouce : 0,000
+- Nom et type : Jaune quadri; Angle : 0,000; Lignes/pouce : 0,000
+- Nom et type : Noir quadri; Angle : 0,000; Lignes/pouce : 0,000
+
+
+LIENS ET IMAGES
+(Liens manquants et incorporés uniquement)
+Liens et images : 7 Lien(s) détecté(s); 0 Modifié(s), 0 Manquant(e)(s), 0 Inaccessible(s)
+Images : 0 Incorporé(e)(s), 1 utilisant l'espace colorimétrique RVB
+
+
+PARAMETRES D'IMPRESSION
+PPD : N/A, (Lexmark 4900 Series (Network))
+Impression sur : Imprimante
+Nombre de copies : 1
+Planches : Non
+Pages paires/impaires : Les deux
+Pages : Toutes
+Epreuve : Non
+Mosaïque : Sans
+Echelle : 100 %, 100 %
+Position de la page : En haut, à gauche
+Imprimer les calques : Calques visibles et imprimables
+Marques d'imprimeur : Sans
+Fond perdu : 0 mm, 0 mm, 0 mm, 0 mm
+Couleur : RVB composite
+Mode de recouvrement : Sans
+Envoi des données d'images : Echantillonnage optimisé
+Substitution d'image OPI/DCS : Non
+Format de page : A4
+Dimensions du papier : 210 mm x 297 mm
+Orientation : Portrait
+Négatif : Non
+Symétrie : Désactivée
+
+
+LISTE DES FICHIERS DE L'ENVOI
+
+1. UGICT PROFESSION DE FOI ENTREPRISES PRIVEES 20180807.indd; type : Composition Adobe InDesign; taille : 2676K
+2. UGICT PROFESSION DE FOI ENTREPRISES PRIVEES 20180807.idml; type : Document InDesign Markup; taille : 106K
+3. UGICT PROFESSION DE FOI ENTREPRISES PRIVEES 20180807.pdf; type : Document Adobe Acrobat; taille : 1194K
+4. Montserrat-Black.ttf; type : Fichier de polices; taille : 268K
+5. Raleway-Bold_0.ttf; type : Fichier de polices; taille : 175K
+6. Raleway-ExtraBold_0.ttf; type : Fichier de polices; taille : 173K
+7. Raleway-Regular_1.ttf; type : Fichier de polices; taille : 174K
