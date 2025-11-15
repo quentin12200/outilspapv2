@@ -13,7 +13,7 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -3243,6 +3243,94 @@ def user_logout(
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
     return response
+
+
+# =========================================================
+# Routes d'authentification par email
+# =========================================================
+
+@app.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    """Page de demande de réinitialisation de mot de passe"""
+    # Récupérer les paramètres de query string pour afficher les messages
+    success = request.query_params.get("success", "0") == "1"
+    error = request.query_params.get("error", "")
+
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {
+            "request": request,
+            "success": success,
+            "error": error
+        }
+    )
+
+
+@app.get("/reset-password", response_class=HTMLResponse)
+def reset_password_page(request: Request):
+    """Page de réinitialisation de mot de passe avec token"""
+    # Récupérer les paramètres de query string
+    token = request.query_params.get("token", "")
+    success = request.query_params.get("success", "0") == "1"
+    error = request.query_params.get("error", "")
+
+    return templates.TemplateResponse(
+        "reset_password.html",
+        {
+            "request": request,
+            "token": token,
+            "success": success,
+            "error": error
+        }
+    )
+
+
+@app.get("/validate-account", response_class=HTMLResponse)
+async def validate_account_page(
+    request: Request,
+    token: str = "",
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_session)
+):
+    """Page de validation de compte email - redirige vers l'API puis affiche le résultat"""
+    if not token:
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": False,
+                "error": "Lien de validation invalide"
+            }
+        )
+
+    # Importer la fonction de validation depuis le router
+    from .routers.auth_email import validate_account
+
+    try:
+        # Créer background_tasks si besoin
+        if background_tasks is None:
+            background_tasks = BackgroundTasks()
+
+        # Appeler l'endpoint de validation
+        result = await validate_account(token=token, background_tasks=background_tasks, db=db)
+
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": True,
+                "error": None
+            }
+        )
+    except HTTPException as e:
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": False,
+                "error": e.detail
+            }
+        )
 
 
 # =========================================================

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Validation du compte — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<div class="min-h-[80vh] flex items-center justify-center">
+  <div class="w-full max-w-md">
+
+    <!-- Card de validation -->
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+
+      {% if success %}
+      <!-- Succès de validation -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-green-500/10 text-green-500 rounded-full mb-6">
+          <i class="fas fa-check-circle text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          Email vérifié !
+        </h1>
+        <p class="text-gray-600 text-lg">
+          Votre adresse email a été validée avec succès
+        </p>
+      </div>
+
+      <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div class="flex items-start">
+          <i class="fas fa-info-circle text-green-500 mt-0.5 mr-3"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-green-800">Compte en attente d'approbation</p>
+            <p class="text-sm text-green-700 mt-1">
+              Votre demande d'accès sera examinée par un administrateur. Vous recevrez un email dès que votre compte sera approuvé.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <a href="/login" class="block w-full bg-cgt-red hover:bg-cgt-darkred text-white font-semibold py-3 px-4 rounded-lg transition-colors text-center">
+          <i class="fas fa-sign-in-alt mr-2"></i>
+          Aller à la page de connexion
+        </a>
+        <a href="/" class="block w-full text-center text-sm text-gray-600 hover:text-cgt-red transition-colors">
+          <i class="fas fa-home mr-1"></i>
+          Retour à l'accueil
+        </a>
+      </div>
+
+      {% elif error %}
+      <!-- Erreur de validation -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-red-500/10 text-red-500 rounded-full mb-6">
+          <i class="fas fa-times-circle text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          Validation échouée
+        </h1>
+        <p class="text-gray-600">
+          Impossible de valider votre compte
+        </p>
+      </div>
+
+      <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-start">
+          <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-red-800">{{ error }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        {% if 'expiré' in error %}
+        <p class="text-sm text-center text-gray-600 mb-4">
+          Le lien de validation a expiré. Vous pouvez demander un nouveau lien en vous inscrivant à nouveau ou en contactant un administrateur.
+        </p>
+        <a href="/signup" class="block w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors text-center">
+          <i class="fas fa-user-plus mr-2"></i>
+          Nouvelle inscription
+        </a>
+        {% endif %}
+        <a href="/" class="block w-full text-center text-sm text-gray-600 hover:text-cgt-red transition-colors">
+          <i class="fas fa-home mr-1"></i>
+          Retour à l'accueil
+        </a>
+      </div>
+
+      {% else %}
+      <!-- En cours de validation -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-500/10 text-blue-500 rounded-full mb-6">
+          <i class="fas fa-spinner fa-spin text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          Validation en cours...
+        </h1>
+        <p class="text-gray-600">
+          Veuillez patienter pendant la validation de votre email
+        </p>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Info -->
+    {% if success %}
+    <div class="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+      <div class="flex items-start">
+        <i class="fas fa-clock text-amber-500 mt-0.5 mr-3"></i>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-amber-800">Temps d'approbation</p>
+          <p class="text-xs text-amber-700 mt-1">
+            L'approbation de votre compte peut prendre jusqu'à 48 heures. Nous vous remercions de votre patience.
+          </p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% if not success and not error %}
+<script>
+// Auto-redirection si pas de paramètres dans l'URL
+if (!window.location.search) {
+  setTimeout(() => {
+    window.location.href = '/';
+  }, 3000);
+}
+</script>
+{% endif %}
+
+{% endblock %}
