@@ -44,7 +44,9 @@ PUBLIC_ROUTES = {
     "/auth/validate-account",
     "/auth/forgot-password",
     "/auth/reset-password",
-    "/reset-password"  # Page de réinitialisation
+    "/forgot-password",  # Page de demande de reset
+    "/reset-password",   # Page de réinitialisation
+    "/validate-account"  # Page de validation email
 }
 
 

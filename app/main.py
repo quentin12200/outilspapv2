@@ -3289,7 +3289,6 @@ def reset_password_page(request: Request):
 async def validate_account_page(
     request: Request,
     token: str = "",
-    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_session)
 ):
     """Page de validation de compte email - redirige vers l'API puis affiche le résultat"""
@@ -3307,9 +3306,8 @@ async def validate_account_page(
     from .routers.auth_email import validate_account
 
     try:
-        # Créer background_tasks si besoin
-        if background_tasks is None:
-            background_tasks = BackgroundTasks()
+        # Créer une instance de BackgroundTasks
+        background_tasks = BackgroundTasks()
 
         # Appeler l'endpoint de validation
         result = await validate_account(token=token, background_tasks=background_tasks, db=db)
