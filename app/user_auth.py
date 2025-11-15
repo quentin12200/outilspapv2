@@ -39,7 +39,12 @@ PUBLIC_ROUTES = {
     "/login",
     "/logout",
     "/static",
-    "/mentions-legales"
+    "/mentions-legales",
+    "/auth/register",
+    "/auth/validate-account",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/reset-password"  # Page de réinitialisation
 }
 
 
