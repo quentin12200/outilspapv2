@@ -3015,8 +3015,9 @@ def signup_page(request: Request):
 
 
 @app.post("/signup", response_class=HTMLResponse)
-def signup_post(
+async def signup_post(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -3103,8 +3104,13 @@ def signup_post(
 
     # Créer le nouvel utilisateur
     try:
+        # Générer un token de validation sécurisé
+        import secrets
+        validation_token = secrets.token_urlsafe(32)
+        validation_token_expiry = datetime.now() + timedelta(hours=24)
+
         new_user = User(
-            email=email,
+            email=email.lower(),
             hashed_password=hash_password(password),
             first_name=first_name,
             last_name=last_name,
@@ -3117,12 +3123,26 @@ def signup_post(
             registration_reason=registration_reason or None,
             registration_ip=get_client_ip(request),
             is_approved=False,  # Nécessite l'approbation d'un admin
-            is_active=True,
+            is_active=False,  # Désactivé jusqu'à validation email
+            email_verified=False,  # Email pas encore vérifié
+            validation_token=validation_token,
+            validation_token_expiry=validation_token_expiry,
             role="user"
         )
 
         db.add(new_user)
         db.commit()
+        db.refresh(new_user)
+
+        # Envoyer l'email de validation en arrière-plan
+        from app.email_service import send_account_validation_email
+        username = f"{new_user.first_name} {new_user.last_name}"
+        background_tasks.add_task(
+            send_account_validation_email,
+            email=new_user.email,
+            token=validation_token,
+            username=username
+        )
 
         # Afficher le message de succès
         return templates.TemplateResponse(

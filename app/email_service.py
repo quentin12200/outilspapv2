@@ -270,7 +270,7 @@ def send_account_validation_email(email: str, token: str, username: str) -> bool
     Returns:
         bool: True si l'envoi a réussi, False sinon
     """
-    validation_link = f"{APP_URL}/auth/validate-account?token={token}"
+    validation_link = f"{APP_URL}/validate-account?token={token}"
 
     content = f"""
         <h2>Bienvenue sur le PAP CSE Dashboard ! 👋</h2>
