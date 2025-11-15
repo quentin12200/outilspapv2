@@ -793,6 +793,14 @@ def on_startup():
     from .migrations import run_migrations
     run_migrations()
 
+    # Exécute les migrations pour ajouter les champs d'authentification email
+    try:
+        from .auto_migrations import run_auto_migrations
+        with SessionLocal() as session:
+            run_auto_migrations(session)
+    except Exception as e:
+        logger.error(f"❌ Erreur lors des migrations email : {e}")
+
     # Si le résumé SIRET est vide, le reconstruire automatiquement (ou non selon config)
     # afin que le tableau de bord ne s'affiche pas avec des compteurs à zéro lors du
     # premier démarrage (base préremplie).
