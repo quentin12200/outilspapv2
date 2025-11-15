@@ -1,0 +1,31 @@
+# .htaccess pour application Python FastAPI sur cPanel
+
+# Configuration Passenger pour Python
+PassengerEnabled On
+PassengerAppRoot /home/VOTRE_UTILISATEUR/public_html/outilspapv2
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+PassengerPython /home/VOTRE_UTILISATEUR/.local/share/virtualenvs/outilspapv2/bin/python3
+
+# Rediriger toutes les requêtes vers l'application Python
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . /passenger_wsgi.py [L]
+</IfModule>
+
+# Désactiver l'affichage des erreurs PHP (si applicable)
+php_flag display_errors Off
+
+# Protection des fichiers sensibles
+<FilesMatch "^\.env">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "\.db$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
