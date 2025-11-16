@@ -31,3 +31,17 @@ OPENAI_MODEL_FALLBACK = [
     "gpt-4",                    # GPT-4 legacy
     "gpt-3.5-turbo",            # Fallback ultime (moins performant mais très accessible)
 ]
+
+# ==================== Configuration Resend ====================
+# Clé API Resend pour l'envoi d'emails
+# Documentation: https://resend.com/docs/api-reference/introduction
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
+# Email expéditeur par défaut pour tous les emails
+# Doit être un domaine vérifié dans Resend
+# En développement, vous pouvez utiliser: onboarding@resend.dev
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+
+# Nom d'affichage de l'expéditeur (optionnel)
+# Exemple: "PAP/CSE - Tableau de bord <noreply@example.com>"
+RESEND_FROM_NAME = os.getenv("RESEND_FROM_NAME", "PAP/CSE - Tableau de bord")

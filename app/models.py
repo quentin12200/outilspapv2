@@ -487,3 +487,60 @@ class User(Base):
     __table_args__ = (
         Index('idx_user_email_approved', 'email', 'is_approved'),
     )
+
+
+class EmailLog(Base):
+    """
+    Table de logging des emails envoyés via Resend
+    Permet de tracer et auditer tous les envois d'emails
+    """
+    __tablename__ = "email_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Informations de l'email
+    to_email = Column(String(255), nullable=False, index=True)  # Destinataire principal
+    cc_emails = Column(Text)  # Liste des CC (séparés par virgule)
+    bcc_emails = Column(Text)  # Liste des BCC (séparés par virgule)
+    from_email = Column(String(255), nullable=False)  # Expéditeur
+    reply_to = Column(String(255))  # Adresse de réponse
+
+    # Contenu de l'email
+    subject = Column(String(500), nullable=False)  # Sujet de l'email
+    template_name = Column(String(100))  # Nom du template utilisé (ex: "invitation_confirmation")
+    html_content = Column(Text)  # Contenu HTML (optionnel, pour debug)
+
+    # Statut et suivi
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    # Valeurs possibles: pending, sent, delivered, bounced, failed, opened, clicked
+
+    resend_id = Column(String(100), unique=True, index=True)  # ID retourné par Resend
+    error_message = Column(Text)  # Message d'erreur si échec
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    sent_at = Column(DateTime)  # Date d'envoi effectif
+    delivered_at = Column(DateTime)  # Date de livraison
+    opened_at = Column(DateTime)  # Date de première ouverture
+    clicked_at = Column(DateTime)  # Date de premier clic
+
+    # Métadonnées contextuelles
+    user_id = Column(Integer, index=True)  # ID de l'utilisateur concerné (si applicable)
+    siret = Column(String(14), index=True)  # SIRET concerné (si applicable)
+    invitation_id = Column(Integer, index=True)  # ID de l'invitation concernée (si applicable)
+    context_type = Column(String(50))  # Type de contexte (ex: "invitation", "password_reset", "notification")
+    metadata = Column(JSON)  # Autres données contextuelles
+
+    # Informations techniques
+    tags = Column(JSON)  # Tags Resend pour catégorisation
+    ip_address = Column(String(45))  # IP de l'utilisateur qui a déclenché l'envoi
+    user_agent = Column(String(255))  # User agent du navigateur
+
+    def __repr__(self):
+        return f"<EmailLog(id={self.id}, to={self.to_email}, subject={self.subject}, status={self.status})>"
+
+    __table_args__ = (
+        Index('idx_email_status_created', 'status', 'created_at'),
+        Index('idx_email_to_status', 'to_email', 'status'),
+        Index('idx_email_context', 'context_type', 'created_at'),
+    )
