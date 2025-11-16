@@ -7,69 +7,33 @@ Ce module gère l'envoi des emails de :
 - Bienvenue après validation
 
 Configuration requise dans .env :
-- MAIL_SERVER : Serveur SMTP (ex: chambre.o2switch.net)
-- MAIL_PORT : Port SMTP (ex: 465 pour SSL)
-- MAIL_USE_SSL : True pour SSL, False pour STARTTLS
-- MAIL_USERNAME : Email d'envoi
-- MAIL_PASSWORD : Mot de passe SMTP
-- MAIL_FROM_NAME : Nom de l'expéditeur
+- RESEND_API_KEY : Clé API Resend (obligatoire)
+- MAIL_DEFAULT_SENDER : Email d'envoi (ex: contact@pap-cse.org)
+- MAIL_FROM_NAME : Nom de l'expéditeur (ex: PAP CSE Dashboard)
 - APP_URL : URL de l'application (ex: https://app.pap-cse.org)
 """
 
 import os
 import logging
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Optional
-from datetime import datetime
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
 
-# Configuration SMTP depuis les variables d'environnement
-MAIL_SERVER = os.getenv("MAIL_SERVER", "chambre.o2switch.net")
-MAIL_PORT = int(os.getenv("MAIL_PORT", "465"))
-MAIL_USE_SSL = os.getenv("MAIL_USE_SSL", "True").lower() in ("true", "1", "yes")
-MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "False").lower() in ("true", "1", "yes")
-MAIL_USERNAME = os.getenv("MAIL_USERNAME", "contact@pap-cse.org")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+# Configuration Resend depuis les variables d'environnement
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "contact@pap-cse.org")
 MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "PAP CSE Dashboard")
 APP_URL = os.getenv("APP_URL", "https://app.pap-cse.org")
 
-
-def get_smtp_connection():
-    """
-    Crée et retourne une connexion SMTP configurée.
-
-    Returns:
-        smtplib.SMTP_SSL ou smtplib.SMTP: Connexion SMTP active
-
-    Raises:
-        Exception: Si la connexion échoue
-    """
-    try:
-        if MAIL_USE_SSL:
-            # Connexion SSL (port 465)
-            logger.info(f"Connexion SMTP SSL à {MAIL_SERVER}:{MAIL_PORT}")
-            smtp = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=10)
-        else:
-            # Connexion STARTTLS (port 587 généralement)
-            logger.info(f"Connexion SMTP TLS à {MAIL_SERVER}:{MAIL_PORT}")
-            smtp = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=10)
-            if MAIL_USE_TLS:
-                smtp.starttls()
-
-        # Authentification
-        if MAIL_USERNAME and MAIL_PASSWORD:
-            smtp.login(MAIL_USERNAME, MAIL_PASSWORD)
-            logger.info(f"Authentification SMTP réussie pour {MAIL_USERNAME}")
-
-        return smtp
-    except Exception as e:
-        logger.error(f"Erreur de connexion SMTP : {str(e)}")
-        raise
+# Import conditionnel de Resend
+try:
+    import resend
+    resend.api_key = RESEND_API_KEY
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+    logger.warning("Module 'resend' non installé. Installez-le avec: pip install resend")
 
 
 def send_email(
@@ -79,7 +43,7 @@ def send_email(
     text_content: Optional[str] = None
 ) -> bool:
     """
-    Envoie un email avec le contenu HTML et texte fourni.
+    Envoie un email avec le contenu HTML et texte fourni via Resend API.
 
     Args:
         to_email: Adresse email du destinataire
@@ -90,28 +54,32 @@ def send_email(
     Returns:
         bool: True si l'envoi a réussi, False sinon
     """
+    if not RESEND_AVAILABLE:
+        logger.error("Resend n'est pas disponible. Installez-le avec: pip install resend")
+        return False
+
+    if not RESEND_API_KEY:
+        logger.error("RESEND_API_KEY non configurée dans les variables d'environnement")
+        return False
+
     try:
-        # Créer le message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f"{MAIL_FROM_NAME} <{MAIL_DEFAULT_SENDER}>"
-        msg['To'] = to_email
-        msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+        # Préparer les paramètres de l'email
+        params = {
+            "from": f"{MAIL_FROM_NAME} <{MAIL_DEFAULT_SENDER}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+        }
 
         # Ajouter le contenu texte si fourni
         if text_content:
-            part_text = MIMEText(text_content, 'plain', 'utf-8')
-            msg.attach(part_text)
+            params["text"] = text_content
 
-        # Ajouter le contenu HTML
-        part_html = MIMEText(html_content, 'html', 'utf-8')
-        msg.attach(part_html)
+        # Envoyer l'email via Resend
+        response = resend.Emails.send(params)
 
-        # Envoyer l'email
-        with get_smtp_connection() as smtp:
-            smtp.send_message(msg)
-            logger.info(f"Email envoyé avec succès à {to_email} : {subject}")
-            return True
+        logger.info(f"Email envoyé avec succès à {to_email} : {subject} (ID: {response.get('id', 'N/A')})")
+        return True
 
     except Exception as e:
         logger.error(f"Erreur lors de l'envoi de l'email à {to_email} : {str(e)}")
@@ -153,7 +121,7 @@ def get_base_email_template(content: str) -> str:
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
         .email-header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #d5001c 0%, #ab0015 100%);
             color: #ffffff;
             padding: 30px 20px;
             text-align: center;
@@ -167,7 +135,7 @@ def get_base_email_template(content: str) -> str:
             padding: 40px 30px;
         }}
         .email-body h2 {{
-            color: #667eea;
+            color: #d5001c;
             margin-top: 0;
             font-size: 20px;
         }}
@@ -178,7 +146,7 @@ def get_base_email_template(content: str) -> str:
         .btn {{
             display: inline-block;
             padding: 14px 32px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #d5001c 0%, #ab0015 100%);
             color: #ffffff !important;
             text-decoration: none;
             border-radius: 6px;
@@ -191,7 +159,7 @@ def get_base_email_template(content: str) -> str:
         }}
         .info-box {{
             background-color: #f8f9fa;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #d5001c;
             padding: 15px;
             margin: 20px 0;
             border-radius: 4px;
@@ -205,51 +173,33 @@ def get_base_email_template(content: str) -> str:
         }}
         .email-footer {{
             background-color: #f8f9fa;
-            padding: 20px 30px;
+            padding: 20px;
             text-align: center;
+            font-size: 12px;
             color: #6c757d;
-            font-size: 14px;
-        }}
-        .email-footer p {{
-            margin: 8px 0;
         }}
         .email-footer a {{
-            color: #667eea;
+            color: #d5001c;
             text-decoration: none;
-        }}
-        @media only screen and (max-width: 600px) {{
-            .email-container {{
-                margin: 0;
-                border-radius: 0;
-            }}
-            .email-body {{
-                padding: 20px 15px;
-            }}
-            .btn {{
-                display: block;
-                width: 100%;
-                text-align: center;
-            }}
         }}
     </style>
 </head>
 <body>
     <div class="email-container">
         <div class="email-header">
-            <h1>🏢 PAP CSE Dashboard</h1>
+            <h1>PAP CSE Dashboard</h1>
         </div>
         <div class="email-body">
             {content}
         </div>
         <div class="email-footer">
-            <p><strong>PAP CSE Dashboard</strong></p>
-            <p>Outil de gestion et d'analyse des élections CSE</p>
             <p>
-                <a href="{APP_URL}">Accéder au dashboard</a> •
-                <a href="{APP_URL}/mentions-legales">Mentions légales</a>
+                <strong>PAP CSE Dashboard</strong><br>
+                Suivi ciblage PAP<br>
+                <a href="{APP_URL}">{APP_URL}</a>
             </p>
-            <p style="color: #999; font-size: 12px; margin-top: 15px;">
-                Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+            <p style="margin-top: 15px;">
+                Cet email a été envoyé automatiquement. Merci de ne pas y répondre.
             </p>
         </div>
     </div>
@@ -292,7 +242,7 @@ def send_account_validation_email(email: str, token: str, username: str) -> bool
 
         <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
             Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :<br>
-            <a href="{validation_link}" style="color: #667eea; word-break: break-all;">{validation_link}</a>
+            <a href="{validation_link}" style="color: #d5001c; word-break: break-all;">{validation_link}</a>
         </p>
 
         <p style="color: #6c757d; font-size: 14px; margin-top: 20px;">
@@ -363,7 +313,7 @@ def send_reset_password_email(email: str, token: str, username: str) -> bool:
 
         <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
             Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :<br>
-            <a href="{reset_link}" style="color: #667eea; word-break: break-all;">{reset_link}</a>
+            <a href="{reset_link}" style="color: #d5001c; word-break: break-all;">{reset_link}</a>
         </p>
 
         <div class="info-box" style="margin-top: 30px;">
@@ -424,7 +374,7 @@ def send_welcome_email(email: str, username: str) -> bool:
             <p style="margin: 8px 0 0 0;">Votre compte est maintenant en attente d'approbation par un administrateur. Vous recevrez une notification par email dès que votre accès sera activé.</p>
         </div>
 
-        <h3 style="color: #667eea; margin-top: 30px;">🚀 Ce que vous pourrez faire une fois approuvé :</h3>
+        <h3 style="color: #d5001c; margin-top: 30px;">🚀 Ce que vous pourrez faire une fois approuvé :</h3>
 
         <ul style="color: #555;">
             <li>📊 Consulter les statistiques détaillées des élections CSE</li>
@@ -497,27 +447,27 @@ def send_account_approved_email(email: str, username: str) -> bool:
 
         <p>Nous avons le plaisir de vous informer que votre compte PAP CSE Dashboard a été approuvé par un administrateur.</p>
 
-        <p><strong>Vous pouvez maintenant accéder à l'ensemble des fonctionnalités du dashboard !</strong></p>
+        <p><strong>Vous pouvez maintenant vous connecter et accéder à l'ensemble des fonctionnalités !</strong></p>
 
         <div style="text-align: center; margin: 30px 0;">
             <a href="{login_link}" class="btn">
-                🚀 Se connecter maintenant
+                🔐 Se connecter maintenant
             </a>
         </div>
 
-        <h3 style="color: #667eea; margin-top: 30px;">🎯 Pour commencer :</h3>
+        <h3 style="color: #d5001c; margin-top: 30px;">🎯 Vous pouvez maintenant :</h3>
 
-        <ol style="color: #555;">
-            <li>Connectez-vous avec votre email et votre mot de passe</li>
-            <li>Explorez le tableau de bord principal</li>
-            <li>Consultez les statistiques qui vous intéressent</li>
-            <li>Utilisez les filtres pour affiner vos recherches</li>
-            <li>N'hésitez pas à utiliser l'assistant IA pour vos questions</li>
-        </ol>
+        <ul style="color: #555;">
+            <li>📊 Accéder à l'ensemble des fonctionnalités du dashboard</li>
+            <li>📈 Consulter les données et statistiques en temps réel</li>
+            <li>🔍 Utiliser tous les outils d'analyse disponibles</li>
+            <li>💬 Interagir avec l'assistant IA pour vos questions</li>
+            <li>📥 Exporter les données pour vos analyses</li>
+        </ul>
 
         <div class="info-box" style="margin-top: 30px;">
             <p style="margin: 0;"><strong>💡 Besoin d'aide ?</strong></p>
-            <p style="margin: 8px 0 0 0;">Des questions sur l'utilisation du dashboard ? N'hésitez pas à contacter notre support.</p>
+            <p style="margin: 8px 0 0 0;">N'hésitez pas à explorer l'interface et à utiliser toutes les fonctionnalités disponibles. L'assistant IA est là pour vous aider !</p>
         </div>
     """
 
@@ -527,18 +477,18 @@ Votre compte a été approuvé !
 
 Bonjour {username},
 
-Votre compte PAP CSE Dashboard a été approuvé par un administrateur.
+Nous avons le plaisir de vous informer que votre compte PAP CSE Dashboard a été approuvé par un administrateur.
 
-Vous pouvez maintenant accéder à l'ensemble des fonctionnalités !
+Vous pouvez maintenant vous connecter et accéder à l'ensemble des fonctionnalités !
 
 Se connecter : {login_link}
 
-Pour commencer :
-1. Connectez-vous avec votre email et votre mot de passe
-2. Explorez le tableau de bord principal
-3. Consultez les statistiques qui vous intéressent
-4. Utilisez les filtres pour affiner vos recherches
-5. N'hésitez pas à utiliser l'assistant IA pour vos questions
+Vous pouvez maintenant :
+- Accéder à l'ensemble des fonctionnalités du dashboard
+- Consulter les données et statistiques en temps réel
+- Utiliser tous les outils d'analyse disponibles
+- Interagir avec l'assistant IA
+- Exporter les données pour vos analyses
 
 ---
 PAP CSE Dashboard
@@ -547,21 +497,7 @@ PAP CSE Dashboard
 
     return send_email(
         to_email=email,
-        subject="🎊 Votre accès au PAP CSE Dashboard est activé !",
+        subject="🎊 Votre compte PAP CSE a été approuvé",
         html_content=html,
         text_content=text
     )
-
-
-def test_smtp_connection() -> tuple[bool, str]:
-    """
-    Teste la connexion SMTP avec les paramètres configurés.
-
-    Returns:
-        tuple[bool, str]: (succès, message)
-    """
-    try:
-        with get_smtp_connection() as smtp:
-            return True, f"✅ Connexion SMTP réussie à {MAIL_SERVER}:{MAIL_PORT}"
-    except Exception as e:
-        return False, f"❌ Erreur de connexion SMTP : {str(e)}"
