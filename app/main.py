@@ -3519,6 +3519,102 @@ def user_logout(
 
 
 # =========================================================
+# Route profil utilisateur (protégée par authentification)
+# =========================================================
+
+@app.get("/profile", response_class=HTMLResponse)
+def user_profile_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Page de profil de l'utilisateur connecté"""
+    return templates.TemplateResponse(
+        "user_profile.html",
+        {
+            "request": request,
+            "user": current_user,
+            "success": None,
+            "error": None
+        }
+    )
+
+
+@app.post("/profile", response_class=HTMLResponse)
+def user_profile_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    phone: Optional[str] = Form(None),
+    organization: str = Form(...),
+    fd: Optional[str] = Form(None),
+    ud: Optional[str] = Form(None),
+    region: Optional[str] = Form(None),
+    responsibility: Optional[str] = Form(None)
+):
+    """Mise à jour du profil utilisateur"""
+    try:
+        # Validation des champs requis
+        if not first_name or not first_name.strip():
+            raise ValueError("Le prénom est requis")
+        if not last_name or not last_name.strip():
+            raise ValueError("Le nom est requis")
+        if not organization or not organization.strip():
+            raise ValueError("L'organisation est requise")
+
+        # Mise à jour des informations
+        current_user.first_name = first_name.strip()
+        current_user.last_name = last_name.strip()
+        current_user.phone = phone.strip() if phone else None
+        current_user.organization = organization.strip()
+        current_user.fd = fd.strip() if fd else None
+        current_user.ud = ud.strip() if ud else None
+        current_user.region = region.strip() if region else None
+        current_user.responsibility = responsibility.strip() if responsibility else None
+        current_user.updated_at = datetime.now()
+
+        db.commit()
+
+        logging.info(f"Profil mis à jour pour l'utilisateur {current_user.email}")
+
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": "Vos informations ont été mises à jour avec succès !",
+                "error": None
+            }
+        )
+
+    except ValueError as e:
+        db.rollback()
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": None,
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Erreur lors de la mise à jour du profil: {e}")
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": None,
+                "error": "Une erreur est survenue lors de la mise à jour de vos informations"
+            }
+        )
+
+
+# =========================================================
 # Routes admin (protégées par authentification)
 # =========================================================
 
