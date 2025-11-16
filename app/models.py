@@ -544,3 +544,46 @@ class EmailLog(Base):
         Index('idx_email_to_status', 'to_email', 'status'),
         Index('idx_email_context', 'context_type', 'created_at'),
     )
+
+
+class PasswordResetToken(Base):
+    """
+    Tokens de réinitialisation de mot de passe
+    Chaque token est unique et a une durée de validité limitée
+    """
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+
+    # Métadonnées
+    ip_address = Column(String(45))  # IPv4 ou IPv6
+    user_agent = Column(Text)
+
+    # Statut
+    is_used = Column(Boolean, default=False, nullable=False, index=True)
+    is_valid = Column(Boolean, default=True, nullable=False)  # Peut être invalidé manuellement
+
+    def __repr__(self):
+        return f"<PasswordResetToken(id={self.id}, user_id={self.user_id}, is_used={self.is_used}, expires_at={self.expires_at})>"
+
+    @property
+    def is_expired(self) -> bool:
+        """Vérifie si le token a expiré"""
+        return datetime.now() > self.expires_at
+
+    @property
+    def can_be_used(self) -> bool:
+        """Vérifie si le token peut être utilisé"""
+        return self.is_valid and not self.is_used and not self.is_expired
+
+    __table_args__ = (
+        Index('idx_token_valid', 'token', 'is_valid', 'is_used'),
+        Index('idx_user_created', 'user_id', 'created_at'),
+    )
