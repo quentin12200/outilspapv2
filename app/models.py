@@ -437,8 +437,15 @@ class User(Base):
 
     # Statut du compte
     is_approved = Column(Boolean, default=False, nullable=False, index=True)  # Approuvé par admin
-    is_active = Column(Boolean, default=True, nullable=False)  # Compte actif
+    is_active = Column(Boolean, default=False, nullable=False)  # Compte actif (activé après validation email)
+    email_verified = Column(Boolean, default=False, nullable=False)  # Email vérifié
     role = Column(String(20), default="user", nullable=False)  # user, admin
+
+    # Tokens de validation et reset
+    validation_token = Column(String(255), nullable=True, index=True)  # Token de validation email
+    validation_token_expiry = Column(DateTime, nullable=True)  # Expiration du token de validation
+    reset_token = Column(String(255), nullable=True, index=True)  # Token de reset de mot de passe
+    reset_token_expiry = Column(DateTime, nullable=True)  # Expiration du token de reset
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.now, nullable=False)

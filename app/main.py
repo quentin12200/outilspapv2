@@ -13,7 +13,7 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -619,6 +619,7 @@ from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
+from .routers import auth_email  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -687,6 +688,7 @@ app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
+app.include_router(auth_email.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -790,6 +792,14 @@ def on_startup():
     # Exécute les migrations pour ajouter les colonnes Sirene si nécessaire
     from .migrations import run_migrations
     run_migrations()
+
+    # Exécute les migrations pour ajouter les champs d'authentification email
+    try:
+        from .auto_migrations import run_auto_migrations
+        with SessionLocal() as session:
+            run_auto_migrations(session)
+    except Exception as e:
+        logger.error(f"❌ Erreur lors des migrations email : {e}")
 
     # Si le résumé SIRET est vide, le reconstruire automatiquement (ou non selon config)
     # afin que le tableau de bord ne s'affiche pas avec des compteurs à zéro lors du
@@ -3005,8 +3015,9 @@ def signup_page(request: Request):
 
 
 @app.post("/signup", response_class=HTMLResponse)
-def signup_post(
+async def signup_post(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -3093,8 +3104,13 @@ def signup_post(
 
     # Créer le nouvel utilisateur
     try:
+        # Générer un token de validation sécurisé
+        import secrets
+        validation_token = secrets.token_urlsafe(32)
+        validation_token_expiry = datetime.now() + timedelta(hours=24)
+
         new_user = User(
-            email=email,
+            email=email.lower(),
             hashed_password=hash_password(password),
             first_name=first_name,
             last_name=last_name,
@@ -3107,12 +3123,26 @@ def signup_post(
             registration_reason=registration_reason or None,
             registration_ip=get_client_ip(request),
             is_approved=False,  # Nécessite l'approbation d'un admin
-            is_active=True,
+            is_active=False,  # Désactivé jusqu'à validation email
+            email_verified=False,  # Email pas encore vérifié
+            validation_token=validation_token,
+            validation_token_expiry=validation_token_expiry,
             role="user"
         )
 
         db.add(new_user)
         db.commit()
+        db.refresh(new_user)
+
+        # Envoyer l'email de validation en arrière-plan
+        from app.email_service import send_account_validation_email
+        username = f"{new_user.first_name} {new_user.last_name}"
+        background_tasks.add_task(
+            send_account_validation_email,
+            email=new_user.email,
+            token=validation_token,
+            username=username
+        )
 
         # Afficher le message de succès
         return templates.TemplateResponse(
@@ -3233,6 +3263,92 @@ def user_logout(
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
     return response
+
+
+# =========================================================
+# Routes d'authentification par email
+# =========================================================
+
+@app.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    """Page de demande de réinitialisation de mot de passe"""
+    # Récupérer les paramètres de query string pour afficher les messages
+    success = request.query_params.get("success", "0") == "1"
+    error = request.query_params.get("error", "")
+
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {
+            "request": request,
+            "success": success,
+            "error": error
+        }
+    )
+
+
+@app.get("/reset-password", response_class=HTMLResponse)
+def reset_password_page(request: Request):
+    """Page de réinitialisation de mot de passe avec token"""
+    # Récupérer les paramètres de query string
+    token = request.query_params.get("token", "")
+    success = request.query_params.get("success", "0") == "1"
+    error = request.query_params.get("error", "")
+
+    return templates.TemplateResponse(
+        "reset_password.html",
+        {
+            "request": request,
+            "token": token,
+            "success": success,
+            "error": error
+        }
+    )
+
+
+@app.get("/validate-account", response_class=HTMLResponse)
+async def validate_account_page(
+    request: Request,
+    token: str = "",
+    db: Session = Depends(get_session)
+):
+    """Page de validation de compte email - redirige vers l'API puis affiche le résultat"""
+    if not token:
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": False,
+                "error": "Lien de validation invalide"
+            }
+        )
+
+    # Importer la fonction de validation depuis le router
+    from .routers.auth_email import validate_account
+
+    try:
+        # Créer une instance de BackgroundTasks
+        background_tasks = BackgroundTasks()
+
+        # Appeler l'endpoint de validation
+        result = await validate_account(token=token, background_tasks=background_tasks, db=db)
+
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": True,
+                "error": None
+            }
+        )
+    except HTTPException as e:
+        return templates.TemplateResponse(
+            "validate_account.html",
+            {
+                "request": request,
+                "success": False,
+                "error": e.detail
+            }
+        )
 
 
 # =========================================================
@@ -3492,6 +3608,54 @@ def delete_user(
         "success": True,
         "message": f"Utilisateur {name} ({email}) supprimé définitivement"
     }
+
+
+@app.post("/admin/users/{user_id}/send-reset-password")
+async def admin_send_reset_password(
+    user_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Envoyer un email de réinitialisation de mot de passe à un utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    try:
+        # Générer un token de reset sécurisé
+        import secrets
+        reset_token = secrets.token_urlsafe(32)
+        reset_token_expiry = datetime.now() + timedelta(hours=1)
+
+        # Enregistrer le token
+        user.reset_token = reset_token
+        user.reset_token_expiry = reset_token_expiry
+        db.commit()
+
+        # Envoyer l'email de reset en arrière-plan
+        from app.email_service import send_reset_password_email
+        username = f"{user.first_name} {user.last_name}"
+        background_tasks.add_task(
+            send_reset_password_email,
+            email=user.email,
+            token=reset_token,
+            username=username
+        )
+
+        return {
+            "success": True,
+            "message": f"Email de réinitialisation envoyé à {user.email}"
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de l'envoi de l'email de reset : {str(e)}")
+        return {
+            "success": False,
+            "error": "Erreur lors de l'envoi de l'email"
+        }
 
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
