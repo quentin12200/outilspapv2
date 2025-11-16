@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse,
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping, Iterator, Sequence
+from typing import Any, Mapping, Iterator, Sequence, Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
