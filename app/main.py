@@ -3145,16 +3145,19 @@ def signup_post(
                             if admin.email:
                                 html_content = email_template.render(
                                     admin_name=admin.first_name or "Administrateur",
-                                    user_name=f"{new_user.first_name} {new_user.last_name}",
-                                    user_email=new_user.email,
-                                    user_phone=new_user.phone or "Non renseigné",
-                                    user_organization=new_user.organization or "Non renseigné",
-                                    user_fd=new_user.fd or "Non renseigné",
-                                    user_ud=new_user.ud or "Non renseigné",
-                                    user_region=new_user.region or "Non renseigné",
-                                    user_responsibility=new_user.responsibility or "Non renseigné",
-                                    user_registration_reason=new_user.registration_reason or "Non renseigné",
-                                    registration_date=new_user.created_at.strftime("%d/%m/%Y à %H:%M")
+                                    first_name=new_user.first_name,
+                                    last_name=new_user.last_name,
+                                    email=new_user.email,
+                                    phone=new_user.phone,
+                                    organization=new_user.organization,
+                                    fd=new_user.fd,
+                                    ud=new_user.ud,
+                                    region=new_user.region,
+                                    responsibility=new_user.responsibility,
+                                    registration_reason=new_user.registration_reason,
+                                    created_at=new_user.created_at.strftime("%d/%m/%Y à %H:%M"),
+                                    registration_ip=new_user.registration_ip,
+                                    admin_url=f"{str(request.base_url).rstrip('/')}/admin"
                                 )
 
                                 try:
@@ -3664,8 +3667,9 @@ def approve_user(
             email_service = get_resend_service()
 
             html_content = email_template.render(
-                user_name=user.first_name or user.email.split('@')[0],
-                user_email=user.email,
+                first_name=user.first_name or user.email.split('@')[0],
+                email=user.email,
+                login_url=f"{os.getenv('APP_URL', 'https://votre-app.railway.app')}/login",
                 approved_date=user.approved_at.strftime("%d/%m/%Y à %H:%M")
             )
 
