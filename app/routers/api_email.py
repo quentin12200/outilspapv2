@@ -43,7 +43,7 @@ class SendEmailRequest(BaseModel):
     template_name: Optional[str] = Field(None, description="Nom du template utilisé")
     tags: Optional[List[Dict[str, str]]] = Field(None, description="Tags pour catégoriser")
     context_type: Optional[str] = Field(None, description="Type de contexte (invitation, notification, etc.)")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Métadonnées additionnelles")
+    extra_metadata: Optional[Dict[str, Any]] = Field(None, description="Métadonnées additionnelles")
 
 
 class SendTemplateEmailRequest(BaseModel):
@@ -58,7 +58,7 @@ class SendTemplateEmailRequest(BaseModel):
     from_email: Optional[EmailStr] = None
     tags: Optional[List[Dict[str, str]]] = None
     context_type: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    extra_metadata: Optional[Dict[str, Any]] = None
 
 
 class EmailResponse(BaseModel):
@@ -150,7 +150,7 @@ async def create_email_log(
     bcc_emails: Optional[str] = None,
     reply_to: Optional[str] = None,
     context_type: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    extra_metadata: Optional[Dict[str, Any]] = None,
     user_id: Optional[int] = None,
     siret: Optional[str] = None,
     tags: Optional[List[Dict[str, str]]] = None,
@@ -174,7 +174,7 @@ async def create_email_log(
         resend_id=resend_id,
         error_message=error_message,
         context_type=context_type,
-        metadata=metadata,
+        extra_metadata=extra_metadata,
         user_id=user_id,
         siret=siret,
         tags=tags,
@@ -234,7 +234,7 @@ async def send_email(
             bcc_emails=",".join(email_data.bcc) if email_data.bcc else None,
             reply_to=email_data.reply_to,
             context_type=email_data.context_type,
-            metadata=email_data.metadata,
+            extra_metadata=email_data.extra_metadata,
             tags=email_data.tags,
             request=request
         )
@@ -325,7 +325,7 @@ async def send_template_email(
             template_name=email_data.template_name,
             tags=email_data.tags,
             context_type=email_data.context_type,
-            metadata=email_data.metadata
+            extra_metadata=email_data.extra_metadata
         )
 
         # Envoyer via l'endpoint send

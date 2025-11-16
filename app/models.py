@@ -529,7 +529,7 @@ class EmailLog(Base):
     siret = Column(String(14), index=True)  # SIRET concerné (si applicable)
     invitation_id = Column(Integer, index=True)  # ID de l'invitation concernée (si applicable)
     context_type = Column(String(50))  # Type de contexte (ex: "invitation", "password_reset", "notification")
-    metadata = Column(JSON)  # Autres données contextuelles
+    extra_metadata = Column(JSON)  # Autres données contextuelles
 
     # Informations techniques
     tags = Column(JSON)  # Tags Resend pour catégorisation
