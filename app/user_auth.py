@@ -355,8 +355,8 @@ def is_public_route(path: str) -> bool:
     if path in PUBLIC_ROUTES:
         return True
 
-    # Routes qui commencent par /static, /api, ou /admin (ont leur propre auth)
-    if path.startswith("/static/") or path.startswith("/api/") or path.startswith("/admin"):
+    # Routes qui commencent par /static, /api, /admin, ou /reset-password (ont leur propre auth)
+    if path.startswith("/static/") or path.startswith("/api/") or path.startswith("/admin") or path.startswith("/reset-password/"):
         return True
 
     return False
