@@ -3610,6 +3610,54 @@ def delete_user(
     }
 
 
+@app.post("/admin/users/{user_id}/send-reset-password")
+async def admin_send_reset_password(
+    user_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Envoyer un email de réinitialisation de mot de passe à un utilisateur"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"success": False, "error": "Utilisateur non trouvé"}
+
+    try:
+        # Générer un token de reset sécurisé
+        import secrets
+        reset_token = secrets.token_urlsafe(32)
+        reset_token_expiry = datetime.now() + timedelta(hours=1)
+
+        # Enregistrer le token
+        user.reset_token = reset_token
+        user.reset_token_expiry = reset_token_expiry
+        db.commit()
+
+        # Envoyer l'email de reset en arrière-plan
+        from app.email_service import send_reset_password_email
+        username = f"{user.first_name} {user.last_name}"
+        background_tasks.add_task(
+            send_reset_password_email,
+            email=user.email,
+            token=reset_token,
+            username=username
+        )
+
+        return {
+            "success": True,
+            "message": f"Email de réinitialisation envoyé à {user.email}"
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de l'envoi de l'email de reset : {str(e)}")
+        return {
+            "success": False,
+            "error": "Erreur lors de l'envoi de l'email"
+        }
+
+
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
 def admin_diagnostics(
     request: Request,
