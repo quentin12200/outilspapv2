@@ -13,7 +13,7 @@ import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -3009,6 +3009,7 @@ def signup_page(request: Request):
 @app.post("/signup", response_class=HTMLResponse)
 def signup_post(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -3117,57 +3118,62 @@ def signup_post(
         db.commit()
         db.refresh(new_user)  # Rafraîchir pour obtenir l'ID
 
-        # Envoyer un email de notification aux administrateurs
-        try:
-            from .services.email_service import get_resend_service
-            import jinja2
+        # Envoyer un email de notification aux administrateurs (en arrière-plan)
+        async def send_registration_emails():
+            """Fonction helper pour envoyer les emails en arrière-plan"""
+            try:
+                from .services.email_service import get_resend_service
+                import jinja2
 
-            # Récupérer tous les administrateurs
-            admins = db.query(User).filter(User.role == "admin", User.is_active == True).all()
+                # Récupérer tous les administrateurs
+                db_bg = SessionLocal()
+                try:
+                    admins = db_bg.query(User).filter(User.role == "admin", User.is_active == True).all()
 
-            if admins:
-                # Préparer le template
-                template_env = jinja2.Environment(
-                    loader=jinja2.FileSystemLoader("app/email_templates")
-                )
-                email_template = template_env.get_template("user_registration_admin.html")
-
-                email_service = get_resend_service()
-
-                # Envoyer à chaque admin
-                for admin in admins:
-                    if admin.email:
-                        html_content = email_template.render(
-                            admin_name=admin.first_name or "Administrateur",
-                            user_name=f"{new_user.first_name} {new_user.last_name}",
-                            user_email=new_user.email,
-                            user_phone=new_user.phone or "Non renseigné",
-                            user_organization=new_user.organization or "Non renseigné",
-                            user_fd=new_user.fd or "Non renseigné",
-                            user_ud=new_user.ud or "Non renseigné",
-                            user_region=new_user.region or "Non renseigné",
-                            user_responsibility=new_user.responsibility or "Non renseigné",
-                            user_registration_reason=new_user.registration_reason or "Non renseigné",
-                            registration_date=new_user.created_at.strftime("%d/%m/%Y à %H:%M")
+                    if admins:
+                        # Préparer le template
+                        template_env = jinja2.Environment(
+                            loader=jinja2.FileSystemLoader("app/email_templates")
                         )
+                        email_template = template_env.get_template("user_registration_admin.html")
 
-                        # Envoyer l'email (async dans un try/catch pour ne pas bloquer)
-                        import asyncio
-                        try:
-                            asyncio.create_task(
-                                email_service.send_email(
-                                    to=admin.email,
-                                    subject=f"Nouvelle inscription : {new_user.first_name} {new_user.last_name}",
-                                    html=html_content
+                        email_service = get_resend_service()
+
+                        # Envoyer à chaque admin
+                        for admin in admins:
+                            if admin.email:
+                                html_content = email_template.render(
+                                    admin_name=admin.first_name or "Administrateur",
+                                    user_name=f"{new_user.first_name} {new_user.last_name}",
+                                    user_email=new_user.email,
+                                    user_phone=new_user.phone or "Non renseigné",
+                                    user_organization=new_user.organization or "Non renseigné",
+                                    user_fd=new_user.fd or "Non renseigné",
+                                    user_ud=new_user.ud or "Non renseigné",
+                                    user_region=new_user.region or "Non renseigné",
+                                    user_responsibility=new_user.responsibility or "Non renseigné",
+                                    user_registration_reason=new_user.registration_reason or "Non renseigné",
+                                    registration_date=new_user.created_at.strftime("%d/%m/%Y à %H:%M")
                                 )
-                            )
-                        except Exception as email_error:
-                            logging.warning(f"Erreur lors de l'envoi d'email à l'admin {admin.email}: {email_error}")
 
-                logging.info(f"Notification d'inscription envoyée à {len(admins)} administrateur(s)")
-        except Exception as e:
-            # Ne pas bloquer l'inscription si l'envoi d'email échoue
-            logging.warning(f"Erreur lors de l'envoi de notification aux admins: {e}")
+                                try:
+                                    await email_service.send_email(
+                                        to=admin.email,
+                                        subject=f"Nouvelle inscription : {new_user.first_name} {new_user.last_name}",
+                                        html=html_content
+                                    )
+                                except Exception as email_error:
+                                    logging.warning(f"Erreur lors de l'envoi d'email à l'admin {admin.email}: {email_error}")
+
+                        logging.info(f"Notification d'inscription envoyée à {len(admins)} administrateur(s)")
+                finally:
+                    db_bg.close()
+            except Exception as e:
+                # Ne pas bloquer l'inscription si l'envoi d'email échoue
+                logging.warning(f"Erreur lors de l'envoi de notification aux admins: {e}")
+
+        # Ajouter l'envoi d'emails en tâche de fond
+        background_tasks.add_task(send_registration_emails)
 
         # Afficher le message de succès
         return templates.TemplateResponse(
@@ -3622,6 +3628,7 @@ def admin_page(
 @app.post("/admin/users/{user_id}/approve")
 def approve_user(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     current_user = Depends(require_admin_user)
 ):
@@ -3640,42 +3647,43 @@ def approve_user(
     user.approved_by = current_user.email  # current_user est maintenant un objet User
     db.commit()
 
-    # Envoyer un email de confirmation à l'utilisateur
-    try:
-        from .services.email_service import get_resend_service
-        import jinja2
-
-        # Préparer le template
-        template_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader("app/email_templates")
-        )
-        email_template = template_env.get_template("user_approved.html")
-
-        email_service = get_resend_service()
-
-        html_content = email_template.render(
-            user_name=user.first_name or user.email.split('@')[0],
-            user_email=user.email,
-            approved_date=user.approved_at.strftime("%d/%m/%Y à %H:%M")
-        )
-
-        # Envoyer l'email (async)
-        import asyncio
+    # Envoyer un email de confirmation à l'utilisateur (en arrière-plan)
+    async def send_approval_email():
+        """Fonction helper pour envoyer l'email d'approbation en arrière-plan"""
         try:
-            asyncio.create_task(
-                email_service.send_email(
+            from .services.email_service import get_resend_service
+            import jinja2
+
+            # Préparer le template
+            template_env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader("app/email_templates")
+            )
+            email_template = template_env.get_template("user_approved.html")
+
+            email_service = get_resend_service()
+
+            html_content = email_template.render(
+                user_name=user.first_name or user.email.split('@')[0],
+                user_email=user.email,
+                approved_date=user.approved_at.strftime("%d/%m/%Y à %H:%M")
+            )
+
+            try:
+                await email_service.send_email(
                     to=user.email,
                     subject="Votre compte PAP/CSE a été approuvé !",
                     html=html_content
                 )
-            )
-            logging.info(f"Email d'approbation envoyé à {user.email}")
-        except Exception as email_error:
-            logging.warning(f"Erreur lors de l'envoi d'email d'approbation à {user.email}: {email_error}")
+                logging.info(f"Email d'approbation envoyé à {user.email}")
+            except Exception as email_error:
+                logging.warning(f"Erreur lors de l'envoi d'email d'approbation à {user.email}: {email_error}")
 
-    except Exception as e:
-        # Ne pas bloquer l'approbation si l'envoi d'email échoue
-        logging.warning(f"Erreur lors de l'envoi de notification d'approbation: {e}")
+        except Exception as e:
+            # Ne pas bloquer l'approbation si l'envoi d'email échoue
+            logging.warning(f"Erreur lors de l'envoi de notification d'approbation: {e}")
+
+    # Ajouter l'envoi d'email en tâche de fond
+    background_tasks.add_task(send_approval_email)
 
     return {
         "success": True,
