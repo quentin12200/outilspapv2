@@ -487,3 +487,103 @@ class User(Base):
     __table_args__ = (
         Index('idx_user_email_approved', 'email', 'is_approved'),
     )
+
+
+class EmailLog(Base):
+    """
+    Table de logging des emails envoyés via Resend
+    Permet de tracer et auditer tous les envois d'emails
+    """
+    __tablename__ = "email_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Informations de l'email
+    to_email = Column(String(255), nullable=False, index=True)  # Destinataire principal
+    cc_emails = Column(Text)  # Liste des CC (séparés par virgule)
+    bcc_emails = Column(Text)  # Liste des BCC (séparés par virgule)
+    from_email = Column(String(255), nullable=False)  # Expéditeur
+    reply_to = Column(String(255))  # Adresse de réponse
+
+    # Contenu de l'email
+    subject = Column(String(500), nullable=False)  # Sujet de l'email
+    template_name = Column(String(100))  # Nom du template utilisé (ex: "invitation_confirmation")
+    html_content = Column(Text)  # Contenu HTML (optionnel, pour debug)
+
+    # Statut et suivi
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    # Valeurs possibles: pending, sent, delivered, bounced, failed, opened, clicked
+
+    resend_id = Column(String(100), unique=True, index=True)  # ID retourné par Resend
+    error_message = Column(Text)  # Message d'erreur si échec
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    sent_at = Column(DateTime)  # Date d'envoi effectif
+    delivered_at = Column(DateTime)  # Date de livraison
+    opened_at = Column(DateTime)  # Date de première ouverture
+    clicked_at = Column(DateTime)  # Date de premier clic
+
+    # Métadonnées contextuelles
+    user_id = Column(Integer, index=True)  # ID de l'utilisateur concerné (si applicable)
+    siret = Column(String(14), index=True)  # SIRET concerné (si applicable)
+    invitation_id = Column(Integer, index=True)  # ID de l'invitation concernée (si applicable)
+    context_type = Column(String(50))  # Type de contexte (ex: "invitation", "password_reset", "notification")
+    extra_metadata = Column(JSON)  # Autres données contextuelles
+
+    # Informations techniques
+    tags = Column(JSON)  # Tags Resend pour catégorisation
+    ip_address = Column(String(45))  # IP de l'utilisateur qui a déclenché l'envoi
+    user_agent = Column(String(255))  # User agent du navigateur
+
+    def __repr__(self):
+        return f"<EmailLog(id={self.id}, to={self.to_email}, subject={self.subject}, status={self.status})>"
+
+    __table_args__ = (
+        Index('idx_email_status_created', 'status', 'created_at'),
+        Index('idx_email_to_status', 'to_email', 'status'),
+        Index('idx_email_context', 'context_type', 'created_at'),
+    )
+
+
+class PasswordResetToken(Base):
+    """
+    Tokens de réinitialisation de mot de passe
+    Chaque token est unique et a une durée de validité limitée
+    """
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+
+    # Métadonnées
+    ip_address = Column(String(45))  # IPv4 ou IPv6
+    user_agent = Column(Text)
+
+    # Statut
+    is_used = Column(Boolean, default=False, nullable=False, index=True)
+    is_valid = Column(Boolean, default=True, nullable=False)  # Peut être invalidé manuellement
+
+    def __repr__(self):
+        return f"<PasswordResetToken(id={self.id}, user_id={self.user_id}, is_used={self.is_used}, expires_at={self.expires_at})>"
+
+    @property
+    def is_expired(self) -> bool:
+        """Vérifie si le token a expiré"""
+        return datetime.now() > self.expires_at
+
+    @property
+    def can_be_used(self) -> bool:
+        """Vérifie si le token peut être utilisé"""
+        return self.is_valid and not self.is_used and not self.is_expired
+
+    __table_args__ = (
+        Index('idx_token_valid', 'token', 'is_valid', 'is_used'),
+        Index('idx_user_created', 'user_id', 'created_at'),
+    )

@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Mon Profil — PAP/CSE{% endblock %}
+
+{% block content %}
+
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="max-w-4xl mx-auto px-4">
+
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">
+        <i class="fas fa-user-circle text-cgt-red mr-3"></i>
+        Mon Profil
+      </h1>
+      <p class="text-gray-600">
+        Consultez et modifiez vos informations personnelles
+      </p>
+    </div>
+
+    <!-- Messages -->
+    {% if success %}
+    <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+      <div class="flex items-start">
+        <i class="fas fa-check-circle text-green-500 mt-0.5 mr-3"></i>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-green-800">{{ success }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <div class="flex items-start">
+        <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-red-800">{{ error }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Formulaire de profil -->
+    <form method="POST" action="/profile" class="space-y-6">
+
+      <!-- Informations personnelles -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+          <i class="fas fa-id-card text-cgt-red mr-2"></i>
+          Informations personnelles
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Prénom -->
+          <div>
+            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">
+              Prénom <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="first_name"
+              name="first_name"
+              required
+              value="{{ user.first_name }}"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Nom -->
+          <div>
+            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-2">
+              Nom <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="last_name"
+              name="last_name"
+              required
+              value="{{ user.last_name }}"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Email (non modifiable directement) -->
+          <div class="md:col-span-2">
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <div class="relative">
+              <input
+                type="email"
+                id="email"
+                value="{{ user.email }}"
+                disabled
+                class="block w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-600 cursor-not-allowed"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                <i class="fas fa-info-circle mr-1"></i>
+                Pour modifier votre email, contactez un administrateur
+              </p>
+            </div>
+          </div>
+
+          <!-- Téléphone -->
+          <div class="md:col-span-2">
+            <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
+              Téléphone
+            </label>
+            <input
+              type="tel"
+              id="phone"
+              name="phone"
+              value="{{ user.phone or '' }}"
+              placeholder="01 23 45 67 89"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Informations syndicales -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+          <i class="fas fa-building text-cgt-red mr-2"></i>
+          Informations syndicales
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Organisation -->
+          <div class="md:col-span-2">
+            <label for="organization" class="block text-sm font-medium text-gray-700 mb-2">
+              Organisation <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="organization"
+              name="organization"
+              required
+              value="{{ user.organization }}"
+              placeholder="Nom de votre organisation"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Fédération -->
+          <div>
+            <label for="fd" class="block text-sm font-medium text-gray-700 mb-2">
+              Fédération
+            </label>
+            <input
+              type="text"
+              id="fd"
+              name="fd"
+              value="{{ user.fd or '' }}"
+              placeholder="Ex: Fédération des services publics"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Union Départementale -->
+          <div>
+            <label for="ud" class="block text-sm font-medium text-gray-700 mb-2">
+              Union Départementale
+            </label>
+            <input
+              type="text"
+              id="ud"
+              name="ud"
+              value="{{ user.ud or '' }}"
+              placeholder="Ex: UD 75"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Région -->
+          <div>
+            <label for="region" class="block text-sm font-medium text-gray-700 mb-2">
+              Région
+            </label>
+            <input
+              type="text"
+              id="region"
+              name="region"
+              value="{{ user.region or '' }}"
+              placeholder="Ex: Île-de-France"
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Responsabilité -->
+          <div>
+            <label for="responsibility" class="block text-sm font-medium text-gray-700 mb-2">
+              Responsabilité
+            </label>
+            <input
+              type="text"
+              id="responsibility"
+              name="responsibility"
+              value="{{ user.responsibility or '' }}"
+              placeholder="Ex: Secrétaire, Trésorier, etc."
+              class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Informations du compte -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+          <i class="fas fa-shield-alt text-cgt-red mr-2"></i>
+          Informations du compte
+        </h2>
+
+        <div class="space-y-4">
+          <!-- Statut du compte -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-sm text-gray-600 mb-1">Statut du compte</p>
+              <p class="font-medium text-gray-800">
+                {% if user.is_approved %}
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    <i class="fas fa-check-circle mr-1"></i> Approuvé
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                    <i class="fas fa-clock mr-1"></i> En attente
+                  </span>
+                {% endif %}
+              </p>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-sm text-gray-600 mb-1">Rôle</p>
+              <p class="font-medium text-gray-800 capitalize">
+                {% if user.role == 'admin' %}
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                    <i class="fas fa-crown mr-1"></i> Administrateur
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                    <i class="fas fa-user mr-1"></i> Utilisateur
+                  </span>
+                {% endif %}
+              </p>
+            </div>
+          </div>
+
+          <!-- Dates -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-sm text-gray-600 mb-1">Membre depuis</p>
+              <p class="font-medium text-gray-800">
+                <i class="fas fa-calendar-plus mr-1 text-gray-500"></i>
+                {{ user.created_at.strftime("%d/%m/%Y") }}
+              </p>
+            </div>
+
+            {% if user.last_login %}
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-sm text-gray-600 mb-1">Dernière connexion</p>
+              <p class="font-medium text-gray-800">
+                <i class="fas fa-clock mr-1 text-gray-500"></i>
+                {{ user.last_login.strftime("%d/%m/%Y à %H:%M") }}
+              </p>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Changer mot de passe -->
+          <div class="pt-4 border-t border-gray-200">
+            <a
+              href="/forgot-password"
+              class="inline-flex items-center text-sm text-cgt-red hover:text-cgt-darkred font-medium"
+            >
+              <i class="fas fa-key mr-2"></i>
+              Changer mon mot de passe
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex items-center justify-between bg-white rounded-xl shadow-sm p-6">
+        <a
+          href="/"
+          class="inline-flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          <i class="fas fa-arrow-left mr-2"></i>
+          Retour au tableau de bord
+        </a>
+
+        <button
+          type="submit"
+          class="inline-flex items-center bg-cgt-red hover:bg-cgt-darkred text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
+        >
+          <i class="fas fa-save mr-2"></i>
+          Enregistrer les modifications
+        </button>
+      </div>
+
+    </form>
+
+    <!-- Notice RGPD -->
+    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div class="flex items-start">
+        <i class="fas fa-shield-alt text-blue-500 mt-0.5 mr-3"></i>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-blue-800 mb-2">
+            Protection de vos données personnelles (RGPD)
+          </p>
+          <p class="text-xs text-blue-700 leading-relaxed">
+            Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de suppression de vos données personnelles.
+            Pour exercer ces droits ou pour toute question concernant vos données, contactez un administrateur.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

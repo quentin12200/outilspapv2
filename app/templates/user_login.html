@@ -22,6 +22,28 @@
         </p>
       </div>
 
+      <!-- Message de succès (reset password) -->
+      <script>
+        // Afficher message de succès si paramètre reset=success dans l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reset') === 'success') {
+          const successDiv = document.createElement('div');
+          successDiv.className = 'mb-6 p-4 bg-green-50 border border-green-200 rounded-lg';
+          successDiv.innerHTML = `
+            <div class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-0.5 mr-3"></i>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-green-800">Mot de passe réinitialisé avec succès !</p>
+                <p class="text-xs text-green-700 mt-1">Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.</p>
+              </div>
+            </div>
+          `;
+          document.querySelector('.bg-white.rounded-2xl').insertBefore(successDiv, document.querySelector('form'));
+          // Nettoyer l'URL
+          window.history.replaceState({}, document.title, '/login');
+        }
+      </script>
+
       <!-- Message d'erreur -->
       {% if error %}
       <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -73,9 +95,14 @@
 
         <!-- Champ mot de passe -->
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
-            Mot de passe
-          </label>
+          <div class="flex items-center justify-between mb-2">
+            <label for="password" class="block text-sm font-medium text-gray-700">
+              Mot de passe
+            </label>
+            <a href="/forgot-password" class="text-xs text-cgt-red hover:text-cgt-darkred font-medium">
+              Mot de passe oublié ?
+            </a>
+          </div>
           <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <i class="fas fa-key text-gray-400"></i>

@@ -7,19 +7,20 @@ import urllib.request
 import logging
 import math
 import re
+import secrets
 import shutil
 import unicodedata
 import tempfile
 import calendar
 from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
-from typing import Any, Mapping, Iterator, Sequence
+from typing import Any, Mapping, Iterator, Sequence, Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
@@ -54,7 +55,7 @@ from .user_auth import (
     USER_SESSION_MAX_AGE,
     UserAuthException
 )
-from .models import User
+from .models import User, PasswordResetToken
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -619,6 +620,7 @@ from .routers import api_geo_stats  # noqa: E402
 from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
+from .routers import api_email  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -687,6 +689,7 @@ app.include_router(api_geo_stats.router)
 app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
+app.include_router(api_email.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -3007,6 +3010,7 @@ def signup_page(request: Request):
 @app.post("/signup", response_class=HTMLResponse)
 def signup_post(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -3113,6 +3117,67 @@ def signup_post(
 
         db.add(new_user)
         db.commit()
+        db.refresh(new_user)  # Rafraîchir pour obtenir l'ID
+
+        # Envoyer un email de notification aux administrateurs (en arrière-plan)
+        async def send_registration_emails():
+            """Fonction helper pour envoyer les emails en arrière-plan"""
+            try:
+                from .services.email_service import get_resend_service
+                import jinja2
+
+                # Récupérer tous les administrateurs
+                db_bg = SessionLocal()
+                try:
+                    admins = db_bg.query(User).filter(User.role == "admin", User.is_active == True).all()
+
+                    if admins:
+                        # Préparer le template
+                        template_env = jinja2.Environment(
+                            loader=jinja2.FileSystemLoader("app/email_templates")
+                        )
+                        email_template = template_env.get_template("user_registration_admin.html")
+
+                        email_service = get_resend_service()
+
+                        # Envoyer à chaque admin
+                        for admin in admins:
+                            if admin.email:
+                                html_content = email_template.render(
+                                    admin_name=admin.first_name or "Administrateur",
+                                    first_name=new_user.first_name,
+                                    last_name=new_user.last_name,
+                                    email=new_user.email,
+                                    phone=new_user.phone,
+                                    organization=new_user.organization,
+                                    fd=new_user.fd,
+                                    ud=new_user.ud,
+                                    region=new_user.region,
+                                    responsibility=new_user.responsibility,
+                                    registration_reason=new_user.registration_reason,
+                                    created_at=new_user.created_at.strftime("%d/%m/%Y à %H:%M"),
+                                    registration_ip=new_user.registration_ip,
+                                    admin_url=f"{str(request.base_url).rstrip('/')}/admin"
+                                )
+
+                                try:
+                                    await email_service.send_email(
+                                        to=admin.email,
+                                        subject=f"Nouvelle inscription : {new_user.first_name} {new_user.last_name}",
+                                        html=html_content
+                                    )
+                                except Exception as email_error:
+                                    logging.warning(f"Erreur lors de l'envoi d'email à l'admin {admin.email}: {email_error}")
+
+                        logging.info(f"Notification d'inscription envoyée à {len(admins)} administrateur(s)")
+                finally:
+                    db_bg.close()
+            except Exception as e:
+                # Ne pas bloquer l'inscription si l'envoi d'email échoue
+                logging.warning(f"Erreur lors de l'envoi de notification aux admins: {e}")
+
+        # Ajouter l'envoi d'emails en tâche de fond
+        background_tasks.add_task(send_registration_emails)
 
         # Afficher le message de succès
         return templates.TemplateResponse(
@@ -3209,6 +3274,224 @@ def user_login_post(
         )
 
 
+@app.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    """Page de demande de réinitialisation de mot de passe"""
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {
+            "request": request,
+            "error": None,
+            "success": False,
+            "email_value": ""
+        }
+    )
+
+
+@app.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    email: str = Form(...)
+):
+    """Traitement de la demande de réinitialisation de mot de passe"""
+    from .models import PasswordResetToken
+    from .services.email_service import get_resend_service
+    import jinja2
+
+    # Toujours afficher le même message pour éviter l'énumération d'emails
+    success_message = "Si cet email existe dans notre système, vous recevrez un lien de réinitialisation dans quelques minutes."
+
+    # Chercher l'utilisateur
+    user = db.query(User).filter(User.email == email).first()
+
+    if user and user.is_active:
+        # Générer un token sécurisé
+        token = secrets.token_urlsafe(32)
+
+        # Définir l'expiration (24 heures)
+        expiry_hours = 24
+        expires_at = datetime.now() + timedelta(hours=expiry_hours)
+
+        # Créer le token en base
+        reset_token = PasswordResetToken(
+            user_id=user.id,
+            token=token,
+            expires_at=expires_at,
+            ip_address=get_client_ip(request),
+            user_agent=request.headers.get("user-agent", "")[:500]
+        )
+
+        db.add(reset_token)
+        db.commit()
+
+        # Construire l'URL de réinitialisation
+        base_url = str(request.base_url).rstrip('/')
+        reset_url = f"{base_url}/reset-password/{token}"
+
+        # Envoyer l'email
+        try:
+            template_env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader("app/email_templates")
+            )
+            email_template = template_env.get_template("password_reset.html")
+
+            html_content = email_template.render(
+                first_name=user.first_name or user.email.split('@')[0],
+                email=user.email,
+                reset_url=reset_url,
+                expiry_hours=expiry_hours
+            )
+
+            email_service = get_resend_service()
+
+            await email_service.send_email(
+                to=user.email,
+                subject="Réinitialisation de votre mot de passe",
+                html=html_content
+            )
+
+            logging.info(f"Email de réinitialisation de mot de passe envoyé à {user.email}")
+
+        except Exception as e:
+            logging.error(f"Erreur lors de l'envoi de l'email de réinitialisation: {e}")
+            # Ne pas révéler l'erreur à l'utilisateur
+
+    # Toujours afficher le même message (sécurité)
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {
+            "request": request,
+            "error": None,
+            "success": True,
+            "success_message": success_message,
+            "email_value": ""
+        }
+    )
+
+
+@app.get("/reset-password/{token}", response_class=HTMLResponse)
+def reset_password_page(request: Request, token: str, db: Session = Depends(get_session)):
+    """Page de réinitialisation de mot de passe avec token"""
+    from .models import PasswordResetToken
+
+    # Vérifier le token
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token == token
+    ).first()
+
+    if not reset_token or not reset_token.can_be_used:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {
+                "request": request,
+                "error": "Ce lien de réinitialisation est invalide ou a expiré. Veuillez faire une nouvelle demande.",
+                "token_valid": False,
+                "token": None
+            },
+            status_code=400
+        )
+
+    return templates.TemplateResponse(
+        "reset_password.html",
+        {
+            "request": request,
+            "error": None,
+            "success": False,
+            "token_valid": True,
+            "token": token
+        }
+    )
+
+
+@app.post("/reset-password/{token}", response_class=HTMLResponse)
+def reset_password_post(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_session),
+    password: str = Form(...),
+    password_confirm: str = Form(...)
+):
+    """Traitement de la réinitialisation de mot de passe"""
+    from .models import PasswordResetToken
+
+    # Vérifier le token
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token == token
+    ).first()
+
+    if not reset_token or not reset_token.can_be_used:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {
+                "request": request,
+                "error": "Ce lien de réinitialisation est invalide ou a expiré. Veuillez faire une nouvelle demande.",
+                "token_valid": False,
+                "token": None
+            },
+            status_code=400
+        )
+
+    # Vérifier que les mots de passe correspondent
+    if password != password_confirm:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {
+                "request": request,
+                "error": "Les mots de passe ne correspondent pas",
+                "success": False,
+                "token_valid": True,
+                "token": token
+            },
+            status_code=400
+        )
+
+    # Valider la force du mot de passe
+    is_valid, error_message = validate_password_strength(password)
+    if not is_valid:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {
+                "request": request,
+                "error": error_message,
+                "success": False,
+                "token_valid": True,
+                "token": token
+            },
+            status_code=400
+        )
+
+    # Récupérer l'utilisateur
+    user = db.query(User).filter(User.id == reset_token.user_id).first()
+
+    if not user:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {
+                "request": request,
+                "error": "Utilisateur introuvable",
+                "success": False,
+                "token_valid": False,
+                "token": None
+            },
+            status_code=400
+        )
+
+    # Mettre à jour le mot de passe
+    user.hashed_password = hash_password(password)
+
+    # Marquer le token comme utilisé
+    reset_token.is_used = True
+    reset_token.used_at = datetime.now()
+
+    db.commit()
+
+    logging.info(f"Mot de passe réinitialisé pour l'utilisateur {user.email}")
+
+    # Rediriger vers la page de login avec message de succès
+    return RedirectResponse(url="/login?reset=success", status_code=303)
+
+
 @app.get("/logout")
 def user_logout(
     request: Request,
@@ -3233,6 +3516,102 @@ def user_logout(
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key=USER_SESSION_COOKIE_NAME)
     return response
+
+
+# =========================================================
+# Route profil utilisateur (protégée par authentification)
+# =========================================================
+
+@app.get("/profile", response_class=HTMLResponse)
+def user_profile_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Page de profil de l'utilisateur connecté"""
+    return templates.TemplateResponse(
+        "user_profile.html",
+        {
+            "request": request,
+            "user": current_user,
+            "success": None,
+            "error": None
+        }
+    )
+
+
+@app.post("/profile", response_class=HTMLResponse)
+def user_profile_post(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    phone: Optional[str] = Form(None),
+    organization: str = Form(...),
+    fd: Optional[str] = Form(None),
+    ud: Optional[str] = Form(None),
+    region: Optional[str] = Form(None),
+    responsibility: Optional[str] = Form(None)
+):
+    """Mise à jour du profil utilisateur"""
+    try:
+        # Validation des champs requis
+        if not first_name or not first_name.strip():
+            raise ValueError("Le prénom est requis")
+        if not last_name or not last_name.strip():
+            raise ValueError("Le nom est requis")
+        if not organization or not organization.strip():
+            raise ValueError("L'organisation est requise")
+
+        # Mise à jour des informations
+        current_user.first_name = first_name.strip()
+        current_user.last_name = last_name.strip()
+        current_user.phone = phone.strip() if phone else None
+        current_user.organization = organization.strip()
+        current_user.fd = fd.strip() if fd else None
+        current_user.ud = ud.strip() if ud else None
+        current_user.region = region.strip() if region else None
+        current_user.responsibility = responsibility.strip() if responsibility else None
+        current_user.updated_at = datetime.now()
+
+        db.commit()
+
+        logging.info(f"Profil mis à jour pour l'utilisateur {current_user.email}")
+
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": "Vos informations ont été mises à jour avec succès !",
+                "error": None
+            }
+        )
+
+    except ValueError as e:
+        db.rollback()
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": None,
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Erreur lors de la mise à jour du profil: {e}")
+        return templates.TemplateResponse(
+            "user_profile.html",
+            {
+                "request": request,
+                "user": current_user,
+                "success": None,
+                "error": "Une erreur est survenue lors de la mise à jour de vos informations"
+            }
+        )
 
 
 # =========================================================
@@ -3349,6 +3728,7 @@ def admin_page(
 @app.post("/admin/users/{user_id}/approve")
 def approve_user(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
     current_user = Depends(require_admin_user)
 ):
@@ -3366,6 +3746,45 @@ def approve_user(
     user.approved_at = datetime.now()
     user.approved_by = current_user.email  # current_user est maintenant un objet User
     db.commit()
+
+    # Envoyer un email de confirmation à l'utilisateur (en arrière-plan)
+    async def send_approval_email():
+        """Fonction helper pour envoyer l'email d'approbation en arrière-plan"""
+        try:
+            from .services.email_service import get_resend_service
+            import jinja2
+
+            # Préparer le template
+            template_env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader("app/email_templates")
+            )
+            email_template = template_env.get_template("user_approved.html")
+
+            email_service = get_resend_service()
+
+            html_content = email_template.render(
+                first_name=user.first_name or user.email.split('@')[0],
+                email=user.email,
+                login_url=f"{os.getenv('APP_URL', 'https://votre-app.railway.app')}/login",
+                approved_date=user.approved_at.strftime("%d/%m/%Y à %H:%M")
+            )
+
+            try:
+                await email_service.send_email(
+                    to=user.email,
+                    subject="Votre compte PAP/CSE a été approuvé !",
+                    html=html_content
+                )
+                logging.info(f"Email d'approbation envoyé à {user.email}")
+            except Exception as email_error:
+                logging.warning(f"Erreur lors de l'envoi d'email d'approbation à {user.email}: {email_error}")
+
+        except Exception as e:
+            # Ne pas bloquer l'approbation si l'envoi d'email échoue
+            logging.warning(f"Erreur lors de l'envoi de notification d'approbation: {e}")
+
+    # Ajouter l'envoi d'email en tâche de fond
+    background_tasks.add_task(send_approval_email)
 
     return {
         "success": True,
