@@ -196,6 +196,7 @@
           <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date invitation</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
+          <th class="px-4 py-3 text-center text-xs font-bold uppercase">Effectif</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">UD (Dép.)</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">IDCC</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD</th>
@@ -246,6 +247,14 @@
             <a href="/siret/{{ siret_link }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
           </td>
           <td class="px-4 py-3">{{ display_denomination or '—' }}</td>
+          <td class="px-4 py-3 text-center">
+            {# Afficher effectif_connu si renseigné #}
+            {% if invit.effectif_connu and invit.effectif_connu > 0 %}
+              <span class="px-2 py-1 bg-cgt-red text-white rounded text-xs font-semibold">{{ invit.effectif_connu }}</span>
+            {% else %}
+              <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
           <td class="px-4 py-3 text-center">
             {# Afficher UD si renseigné, sinon le département calculé depuis le CP #}
             {% if invit.ud | clean_nan %}
