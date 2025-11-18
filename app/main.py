@@ -2356,6 +2356,19 @@ def invitations(
         if siret_norm and row[1]:
             pv_c5_dates[siret_norm] = row[1]
 
+    # Dictionnaire SIRET -> effectif (depuis les PV)
+    # Priorité : effectif_siret > inscrits
+    effectifs_pv = {}
+    for row in db.query(PVEvent.siret, PVEvent.effectif_siret, PVEvent.inscrits).all():
+        siret_norm = normalize_siret(row[0])
+        if siret_norm:
+            # Utiliser effectif_siret en priorité, sinon inscrits
+            effectif = row[1] if row[1] and row[1] > 0 else (row[2] if row[2] and row[2] > 0 else None)
+            if effectif:
+                # Garder le plus grand effectif si plusieurs PV pour le même SIRET
+                if siret_norm not in effectifs_pv or effectif > effectifs_pv[siret_norm]:
+                    effectifs_pv[siret_norm] = int(effectif)
+
     # DEBUG: Effectifs côté invitations PAP
     pap_sirets = {
         normalized
@@ -2558,6 +2571,14 @@ def invitations(
             "taille",
         )
 
+        # Enrichissement de l'effectif
+        # Priorité : effectif_connu > effectif depuis PV
+        inv.display_effectif = None
+        if inv.effectif_connu and inv.effectif_connu > 0:
+            inv.display_effectif = inv.effectif_connu
+        elif normalized_siret and normalized_siret in effectifs_pv:
+            inv.display_effectif = effectifs_pv[normalized_siret]
+
         # Calcul du statut basé sur l'existence d'un PV C5, PV précédent et date présumée
         inv.statut = "en_attente"
         inv.statut_badge = "yellow"
@@ -2647,8 +2668,8 @@ def invitations(
     # Pagination
     total_invitations = len(invitations)
 
-    # Calculer le nombre de salariés connus (invitations avec effectif_connu renseigné)
-    employees_count = sum(1 for inv in invitations if inv.effectif_connu and inv.effectif_connu > 0)
+    # Calculer le nombre de salariés connus (invitations avec effectif disponible)
+    employees_count = sum(1 for inv in invitations if hasattr(inv, 'display_effectif') and inv.display_effectif and inv.display_effectif > 0)
 
     # Valider et limiter per_page
     per_page = max(10, min(per_page, 500))  # Entre 10 et 500 lignes
