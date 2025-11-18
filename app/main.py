@@ -2647,6 +2647,9 @@ def invitations(
     # Pagination
     total_invitations = len(invitations)
 
+    # Calculer le nombre de salariés connus (invitations avec effectif_connu renseigné)
+    employees_count = sum(1 for inv in invitations if inv.effectif_connu and inv.effectif_connu > 0)
+
     # Valider et limiter per_page
     per_page = max(10, min(per_page, 500))  # Entre 10 et 500 lignes
     page = max(1, page)  # Au moins page 1
@@ -2681,6 +2684,7 @@ def invitations(
             "all_fds": all_fds,
             "all_depts": all_depts,
             "total_invitations": total_invitations,
+            "employees_count": employees_count,
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,

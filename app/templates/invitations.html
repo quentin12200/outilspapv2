@@ -13,9 +13,15 @@
         Retrouvez ci-dessous l'ensemble des invitations au PAP Cycle 5 importées dans l'outil. Utilisez les filtres pour affiner la liste ou cliquer sur les en-têtes du tableau pour réordonner les colonnes.
       </p>
     </div>
-    <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
-      <p class="text-sm text-gray-500 uppercase font-semibold">Invitations recensées</p>
-      <p class="text-3xl font-bold text-gray-800">{{ total_invitations }}</p>
+    <div class="flex flex-wrap gap-4">
+      <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+        <p class="text-sm text-gray-500 uppercase font-semibold">Invitations recensées</p>
+        <p class="text-3xl font-bold text-gray-800">{{ total_invitations }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+        <p class="text-sm text-gray-500 uppercase font-semibold">Salariés connus</p>
+        <p class="text-3xl font-bold text-cgt-red">{{ employees_count }}</p>
+      </div>
     </div>
   </div>
 
