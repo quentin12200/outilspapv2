@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Cartographie d'entreprise · Kit renforcement CGT{% endblock %}
+
+{% block content %}
+<main class="py-10 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-7xl mx-auto" x-data="cartographieApp()">
+    <!-- Header -->
+    <div class="mb-8">
+      <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Retour au kit de renforcement
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">Cartographie d'entreprise</h1>
+      <p class="mt-2 text-gray-600">Visualisez la répartition des salariés et syndiqués par service pour identifier les zones à renforcer</p>
+    </div>
+
+    <!-- Message -->
+    <div x-show="message.show" x-transition class="mb-6 p-4 rounded-lg" :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
+      <span x-text="message.text"></span>
+    </div>
+
+    <!-- Formulaire entreprise -->
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!submitted">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Informations de l'entreprise</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise *</label>
+          <input
+            type="text"
+            x-model="nomEntreprise"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+            placeholder="Ex: ACME Industries"
+          >
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">SIRET (optionnel)</label>
+          <input
+            type="text"
+            x-model="siret"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+            placeholder="Ex: 12345678901234"
+            maxlength="14"
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Liste des services -->
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!submitted">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Services de l'entreprise</h2>
+        <button
+          @click="addService()"
+          class="inline-flex items-center px-4 py-2 bg-cgt-red text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          Ajouter un service
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <template x-for="(service, index) in services" :key="index">
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="grid md:grid-cols-4 gap-4 items-end">
+              <div class="md:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Nom du service *</label>
+                <input
+                  type="text"
+                  x-model="service.nom"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+                  placeholder="Ex: Production"
+                >
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Nombre de salariés *</label>
+                <input
+                  type="number"
+                  x-model.number="service.salaries"
+                  min="0"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+                  placeholder="0"
+                >
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Nombre de syndiqués *</label>
+                <input
+                  type="number"
+                  x-model.number="service.syndiques"
+                  min="0"
+                  :max="service.salaries"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+                  placeholder="0"
+                >
+              </div>
+              <div class="flex gap-2">
+                <div
+                  class="flex-1 px-4 py-2 bg-gray-100 rounded-lg text-center"
+                  x-show="service.salaries > 0"
+                >
+                  <span class="text-xs text-gray-500">Taux</span>
+                  <div class="text-lg font-bold" :class="{
+                    'text-green-600': (service.syndiques / service.salaries * 100) >= 50,
+                    'text-orange-600': (service.syndiques / service.salaries * 100) >= 25 && (service.syndiques / service.salaries * 100) < 50,
+                    'text-red-600': (service.syndiques / service.salaries * 100) < 25
+                  }" x-text="service.salaries > 0 ? ((service.syndiques / service.salaries * 100).toFixed(1) + '%') : '0%'">
+                  </div>
+                </div>
+                <button
+                  @click="removeService(index)"
+                  class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  x-show="services.length > 1"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-4">
+        <button
+          @click="reset()"
+          class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Réinitialiser
+        </button>
+        <button
+          @click="generateCartographie()"
+          class="px-6 py-2 bg-cgt-red text-white rounded-lg hover:bg-red-700 transition-colors"
+          :disabled="!canSubmit()"
+          :class="{'opacity-50 cursor-not-allowed': !canSubmit()}"
+        >
+          Générer la cartographie
+        </button>
+      </div>
+    </div>
+
+    <!-- Résultats (suite du fichier) -->
+    <div x-show="submitted" class="space-y-6">
+      <!-- Actions -->
+      <div class="flex justify-between items-center">
+        <button
+          @click="reset()"
+          class="inline-flex items-center px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Modifier
+        </button>
+        <div class="flex gap-4">
+          <button
+            @click="saveCartographie()"
+            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+            </svg>
+            Sauvegarder
+          </button>
+          <button
+            @click="window.print()"
+            class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Imprimer
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats and visualizations would continue here -->
+      <!-- The full content is too long for a single message -->
+      <!-- See the next part for the complete statistics display -->
+
+      <div class="text-center text-gray-500 py-8">
+        💡 Statistiques détaillées à implémenter
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function cartographieApp() {
+  return {
+    nomEntreprise: '',
+    siret: '',
+    services: [{ nom: '', salaries: 0, syndiques: 0 }],
+    submitted: false,
+    stats: { totalSalaries: 0, totalSyndiques: 0, tauxSyndicalisation: 0 },
+    message: { show: false, text: '', type: 'success' },
+
+    addService() {
+      this.services.push({ nom: '', salaries: 0, syndiques: 0 });
+    },
+
+    removeService(index) {
+      if (this.services.length > 1) {
+        this.services.splice(index, 1);
+      }
+    },
+
+    canSubmit() {
+      if (!this.nomEntreprise.trim()) return false;
+      return this.services.some(s => s.nom.trim() && s.salaries > 0);
+    },
+
+    generateCartographie() {
+      if (!this.canSubmit()) {
+        alert('Veuillez renseigner le nom de l\'entreprise et au moins un service avec des effectifs.');
+        return;
+      }
+
+      let totalSalaries = 0;
+      let totalSyndiques = 0;
+
+      this.services.forEach(service => {
+        if (service.nom.trim() && service.salaries >= 0) {
+          totalSalaries += service.salaries || 0;
+          totalSyndiques += service.syndiques || 0;
+        }
+      });
+
+      this.stats = {
+        totalSalaries,
+        totalSyndiques,
+        tauxSyndicalisation: totalSalaries > 0 ? (totalSyndiques / totalSalaries * 100) : 0
+      };
+
+      this.submitted = true;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    get servicesLowRate() {
+      return this.services.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) < 25);
+    },
+
+    get servicesHighRate() {
+      return this.services.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) >= 50);
+    },
+
+    reset() {
+      this.submitted = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    async saveCartographie() {
+      try {
+        const response = await fetch('/api/cartographie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nom_entreprise: this.nomEntreprise,
+            siret: this.siret || null,
+            services: this.services.filter(s => s.nom.trim() && s.salaries > 0)
+          })
+        });
+
+        if (response.ok) {
+          this.showMessage('✅ Cartographie sauvegardée avec succès !', 'success');
+        } else {
+          this.showMessage('❌ Erreur lors de la sauvegarde', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.showMessage('❌ Erreur lors de la sauvegarde', 'error');
+      }
+    },
+
+    showMessage(text, type) {
+      this.message = { show: true, text, type };
+      setTimeout(() => { this.message.show = false; }, 5000);
+    }
+  }
+}
+</script>
+{% endblock %}

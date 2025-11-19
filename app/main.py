@@ -29,7 +29,15 @@ from io import BytesIO
 from .db import get_session, Base, engine, SessionLocal
 from datetime import date, datetime, timedelta
 
-from .models import Invitation, SiretSummary, PVEvent
+from .models import (
+    Invitation,
+    SiretSummary,
+    PVEvent,
+    Cartographie,
+    ServiceCartographie,
+    Retroplanning,
+    PhaseRetroplanning
+)
 from .services.calcul_elus_cse import (
     calculer_nombre_elus_cse,
     repartir_sieges_quotient_puis_plus_forte_moyenne,
@@ -1097,7 +1105,111 @@ def guide_exploitation(request: Request):
     )
 
 
-_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+# =========================================================
+# Routes pour la Cartographie d'Entreprise
+# =========================================================
+
+@app.get("/cartographie-entreprise", response_class=HTMLResponse)
+def cartographie_entreprise(request: Request, user: User | None = Depends(get_current_user_or_none)):
+    """Outil de cartographie d'entreprise par services"""
+    return templates.TemplateResponse(
+        "cartographie_entreprise.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@app.post("/api/cartographie")
+def create_cartographie(
+    request: Request,
+    nom_entreprise: str = Form(...),
+    siret: str | None = Form(None),
+    services: str = Form(...),  # JSON string
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Créer une nouvelle cartographie d'entreprise"""
+    import json
+
+    try:
+        # Parser les services
+        services_data = json.loads(services)
+
+        # Calculer les totaux
+        total_salaries = sum(s.get('salaries', 0) for s in services_data)
+        total_syndiques = sum(s.get('syndiques', 0) for s in services_data)
+        taux = (total_syndiques / total_salaries * 100) if total_salaries > 0 else 0
+
+        # Créer la cartographie
+        carto = Cartographie(
+            siret=siret if siret and siret.strip() else None,
+            nom_entreprise=nom_entreprise,
+            created_by=user.id if user else None,
+            total_salaries=total_salaries,
+            total_syndiques=total_syndiques,
+            taux_syndicalisation=taux,
+        )
+        db.add(carto)
+        db.flush()  # Pour obtenir l'ID
+
+        # Créer les services
+        for idx, service_data in enumerate(services_data):
+            salaries = service_data.get('salaries', 0)
+            syndiques = service_data.get('syndiques', 0)
+            service_taux = (syndiques / salaries * 100) if salaries > 0 else 0
+
+            service = ServiceCartographie(
+                cartographie_id=carto.id,
+                nom_service=service_data.get('nom', ''),
+                nombre_salaries=salaries,
+                nombre_syndiques=syndiques,
+                taux_syndicalisation=service_taux,
+                ordre=idx,
+            )
+            db.add(service)
+
+        db.commit()
+
+        return {"success": True, "id": carto.id}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de la création de la cartographie: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cartographies")
+def list_cartographies(
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Lister les cartographies de l'utilisateur"""
+    query = db.query(Cartographie).filter(Cartographie.is_archived == False)
+
+    if user:
+        query = query.filter(Cartographie.created_by == user.id)
+
+    cartographies = query.order_by(Cartographie.created_at.desc()).limit(50).all()
+
+    return {
+        "cartographies": [
+            {
+                "id": c.id,
+                "nom_entreprise": c.nom_entreprise,
+                "siret": c.siret,
+                "total_salaries": c.total_salaries,
+                "total_syndiques": c.total_syndiques,
+                "taux_syndicalisation": c.taux_syndicalisation,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in cartographies
+        ]
+    }
+
+
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n'a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu'il s'active.</p></div></body></html>"""
 
 
 @app.get("/kit-renforcement/document", name="kit_pdf_document")
