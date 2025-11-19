@@ -79,14 +79,14 @@ _DEFAULT_KIT_PDF_ONEDRIVE = (
     "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
 )
 
-# Utiliser OneDrive en priorité car GitHub renvoie 403 (repository privé)
-KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_ONEDRIVE).strip()
+# Restaurer GitHub comme source principale (fonctionnait avant)
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_GITHUB).strip()
 KIT_PDF_FILENAME = os.getenv(
     "KIT_PDF_FILENAME",
     "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
 ).strip()
 KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
-KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_GITHUB).strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_ONEDRIVE).strip()
 KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
 KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
 
@@ -296,7 +296,9 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
         tmp_path: str | None = None
         try:
             logger.info("Téléchargement du kit de renforcement via %s", candidate)
-            tmp_path = _download_to_temp(candidate, timeout=KIT_PDF_TIMEOUT)
+            # Utiliser le token GitHub si l'URL est sur github.com
+            token = DB_GH_TOKEN if "github.com" in candidate else None
+            tmp_path = _download_to_temp(candidate, token=token, timeout=KIT_PDF_TIMEOUT)
             with open(tmp_path, "rb") as handle:
                 header = handle.read(5)
                 if not header.startswith(b"%PDF-"):
