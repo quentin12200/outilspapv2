@@ -42,16 +42,11 @@ PUBLIC_ROUTES = {
     "/reset-password",
     "/static",
     "/mentions-legales",
-    "/guide-exploitation",
     "/cartographie-entreprise",
     "/retroplanning",
-    "/kit-renforcement",
-    "/kit-renforcement/document",
 }
 
-PUBLIC_ROUTE_PREFIXES = (
-    "/kit-renforcement/doc/",
-)
+PUBLIC_ROUTE_PREFIXES: tuple[str, ...] = ()
 
 
 def hash_password(password: str) -> str:
