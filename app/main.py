@@ -258,10 +258,6 @@ def _kit_candidate_is_valid(path: str | None) -> bool:
     except OSError:
         return False
 
-    basename = os.path.basename(path)
-    if KIT_PDF_FILENAME and basename == KIT_PDF_FILENAME:
-        return size > 0
-
     if size < KIT_PDF_MIN_SIZE_BYTES:
         logger.debug(
             "Fichier PDF ignoré (%s): taille %s < seuil %s",
@@ -272,6 +268,15 @@ def _kit_candidate_is_valid(path: str | None) -> bool:
         return False
 
     return True
+
+
+def _is_valid_kit_size(path: str | None) -> bool:
+    if not path:
+        return False
+    try:
+        return os.path.getsize(path) >= KIT_PDF_MIN_SIZE_BYTES
+    except OSError:
+        return False
 
 
 def _find_local_kit_pdf() -> str | None:
@@ -293,7 +298,7 @@ def _kit_pdf_cache_ready() -> bool:
     if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
         return False
     try:
-        return os.path.exists(KIT_PDF_CACHE_PATH) and os.path.getsize(KIT_PDF_CACHE_PATH) > 0
+        return _is_valid_kit_size(KIT_PDF_CACHE_PATH)
     except OSError:
         return False
 
@@ -304,7 +309,12 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
         return local_path
 
     if _kit_pdf_cache_ready() and not force_refresh:
-        return KIT_PDF_CACHE_PATH
+        if _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+            return KIT_PDF_CACHE_PATH
+        try:
+            os.remove(KIT_PDF_CACHE_PATH)
+        except OSError:
+            pass
 
     local_source = _find_local_kit_pdf()
     if local_source:
@@ -318,7 +328,17 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
             )
         else:
             logger.info("Kit renforcement déjà présent dans %s", KIT_PDF_CACHE_PATH)
-        return KIT_PDF_CACHE_PATH
+        if _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+            return KIT_PDF_CACHE_PATH
+        logger.warning(
+            "Le PDF local %s est trop léger (< %s Mo), suppression et téléchargement depuis la release",
+            KIT_PDF_CACHE_PATH,
+            KIT_PDF_MIN_SIZE_MB,
+        )
+        try:
+            os.remove(KIT_PDF_CACHE_PATH)
+        except OSError:
+            pass
 
     if not KIT_PDF_URL_CANDIDATES:
         return KIT_PDF_CACHE_PATH if _kit_pdf_cache_ready() else None
@@ -339,6 +359,10 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
                     raise ValueError("La ressource récupérée n'est pas un PDF valide")
             os.replace(tmp_path, KIT_PDF_CACHE_PATH)
             tmp_path = None
+            if not _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+                raise ValueError(
+                    f"Document téléchargé trop léger (< {KIT_PDF_MIN_SIZE_MB} Mo)"
+                )
             logger.info("Kit renforcement mis en cache (%s)", KIT_PDF_CACHE_PATH)
             return KIT_PDF_CACHE_PATH
         except Exception as exc:  # pragma: no cover - dépend du réseau
@@ -1267,6 +1291,84 @@ def list_cartographies(
     }
 
 
+@app.get("/api/cartographie/fd-inscrits")
+def cartographie_fd_inscrits(db: Session = Depends(get_session)):
+    """Répartition nationale des inscrit·es par fédération (FD)."""
+
+    fd_rows = (
+        db.query(
+            func.coalesce(SiretSummary.fd_c4, SiretSummary.fd_c3, "").label("fd"),
+            func.coalesce(SiretSummary.dep, "").label("dep"),
+            func.sum(
+                func.coalesce(
+                    SiretSummary.inscrits_c4,
+                    SiretSummary.inscrits_c3,
+                    SiretSummary.effectif_siret,
+                    0,
+                )
+            ).label("total_inscrits"),
+            func.count(SiretSummary.siret).label("sirets"),
+        )
+        .group_by("fd", "dep")
+        .all()
+    )
+
+    payload: dict[str, dict[str, Any]] = {}
+
+    for row in fd_rows:
+        fd_label = (row.fd or "").strip()
+        if not fd_label:
+            fd_label = "FD non renseignée"
+
+        total_inscrits = int(row.total_inscrits or 0)
+        if total_inscrits <= 0:
+            continue
+
+        dep_code = (row.dep or "00").strip() or "00"
+        if dep_code.isdigit() and len(dep_code) == 1:
+            dep_code = dep_code.zfill(2)
+
+        entry = payload.setdefault(
+            fd_label,
+            {
+                "fd": fd_label,
+                "total_inscrits": 0,
+                "sirets": 0,
+                "departements": [],
+            },
+        )
+        entry["total_inscrits"] += total_inscrits
+        entry["sirets"] += int(row.sirets or 0)
+        entry["departements"].append(
+            {
+                "dep": dep_code,
+                "total_inscrits": total_inscrits,
+                "sirets": int(row.sirets or 0),
+            }
+        )
+
+    fd_stats = list(payload.values())
+    fd_stats.sort(key=lambda item: item["total_inscrits"], reverse=True)
+
+    for entry in fd_stats:
+        entry["departements"].sort(
+            key=lambda item: (-item["total_inscrits"], item["dep"])
+        )
+
+    total_inscrits = sum(entry["total_inscrits"] for entry in fd_stats)
+    total_sirets = sum(entry["sirets"] for entry in fd_stats)
+
+    return {
+        "fd_stats": fd_stats,
+        "totals": {
+            "total_inscrits": total_inscrits,
+            "total_sirets": total_sirets,
+            "fd_count": len(fd_stats),
+        },
+        "last_generated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
 # =========================================================
 # Routes pour le Rétro-planning
 # =========================================================
@@ -1452,6 +1554,11 @@ def kit_pdf_document(download: bool = False):
     response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
     response.headers["Cache-Control"] = "public, max-age=86400"
     if content_length is not None:
+        if content_length < KIT_PDF_MIN_SIZE_BYTES:
+            raise HTTPException(
+                status_code=502,
+                detail="Document distant trop léger pour la diffusion",
+            )
         response.headers["Content-Length"] = str(content_length)
 
     return response

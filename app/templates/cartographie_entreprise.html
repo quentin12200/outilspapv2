@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Cartographie d'entreprise · Kit renforcement CGT{% endblock %}
 
+{% block head %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <main class="py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-7xl mx-auto" x-data="cartographieApp()">
+  <div class="max-w-7xl mx-auto" x-data="cartographieApp()" x-init="init()">
     <!-- Header -->
     <div class="mb-8">
       <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
@@ -15,6 +20,109 @@
       <h1 class="text-3xl font-bold text-gray-900">Cartographie d'entreprise</h1>
       <p class="mt-2 text-gray-600">Visualisez la répartition des salariés et syndiqués par service pour identifier les zones à renforcer</p>
     </div>
+
+    <!-- Vue nationale par FD -->
+    <section class="mb-8">
+      <div class="grid gap-6 lg:grid-cols-3">
+        <div class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 lg:col-span-2">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="text-sm font-semibold uppercase tracking-widest text-cgt-red">Carte de France</p>
+              <h2 class="text-2xl font-bold text-gray-900">Inscrit·es PAP/CSE par fédération</h2>
+              <p class="text-sm text-gray-600">Choisissez une FD pour visualiser son poids national et ses principaux départements.</p>
+            </div>
+            <div class="w-full max-w-sm">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Fédération (FD)</label>
+              <div class="relative">
+                <select
+                  x-model="selectedFd"
+                  class="w-full appearance-none rounded-2xl border border-gray-300 bg-white/80 px-4 py-2.5 pr-10 text-sm font-medium focus:border-cgt-red focus:outline-none focus:ring-2 focus:ring-cgt-red/30"
+                  :disabled="fdStatsLoading || !fdStats.length"
+                >
+                  <option value="" disabled selected x-show="fdStatsLoading">Chargement…</option>
+                  <template x-for="fd in fdStats" :key="fd.fd">
+                    <option :value="fd.fd" x-text="`${fd.fd} · ${formatNombre(fd.total_inscrits)} inscrits`"></option>
+                  </template>
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div class="rounded-2xl border border-gray-100 p-4">
+              <p class="text-xs font-semibold uppercase tracking-widest text-gray-500">Inscrit·es nationaux</p>
+              <p class="mt-1 text-2xl font-bold text-gray-900" x-text="formatNombre(fdNationalTotals.totalInscrits)"></p>
+              <p class="text-xs text-gray-500">Somme de toutes les FD</p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 p-4">
+              <p class="text-xs font-semibold uppercase tracking-widest text-gray-500">FD sélectionnée</p>
+              <p class="mt-1 text-2xl font-bold text-cgt-red" x-text="selectedFdStats ? formatNombre(selectedFdStats.total_inscrits) : '–'"></p>
+              <p class="text-xs text-gray-500" x-text="selectedFdStats ? `${((selectedFdStats.total_inscrits / Math.max(fdNationalTotals.totalInscrits, 1)) * 100).toFixed(1)}% du national` : 'Sélectionnez une FD'"></p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 p-4">
+              <p class="text-xs font-semibold uppercase tracking-widest text-gray-500">Entreprises suivies</p>
+              <p class="mt-1 text-2xl font-bold text-gray-900" x-text="selectedFdStats ? formatNombre(selectedFdStats.sirets) : formatNombre(fdNationalTotals.totalSirets)"></p>
+              <p class="text-xs text-gray-500" x-text="selectedFdStats ? 'SIRET liés à la FD' : 'Total national' "></p>
+            </div>
+          </div>
+
+          <div class="relative mt-6 rounded-3xl bg-gradient-to-br from-rose-50 to-red-100 p-4">
+            <div id="fd-map" class="h-80 w-full overflow-hidden rounded-2xl bg-white shadow-inner">
+              <svg id="fd-map-svg" class="h-full w-full"></svg>
+            </div>
+            <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center text-white">
+              <p class="text-xs font-semibold tracking-widest uppercase text-white/80">Couverture nationale</p>
+              <p class="text-3xl font-bold" x-text="selectedFd || 'FD CGT'"></p>
+              <p class="text-sm text-white/70" x-text="selectedFdStats ? `${formatNombre(selectedFdStats.total_inscrits)} inscrit·es` : 'Sélectionnez une fédération'"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 flex flex-col gap-4">
+          <div>
+            <p class="text-sm font-semibold uppercase tracking-widest text-cgt-red">Départements moteurs</p>
+            <h3 class="text-xl font-bold text-gray-900">Top territoires de la FD</h3>
+            <p class="text-sm text-gray-600">Classement par inscrits dans les élections PAP/CSE.</p>
+          </div>
+          <div class="flex flex-col gap-2 text-sm text-gray-600">
+            <p><span class="font-semibold">FD suivies :</span> <span x-text="fdNationalTotals.fdCount"></span></p>
+            <p><span class="font-semibold">Dernière mise à jour :</span> <span x-text="fdLastUpdated || '–'"></span></p>
+          </div>
+          <div class="flex-1">
+            <template x-if="fdStatsLoading">
+              <div class="flex h-full items-center justify-center text-sm text-gray-500">Chargement des territoires…</div>
+            </template>
+            <template x-if="!fdStatsLoading">
+              <div class="space-y-4">
+                <template x-if="!topDepartements.length">
+                  <p class="text-sm text-gray-500">Aucune donnée disponible pour cette fédération.</p>
+                </template>
+                <template x-for="dept in topDepartements" :key="dept.dep">
+                  <div>
+                    <div class="flex items-center justify-between text-sm">
+                      <div>
+                        <p class="font-semibold text-gray-900" x-text="departementName(dept.dep)"></p>
+                        <p class="text-xs text-gray-500" x-text="`Dépt. ${dept.dep}`"></p>
+                      </div>
+                      <div class="text-right">
+                        <p class="font-semibold text-cgt-red" x-text="formatNombre(dept.total_inscrits)"></p>
+                        <p class="text-xs text-gray-500" x-text="dept.sirets ? `${formatNombre(dept.sirets)} entreprises` : ''"></p>
+                      </div>
+                    </div>
+                    <div class="mt-2 h-2 w-full rounded-full bg-gray-100">
+                      <div class="h-2 rounded-full bg-gradient-to-r from-cgt-red to-rose-500" :style="`width: ${departmentProgress(dept.total_inscrits)}%`"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Message -->
     <div x-show="message.show" x-transition class="mb-6 p-4 rounded-lg" :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
@@ -361,6 +469,15 @@
 <script>
 function cartographieApp() {
   return {
+    fdStats: [],
+    fdStatsLoading: true,
+    fdNationalTotals: { totalInscrits: 0, totalSirets: 0, fdCount: 0 },
+    fdLastUpdated: null,
+    selectedFd: '',
+    fdGeoJson: null,
+    departementsMeta: {},
+    mapPaths: null,
+    mapInitialized: false,
     nomEntreprise: '',
     siret: '',
     services: [{ nom: '', salaries: 0, syndiques: 0 }],
@@ -368,6 +485,12 @@ function cartographieApp() {
     submitted: false,
     stats: { totalSalaries: 0, totalSyndiques: 0, tauxSyndicalisation: 0 },
     message: { show: false, text: '', type: 'success' },
+
+    init() {
+      this.loadFdStats();
+      this.loadGeoJSON();
+      this.$watch('selectedFd', () => this.updateMapColor());
+    },
 
     addService() {
       this.services.push({ nom: '', salaries: 0, syndiques: 0 });
@@ -445,6 +568,132 @@ function cartographieApp() {
     reset() {
       this.submitted = false;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    async loadFdStats() {
+      this.fdStatsLoading = true;
+      try {
+        const response = await fetch('/api/cartographie/fd-inscrits');
+        if (!response.ok) throw new Error('Réponse réseau invalide');
+        const data = await response.json();
+        this.fdStats = data.fd_stats || [];
+        this.fdNationalTotals = {
+          totalInscrits: data.totals?.total_inscrits || 0,
+          totalSirets: data.totals?.total_sirets || 0,
+          fdCount: data.totals?.fd_count || 0,
+        };
+        this.fdLastUpdated = data.last_generated_at
+          ? new Date(data.last_generated_at).toLocaleString('fr-FR')
+          : null;
+        if (!this.selectedFd && this.fdStats.length) {
+          this.selectedFd = this.fdStats[0].fd;
+        }
+      } catch (error) {
+        console.error('Erreur chargement FD:', error);
+      } finally {
+        this.fdStatsLoading = false;
+        this.maybeInitMap();
+      }
+    },
+
+    async loadGeoJSON() {
+      try {
+        const response = await fetch('/static/geo/departements.geojson');
+        if (!response.ok) throw new Error('Impossible de charger le GeoJSON');
+        this.fdGeoJson = await response.json();
+        if (this.fdGeoJson?.features) {
+          this.fdGeoJson.features.forEach(feature => {
+            if (feature?.properties?.code) {
+              this.departementsMeta[feature.properties.code] = feature.properties.nom;
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Erreur GeoJSON:', error);
+      } finally {
+        this.maybeInitMap();
+      }
+    },
+
+    maybeInitMap() {
+      if (this.mapInitialized) {
+        this.updateMapColor();
+        return;
+      }
+      if (!this.fdGeoJson || !this.fdStats.length) return;
+      this.$nextTick(() => this.drawNationalMap());
+    },
+
+    drawNationalMap() {
+      if (typeof d3 === 'undefined') {
+        console.warn('D3.js est requis pour dessiner la carte');
+        return;
+      }
+      const container = document.querySelector('#fd-map');
+      if (!container || !this.fdGeoJson) return;
+      const width = container.clientWidth || 700;
+      const height = 360;
+
+      const svg = d3.select('#fd-map-svg');
+      svg.attr('width', width).attr('height', height);
+      svg.selectAll('*').remove();
+
+      const projection = d3.geoConicConformal()
+        .center([2.454071, 46.279229])
+        .scale(width * 4.1)
+        .translate([width / 2, height / 2]);
+
+      const path = d3.geoPath().projection(projection);
+
+      this.mapPaths = svg.selectAll('path')
+        .data(this.fdGeoJson.features)
+        .enter()
+        .append('path')
+        .attr('d', path)
+        .attr('fill', '#fee2e2')
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 0.5)
+        .attr('class', 'transition-colors duration-300');
+
+      this.mapInitialized = true;
+      this.updateMapColor();
+    },
+
+    updateMapColor() {
+      if (!this.mapInitialized || !this.mapPaths || typeof d3 === 'undefined') return;
+      const stats = this.selectedFdStats;
+      if (!stats) {
+        this.mapPaths.attr('fill', '#fee2e2');
+        return;
+      }
+
+      const valuesByDep = {};
+      (stats.departements || []).forEach(dep => {
+        valuesByDep[dep.dep] = dep.total_inscrits;
+      });
+
+      const maxValue = stats.departements && stats.departements.length
+        ? stats.departements[0].total_inscrits
+        : stats.total_inscrits;
+
+      const colorScale = d3.scaleSqrt()
+        .domain([0, Math.max(maxValue || 1, 1)])
+        .range(['#ffe4e6', '#be123c']);
+
+      this.mapPaths.attr('fill', feature => {
+        const code = feature?.properties?.code;
+        return colorScale(valuesByDep[code] || 0);
+      });
+    },
+
+    get selectedFdStats() {
+      if (!this.selectedFd) return null;
+      return this.fdStats.find(fd => fd.fd === this.selectedFd) || null;
+    },
+
+    get topDepartements() {
+      if (!this.selectedFdStats || !this.selectedFdStats.departements) return [];
+      return this.selectedFdStats.departements.slice(0, 5);
     },
 
     async saveCartographie() {
@@ -583,12 +832,24 @@ function cartographieApp() {
       if (manque > 0) {
         actions.push(`Objectif chiffré : +${manque} adhérent·es pour franchir le cap des 50%.`);
       } else {
-        actions.push('Maintenir le cap : documenter les bonnes pratiques et préparer l\'extension à d\'autres sites.');
+        actions.push('Maintenir le cap : documenter les bonnes pratiques et préparer l\'extension à d'autres sites.');
       }
 
       return actions;
+    },
+
+    departementName(code) {
+      if (!code) return 'Département non renseigné';
+      return this.departementsMeta[code] || `Département ${code}`;
+    },
+
+    departmentProgress(value) {
+      if (!this.selectedFdStats || !this.selectedFdStats.departements?.length) return 0;
+      const maxValue = this.selectedFdStats.departements[0].total_inscrits || 1;
+      return Math.min(100, Math.round((value / maxValue) * 100));
     }
-  }
+  };
 }
+
 </script>
 {% endblock %}
