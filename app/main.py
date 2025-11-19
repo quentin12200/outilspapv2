@@ -1137,6 +1137,55 @@ def kit_pdf_document(download: bool = False):
     return response
 
 
+# Mapping des numéros de documents vers les fichiers PDF individuels
+_KIT_INDIVIDUAL_DOCS = {
+    "2": "09_202506_Kit_Renforcement-Doc_2.pdf",
+    "6": "21_202506_Kit_Renforcement-Doc_6.pdf",
+    "7B": "27_202506_Kit_Renforcement-Doc_7B.pdf",
+    "8B": "32_202506_Kit_Renforcement-Doc_8B.pdf",
+    "8C": "31_202506_Kit_Renforcement-Doc_8C.pdf",
+}
+
+
+@app.get("/kit-renforcement/doc/{doc_id}", name="kit_individual_doc")
+def kit_individual_doc(doc_id: str, download: bool = False):
+    """
+    Diffuse un document individuel du kit de renforcement.
+    doc_id peut être: 2, 6, 7B, 8B, 8C
+    """
+    # Normaliser l'ID du document (majuscules)
+    doc_id_normalized = doc_id.upper()
+
+    # Vérifier si le document existe
+    if doc_id_normalized not in _KIT_INDIVIDUAL_DOCS:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} non trouvé")
+
+    # Récupérer le nom du fichier
+    filename = _KIT_INDIVIDUAL_DOCS[doc_id_normalized]
+    file_path = os.path.join(_DEFAULT_DATA_DIR, filename)
+
+    # Vérifier si le fichier existe
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fichier {filename} non trouvé sur le serveur"
+        )
+
+    # Définir le type de disposition (inline pour afficher, attachment pour télécharger)
+    disposition = "attachment" if download else "inline"
+
+    # Créer la réponse avec le fichier PDF
+    response = FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=filename,
+    )
+    response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    response.headers["Cache-Control"] = "public, max-age=86400"
+
+    return response
+
+
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
     """Page dédiée aux visualisations statistiques du tableau de bord."""
