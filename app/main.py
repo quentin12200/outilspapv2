@@ -202,6 +202,14 @@ def _split_path_list(raw: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+KIT_PDF_EXPECTED_SIZE_MB = _safe_int(os.getenv("KIT_PDF_EXPECTED_SIZE_MB"), 115)
+KIT_PDF_MIN_SIZE_MB = _safe_int(
+    os.getenv("KIT_PDF_MIN_SIZE_MB"),
+    max(80, KIT_PDF_EXPECTED_SIZE_MB - 5),
+)
+KIT_PDF_MIN_SIZE_BYTES = max(1, KIT_PDF_MIN_SIZE_MB) * 1024 * 1024
+
+
 def _build_local_kit_candidates() -> list[str]:
     hints: list[str] = []
 
@@ -240,25 +248,43 @@ KIT_PDF_LOCAL_GLOBS = [
 ]
 
 
+def _kit_candidate_is_valid(path: str | None) -> bool:
+    if not path:
+        return False
+    try:
+        if not os.path.exists(path):
+            return False
+        size = os.path.getsize(path)
+    except OSError:
+        return False
+
+    basename = os.path.basename(path)
+    if KIT_PDF_FILENAME and basename == KIT_PDF_FILENAME:
+        return size > 0
+
+    if size < KIT_PDF_MIN_SIZE_BYTES:
+        logger.debug(
+            "Fichier PDF ignoré (%s): taille %s < seuil %s",
+            path,
+            size,
+            KIT_PDF_MIN_SIZE_BYTES,
+        )
+        return False
+
+    return True
+
+
 def _find_local_kit_pdf() -> str | None:
     """Retourne le chemin d'un PDF déjà présent dans app/data (ou via les hints)."""
 
     for candidate in KIT_PDF_LOCAL_HINTS:
-        if not candidate:
-            continue
-        try:
-            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                return candidate
-        except OSError:
-            continue
+        if _kit_candidate_is_valid(candidate):
+            return os.path.abspath(candidate)
 
     for pattern in KIT_PDF_LOCAL_GLOBS:
         for match in sorted(glob.glob(pattern)):
-            try:
-                if os.path.exists(match) and os.path.getsize(match) > 0:
-                    return os.path.abspath(match)
-            except OSError:
-                continue
+            if _kit_candidate_is_valid(match):
+                return os.path.abspath(match)
 
     return None
 
@@ -1101,6 +1127,7 @@ def guide_exploitation(request: Request):
             "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
             "kit_pdf_endpoint": kit_pdf_endpoint,
+            "kit_pdf_expected_size_mb": KIT_PDF_EXPECTED_SIZE_MB,
         },
     )
 

@@ -398,10 +398,10 @@ function retroplanningApp() {
       }
 
       const dateJObj = new Date(this.dateJ);
-      const aujourd'hui = new Date();
-      aujourd'hui.setHours(0, 0, 0, 0);
+      const aujourdhui = new Date();
+      aujourdhui.setHours(0, 0, 0, 0);
 
-      this.joursRestants = Math.ceil((dateJObj - aujourd'hui) / (1000 * 60 * 60 * 24));
+      this.joursRestants = Math.ceil((dateJObj - aujourdhui) / (1000 * 60 * 60 * 24));
 
       // Générer les phases à partir du modèle
       const modele = this.modeles[this.typeCampagne];
@@ -411,10 +411,10 @@ function retroplanningApp() {
 
         // Déterminer le statut
         let statut = 'a_venir';
-        if (dateDebut <= aujourd'hui) {
+        if (dateDebut <= aujourdhui) {
           const dateFin = new Date(dateDebut);
           dateFin.setDate(dateFin.getDate() + phase.duree);
-          if (dateFin >= aujourd'hui) {
+          if (dateFin >= aujourdhui) {
             statut = 'en_cours';
           } else {
             statut = 'termine';

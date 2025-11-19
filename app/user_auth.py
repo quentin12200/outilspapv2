@@ -41,8 +41,17 @@ PUBLIC_ROUTES = {
     "/forgot-password",
     "/reset-password",
     "/static",
-    "/mentions-legales"
+    "/mentions-legales",
+    "/guide-exploitation",
+    "/cartographie-entreprise",
+    "/retroplanning",
+    "/kit-renforcement",
+    "/kit-renforcement/document",
 }
+
+PUBLIC_ROUTE_PREFIXES = (
+    "/kit-renforcement/doc/",
+)
 
 
 def hash_password(password: str) -> str:
@@ -355,8 +364,14 @@ def is_public_route(path: str) -> bool:
     if path in PUBLIC_ROUTES:
         return True
 
-    # Routes qui commencent par /static, /api, /admin, ou /reset-password (ont leur propre auth)
-    if path.startswith("/static/") or path.startswith("/api/") or path.startswith("/admin") or path.startswith("/reset-password/"):
+    # Routes qui commencent par /static, /api, /admin, /reset-password ou par un préfixe public dédié
+    if (
+        path.startswith("/static/")
+        or path.startswith("/api/")
+        or path.startswith("/admin")
+        or path.startswith("/reset-password")
+        or path.startswith(PUBLIC_ROUTE_PREFIXES)
+    ):
         return True
 
     return False
