@@ -95,6 +95,35 @@ KIT_PDF_FILENAME = os.getenv(
 ).strip()
 KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
 KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_ONEDRIVE).strip()
+
+_KIT_DOWNLOAD_URL_ENV = os.getenv("KIT_PDF_DOWNLOAD_URL")
+KIT_PDF_DOWNLOAD_URL = (
+    _KIT_DOWNLOAD_URL_ENV.strip()
+    if _KIT_DOWNLOAD_URL_ENV and _KIT_DOWNLOAD_URL_ENV.strip()
+    else KIT_PDF_URL
+)
+
+_KIT_DOWNLOAD_URLS_ENV = os.getenv("KIT_PDF_DOWNLOAD_URLS")
+KIT_PDF_DOWNLOAD_URLS = (
+    _KIT_DOWNLOAD_URLS_ENV.strip()
+    if _KIT_DOWNLOAD_URLS_ENV is not None
+    else KIT_PDF_URLS
+)
+
+_KIT_DOWNLOAD_FALLBACKS_ENV = os.getenv("KIT_PDF_DOWNLOAD_URL_FALLBACKS")
+KIT_PDF_DOWNLOAD_URL_FALLBACKS = (
+    _KIT_DOWNLOAD_FALLBACKS_ENV.strip()
+    if _KIT_DOWNLOAD_FALLBACKS_ENV is not None
+    else KIT_PDF_URL_FALLBACKS
+)
+KIT_PDF_DOWNLOAD_VARIANT_ENABLED = any(
+    env is not None
+    for env in (
+        _KIT_DOWNLOAD_URL_ENV,
+        _KIT_DOWNLOAD_URLS_ENV,
+        _KIT_DOWNLOAD_FALLBACKS_ENV,
+    )
+)
 KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
 KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
 
@@ -356,19 +385,27 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
     return None
 
 
-def _build_kit_url_candidates() -> list[str]:
-    ordered_sources = [KIT_PDF_URL, KIT_PDF_URLS, KIT_PDF_URL_FALLBACKS]
+def _build_url_candidates(*sources: str) -> list[str]:
     urls: list[str] = []
     seen: set[str] = set()
-    for source in ordered_sources:
+    for source in sources:
         for candidate in _split_url_list(source):
-            if candidate not in seen:
+            if candidate and candidate not in seen:
                 urls.append(candidate)
                 seen.add(candidate)
     return urls
 
 
+def _build_kit_url_candidates() -> list[str]:
+    return _build_url_candidates(KIT_PDF_URL, KIT_PDF_URLS, KIT_PDF_URL_FALLBACKS)
+
+
 KIT_PDF_URL_CANDIDATES = _build_kit_url_candidates()
+KIT_PDF_DOWNLOAD_URL_CANDIDATES = _build_url_candidates(
+    KIT_PDF_DOWNLOAD_URL,
+    KIT_PDF_DOWNLOAD_URLS,
+    KIT_PDF_DOWNLOAD_URL_FALLBACKS,
+)
 KIT_PDF_TIMEOUT = _safe_int(os.getenv("KIT_PDF_TIMEOUT"), 60)
 
 
@@ -376,6 +413,8 @@ def _kit_pdf_status() -> dict[str, bool]:
     """Expose l'état actuel du kit PDF pour l'interface (inline vs streaming)."""
 
     inline_ready = False
+    inline_sources_available = bool(KIT_PDF_URL_CANDIDATES)
+    download_sources_available = bool(KIT_PDF_DOWNLOAD_URL_CANDIDATES)
 
     if KIT_PDF_CACHE_ENABLED:
         if _kit_pdf_cache_ready():
@@ -385,12 +424,12 @@ def _kit_pdf_status() -> dict[str, bool]:
     else:
         inline_ready = _find_local_kit_pdf() is not None
 
-    download_ready = inline_ready or bool(KIT_PDF_URL_CANDIDATES)
+    download_ready = inline_ready or inline_sources_available or download_sources_available
 
     return {
         "inline_ready": inline_ready,
         "download_ready": download_ready,
-        "remote_only": download_ready and not inline_ready,
+        "remote_only": (not inline_ready) and inline_sources_available,
     }
 
 _HASH_CACHE: dict[str, tuple[float, int, str]] = {}
@@ -1427,7 +1466,15 @@ def kit_pdf_document(download: bool = False):
     disposition = "attachment" if download else "inline"
     filename = KIT_PDF_FILENAME or "Kit-renforcement.pdf"
 
-    cached_path = _ensure_kit_pdf_cached()
+    use_download_variant = (
+        download
+        and KIT_PDF_DOWNLOAD_VARIANT_ENABLED
+        and bool(KIT_PDF_DOWNLOAD_URL_CANDIDATES)
+    )
+    cached_path = None
+    if not use_download_variant:
+        cached_path = _ensure_kit_pdf_cached()
+
     if cached_path:
         response = FileResponse(
             cached_path,
@@ -1439,8 +1486,14 @@ def kit_pdf_document(download: bool = False):
         return response
 
     try:
+        candidates = (
+            KIT_PDF_DOWNLOAD_URL_CANDIDATES
+            if use_download_variant
+            else KIT_PDF_URL_CANDIDATES
+        )
         iterator_factory, content_length = _stream_remote_asset(
-            KIT_PDF_URL_CANDIDATES, accept="application/pdf"
+            candidates,
+            accept="application/pdf",
         )
     except HTTPException as exc:
         logger.warning("Kit PDF indisponible: %s", exc)
