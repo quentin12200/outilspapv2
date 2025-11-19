@@ -72,24 +72,31 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-_DEFAULT_KIT_PDF_PRIMARY = (
+_DEFAULT_KIT_PDF_GITHUB = (
     "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
 )
-_DEFAULT_KIT_PDF_FALLBACK = (
+_DEFAULT_KIT_PDF_ONEDRIVE = (
     "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
 )
 
-KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
+# Utiliser OneDrive en priorité car GitHub renvoie 403 (repository privé)
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_ONEDRIVE).strip()
 KIT_PDF_FILENAME = os.getenv(
     "KIT_PDF_FILENAME",
     "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
 ).strip()
 KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
-KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_GITHUB).strip()
 KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
 KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
 
 _DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
+
+# Chemin par défaut du PDF dans app/data/kit/ si pas de chemin configuré
+_DEFAULT_KIT_LOCAL_PATH = os.path.join(os.getcwd(), "app", "data", "kit", "Kit.renforcement.compile.30.06.2025.pour.impression.pdf")
+if not KIT_PDF_LOCAL_PATH and os.path.exists(_DEFAULT_KIT_LOCAL_PATH):
+    KIT_PDF_LOCAL_PATH = _DEFAULT_KIT_LOCAL_PATH
+    logger.info(f"Utilisation du PDF local par défaut: {_DEFAULT_KIT_LOCAL_PATH}")
 
 _DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
 KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
