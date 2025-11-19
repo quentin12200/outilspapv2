@@ -145,44 +145,214 @@
     <!-- Résultats (suite du fichier) -->
     <div x-show="submitted" class="space-y-6">
       <!-- Actions -->
-      <div class="flex justify-between items-center">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <button
           @click="reset()"
-          class="inline-flex items-center px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          class="inline-flex items-center justify-center px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
           </svg>
-          Modifier
+          Modifier les données
         </button>
-        <div class="flex gap-4">
+        <div class="flex flex-col sm:flex-row gap-4">
           <button
             @click="saveCartographie()"
-            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            class="inline-flex items-center justify-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
             </svg>
-            Sauvegarder
+            Sauvegarder dans le kit
           </button>
           <button
             @click="window.print()"
-            class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            class="inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
             </svg>
-            Imprimer
+            Exporter / Imprimer
           </button>
         </div>
       </div>
 
-      <!-- Stats and visualizations would continue here -->
-      <!-- The full content is too long for a single message -->
-      <!-- See the next part for the complete statistics display -->
+      <!-- Synthèse globale -->
+      <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div class="bg-white rounded-2xl p-5 shadow ring-1 ring-gray-100">
+          <p class="text-sm text-gray-500">Effectif total</p>
+          <p class="mt-2 text-3xl font-bold text-gray-900" x-text="formatNombre(stats.totalSalaries)"></p>
+          <p class="text-xs text-gray-500 mt-1">Tous services confondus</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow ring-1 ring-gray-100">
+          <p class="text-sm text-gray-500">Syndiqué·es recensé·es</p>
+          <p class="mt-2 text-3xl font-bold text-gray-900" x-text="formatNombre(stats.totalSyndiques)"></p>
+          <p class="text-xs text-gray-500 mt-1" x-show="stats.totalSalaries > 0">
+            Soit
+            <span class="font-semibold" x-text="formatPourcentage(stats.tauxSyndicalisation)"></span>
+          </p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow ring-1 ring-gray-100">
+          <p class="text-sm text-gray-500">Taux de syndicalisation</p>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span class="text-3xl font-bold" :class="tauxCouleurClass(stats.tauxSyndicalisation)" x-text="formatPourcentage(stats.tauxSyndicalisation)"></span>
+            <span class="text-xs text-gray-500">Objectif 50%</span>
+          </div>
+          <p class="text-xs text-gray-500 mt-1" x-show="syndiquesManquants() > 0">
+            Encore <span class="font-semibold" x-text="formatNombre(syndiquesManquants())"></span> adhérent·es pour atteindre 50%
+          </p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow ring-1 ring-gray-100">
+          <p class="text-sm text-gray-500">Services analysés</p>
+          <p class="mt-2 text-3xl font-bold text-gray-900" x-text="servicesAnalyses.length"></p>
+          <p class="text-xs text-gray-500 mt-1" x-show="servicesLowRate.length">
+            <span class="font-semibold" x-text="servicesLowRate.length"></span> en priorité rouge
+          </p>
+        </div>
+      </div>
 
-      <div class="text-center text-gray-500 py-8">
-        💡 Statistiques détaillées à implémenter
+      <!-- Indice global -->
+      <div class="bg-white rounded-2xl shadow ring-1 ring-gray-100 p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-gray-500">Indice de syndicalisation global</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900" x-text="nomEntreprise"></p>
+            <p class="text-sm text-gray-600" x-text="recommendationMessage()"></p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-gray-500">Tendance</p>
+            <p class="text-3xl font-bold" :class="tauxCouleurClass(stats.tauxSyndicalisation)" x-text="formatPourcentage(stats.tauxSyndicalisation)"></p>
+          </div>
+        </div>
+        <div class="mt-6">
+          <div class="h-3 bg-gray-100 rounded-full">
+            <div class="h-3 rounded-full" :class="barreTauxClass()" :style="barreTauxStyle()"></div>
+          </div>
+          <div class="flex justify-between text-xs text-gray-500 mt-2">
+            <span>0%</span>
+            <span>25%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Détail par service -->
+      <div class="bg-white rounded-2xl shadow ring-1 ring-gray-100 p-6">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 class="text-xl font-semibold text-gray-900">Analyse par service</h3>
+            <p class="text-sm text-gray-600">Couleurs alignées sur le kit : rouge &lt;25%, orange 25-49%, vert ≥50%</p>
+          </div>
+          <p class="text-sm text-gray-500" x-show="servicesAnalyses.length">
+            <span class="font-semibold" x-text="servicesAnalyses.length"></span> services cartographiés
+          </p>
+        </div>
+
+        <div class="mt-6 overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs uppercase tracking-wider text-gray-500">
+                <th class="pb-2">Service</th>
+                <th class="pb-2">Effectif</th>
+                <th class="pb-2">Syndiqué·es</th>
+                <th class="pb-2">Taux</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <template x-for="(service, index) in servicesAnalyses" :key="index">
+                <tr class="text-gray-900" :class="serviceRowClass(service)">
+                  <td class="py-3 font-semibold" x-text="service.nom || `Service ${index + 1}`"></td>
+                  <td class="py-3" x-text="formatNombre(service.salaries)"></td>
+                  <td class="py-3" x-text="formatNombre(service.syndiques)"></td>
+                  <td class="py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="font-semibold" x-text="formatPourcentage(serviceRate(service))"></span>
+                      <span class="text-xs px-2 py-1 rounded-full" :class="serviceBadgeClass(service)" x-text="serviceBadgeLabel(service)"></span>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p class="text-sm text-gray-500 mt-4" x-show="!servicesAnalyses.length">Ajoutez au moins un service avec des effectifs pour afficher la synthèse.</p>
+        </div>
+      </div>
+
+      <!-- Plans d'action -->
+      <div class="grid gap-6 lg:grid-cols-3">
+        <div class="bg-white rounded-2xl shadow ring-1 ring-gray-100 p-6">
+          <div class="flex items-center justify-between">
+            <h4 class="text-lg font-semibold text-gray-900">Priorité de renforcement</h4>
+            <span class="text-sm font-semibold text-red-600" x-text="servicesLowRate.length"></span>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">Services en dessous de 25% : tournée express + binôme UD/FD.</p>
+          <ul class="mt-4 space-y-2">
+            <template x-if="!servicesLowRate.length">
+              <li class="text-sm text-gray-500">Aucun service en alerte rouge 🎉</li>
+            </template>
+            <template x-for="(service, index) in servicesLowRate" :key="`low-${index}`">
+              <li class="flex items-center justify-between text-sm">
+                <span x-text="service.nom"></span>
+                <span class="font-semibold text-red-600" x-text="formatPourcentage(serviceRate(service))"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow ring-1 ring-gray-100 p-6">
+          <div class="flex items-center justify-between">
+            <h4 class="text-lg font-semibold text-gray-900">Bon potentiel</h4>
+            <span class="text-sm font-semibold text-orange-600" x-text="servicesPotentiel.length"></span>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">Entre 25% et 50% : consolider les relais, organiser des réunions ciblées.</p>
+          <ul class="mt-4 space-y-2">
+            <template x-if="!servicesPotentiel.length">
+              <li class="text-sm text-gray-500">Identifiez des allié·es pour accélérer.</li>
+            </template>
+            <template x-for="(service, index) in servicesPotentiel" :key="`mid-${index}`">
+              <li class="flex items-center justify-between text-sm">
+                <span x-text="service.nom"></span>
+                <span class="font-semibold text-orange-600" x-text="formatPourcentage(serviceRate(service))"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow ring-1 ring-gray-100 p-6">
+          <div class="flex items-center justify-between">
+            <h4 class="text-lg font-semibold text-gray-900">Services solides</h4>
+            <span class="text-sm font-semibold text-green-600" x-text="servicesHighRate.length"></span>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">≥ 50% : capitaliser, former des référent·es, lancer des parrainages.</p>
+          <ul class="mt-4 space-y-2">
+            <template x-if="!servicesHighRate.length">
+              <li class="text-sm text-gray-500">Aucun service en vert pour le moment.</li>
+            </template>
+            <template x-for="(service, index) in servicesHighRate" :key="`high-${index}`">
+              <li class="flex items-center justify-between text-sm">
+                <span x-text="service.nom"></span>
+                <span class="font-semibold text-green-600" x-text="formatPourcentage(serviceRate(service))"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Recommandations finales -->
+      <div class="bg-gradient-to-r from-cgt-red/90 to-rose-500 text-white rounded-2xl p-6 shadow-xl">
+        <div class="flex flex-col gap-3">
+          <h4 class="text-2xl font-semibold">Plan d'action proposé</h4>
+          <p class="text-sm text-white/80">Inspiré du kit CGT - Docs 1, 2 et 7</p>
+        </div>
+        <ul class="mt-4 space-y-2 text-sm">
+          <template x-for="(action, index) in recommandations()" :key="`action-${index}`">
+            <li class="flex items-start gap-2">
+              <span class="mt-1">•</span>
+              <span x-text="action"></span>
+            </li>
+          </template>
+        </ul>
       </div>
     </div>
   </div>
@@ -194,6 +364,7 @@ function cartographieApp() {
     nomEntreprise: '',
     siret: '',
     services: [{ nom: '', salaries: 0, syndiques: 0 }],
+    servicesAnalyses: [],
     submitted: false,
     stats: { totalSalaries: 0, totalSyndiques: 0, tauxSyndicalisation: 0 },
     message: { show: false, text: '', type: 'success' },
@@ -219,14 +390,29 @@ function cartographieApp() {
         return;
       }
 
+      const analyses = this.services
+        .map(service => {
+          const salaries = Math.max(Number(service.salaries) || 0, 0);
+          const syndiques = Math.max(Math.min(Number(service.syndiques) || 0, salaries), 0);
+          return {
+            nom: service.nom?.trim() || 'Service sans nom',
+            salaries,
+            syndiques
+          };
+        })
+        .filter(service => service.nom && service.salaries > 0);
+
+      if (!analyses.length) {
+        alert('Ajoutez au moins un service valide avec effectif pour générer la cartographie.');
+        return;
+      }
+
       let totalSalaries = 0;
       let totalSyndiques = 0;
 
-      this.services.forEach(service => {
-        if (service.nom.trim() && service.salaries >= 0) {
-          totalSalaries += service.salaries || 0;
-          totalSyndiques += service.syndiques || 0;
-        }
+      analyses.forEach(service => {
+        totalSalaries += service.salaries;
+        totalSyndiques += service.syndiques;
       });
 
       this.stats = {
@@ -235,16 +421,25 @@ function cartographieApp() {
         tauxSyndicalisation: totalSalaries > 0 ? (totalSyndiques / totalSalaries * 100) : 0
       };
 
+      this.servicesAnalyses = analyses;
       this.submitted = true;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
     get servicesLowRate() {
-      return this.services.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) < 25);
+      return this.servicesAnalyses.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) < 25);
     },
 
     get servicesHighRate() {
-      return this.services.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) >= 50);
+      return this.servicesAnalyses.filter(s => s.salaries > 0 && (s.syndiques / s.salaries * 100) >= 50);
+    },
+
+    get servicesPotentiel() {
+      return this.servicesAnalyses.filter(s => {
+        if (s.salaries <= 0) return false;
+        const taux = (s.syndiques / s.salaries) * 100;
+        return taux >= 25 && taux < 50;
+      });
     },
 
     reset() {
@@ -253,6 +448,19 @@ function cartographieApp() {
     },
 
     async saveCartographie() {
+      const servicesPayload = (this.servicesAnalyses.length ? this.servicesAnalyses : this.services)
+        .filter(s => s.nom && s.salaries > 0)
+        .map(s => ({
+          nom: s.nom?.trim() || 'Service sans nom',
+          salaries: Math.max(Number(s.salaries) || 0, 0),
+          syndiques: Math.max(Math.min(Number(s.syndiques) || 0, Math.max(Number(s.salaries) || 0, 0)), 0)
+        }));
+
+      if (!servicesPayload.length) {
+        this.showMessage('⚠️ Aucun service valide à sauvegarder', 'error');
+        return;
+      }
+
       try {
         const response = await fetch('/api/cartographie', {
           method: 'POST',
@@ -260,7 +468,7 @@ function cartographieApp() {
           body: JSON.stringify({
             nom_entreprise: this.nomEntreprise,
             siret: this.siret || null,
-            services: this.services.filter(s => s.nom.trim() && s.salaries > 0)
+            services: servicesPayload
           })
         });
 
@@ -278,6 +486,107 @@ function cartographieApp() {
     showMessage(text, type) {
       this.message = { show: true, text, type };
       setTimeout(() => { this.message.show = false; }, 5000);
+    },
+
+    formatNombre(value) {
+      return new Intl.NumberFormat('fr-FR').format(value || 0);
+    },
+
+    formatPourcentage(value) {
+      if (!value || isNaN(value)) return '0%';
+      return `${Number(value).toFixed(1)}%`;
+    },
+
+    serviceRate(service) {
+      if (!service || !service.salaries) return 0;
+      return (service.syndiques / service.salaries) * 100;
+    },
+
+    tauxCouleurClass(value) {
+      if (value >= 50) return 'text-green-600';
+      if (value >= 25) return 'text-orange-600';
+      return 'text-red-600';
+    },
+
+    barreTauxClass() {
+      if (this.stats.tauxSyndicalisation >= 50) return 'bg-green-500';
+      if (this.stats.tauxSyndicalisation >= 25) return 'bg-orange-500';
+      return 'bg-red-500';
+    },
+
+    barreTauxStyle() {
+      const width = Math.min(Math.round(this.stats.tauxSyndicalisation || 0), 100);
+      return `width: ${width}%`;
+    },
+
+    serviceBadgeClass(service) {
+      const taux = this.serviceRate(service);
+      if (taux >= 50) return 'bg-green-100 text-green-800';
+      if (taux >= 25) return 'bg-orange-100 text-orange-800';
+      return 'bg-red-100 text-red-800';
+    },
+
+    serviceBadgeLabel(service) {
+      const taux = this.serviceRate(service);
+      if (taux >= 50) return 'Solide';
+      if (taux >= 25) return 'À consolider';
+      return 'Urgence';
+    },
+
+    serviceRowClass(service) {
+      const taux = this.serviceRate(service);
+      if (taux >= 50) return 'bg-green-50/40';
+      if (taux >= 25) return 'bg-orange-50/50';
+      return 'bg-red-50/60';
+    },
+
+    syndiquesManquants() {
+      if (!this.stats.totalSalaries) return 0;
+      const objectif = Math.ceil(this.stats.totalSalaries * 0.5);
+      return Math.max(objectif - this.stats.totalSyndiques, 0);
+    },
+
+    recommendationMessage() {
+      const taux = this.stats.tauxSyndicalisation;
+      if (taux >= 50) {
+        return 'Une base solide existe. Priorité : fidéliser et essaimer vers les services moins couverts.';
+      }
+      if (taux >= 25) {
+        return 'Potentiel élevé : en renforçant les services orange, la majorité syndicale est à portée de main.';
+      }
+      return 'Plan d\'urgence requis : forte marge de progression en lançant des campagnes ciblées dans les services critiques.';
+    },
+
+    recommandations() {
+      const actions = [];
+      if (!this.submitted) return actions;
+
+      const taux = this.stats.tauxSyndicalisation;
+      if (taux < 25) {
+        actions.push('Déployer un plan d\'urgence syndicalisation (binôme UD/FD + présence hebdomadaire).');
+      } else if (taux < 50) {
+        actions.push('Structurer une campagne de syndicalisation ciblée pour atteindre rapidement 50%.');
+      } else {
+        actions.push('Capitaliser : formaliser des équipes relais dans les services les plus syndiqués.');
+      }
+
+      if (this.servicesLowRate.length) {
+        const liste = this.servicesLowRate.slice(0, 3).map(s => s.nom).join(', ');
+        actions.push(`Rencontrer prioritairement ${liste}${this.servicesLowRate.length > 3 ? '…' : ''} pour identifier les freins.`);
+      }
+
+      if (this.servicesPotentiel.length) {
+        actions.push('Organiser des réunions ciblées dans les services orange pour convertir les sympathisant·es.');
+      }
+
+      const manque = this.syndiquesManquants();
+      if (manque > 0) {
+        actions.push(`Objectif chiffré : +${manque} adhérent·es pour franchir le cap des 50%.`);
+      } else {
+        actions.push('Maintenir le cap : documenter les bonnes pratiques et préparer l\'extension à d\'autres sites.');
+      }
+
+      return actions;
     }
   }
 }

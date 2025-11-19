@@ -1122,11 +1122,11 @@ def cartographie_entreprise(request: Request, user: User | None = Depends(get_cu
 
 
 @app.post("/api/cartographie")
-def create_cartographie(
+async def create_cartographie(
     request: Request,
-    nom_entreprise: str = Form(...),
+    nom_entreprise: str | None = Form(None),
     siret: str | None = Form(None),
-    services: str = Form(...),  # JSON string
+    services: str | None = Form(None),  # JSON string
     user: User | None = Depends(get_current_user_or_none),
     db: Session = Depends(get_session),
 ):
@@ -1134,18 +1134,49 @@ def create_cartographie(
     import json
 
     try:
-        # Parser les services
-        services_data = json.loads(services)
+        payload: dict[str, Any] = {}
+        content_type = (request.headers.get("content-type") or "").lower()
+
+        if "application/json" in content_type:
+            payload = await request.json()
+            nom_entreprise = payload.get("nom_entreprise", nom_entreprise)
+            siret = payload.get("siret", siret)
+            services = payload.get("services", services)
+
+        if not nom_entreprise or not str(nom_entreprise).strip():
+            raise HTTPException(status_code=400, detail="Le nom de l'entreprise est requis")
+
+        raw_services = services
+        if raw_services is None:
+            raw_services = payload.get("services") if payload else None
+
+        if raw_services is None:
+            raise HTTPException(status_code=400, detail="Aucun service fourni")
+
+        if isinstance(raw_services, str):
+            services_data = json.loads(raw_services)
+        else:
+            services_data = raw_services
+
+        if not isinstance(services_data, list) or not services_data:
+            raise HTTPException(status_code=400, detail="Format de services invalide")
 
         # Calculer les totaux
-        total_salaries = sum(s.get('salaries', 0) for s in services_data)
-        total_syndiques = sum(s.get('syndiques', 0) for s in services_data)
+        total_salaries = 0
+        total_syndiques = 0
+
+        for service in services_data:
+            salaries = max(int(service.get('salaries', 0) or 0), 0)
+            syndiques = max(min(int(service.get('syndiques', 0) or 0), salaries), 0)
+            total_salaries += salaries
+            total_syndiques += syndiques
+
         taux = (total_syndiques / total_salaries * 100) if total_salaries > 0 else 0
 
         # Créer la cartographie
         carto = Cartographie(
-            siret=siret if siret and siret.strip() else None,
-            nom_entreprise=nom_entreprise,
+            siret=siret if siret and str(siret).strip() else None,
+            nom_entreprise=str(nom_entreprise).strip(),
             created_by=user.id if user else None,
             total_salaries=total_salaries,
             total_syndiques=total_syndiques,
@@ -1156,8 +1187,8 @@ def create_cartographie(
 
         # Créer les services
         for idx, service_data in enumerate(services_data):
-            salaries = service_data.get('salaries', 0)
-            syndiques = service_data.get('syndiques', 0)
+            salaries = max(int(service_data.get('salaries', 0) or 0), 0)
+            syndiques = max(min(int(service_data.get('syndiques', 0) or 0), salaries), 0)
             service_taux = (syndiques / salaries * 100) if salaries > 0 else 0
 
             service = ServiceCartographie(
@@ -1226,15 +1257,15 @@ def retroplanning_page(request: Request, user: User | None = Depends(get_current
 
 
 @app.post("/api/retroplanning")
-def create_retroplanning(
+async def create_retroplanning(
     request: Request,
-    titre: str = Form(...),
-    date_evenement: str = Form(...),
-    type_campagne: str = Form(...),
+    titre: str | None = Form(None),
+    date_evenement: str | None = Form(None),
+    type_campagne: str | None = Form(None),
     entreprise: str | None = Form(None),
     siret: str | None = Form(None),
     description: str | None = Form(None),
-    phases: str = Form(...),  # JSON string
+    phases: str | None = Form(None),  # JSON string
     user: User | None = Depends(get_current_user_or_none),
     db: Session = Depends(get_session),
 ):
@@ -1242,18 +1273,52 @@ def create_retroplanning(
     import json
 
     try:
-        # Parser les phases
-        phases_data = json.loads(phases)
+        payload: dict[str, Any] = {}
+        content_type = (request.headers.get("content-type") or "").lower()
+
+        if "application/json" in content_type:
+            payload = await request.json()
+            titre = payload.get("titre", titre)
+            date_evenement = payload.get("date_evenement", date_evenement)
+            type_campagne = payload.get("type_campagne", type_campagne)
+            entreprise = payload.get("entreprise", entreprise)
+            siret = payload.get("siret", siret)
+            description = payload.get("description", description)
+            phases = payload.get("phases", phases)
+
+        if not titre or not str(titre).strip():
+            raise HTTPException(status_code=400, detail="Le titre est requis")
+
+        if not date_evenement:
+            raise HTTPException(status_code=400, detail="La date de l'événement est requise")
+
+        if not type_campagne:
+            raise HTTPException(status_code=400, detail="Le type de campagne est requis")
+
+        raw_phases = phases
+        if raw_phases is None:
+            raw_phases = payload.get("phases") if payload else None
+
+        if raw_phases is None:
+            raise HTTPException(status_code=400, detail="Aucune phase fournie")
+
+        if isinstance(raw_phases, str):
+            phases_data = json.loads(raw_phases)
+        else:
+            phases_data = raw_phases
+
+        if not isinstance(phases_data, list) or not phases_data:
+            raise HTTPException(status_code=400, detail="Format de phases invalide")
 
         # Parser la date
         from datetime import datetime
-        date_j = datetime.strptime(date_evenement, '%Y-%m-%d').date()
+        date_j = datetime.strptime(str(date_evenement), '%Y-%m-%d').date()
 
         # Créer le rétro-planning
         retro = Retroplanning(
-            titre=titre,
+            titre=str(titre).strip(),
             date_evenement=date_j,
-            type_campagne=type_campagne,
+            type_campagne=str(type_campagne).strip(),
             entreprise=entreprise if entreprise and entreprise.strip() else None,
             siret=siret if siret and siret.strip() else None,
             description=description if description and description.strip() else None,
