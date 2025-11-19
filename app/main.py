@@ -1209,6 +1209,122 @@ def list_cartographies(
     }
 
 
+# =========================================================
+# Routes pour le Rétro-planning
+# =========================================================
+
+@app.get("/retroplanning", response_class=HTMLResponse)
+def retroplanning_page(request: Request, user: User | None = Depends(get_current_user_or_none)):
+    """Outil de rétro-planning pour les campagnes syndicales"""
+    return templates.TemplateResponse(
+        "retroplanning.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@app.post("/api/retroplanning")
+def create_retroplanning(
+    request: Request,
+    titre: str = Form(...),
+    date_evenement: str = Form(...),
+    type_campagne: str = Form(...),
+    entreprise: str | None = Form(None),
+    siret: str | None = Form(None),
+    description: str | None = Form(None),
+    phases: str = Form(...),  # JSON string
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Créer un nouveau rétro-planning"""
+    import json
+
+    try:
+        # Parser les phases
+        phases_data = json.loads(phases)
+
+        # Parser la date
+        from datetime import datetime
+        date_j = datetime.strptime(date_evenement, '%Y-%m-%d').date()
+
+        # Créer le rétro-planning
+        retro = Retroplanning(
+            titre=titre,
+            date_evenement=date_j,
+            type_campagne=type_campagne,
+            entreprise=entreprise if entreprise and entreprise.strip() else None,
+            siret=siret if siret and siret.strip() else None,
+            description=description if description and description.strip() else None,
+            created_by=user.id if user else None,
+        )
+        db.add(retro)
+        db.flush()  # Pour obtenir l'ID
+
+        # Créer les phases
+        for idx, phase_data in enumerate(phases_data):
+            # Calculer les dates
+            date_debut_str = phase_data.get('dateDebut')
+            date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date() if date_debut_str else None
+
+            duree = phase_data.get('duree', 0)
+            date_fin = None
+            if date_debut:
+                from datetime import timedelta
+                date_fin = date_debut + timedelta(days=duree)
+
+            phase = PhaseRetroplanning(
+                retroplanning_id=retro.id,
+                titre=phase_data.get('titre', ''),
+                description=phase_data.get('description', ''),
+                jours_avant_j=phase_data.get('joursAvantJ', 0),
+                date_debut=date_debut,
+                date_fin=date_fin,
+                statut=phase_data.get('statut', 'a_venir'),
+                ordre=idx,
+            )
+            db.add(phase)
+
+        db.commit()
+
+        return {"success": True, "id": retro.id}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de la création du rétro-planning: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/retroplannings")
+def list_retroplannings(
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Lister les rétro-plannings de l'utilisateur"""
+    query = db.query(Retroplanning).filter(Retroplanning.is_archived == False)
+
+    if user:
+        query = query.filter(Retroplanning.created_by == user.id)
+
+    retroplannings = query.order_by(Retroplanning.date_evenement.desc()).limit(50).all()
+
+    return {
+        "retroplannings": [
+            {
+                "id": r.id,
+                "titre": r.titre,
+                "date_evenement": r.date_evenement.isoformat() if r.date_evenement else None,
+                "type_campagne": r.type_campagne,
+                "entreprise": r.entreprise,
+                "siret": r.siret,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in retroplannings
+        ]
+    }
+
+
 _KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n'a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu'il s'active.</p></div></body></html>"""
 
 

@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+{% block title %}Rétro-planning · Kit renforcement CGT{% endblock %}
+
+{% block content %}
+<main class="py-10 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-7xl mx-auto" x-data="retroplanningApp()">
+    <!-- Header -->
+    <div class="mb-8">
+      <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Retour au kit de renforcement
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">Rétro-planning de campagne</h1>
+      <p class="mt-2 text-gray-600">Planifiez vos actions syndicales en travaillant à rebours depuis votre date cible (Jour J)</p>
+    </div>
+
+    <!-- Message -->
+    <div x-show="message.show" x-transition class="mb-6 p-4 rounded-lg" :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
+      <span x-text="message.text"></span>
+    </div>
+
+    <!-- Formulaire de configuration -->
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!generated">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">Configuration de la campagne</h2>
+
+      <div class="space-y-6">
+        <!-- Informations de base -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Titre de la campagne *</label>
+            <input
+              type="text"
+              x-model="titre"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+              placeholder="Ex: Élections CSE 2026"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Date du Jour J *</label>
+            <input
+              type="date"
+              x-model="dateJ"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+            >
+          </div>
+        </div>
+
+        <!-- Type de campagne -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Type de campagne *</label>
+          <div class="grid md:grid-cols-5 gap-3">
+            <template x-for="(model, key) in modeles" :key="key">
+              <button
+                @click="selectModele(key)"
+                class="px-4 py-3 rounded-lg border-2 transition-all"
+                :class="typeCampagne === key ? 'border-cgt-red bg-red-50 text-cgt-red font-semibold' : 'border-gray-200 hover:border-gray-300'"
+              >
+                <div class="text-sm" x-text="model.nom"></div>
+                <div class="text-xs text-gray-500 mt-1" x-text="model.phases.length + ' phases'"></div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Informations optionnelles -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Entreprise (optionnel)</label>
+            <input
+              type="text"
+              x-model="entreprise"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+              placeholder="Ex: ACME Industries"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">SIRET (optionnel)</label>
+            <input
+              type="text"
+              x-model="siret"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+              placeholder="Ex: 12345678901234"
+              maxlength="14"
+            >
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Description (optionnel)</label>
+          <textarea
+            x-model="description"
+            rows="3"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+            placeholder="Contexte, objectifs, particularités de cette campagne..."
+          ></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-4">
+          <button
+            @click="reset()"
+            class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Réinitialiser
+          </button>
+          <button
+            @click="generatePlanning()"
+            class="px-6 py-2 bg-cgt-red text-white rounded-lg hover:bg-red-700 transition-colors"
+            :disabled="!canGenerate()"
+            :class="{'opacity-50 cursor-not-allowed': !canGenerate()}"
+          >
+            Générer le rétro-planning
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultats -->
+    <div x-show="generated" class="space-y-6">
+      <!-- Actions -->
+      <div class="flex justify-between items-center">
+        <button
+          @click="reset()"
+          class="inline-flex items-center px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Modifier
+        </button>
+        <div class="flex gap-4">
+          <button
+            @click="savePlanning()"
+            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+            </svg>
+            Sauvegarder
+          </button>
+          <button
+            @click="window.print()"
+            class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Exporter PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Résumé de la campagne -->
+      <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4" x-text="titre"></h2>
+
+        <div class="grid md:grid-cols-4 gap-4 mb-6">
+          <div class="px-4 py-3 bg-gray-50 rounded-lg">
+            <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Jour J</p>
+            <p class="font-bold text-gray-900" x-text="formatDate(dateJ)"></p>
+          </div>
+          <div class="px-4 py-3 bg-gray-50 rounded-lg">
+            <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Jours restants</p>
+            <p class="font-bold text-gray-900" x-text="joursRestants + ' jours'"></p>
+          </div>
+          <div class="px-4 py-3 bg-gray-50 rounded-lg">
+            <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Type</p>
+            <p class="font-bold text-gray-900" x-text="modeles[typeCampagne].nom"></p>
+          </div>
+          <div class="px-4 py-3 bg-gray-50 rounded-lg">
+            <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Phases</p>
+            <p class="font-bold text-gray-900" x-text="phases.length"></p>
+          </div>
+        </div>
+
+        <div x-show="description" class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p class="text-sm text-blue-900" x-text="description"></p>
+        </div>
+
+        <!-- Indication de la phase actuelle -->
+        <div class="mb-6" x-show="phaseActuelle">
+          <div class="p-4 bg-gradient-to-r from-cgt-red to-red-600 text-white rounded-lg">
+            <p class="text-sm font-semibold mb-1">Phase en cours</p>
+            <p class="text-lg font-bold" x-text="phaseActuelle ? phaseActuelle.titre : ''"></p>
+            <p class="text-sm opacity-90" x-text="phaseActuelle ? phaseActuelle.description : ''"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline des phases -->
+      <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-6">Timeline des phases</h3>
+
+        <div class="space-y-4">
+          <template x-for="(phase, index) in phases" :key="index">
+            <div class="relative">
+              <!-- Connecteur vertical (sauf pour la dernière phase) -->
+              <div x-show="index < phases.length - 1" class="absolute left-6 top-16 bottom-0 w-0.5 bg-gray-200"></div>
+
+              <div class="flex gap-4">
+                <!-- Icône de phase -->
+                <div class="flex-shrink-0">
+                  <div class="w-12 h-12 rounded-full flex items-center justify-center"
+                       :class="{
+                         'bg-green-100 border-2 border-green-500': phase.statut === 'termine',
+                         'bg-cgt-red border-2 border-red-600': phase.statut === 'en_cours',
+                         'bg-gray-100 border-2 border-gray-300': phase.statut === 'a_venir'
+                       }">
+                    <svg x-show="phase.statut === 'termine'" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <svg x-show="phase.statut === 'en_cours'" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <svg x-show="phase.statut === 'a_venir'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- Contenu de la phase -->
+                <div class="flex-1 pb-8">
+                  <div class="border rounded-lg p-4"
+                       :class="{
+                         'border-green-300 bg-green-50': phase.statut === 'termine',
+                         'border-red-300 bg-red-50': phase.statut === 'en_cours',
+                         'border-gray-200 bg-white': phase.statut === 'a_venir'
+                       }">
+                    <div class="flex items-start justify-between mb-2">
+                      <h4 class="font-semibold text-gray-900" x-text="phase.titre"></h4>
+                      <span class="px-2 py-1 text-xs rounded-full"
+                            :class="{
+                              'bg-green-200 text-green-800': phase.statut === 'termine',
+                              'bg-red-200 text-red-800': phase.statut === 'en_cours',
+                              'bg-gray-200 text-gray-600': phase.statut === 'a_venir'
+                            }"
+                            x-text="phase.statut === 'termine' ? 'Terminée' : (phase.statut === 'en_cours' ? 'En cours' : 'À venir')">
+                      </span>
+                    </div>
+
+                    <p class="text-sm text-gray-700 mb-3" x-text="phase.description"></p>
+
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span class="text-gray-500">Début:</span>
+                        <span class="font-medium ml-2" x-text="formatDate(phase.dateDebut)"></span>
+                      </div>
+                      <div>
+                        <span class="text-gray-500">Durée:</span>
+                        <span class="font-medium ml-2" x-text="phase.duree + ' jours'"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Conseils pratiques -->
+      <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Conseils pour réussir votre campagne</h3>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 class="font-semibold text-blue-900 mb-2">📋 Organisation</h4>
+            <ul class="text-sm text-blue-800 space-y-1">
+              <li>• Répartissez clairement les responsabilités</li>
+              <li>• Organisez des points d'étape réguliers</li>
+              <li>• Documentez toutes les actions réalisées</li>
+            </ul>
+          </div>
+
+          <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <h4 class="font-semibold text-emerald-900 mb-2">💪 Mobilisation</h4>
+            <ul class="text-sm text-emerald-800 space-y-1">
+              <li>• Impliquez les militants dès la phase d'analyse</li>
+              <li>• Prévoyez des formations adaptées</li>
+              <li>• Maintenez une communication régulière</li>
+            </ul>
+          </div>
+
+          <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <h4 class="font-semibold text-amber-900 mb-2">📊 Suivi</h4>
+            <ul class="text-sm text-amber-800 space-y-1">
+              <li>• Utilisez PAP/CSE pour suivre l'avancement</li>
+              <li>• Ajustez le planning si nécessaire</li>
+              <li>• Capitalisez les bonnes pratiques</li>
+            </ul>
+          </div>
+
+          <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg">
+            <h4 class="font-semibold text-rose-900 mb-2">📚 Ressources</h4>
+            <ul class="text-sm text-rose-800 space-y-1">
+              <li>• Consultez les Docs 7-10 du kit CGT</li>
+              <li>• Utilisez les modèles de communication</li>
+              <li>• Sollicitez l'appui de votre UD/FD</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function retroplanningApp() {
+  return {
+    // Configuration
+    titre: '',
+    dateJ: '',
+    typeCampagne: 'elections_cse',
+    entreprise: '',
+    siret: '',
+    description: '',
+    generated: false,
+    message: { show: false, text: '', type: 'success' },
+
+    // Modèles prédéfinis
+    modeles: {
+      elections_cse: {
+        nom: 'Élections CSE',
+        phases: [
+          { titre: 'Analyse et diagnostic', description: 'État des lieux du salariat, forces CGT, résultats précédents', joursAvantJ: -120, duree: 30 },
+          { titre: 'Identification des besoins', description: 'Cartographie des services, besoins de formation, mobilisation', joursAvantJ: -90, duree: 30 },
+          { titre: 'Construction revendicative', description: 'Élaboration du cahier revendicatif avec les salariés', joursAvantJ: -60, duree: 20 },
+          { titre: 'Mobilisation', description: 'Tournées, syndicalisation, communication', joursAvantJ: -40, duree: 30 },
+          { titre: 'Jour du scrutin', description: 'Organisation du vote et présence', joursAvantJ: 0, duree: 1 },
+          { titre: 'Bilan et suivi', description: 'Capitalisation, remerciements, plan de continuité', joursAvantJ: 1, duree: 30 }
+        ]
+      },
+      syndicalisation: {
+        nom: 'Syndicalisation',
+        phases: [
+          { titre: 'Préparation', description: 'Définir les objectifs, identifier les cibles prioritaires', joursAvantJ: -90, duree: 20 },
+          { titre: 'Cartographie', description: 'Analyse des services, identification des relais', joursAvantJ: -70, duree: 15 },
+          { titre: 'Communication', description: 'Création des supports, argumentaires', joursAvantJ: -55, duree: 15 },
+          { titre: 'Déploiement', description: 'Tournées, rencontres individuelles, réunions', joursAvantJ: -40, duree: 30 },
+          { titre: 'Adhésions', description: 'Collecte des adhésions, suivi administratif', joursAvantJ: -10, duree: 10 },
+          { titre: 'Consolidation', description: 'Accueil des nouveaux, formations, structuration', joursAvantJ: 0, duree: 30 }
+        ]
+      },
+      nao: {
+        nom: 'NAO Salaires',
+        phases: [
+          { titre: 'Collecte des besoins', description: 'Consultation des salariés, analyse de la situation', joursAvantJ: -60, duree: 15 },
+          { titre: 'Consultation syndicale', description: 'Consolidation des demandes entre syndicats', joursAvantJ: -45, duree: 10 },
+          { titre: 'Élaboration du cahier', description: 'Rédaction des revendications chiffrées', joursAvantJ: -35, duree: 10 },
+          { titre: 'Mobilisation', description: 'Communication auprès des salariés, préparation à l\'action', joursAvantJ: -25, duree: 15 },
+          { titre: 'Négociation', description: 'Réunions avec la direction, suivi des propositions', joursAvantJ: -10, duree: 10 },
+          { titre: 'Communication des résultats', description: 'Restitution aux salariés, suite à donner', joursAvantJ: 0, duree: 10 }
+        ]
+      },
+      lutte: {
+        nom: 'Lutte spécifique',
+        phases: [
+          { titre: 'Analyse de la situation', description: 'Identifier le problème, les forces en présence', joursAvantJ: -45, duree: 10 },
+          { titre: 'Construction revendicative', description: 'Définir les revendications et objectifs', joursAvantJ: -35, duree: 10 },
+          { titre: 'Élaboration de la stratégie', description: 'Choix des moyens d\'action, calendrier', joursAvantJ: -25, duree: 10 },
+          { titre: 'Mobilisation', description: 'Communication, implication des salariés', joursAvantJ: -15, duree: 10 },
+          { titre: 'Action', description: 'Mise en œuvre des moyens de pression', joursAvantJ: -5, duree: 5 },
+          { titre: 'Bilan et suites', description: 'Évaluation, capitalisation, perspectives', joursAvantJ: 0, duree: 15 }
+        ]
+      },
+      formation: {
+        nom: 'Formation',
+        phases: [
+          { titre: 'Identification des besoins', description: 'Diagnostic des compétences nécessaires', joursAvantJ: -90, duree: 20 },
+          { titre: 'Élaboration du programme', description: 'Contenu pédagogique, objectifs, méthodes', joursAvantJ: -70, duree: 20 },
+          { titre: 'Organisation logistique', description: 'Réservation salle, matériel, convocations', joursAvantJ: -50, duree: 15 },
+          { titre: 'Communication', description: 'Promotion de la formation, inscriptions', joursAvantJ: -35, duree: 15 },
+          { titre: 'Sessions de formation', description: 'Déroulement des modules, suivi', joursAvantJ: -20, duree: 20 },
+          { titre: 'Évaluation', description: 'Retours participants, ajustements futurs', joursAvantJ: 0, duree: 10 }
+        ]
+      }
+    },
+
+    phases: [],
+    joursRestants: 0,
+    phaseActuelle: null,
+
+    selectModele(key) {
+      this.typeCampagne = key;
+    },
+
+    canGenerate() {
+      return this.titre.trim() && this.dateJ && this.typeCampagne;
+    },
+
+    generatePlanning() {
+      if (!this.canGenerate()) {
+        alert('Veuillez renseigner au minimum le titre, la date du Jour J et le type de campagne.');
+        return;
+      }
+
+      const dateJObj = new Date(this.dateJ);
+      const aujourd'hui = new Date();
+      aujourd'hui.setHours(0, 0, 0, 0);
+
+      this.joursRestants = Math.ceil((dateJObj - aujourd'hui) / (1000 * 60 * 60 * 24));
+
+      // Générer les phases à partir du modèle
+      const modele = this.modeles[this.typeCampagne];
+      this.phases = modele.phases.map(phase => {
+        const dateDebut = new Date(dateJObj);
+        dateDebut.setDate(dateDebut.getDate() + phase.joursAvantJ);
+
+        // Déterminer le statut
+        let statut = 'a_venir';
+        if (dateDebut <= aujourd'hui) {
+          const dateFin = new Date(dateDebut);
+          dateFin.setDate(dateFin.getDate() + phase.duree);
+          if (dateFin >= aujourd'hui) {
+            statut = 'en_cours';
+          } else {
+            statut = 'termine';
+          }
+        }
+
+        return {
+          ...phase,
+          dateDebut: dateDebut.toISOString().split('T')[0],
+          statut
+        };
+      });
+
+      // Identifier la phase actuelle
+      this.phaseActuelle = this.phases.find(p => p.statut === 'en_cours') || null;
+
+      this.generated = true;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    },
+
+    reset() {
+      this.generated = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    async savePlanning() {
+      try {
+        const response = await fetch('/api/retroplanning', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            titre: this.titre,
+            date_evenement: this.dateJ,
+            type_campagne: this.typeCampagne,
+            entreprise: this.entreprise || null,
+            siret: this.siret || null,
+            description: this.description || null,
+            phases: this.phases
+          })
+        });
+
+        if (response.ok) {
+          this.showMessage('✅ Rétro-planning sauvegardé avec succès !', 'success');
+        } else {
+          this.showMessage('❌ Erreur lors de la sauvegarde', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.showMessage('❌ Erreur lors de la sauvegarde', 'error');
+      }
+    },
+
+    showMessage(text, type) {
+      this.message = { show: true, text, type };
+      setTimeout(() => { this.message.show = false; }, 5000);
+    }
+  }
+}
+</script>
+{% endblock %}
