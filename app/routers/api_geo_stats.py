@@ -14,8 +14,18 @@ router = APIRouter(
 )
 
 
+@router.get("/federations")
+def get_federations(db: Session = Depends(get_session)):
+    """Retourne la liste des fédérations disponibles."""
+    fds = db.query(PVEvent.fd).distinct().filter(PVEvent.fd.isnot(None)).order_by(PVEvent.fd).all()
+    return [f[0] for f in fds if f[0]]
+
+
 @router.get("/departements/inscrits")
-def get_departements_inscrits_stats(db: Session = Depends(get_session)):
+def get_departements_inscrits_stats(
+    fd: str | None = None,
+    db: Session = Depends(get_session)
+):
     """
     Retourne les statistiques d'inscrits par département (cycle C4 uniquement) :
     - Total des inscrits par département
@@ -37,14 +47,19 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
         PVEvent.inscrits.isnot(None),
         PVEvent.inscrits > 0,
         PVEvent.cycle == 'C4'  # Filtre C4 uniquement
-    ).all()
+    )
+
+    if fd:
+        query = query.filter(PVEvent.fd == fd)
+
+    rows = query.all()
 
     # Dictionnaire pour stocker les stats par département
     dept_stats = {}
     # Set pour compter les SIRET uniques en C4
     sirets_c4 = set()
 
-    for row in query:
+    for row in rows:
         if not row.cp:
             continue
 
@@ -123,6 +138,7 @@ def get_departements_inscrits_stats(db: Session = Depends(get_session)):
 def get_top_cibles(
     min_inscrits: int = 1000,
     limit: int = 100,
+    fd: str | None = None,
     db: Session = Depends(get_session)
 ):
     """
@@ -131,14 +147,19 @@ def get_top_cibles(
 
     # Grouper par SIRET pour éviter les doublons (un SIRET peut avoir plusieurs PV)
     # On prend le max des inscrits pour chaque SIRET
-    subquery = db.query(
+    subquery_q = db.query(
         PVEvent.siret,
         func.max(PVEvent.inscrits).label('max_inscrits')
     ).filter(
         PVEvent.siret.isnot(None),
         PVEvent.inscrits.isnot(None),
         PVEvent.inscrits >= min_inscrits
-    ).group_by(PVEvent.siret).subquery()
+    )
+
+    if fd:
+        subquery_q = subquery_q.filter(PVEvent.fd == fd)
+
+    subquery = subquery_q.group_by(PVEvent.siret).subquery()
 
     # Récupérer les infos complètes pour ces SIRETs
     query = db.query(
@@ -184,7 +205,10 @@ def get_top_cibles(
 
 
 @router.get("/departements/invitations-pap")
-def get_departements_invitations_pap(db: Session = Depends(get_session)):
+def get_departements_invitations_pap(
+    fd: str | None = None,
+    db: Session = Depends(get_session)
+):
     """
     Retourne les statistiques d'invitations PAP par département et par UD :
     - Nombre d'invitations PAP par département (code postal)
@@ -193,9 +217,14 @@ def get_departements_invitations_pap(db: Session = Depends(get_session)):
     """
 
     # Récupérer toutes les invitations avec département
-    invitations = db.query(Invitation).filter(
+    query = db.query(Invitation).filter(
         Invitation.code_postal.isnot(None)
-    ).all()
+    )
+
+    if fd:
+        query = query.filter(Invitation.fd == fd)
+
+    invitations = query.all()
 
     # Stats par département (code postal)
     dept_stats = {}
