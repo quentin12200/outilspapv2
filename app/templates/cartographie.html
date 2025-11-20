@@ -76,22 +76,19 @@
   <!-- Onglets -->
   <div class="mb-8">
     <div class="bg-white rounded-xl shadow-md p-2 inline-flex space-x-2">
-      <button
-        @click="activeTab = 'inscrits'"
+      <button @click="activeTab = 'inscrits'"
         :class="activeTab === 'inscrits' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-users"></i>
         <span>Inscrits par département</span>
       </button>
-      <button
-        @click="activeTab = 'pap'"
+      <button @click="activeTab = 'pap'"
         :class="activeTab === 'pap' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-envelope-open-text"></i>
         <span>Invitations PAP</span>
       </button>
-      <button
-        @click="activeTab = 'federations'"
+      <button @click="activeTab = 'federations'"
         :class="activeTab === 'federations' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-industry"></i>
@@ -222,10 +219,12 @@
 
           <div class="space-y-3">
             <template x-for="(dept, index) in topDepartementsInscrits" :key="dept.dept">
-              <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
-                   @click="selectedDeptInscrits = dept">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
-                     x-text="index + 1"></div>
+              <div
+                class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                @click="selectedDeptInscrits = dept">
+                <div
+                  class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
+                  x-text="index + 1"></div>
                 <div class="flex-1">
                   <p class="text-sm font-bold text-gray-900" x-text="dept.dept"></p>
                   <p class="text-xs text-gray-500" x-text="formatNumber(dept.total_inscrits) + ' inscrits'"></p>
@@ -346,10 +345,12 @@
 
           <div class="space-y-3">
             <template x-for="(dept, index) in topDepartementsPAP" :key="dept.dept">
-              <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
-                   @click="selectedDeptPAP = dept">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
-                     x-text="index + 1"></div>
+              <div
+                class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                @click="selectedDeptPAP = dept">
+                <div
+                  class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
+                  x-text="index + 1"></div>
                 <div class="flex-1">
                   <p class="text-sm font-bold text-gray-900" x-text="dept.dept"></p>
                   <p class="text-xs text-gray-500" x-text="dept.nb_invitations + ' invitations'"></p>
@@ -388,8 +389,9 @@
                     <span class="text-sm font-medium text-gray-900" x-text="ud.ud"></span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-right">
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800"
-                          x-text="ud.nb_invitations">
+                    <span
+                      class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800"
+                      x-text="ud.nb_invitations">
                     </span>
                   </td>
                 </tr>
@@ -402,10 +404,8 @@
   </div>
 
   <!-- Modal détails département inscrits -->
-  <div x-show="selectedDeptInscrits !== null"
-       x-cloak
-       @click.self="selectedDeptInscrits = null"
-       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div x-show="selectedDeptInscrits !== null" x-cloak @click.self="selectedDeptInscrits = null"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
@@ -458,7 +458,7 @@
                   <p class="text-2xl font-bold text-cgt-red" x-text="formatNumber(cible.inscrits)"></p>
                   <p class="text-xs text-gray-500">inscrits</p>
                   <span class="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800"
-                        x-text="cible.cycle"></span>
+                    x-text="cible.cycle"></span>
                 </div>
               </div>
             </div>
@@ -475,7 +475,8 @@
     <!-- Sélecteur de fédération -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-8">
       <label class="block text-sm font-medium text-gray-700 mb-2">Choisir une fédération</label>
-      <select x-model="selectedFederation" class="w-full md:w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-cgt-red">
+      <select x-model="selectedFederation"
+        class="w-full md:w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-cgt-red">
         <option value="">Sélectionnez une fédération...</option>
         <template x-for="fd in federations" :key="fd">
           <option :value="fd" x-text="fd"></option>
@@ -490,7 +491,8 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm font-medium text-gray-600">Total Inscrits</p>
-              <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(statsFederation.total_inscrits_france)"></p>
+              <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(statsFederation.total_inscrits_france)">
+              </p>
             </div>
             <i class="fas fa-users text-3xl text-blue-500 opacity-50"></i>
           </div>
@@ -510,7 +512,8 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm font-medium text-gray-600">Entreprises C4</p>
-              <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(statsFederation.total_entreprises_c4)"></p>
+              <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(statsFederation.total_entreprises_c4)">
+              </p>
             </div>
             <i class="fas fa-building text-3xl text-orange-500 opacity-50"></i>
           </div>
@@ -584,10 +587,12 @@
 
             <div class="space-y-3">
               <template x-for="(dept, index) in topDepartementsFederation" :key="dept.dept">
-                <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
-                     @click="selectedDeptFederation = dept">
-                  <div class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
-                       x-text="index + 1"></div>
+                <div
+                  class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                  @click="selectedDeptFederation = dept">
+                  <div
+                    class="flex-shrink-0 w-8 h-8 rounded-full bg-cgt-red text-white flex items-center justify-center font-bold text-sm"
+                    x-text="index + 1"></div>
                   <div class="flex-1">
                     <p class="text-sm font-bold text-gray-900" x-text="dept.dept"></p>
                     <p class="text-xs text-gray-500" x-text="formatNumber(dept.total_inscrits) + ' inscrits'"></p>
@@ -606,15 +611,14 @@
   </div>
 
   <!-- Modal détails département Fédération -->
-  <div x-show="selectedDeptFederation !== null"
-       x-cloak
-       @click.self="selectedDeptFederation = null"
-       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div x-show="selectedDeptFederation !== null" x-cloak @click.self="selectedDeptFederation = null"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
           <h3 class="text-2xl font-bold" x-text="'Département ' + (selectedDeptFederation?.dept || '')"></h3>
-          <button @click="selectedDeptFederation = null" class="text-white hover:bg-white/20 rounded-full p-2 transition">
+          <button @click="selectedDeptFederation = null"
+            class="text-white hover:bg-white/20 rounded-full p-2 transition">
             <i class="fas fa-times text-xl"></i>
           </button>
         </div>
@@ -662,7 +666,7 @@
                   <p class="text-2xl font-bold text-cgt-red" x-text="formatNumber(cible.inscrits)"></p>
                   <p class="text-xs text-gray-500">inscrits</p>
                   <span class="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800"
-                        x-text="cible.cycle"></span>
+                    x-text="cible.cycle"></span>
                 </div>
               </div>
             </div>
@@ -673,10 +677,8 @@
   </div>
 
   <!-- Modal détails département PAP -->
-  <div x-show="selectedDeptPAP !== null"
-       x-cloak
-       @click.self="selectedDeptPAP = null"
-       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div x-show="selectedDeptPAP !== null" x-cloak @click.self="selectedDeptPAP = null"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
@@ -737,288 +739,288 @@
 </div>
 
 <script>
-function cartographieApp() {
-  return {
-    activeTab: 'inscrits',
-    departements: [],
-    departementsPAP: [],
-    departementsFederation: [],
-    parUD: [],
-    geojsonData: null,  // Stocker le GeoJSON pour réutilisation
-    mapPAPLoaded: false,  // Flag pour savoir si la carte PAP a été chargée
-    mapFederationLoaded: false,
-    federations: [],
-    selectedFederation: '',
-    stats: {
-      total_departements: 0,
-      total_cibles_1000plus: 0,
-      total_inscrits_france: 0,
-      total_entreprises_c4: 0,
-      moyenne_par_dept: 0
-    },
-    statsPAP: {
-      total_invitations: 0,
-      total_departements: 0,
-      total_uds: 0,
-      moyenne_par_dept: 0
-    },
-    statsFederation: {
-      total_inscrits_france: 0,
-      total_cibles_1000plus: 0,
-      total_entreprises_c4: 0,
-      total_departements: 0
-    },
-    loading: true,
-    selectedDeptInscrits: null,
-    selectedDeptPAP: null,
-    selectedDeptFederation: null,
+  function cartographieApp() {
+    return {
+      activeTab: 'inscrits',
+      departements: [],
+      departementsPAP: [],
+      departementsFederation: [],
+      parUD: [],
+      geojsonData: null,  // Stocker le GeoJSON pour réutilisation
+      mapPAPLoaded: false,  // Flag pour savoir si la carte PAP a été chargée
+      mapFederationLoaded: false,
+      federations: [],
+      selectedFederation: '',
+      stats: {
+        total_departements: 0,
+        total_cibles_1000plus: 0,
+        total_inscrits_france: 0,
+        total_entreprises_c4: 0,
+        moyenne_par_dept: 0
+      },
+      statsPAP: {
+        total_invitations: 0,
+        total_departements: 0,
+        total_uds: 0,
+        moyenne_par_dept: 0
+      },
+      statsFederation: {
+        total_inscrits_france: 0,
+        total_cibles_1000plus: 0,
+        total_entreprises_c4: 0,
+        total_departements: 0
+      },
+      loading: true,
+      selectedDeptInscrits: null,
+      selectedDeptPAP: null,
+      selectedDeptFederation: null,
 
-    async init() {
-      await this.loadDataInscrits();
-      await this.loadDataPAP();
-      await this.loadFederations();
-      await this.loadGeoJSON();
-      await this.loadMap();
-      this.loading = false;
+      async init() {
+        await this.loadDataInscrits();
+        await this.loadDataPAP();
+        await this.loadFederations();
+        await this.loadGeoJSON();
+        await this.loadMap();
+        this.loading = false;
 
-      // Watch activeTab pour charger la carte PAP quand nécessaire
-      this.$watch('activeTab', (newTab) => {
-        if (newTab === 'pap' && !this.mapPAPLoaded) {
-          // Attendre que le DOM soit mis à jour avec le nouveau tab visible
-          this.$nextTick(() => {
-            this.loadMapPAP();
-            this.mapPAPLoaded = true;
-          });
-        } else if (newTab === 'federations' && this.selectedFederation && !this.mapFederationLoaded) {
-           this.$nextTick(() => {
-            this.loadMapFederation();
-            this.mapFederationLoaded = true;
-          });
-        }
-      });
-
-      this.$watch('selectedFederation', async (newVal) => {
-        if (newVal) {
-          await this.loadDataFederation(newVal);
-          this.$nextTick(() => {
-            this.loadMapFederation();
-            this.mapFederationLoaded = true;
-          });
-        }
-      });
-    },
-
-    async loadFederations() {
-      try {
-        const response = await fetch('/api/geo/federations');
-        this.federations = await response.json();
-      } catch (error) {
-        console.error('Erreur chargement fédérations:', error);
-      }
-    },
-
-    async loadDataFederation(fd) {
-      try {
-        const response = await fetch(`/api/geo/departements/inscrits?fd=${encodeURIComponent(fd)}`);
-        const data = await response.json();
-
-        this.departementsFederation = data.departements;
-        this.statsFederation.total_cibles_1000plus = data.total_cibles_1000plus;
-        this.statsFederation.total_inscrits_france = data.total_inscrits_france;
-        this.statsFederation.total_entreprises_c4 = data.total_entreprises_c4 || 0;
-        this.statsFederation.total_departements = this.departementsFederation.length;
-      } catch (error) {
-        console.error('Erreur chargement données fédération:', error);
-        showToast('Erreur lors du chargement des données fédération', 'error');
-      }
-    },
-
-    async loadGeoJSON() {
-      try {
-        const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
-        this.geojsonData = await response.json();
-      } catch (error) {
-        console.error('Erreur chargement GeoJSON:', error);
-      }
-    },
-
-    async loadDataInscrits() {
-      try {
-        const response = await fetch('/api/geo/departements/inscrits');
-        const data = await response.json();
-
-        this.departements = data.departements;
-        this.stats.total_departements = this.departements.length;
-        this.stats.total_cibles_1000plus = data.total_cibles_1000plus;
-        this.stats.total_inscrits_france = data.total_inscrits_france;
-        this.stats.total_entreprises_c4 = data.total_entreprises_c4 || 0;
-        this.stats.moyenne_par_dept = Math.round(data.total_inscrits_france / this.departements.length);
-      } catch (error) {
-        console.error('Erreur chargement données inscrits:', error);
-        showToast('Erreur lors du chargement des données inscrits', 'error');
-      }
-    },
-
-    async loadDataPAP() {
-      try {
-        const response = await fetch('/api/geo/departements/invitations-pap');
-        const data = await response.json();
-
-        this.departementsPAP = data.par_departement;
-        this.parUD = data.par_ud;
-        this.statsPAP.total_invitations = data.total_invitations;
-        this.statsPAP.total_departements = data.total_departements;
-        this.statsPAP.total_uds = data.total_uds;
-        this.statsPAP.moyenne_par_dept = data.total_departements > 0
-          ? Math.round(data.total_invitations / data.total_departements)
-          : 0;
-      } catch (error) {
-        console.error('Erreur chargement données PAP:', error);
-        showToast('Erreur lors du chargement des données PAP', 'error');
-      }
-    },
-
-    loadMap() {
-      if (!this.geojsonData) {
-        console.error('GeoJSON data not loaded');
-        return;
-      }
-      try {
-        this.drawMap(this.geojsonData, 'inscrits');
-      } catch (error) {
-        console.error('Erreur dessin carte inscrits:', error);
-      }
-    },
-
-    loadMapPAP() {
-      if (!this.geojsonData) {
-        console.error('GeoJSON data not loaded');
-        return;
-      }
-      try {
-        this.drawMap(this.geojsonData, 'pap');
-      } catch (error) {
-        console.error('Erreur dessin carte PAP:', error);
-      }
-    },
-
-    loadMapFederation() {
-      if (!this.geojsonData) {
-        console.error('GeoJSON data not loaded');
-        return;
-      }
-      try {
-        this.drawMap(this.geojsonData, 'federation');
-      } catch (error) {
-        console.error('Erreur dessin carte Fédération:', error);
-      }
-    },
-
-    drawMap(geojson, type) {
-      let svgId, tooltipId, containerId;
-      if (type === 'inscrits') {
-        svgId = '#france-map';
-        tooltipId = '#map-tooltip';
-        containerId = '#map-container';
-      } else if (type === 'pap') {
-        svgId = '#france-map-pap';
-        tooltipId = '#map-tooltip-pap';
-        containerId = '#map-container-pap';
-      } else {
-        svgId = '#france-map-federation';
-        tooltipId = '#map-tooltip-federation';
-        containerId = '#map-container-federation';
-      }
-
-      const container = document.querySelector(containerId);
-      if (!container) {
-        console.error(`Container ${containerId} not found`);
-        return;
-      }
-
-      const svg = d3.select(svgId);
-      let width = container.clientWidth;
-
-      // Si le conteneur est caché, la largeur sera 0, utiliser une valeur par défaut
-      if (width === 0) {
-        width = 800;  // Largeur par défaut
-      }
-
-      const height = 600;
-
-      svg.attr('width', width).attr('height', height);
-
-      // Clear previous content
-      svg.selectAll('*').remove();
-
-      // Create projection
-      const projection = d3.geoConicConformal()
-        .center([2.454071, 46.279229])
-        .scale(2800)
-        .translate([width / 2, height / 2]);
-
-      const path = d3.geoPath().projection(projection);
-
-      // Create color scale based on type
-      let colorScale, deptData;
-      if (type === 'inscrits') {
-        const maxInscrits = d3.max(this.departements, d => d.total_inscrits);
-        colorScale = d3.scaleThreshold()
-          .domain([1000, 10000, 50000, 100000])
-          .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
-
-        deptData = {};
-        this.departements.forEach(d => {
-          deptData[d.dept] = d;
-        });
-      } else if (type === 'federation') {
-         colorScale = d3.scaleThreshold()
-          .domain([100, 500, 1000, 5000])
-          .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
-
-        deptData = {};
-        this.departementsFederation.forEach(d => {
-          deptData[d.dept] = d;
-        });
-      } else {
-        const maxPAP = d3.max(this.departementsPAP, d => d.nb_invitations);
-        colorScale = d3.scaleThreshold()
-          .domain([1, 10, 50, 100])
-          .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
-
-        deptData = {};
-        this.departementsPAP.forEach(d => {
-          deptData[d.dept] = d;
-        });
-      }
-
-      const tooltip = d3.select(tooltipId);
-
-      // Draw departments
-      svg.selectAll('path')
-        .data(geojson.features)
-        .enter()
-        .append('path')
-        .attr('d', path)
-        .attr('class', 'department')
-        .attr('fill', d => {
-          const code = d.properties.code;
-          const data = deptData[code];
-          if (!data) return '#f0f0f0';
-
-          if (type === 'inscrits') {
-            return colorScale(data.total_inscrits);
-          } else {
-            return colorScale(data.nb_invitations);
+        // Watch activeTab pour charger la carte PAP quand nécessaire
+        this.$watch('activeTab', (newTab) => {
+          if (newTab === 'pap' && !this.mapPAPLoaded) {
+            // Attendre que le DOM soit mis à jour avec le nouveau tab visible
+            this.$nextTick(() => {
+              this.loadMapPAP();
+              this.mapPAPLoaded = true;
+            });
+          } else if (newTab === 'federations' && this.selectedFederation && !this.mapFederationLoaded) {
+            this.$nextTick(() => {
+              this.loadMapFederation();
+              this.mapFederationLoaded = true;
+            });
           }
-        })
-        .on('mouseover', (event, d) => {
-          const code = d.properties.code;
-          const data = deptData[code];
+        });
 
-          let content;
-          if (type === 'inscrits' || type === 'federation') {
-            content = `
+        this.$watch('selectedFederation', async (newVal) => {
+          if (newVal) {
+            await this.loadDataFederation(newVal);
+            this.$nextTick(() => {
+              this.loadMapFederation();
+              this.mapFederationLoaded = true;
+            });
+          }
+        });
+      },
+
+      async loadFederations() {
+        try {
+          const response = await fetch('/api/geo/federations');
+          this.federations = await response.json();
+        } catch (error) {
+          console.error('Erreur chargement fédérations:', error);
+        }
+      },
+
+      async loadDataFederation(fd) {
+        try {
+          const response = await fetch(`/api/geo/departements/inscrits?fd=${encodeURIComponent(fd)}`);
+          const data = await response.json();
+
+          this.departementsFederation = data.departements;
+          this.statsFederation.total_cibles_1000plus = data.total_cibles_1000plus;
+          this.statsFederation.total_inscrits_france = data.total_inscrits_france;
+          this.statsFederation.total_entreprises_c4 = data.total_entreprises_c4 || 0;
+          this.statsFederation.total_departements = this.departementsFederation.length;
+        } catch (error) {
+          console.error('Erreur chargement données fédération:', error);
+          showToast('Erreur lors du chargement des données fédération', 'error');
+        }
+      },
+
+      async loadGeoJSON() {
+        try {
+          const response = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
+          this.geojsonData = await response.json();
+        } catch (error) {
+          console.error('Erreur chargement GeoJSON:', error);
+        }
+      },
+
+      async loadDataInscrits() {
+        try {
+          const response = await fetch('/api/geo/departements/inscrits');
+          const data = await response.json();
+
+          this.departements = data.departements;
+          this.stats.total_departements = this.departements.length;
+          this.stats.total_cibles_1000plus = data.total_cibles_1000plus;
+          this.stats.total_inscrits_france = data.total_inscrits_france;
+          this.stats.total_entreprises_c4 = data.total_entreprises_c4 || 0;
+          this.stats.moyenne_par_dept = Math.round(data.total_inscrits_france / this.departements.length);
+        } catch (error) {
+          console.error('Erreur chargement données inscrits:', error);
+          showToast('Erreur lors du chargement des données inscrits', 'error');
+        }
+      },
+
+      async loadDataPAP() {
+        try {
+          const response = await fetch('/api/geo/departements/invitations-pap');
+          const data = await response.json();
+
+          this.departementsPAP = data.par_departement;
+          this.parUD = data.par_ud;
+          this.statsPAP.total_invitations = data.total_invitations;
+          this.statsPAP.total_departements = data.total_departements;
+          this.statsPAP.total_uds = data.total_uds;
+          this.statsPAP.moyenne_par_dept = data.total_departements > 0
+            ? Math.round(data.total_invitations / data.total_departements)
+            : 0;
+        } catch (error) {
+          console.error('Erreur chargement données PAP:', error);
+          showToast('Erreur lors du chargement des données PAP', 'error');
+        }
+      },
+
+      loadMap() {
+        if (!this.geojsonData) {
+          console.error('GeoJSON data not loaded');
+          return;
+        }
+        try {
+          this.drawMap(this.geojsonData, 'inscrits');
+        } catch (error) {
+          console.error('Erreur dessin carte inscrits:', error);
+        }
+      },
+
+      loadMapPAP() {
+        if (!this.geojsonData) {
+          console.error('GeoJSON data not loaded');
+          return;
+        }
+        try {
+          this.drawMap(this.geojsonData, 'pap');
+        } catch (error) {
+          console.error('Erreur dessin carte PAP:', error);
+        }
+      },
+
+      loadMapFederation() {
+        if (!this.geojsonData) {
+          console.error('GeoJSON data not loaded');
+          return;
+        }
+        try {
+          this.drawMap(this.geojsonData, 'federation');
+        } catch (error) {
+          console.error('Erreur dessin carte Fédération:', error);
+        }
+      },
+
+      drawMap(geojson, type) {
+        let svgId, tooltipId, containerId;
+        if (type === 'inscrits') {
+          svgId = '#france-map';
+          tooltipId = '#map-tooltip';
+          containerId = '#map-container';
+        } else if (type === 'pap') {
+          svgId = '#france-map-pap';
+          tooltipId = '#map-tooltip-pap';
+          containerId = '#map-container-pap';
+        } else {
+          svgId = '#france-map-federation';
+          tooltipId = '#map-tooltip-federation';
+          containerId = '#map-container-federation';
+        }
+
+        const container = document.querySelector(containerId);
+        if (!container) {
+          console.error(`Container ${containerId} not found`);
+          return;
+        }
+
+        const svg = d3.select(svgId);
+        let width = container.clientWidth;
+
+        // Si le conteneur est caché, la largeur sera 0, utiliser une valeur par défaut
+        if (width === 0) {
+          width = 800;  // Largeur par défaut
+        }
+
+        const height = 600;
+
+        svg.attr('width', width).attr('height', height);
+
+        // Clear previous content
+        svg.selectAll('*').remove();
+
+        // Create projection
+        const projection = d3.geoConicConformal()
+          .center([2.454071, 46.279229])
+          .scale(2800)
+          .translate([width / 2, height / 2]);
+
+        const path = d3.geoPath().projection(projection);
+
+        // Create color scale based on type
+        let colorScale, deptData;
+        if (type === 'inscrits') {
+          const maxInscrits = d3.max(this.departements, d => d.total_inscrits);
+          colorScale = d3.scaleThreshold()
+            .domain([1000, 10000, 50000, 100000])
+            .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
+
+          deptData = {};
+          this.departements.forEach(d => {
+            deptData[d.dept] = d;
+          });
+        } else if (type === 'federation') {
+          colorScale = d3.scaleThreshold()
+            .domain([100, 500, 1000, 5000])
+            .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
+
+          deptData = {};
+          this.departementsFederation.forEach(d => {
+            deptData[d.dept] = d;
+          });
+        } else {
+          const maxPAP = d3.max(this.departementsPAP, d => d.nb_invitations);
+          colorScale = d3.scaleThreshold()
+            .domain([1, 10, 50, 100])
+            .range(['#f0f0f0', '#fee5d9', '#fcae91', '#fb6a4a', '#cb181d']);
+
+          deptData = {};
+          this.departementsPAP.forEach(d => {
+            deptData[d.dept] = d;
+          });
+        }
+
+        const tooltip = d3.select(tooltipId);
+
+        // Draw departments
+        svg.selectAll('path')
+          .data(geojson.features)
+          .enter()
+          .append('path')
+          .attr('d', path)
+          .attr('class', 'department')
+          .attr('fill', d => {
+            const code = d.properties.code;
+            const data = deptData[code];
+            if (!data) return '#f0f0f0';
+
+            if (type === 'inscrits' || type === 'federation') {
+              return colorScale(data.total_inscrits);
+            } else {
+              return colorScale(data.nb_invitations);
+            }
+          })
+          .on('mouseover', (event, d) => {
+            const code = d.properties.code;
+            const data = deptData[code];
+
+            let content;
+            if (type === 'inscrits' || type === 'federation') {
+              content = `
               <div class="font-bold mb-1">${d.properties.nom} (${code})</div>
               ${data ? `
                 <div class="text-sm">
@@ -1027,8 +1029,8 @@ function cartographieApp() {
                 </div>
               ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
             `;
-          } else {
-            content = `
+            } else {
+              content = `
               <div class="font-bold mb-1">${d.properties.nom} (${code})</div>
               ${data ? `
                 <div class="text-sm">
@@ -1036,65 +1038,65 @@ function cartographieApp() {
                 </div>
               ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
             `;
-          }
-
-          tooltip.style('opacity', 1)
-            .html(content)
-            .style('left', (event.pageX + 15) + 'px')
-            .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', () => {
-          tooltip.style('opacity', 0);
-        })
-        .on('click', (event, d) => {
-          const code = d.properties.code;
-          const data = deptData[code];
-          if (data) {
-            if (type === 'inscrits') {
-              this.selectedDeptInscrits = data;
-            } else if (type === 'federation') {
-              this.selectedDeptFederation = data;
-            } else {
-              this.selectedDeptPAP = data;
             }
-          }
-        });
 
-      // Add department labels
-      svg.selectAll('text')
-        .data(geojson.features)
-        .enter()
-        .append('text')
-        .attr('class', 'department-label')
-        .attr('transform', d => {
-          const centroid = path.centroid(d);
-          return `translate(${centroid[0]}, ${centroid[1]})`;
-        })
-        .text(d => d.properties.code);
-    },
+            tooltip.style('opacity', 1)
+              .html(content)
+              .style('left', (event.pageX + 15) + 'px')
+              .style('top', (event.pageY - 28) + 'px');
+          })
+          .on('mouseout', () => {
+            tooltip.style('opacity', 0);
+          })
+          .on('click', (event, d) => {
+            const code = d.properties.code;
+            const data = deptData[code];
+            if (data) {
+              if (type === 'inscrits') {
+                this.selectedDeptInscrits = data;
+              } else if (type === 'federation') {
+                this.selectedDeptFederation = data;
+              } else {
+                this.selectedDeptPAP = data;
+              }
+            }
+          });
 
-    get topDepartementsInscrits() {
-      return [...this.departements]
-        .sort((a, b) => b.total_inscrits - a.total_inscrits)
-        .slice(0, 10);
-    },
+        // Add department labels
+        svg.selectAll('text')
+          .data(geojson.features)
+          .enter()
+          .append('text')
+          .attr('class', 'department-label')
+          .attr('transform', d => {
+            const centroid = path.centroid(d);
+            return `translate(${centroid[0]}, ${centroid[1]})`;
+          })
+          .text(d => d.properties.code);
+      },
 
-    get topDepartementsPAP() {
-      return [...this.departementsPAP]
-        .sort((a, b) => b.nb_invitations - a.nb_invitations)
-        .slice(0, 10);
-    },
+      get topDepartementsInscrits() {
+        return [...this.departements]
+          .sort((a, b) => b.total_inscrits - a.total_inscrits)
+          .slice(0, 10);
+      },
 
-    get topDepartementsFederation() {
-      return [...this.departementsFederation]
-        .sort((a, b) => b.total_inscrits - a.total_inscrits)
-        .slice(0, 10);
-    },
+      get topDepartementsPAP() {
+        return [...this.departementsPAP]
+          .sort((a, b) => b.nb_invitations - a.nb_invitations)
+          .slice(0, 10);
+      },
 
-    formatNumber(num) {
-      return new Intl.NumberFormat('fr-FR').format(num);
-    }
-  };
-}
+      get topDepartementsFederation() {
+        return [...this.departementsFederation]
+          .sort((a, b) => b.total_inscrits - a.total_inscrits)
+          .slice(0, 10);
+      },
+
+      formatNumber(num) {
+        return new Intl.NumberFormat('fr-FR').format(num);
+      }
+    };
+  }
 </script>
 {% endblock %}
