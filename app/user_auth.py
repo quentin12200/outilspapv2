@@ -19,6 +19,18 @@ from .db import get_session
 # Configuration du hachage de mots de passe avec bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Environnement courant
+ENVIRONMENT = os.getenv("ENV", "development").lower()
+IS_DEV_ENV = ENVIRONMENT in {"development", "dev", "local"}
+IS_TEST_ENV = ENVIRONMENT in {"test", "testing", "ci"}
+
+
+def _parse_bool_env(value: Optional[str], default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Clé secrète pour signer les cookies de session utilisateur
 # Utilise la même clé que l'admin ou une clé dédiée
 USER_SESSION_SECRET = os.getenv("USER_SESSION_SECRET") or os.getenv("ADMIN_SESSION_SECRET", secrets.token_urlsafe(32))
@@ -31,6 +43,12 @@ USER_SESSION_COOKIE_NAME = "user_session"
 
 # Durée de validité de la session (en secondes) - 7 jours par défaut
 USER_SESSION_MAX_AGE = int(os.getenv("USER_SESSION_MAX_AGE", 604800))
+USER_SESSION_COOKIE_SECURE = _parse_bool_env(
+    os.getenv("USER_SESSION_COOKIE_SECURE"),
+    default=not (IS_DEV_ENV or IS_TEST_ENV),
+)
+_default_samesite = "strict" if USER_SESSION_COOKIE_SECURE else "lax"
+USER_SESSION_COOKIE_SAMESITE = os.getenv("USER_SESSION_COOKIE_SAMESITE", _default_samesite).lower()
 
 
 # Routes publiques qui ne nécessitent pas d'authentification

@@ -7,23 +7,37 @@ from typing import Optional
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
+ENVIRONMENT = os.getenv("ENV", "development").lower()
+IS_DEV_ENV = ENVIRONMENT in {"development", "dev", "local"}
+IS_TEST_ENV = ENVIRONMENT in {"test", "testing", "ci"}
+
 # Configuration de l'API Key
 # En production, cette clé doit être définie dans les variables d'environnement
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
 
-# Si aucune clé n'est définie en production, générer un avertissement
+# Si aucune clé n'est définie en production, lever immédiatement une erreur
 if not ADMIN_API_KEY:
     import logging
+
     logger = logging.getLogger(__name__)
-    logger.warning(
-        "⚠️ ADMIN_API_KEY not set! Admin endpoints are NOT protected. "
-        "Please set ADMIN_API_KEY environment variable in production."
-    )
-    # En développement, on peut générer une clé temporaire
-    # ATTENTION: En production, cette clé doit TOUJOURS être définie dans l'environnement
-    if os.getenv("ENV", "development").lower() == "development":
+
+    if IS_DEV_ENV:
         ADMIN_API_KEY = secrets.token_urlsafe(32)
-        logger.warning(f"Generated temporary API key for development: {ADMIN_API_KEY}")
+        logger.warning(
+            "⚠️ ADMIN_API_KEY not set! Generated temporary key for development only: %s",
+            ADMIN_API_KEY,
+        )
+    elif IS_TEST_ENV:
+        ADMIN_API_KEY = "test-admin-api-key"
+        logger.warning(
+            "ADMIN_API_KEY not set; using deterministic test key because ENV=%s",
+            ENVIRONMENT,
+        )
+    else:
+        raise RuntimeError(
+            "ADMIN_API_KEY must be set in production/staging environments. "
+            "Set ENV=development for local runs or define ADMIN_API_KEY."
+        )
 
 # Header pour l'API Key
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)

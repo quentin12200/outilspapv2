@@ -109,6 +109,11 @@ python scripts/clean_nan_values.py
 3. ✅ Utiliser un fichier `.env` en local (à ajouter dans `.gitignore`)
 4. ✅ En production, configurer les secrets via le gestionnaire de secrets de votre plateforme (ex: Kubernetes Secrets, AWS Secrets Manager, etc.)
 
+### Cookies et HTTPS
+
+- En production/staging, forcez `FORCE_HTTPS=true` (valeur par défaut quand `ENV` n'est pas `development`/`test`) pour rediriger automatiquement le trafic HTTP vers HTTPS et envoyer l'en-tête `Strict-Transport-Security`.
+- Les cookies utilisateur sont `secure` et `samesite=strict` par défaut hors dev/test ; ajustez si besoin via `USER_SESSION_COOKIE_SECURE` et `USER_SESSION_COOKIE_SAMESITE`.
+
 ### Rotation des Clés
 
 Changez régulièrement votre API Key (recommandé : tous les 90 jours minimum) :

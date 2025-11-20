@@ -61,6 +61,8 @@ from .user_auth import (
     is_public_route,
     USER_SESSION_COOKIE_NAME,
     USER_SESSION_MAX_AGE,
+    USER_SESSION_COOKIE_SECURE,
+    USER_SESSION_COOKIE_SAMESITE,
     UserAuthException
 )
 from .models import User, PasswordResetToken
@@ -156,6 +158,18 @@ if KIT_PDF_CACHE_ENABLED:
     )
 else:
     KIT_PDF_CACHE_PATH = ""
+
+ENVIRONMENT = os.getenv("ENV", "development").lower()
+IS_PRODUCTION_LIKE = ENVIRONMENT in {"production", "prod", "staging", "preprod"}
+FORCE_HTTPS = os.getenv(
+    "FORCE_HTTPS",
+    "true" if IS_PRODUCTION_LIKE else "false",
+).strip().lower() in {"1", "true", "yes", "on"}
+HSTS_MAX_AGE = int(os.getenv("HSTS_MAX_AGE", 63072000))
+HSTS_INCLUDE_SUBDOMAINS = os.getenv(
+    "HSTS_INCLUDE_SUBDOMAINS",
+    "true" if IS_PRODUCTION_LIKE else "false",
+).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _infer_invitation_urls() -> list[str]:
@@ -705,6 +719,31 @@ from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
+
+
+def _is_request_secure(request: Request) -> bool:
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        proto = forwarded_proto.split(",")[0].strip().lower()
+        return proto == "https"
+    return request.url.scheme == "https"
+
+
+@app.middleware("http")
+async def https_redirect_and_hsts_middleware(request: Request, call_next):
+    if FORCE_HTTPS and not _is_request_secure(request):
+        redirect_url = request.url.replace(scheme="https")
+        return RedirectResponse(url=str(redirect_url), status_code=301)
+
+    response = await call_next(request)
+
+    if FORCE_HTTPS:
+        hsts_value = f"max-age={HSTS_MAX_AGE}"
+        if HSTS_INCLUDE_SUBDOMAINS:
+            hsts_value += "; includeSubDomains"
+        response.headers.setdefault("Strict-Transport-Security", hsts_value)
+
+    return response
 
 # Gestionnaire d'exceptions pour l'authentification utilisateur
 @app.exception_handler(UserAuthException)
@@ -3704,7 +3743,8 @@ def user_login_post(
             value=session_token,
             max_age=USER_SESSION_MAX_AGE,
             httponly=True,
-            samesite="lax"
+            secure=USER_SESSION_COOKIE_SECURE,
+            samesite=USER_SESSION_COOKIE_SAMESITE,
         )
         return response
     else:
