@@ -210,6 +210,26 @@ class Invitation(Base):
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
 
 
+class InvitationDraft(Base):
+    __tablename__ = "invitation_drafts"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    status = Column(String(20), default="pending", index=True)
+    source = Column(Text)
+    original_filename = Column(Text)
+
+    siret = Column(String(14), index=True, nullable=True)
+    date_invit = Column(Date, nullable=True)
+
+    missing_fields = Column(JSON)                                # Liste des champs manquants (ex: ["siret", "date_invit"])
+    raw = Column(JSON)                                           # Données brutes extraites (pour relecture manuelle)
+
+    invitation_id = Column(Integer, index=True)                  # ID de l'invitation finale une fois convertie
+
+
 class SiretSummary(Base):
     __tablename__ = "siret_summary"
     # 1 ligne par SIRET

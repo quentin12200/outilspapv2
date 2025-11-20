@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..db import get_session
-from ..models import Invitation
+from ..models import Invitation, InvitationDraft
 from ..services.document_extractor import DocumentExtractor, DocumentExtractorError
 from ..audit import log_admin_action
 
@@ -53,6 +53,21 @@ class InvitationCreate(BaseModel):
     date_reception: Optional[date] = None
     date_election: Optional[date] = None
     structure_saisie: Optional[str] = None
+
+
+class DraftCompletion(BaseModel):
+    """Données nécessaires pour transformer un brouillon en invitation PAP."""
+
+    siret: str = Field(..., min_length=14, max_length=14)
+    date_invit: date
+    ud: Optional[str] = None
+    fd: Optional[str] = None
+    idcc: Optional[str] = None
+    effectif_connu: Optional[int] = None
+    date_reception: Optional[date] = None
+    date_election: Optional[date] = None
+    structure_saisie: Optional[str] = None
+    source: str = Field("Scan automatique", description="Source à afficher sur l'invitation finale")
 
 
 @router.post("/document", response_model=ExtractionResult)
@@ -132,13 +147,16 @@ async def extract_document(
 
         # Sauvegarder automatiquement si demandé
         saved_invitation = None
-        if auto_save and extracted_data.get("siret"):
+        saved_draft = None
+        if auto_save:
             try:
-                saved_invitation = await _save_as_invitation(
+                saved_invitation, saved_draft = await _save_as_invitation(
                     extracted_data=extracted_data,
-                    db=db
+                    db=db,
+                    filename=file.filename
                 )
-                logger.info(f"Invitation créée automatiquement - SIRET: {extracted_data['siret']}")
+                if saved_invitation:
+                    logger.info(f"Invitation créée automatiquement - SIRET: {extracted_data['siret']}")
             except Exception as e:
                 logger.error(f"Erreur lors de la sauvegarde automatique: {str(e)}")
                 # Ne pas bloquer l'extraction si la sauvegarde échoue
@@ -148,7 +166,10 @@ async def extract_document(
             data=extracted_data,
             metadata={
                 "auto_saved": saved_invitation is not None,
-                "invitation_id": saved_invitation.id if saved_invitation else None
+                "invitation_id": saved_invitation.id if saved_invitation else None,
+                "draft_id": saved_draft.id if saved_draft else None,
+                "needs_manual_review": saved_draft is not None,
+                "missing_fields": saved_draft.missing_fields if saved_draft else []
             }
         )
 
@@ -213,9 +234,14 @@ async def extract_batch(
 
             # Sauvegarder si demandé
             saved_invitation = None
-            if auto_save and extracted_data.get("siret"):
+            saved_draft = None
+            if auto_save:
                 try:
-                    saved_invitation = await _save_as_invitation(extracted_data, db)
+                    saved_invitation, saved_draft = await _save_as_invitation(
+                        extracted_data,
+                        db,
+                        filename=file.filename
+                    )
                 except Exception as e:
                     logger.error(f"Erreur sauvegarde fichier {i}: {str(e)}")
 
@@ -225,7 +251,10 @@ async def extract_batch(
                 metadata={
                     "filename": file.filename,
                     "auto_saved": saved_invitation is not None,
-                    "invitation_id": saved_invitation.id if saved_invitation else None
+                    "invitation_id": saved_invitation.id if saved_invitation else None,
+                    "draft_id": saved_draft.id if saved_draft else None,
+                    "needs_manual_review": saved_draft is not None,
+                    "missing_fields": saved_draft.missing_fields if saved_draft else []
                 }
             ))
 
@@ -342,46 +371,155 @@ async def save_invitation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/drafts")
+def list_pending_drafts(limit: int = 50, db: Session = Depends(get_session)):
+    """Retourne les brouillons d'invitations en attente de complétion manuelle."""
+
+    drafts = (
+        db.query(InvitationDraft)
+        .filter(InvitationDraft.status == "pending")
+        .order_by(InvitationDraft.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "total": len(drafts),
+        "drafts": [
+            {
+                "id": draft.id,
+                "siret": draft.siret,
+                "date_invit": draft.date_invit.isoformat() if draft.date_invit else None,
+                "missing_fields": draft.missing_fields or [],
+                "source": draft.source or "Scan automatique",
+                "original_filename": draft.original_filename,
+                "created_at": draft.created_at.isoformat(),
+            }
+            for draft in drafts
+        ],
+    }
+
+
+@router.post("/drafts/{draft_id}/promote")
+def promote_draft(
+    draft_id: int,
+    completion: DraftCompletion,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    """Transforme un brouillon issu du scanner en invitation PAP complète."""
+
+    draft = db.get(InvitationDraft, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Brouillon introuvable")
+
+    if draft.status == "converted" and draft.invitation_id:
+        raise HTTPException(status_code=409, detail="Brouillon déjà converti")
+
+    existing = db.query(Invitation).filter(
+        Invitation.siret == completion.siret,
+        Invitation.date_invit == completion.date_invit,
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=409, detail="Une invitation existe déjà pour ce SIRET et cette date")
+
+    try:
+        invitation = Invitation(
+            siret=completion.siret,
+            date_invit=completion.date_invit,
+            source=completion.source,
+            ud=completion.ud,
+            fd=completion.fd,
+            idcc=completion.idcc,
+            effectif_connu=completion.effectif_connu,
+            date_reception=completion.date_reception or datetime.now().date(),
+            date_election=completion.date_election,
+            structure_saisie=completion.structure_saisie or "Scanner PAP (complété)",
+            raw=draft.raw or {},
+        )
+
+        db.add(invitation)
+        db.flush()
+
+        draft.status = "converted"
+        draft.invitation_id = invitation.id
+        db.add(draft)
+
+        db.commit()
+        db.refresh(invitation)
+
+        log_admin_action(
+            request=request,
+            api_key=None,
+            action="promote_invitation_draft",
+            resource_type="invitation",
+            success=True,
+            resource_id=str(invitation.id),
+            request_params={"draft_id": draft_id},
+            response_summary={"invitation_id": invitation.id},
+        )
+
+        return {"success": True, "invitation_id": invitation.id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de la conversion du brouillon {draft_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Impossible de convertir le brouillon")
+
+
 async def _save_as_invitation(
     extracted_data: Dict[str, Any],
-    db: Session
-) -> Optional[Invitation]:
+    db: Session,
+    filename: Optional[str] = None
+) -> tuple[Optional[Invitation], Optional[InvitationDraft]]:
     """
-    Sauvegarde automatiquement les données extraites comme invitation.
+    Sauvegarde automatiquement les données extraites comme invitation ou brouillon.
 
-    Args:
-        extracted_data: Données extraites par GPT
-        db: Session de base de données
-
-    Returns:
-        L'invitation créée ou None si erreur
+    Retourne une invitation si toutes les données critiques sont présentes, sinon
+    enregistre un brouillon pour compléter manuellement les informations manquantes.
     """
-    try:
-        siret = extracted_data.get("siret")
-        if not siret or len(siret) != 14:
-            logger.warning("SIRET invalide ou manquant, impossible de sauvegarder")
+
+    def _parse_date(value: Optional[str]) -> Optional[date]:
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
             return None
 
-        # Parser la date d'invitation
-        date_invit_str = extracted_data.get("date_invitation")
-        if date_invit_str:
-            try:
-                date_invit = datetime.strptime(date_invit_str, "%Y-%m-%d").date()
-            except ValueError:
-                date_invit = datetime.now().date()
-        else:
+    try:
+        missing_fields: list[str] = []
+
+        siret = extracted_data.get("siret")
+        if not siret or len(siret) != 14:
+            missing_fields.append("siret")
+
+        raw_date_invit = extracted_data.get("date_invitation")
+        date_invit = _parse_date(raw_date_invit)
+        if not date_invit:
+            missing_fields.append("date_invit")
             date_invit = datetime.now().date()
 
-        # Parser la date d'élection
-        date_election = None
-        date_election_str = extracted_data.get("date_election")
-        if date_election_str:
-            try:
-                date_election = datetime.strptime(date_election_str, "%Y-%m-%d").date()
-            except ValueError:
-                pass
+        date_election = _parse_date(extracted_data.get("date_election"))
 
-        # Vérifier si existe déjà
+        if missing_fields:
+            draft = _save_as_draft(
+                extracted_data=extracted_data,
+                missing_fields=missing_fields,
+                db=db,
+                filename=filename,
+                date_invit=_parse_date(raw_date_invit),
+            )
+            logger.warning(
+                "Invitation incomplète enregistrée comme brouillon (ID %s) : champs manquants %s",
+                draft.id,
+                ", ".join(missing_fields),
+            )
+            return None, draft
+
         existing = db.query(Invitation).filter(
             Invitation.siret == siret,
             Invitation.date_invit == date_invit
@@ -389,9 +527,8 @@ async def _save_as_invitation(
 
         if existing:
             logger.warning(f"Invitation déjà existante pour {siret} à la date {date_invit}")
-            return existing
+            return existing, None
 
-        # Créer l'invitation
         invitation = Invitation(
             siret=siret,
             date_invit=date_invit,
@@ -410,12 +547,43 @@ async def _save_as_invitation(
         db.commit()
         db.refresh(invitation)
 
-        return invitation
+        return invitation, None
 
     except Exception as e:
         logger.error(f"Erreur lors de la sauvegarde automatique: {str(e)}")
         db.rollback()
-        return None
+        draft = _save_as_draft(
+            extracted_data=extracted_data,
+            missing_fields=["exception"],
+            db=db,
+            filename=filename,
+            date_invit=_parse_date(extracted_data.get("date_invitation")),
+        )
+        return None, draft
+
+
+def _save_as_draft(
+    extracted_data: Dict[str, Any],
+    missing_fields: list[str],
+    db: Session,
+    filename: Optional[str] = None,
+    date_invit: Optional[date] = None,
+) -> InvitationDraft:
+    """Enregistre les données extraites dans la table des brouillons pour relecture."""
+
+    draft = InvitationDraft(
+        siret=extracted_data.get("siret"),
+        date_invit=date_invit,
+        source=extracted_data.get("source") or "Scan automatique",
+        original_filename=filename,
+        missing_fields=missing_fields,
+        raw=extracted_data,
+    )
+
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return draft
 
 
 @router.get("/health")
