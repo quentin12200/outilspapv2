@@ -14,7 +14,7 @@ from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_sir
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
-from ..user_auth import require_admin_user
+from ..user_auth import require_admin_user, get_current_user
 from ..models import AuditLog
 from ..audit import log_admin_action
 
@@ -238,7 +238,7 @@ def get_enrichir_idcc_status():
 
 
 @router.get("/siret", response_model=List[SiretSummaryOut])
-def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
+def list_sirets(q: str = Query(None), db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     qs = db.query(SiretSummary)
     if q:
         like = f"%{q}%"
@@ -247,7 +247,7 @@ def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
 
 
 @router.get("/search/autocomplete")
-def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends(get_session)):
+def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     """
     Endpoint d'autocomplete pour la recherche
     Retourne les 10 premiers résultats correspondants
@@ -277,14 +277,14 @@ def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends
     ]
 
 @router.get("/siret/{siret}", response_model=SiretSummaryOut)
-def get_siret(siret: str, db: Session = Depends(get_session)):
+def get_siret(siret: str, db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     row = db.query(SiretSummary).get(siret)
     if not row: 
         return {}
     return row
 
 @router.get("/siret/{siret}/timeseries")
-def siret_timeseries(siret: str, db: Session = Depends(get_session)):
+def siret_timeseries(siret: str, db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     rows = (db.query(PVEvent)
               .filter(PVEvent.siret==siret)
               .order_by(PVEvent.date_pv.asc())
@@ -298,7 +298,7 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
     }
 
 @router.get("/stats/dashboard")
-def dashboard_stats(db: Session = Depends(get_session)):
+def dashboard_stats(db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     """Retourne les statistiques pour le tableau de bord"""
 
     try:

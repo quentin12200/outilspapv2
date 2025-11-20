@@ -217,12 +217,7 @@ def _build_local_kit_candidates() -> list[str]:
 
 
 KIT_PDF_LOCAL_HINTS = _build_local_kit_candidates()
-KIT_PDF_LOCAL_GLOBS = [
-    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.pdf"),
-    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.PDF"),
-    os.path.join(_DEFAULT_DATA_DIR, "*.pdf"),
-    os.path.join(_DEFAULT_DATA_DIR, "*.PDF"),
-]
+KIT_PDF_LOCAL_GLOBS = []
 
 
 def _find_local_kit_pdf() -> str | None:

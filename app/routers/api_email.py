@@ -22,6 +22,7 @@ from ..db import get_session
 from ..models import EmailLog, User
 from ..services.email_service import get_resend_service, ResendEmailError
 from ..audit import log_admin_action
+from ..user_auth import require_admin_user
 from .. import config
 
 logger = logging.getLogger(__name__)
@@ -196,7 +197,8 @@ async def create_email_log(
 async def send_email(
     request: Request,
     email_data: SendEmailRequest,
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Envoie un email personnalisé via Resend.
@@ -285,7 +287,8 @@ async def send_email(
 async def send_template_email(
     request: Request,
     email_data: SendTemplateEmailRequest,
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Envoie un email depuis un template.
@@ -342,7 +345,8 @@ async def send_template_email(
 async def send_test_email(
     request: Request,
     to: EmailStr,
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Envoie un email de test pour vérifier la configuration Resend.
@@ -388,7 +392,8 @@ async def get_email_logs(
     status: Optional[str] = None,
     to_email: Optional[str] = None,
     context_type: Optional[str] = None,
-    days: Optional[int] = None
+    days: Optional[int] = None,
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Récupère les logs d'emails envoyés.
@@ -446,7 +451,8 @@ async def get_email_logs(
 @router.get("/stats", response_model=EmailStatsResponse)
 async def get_email_stats(
     db: Session = Depends(get_session),
-    days: Optional[int] = None
+    days: Optional[int] = None,
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Récupère les statistiques d'envoi d'emails.
@@ -486,7 +492,7 @@ async def get_email_stats(
 
 
 @router.get("/templates")
-async def list_email_templates():
+async def list_email_templates(current_user: User = Depends(require_admin_user)):
     """
     Liste tous les templates d'emails disponibles.
 
