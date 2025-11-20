@@ -258,7 +258,20 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
         return local_path
 
     if _kit_pdf_cache_ready() and not force_refresh:
-        return KIT_PDF_CACHE_PATH
+        # Validation de la taille du fichier (le bon fichier fait ~115 Mo)
+        # Si on a un fichier < 50 Mo, c'est probablement une erreur de cache
+        try:
+            size = os.path.getsize(KIT_PDF_CACHE_PATH)
+            if size < 50 * 1024 * 1024:  # 50 MB
+                logger.warning(
+                    "Fichier kit en cache trop petit (%s bytes), suppression pour re-téléchargement.",
+                    size
+                )
+                os.remove(KIT_PDF_CACHE_PATH)
+            else:
+                return KIT_PDF_CACHE_PATH
+        except OSError:
+            pass
 
     local_source = _find_local_kit_pdf()
     if local_source:
