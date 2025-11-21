@@ -296,3 +296,95 @@ def get_departements_invitations_pap(
         'total_departements': len(dept_result),
         'total_uds': len(ud_result)
     }
+
+
+@router.get("/etablissements/geo")
+def get_etablissements_geo(
+    fd: str | None = None,
+    q: str | None = None,
+    limit: int = 5000,
+    db: Session = Depends(get_session)
+):
+    """
+    Retourne les établissements géolocalisés pour la carte.
+    Priorité aux PVEvent (plus riches en données), puis Invitations.
+    """
+    results = []
+    
+    # 1. Récupérer les PVEvent géolocalisés
+    query_pv = db.query(
+        PVEvent.siret,
+        PVEvent.raison_sociale,
+        PVEvent.latitude,
+        PVEvent.longitude,
+        PVEvent.inscrits,
+        PVEvent.ville,
+        PVEvent.fd
+    ).filter(
+        PVEvent.latitude.isnot(None),
+        PVEvent.longitude.isnot(None)
+    )
+    
+    if fd:
+        query_pv = query_pv.filter(PVEvent.fd == fd)
+    
+    if q:
+        # Recherche insensible à la casse
+        search_term = f"%{q}%"
+        query_pv = query_pv.filter(PVEvent.raison_sociale.ilike(search_term))
+        
+    pvs = query_pv.limit(limit).all()
+    
+    for pv in pvs:
+        results.append({
+            "type": "pv",
+            "siret": pv.siret,
+            "nom": pv.raison_sociale,
+            "lat": pv.latitude,
+            "lng": pv.longitude,
+            "inscrits": pv.inscrits,
+            "ville": pv.ville,
+            "fd": pv.fd
+        })
+        
+    # 2. Récupérer les Invitations géolocalisées (si quota restant)
+    remaining = limit - len(results)
+    if remaining > 0:
+        query_inv = db.query(
+            Invitation.siret,
+            Invitation.denomination,
+            Invitation.latitude,
+            Invitation.longitude,
+            Invitation.commune,
+            Invitation.fd
+        ).filter(
+            Invitation.latitude.isnot(None),
+            Invitation.longitude.isnot(None)
+        )
+        
+        if fd:
+            query_inv = query_inv.filter(Invitation.fd == fd)
+            
+        if q:
+            search_term = f"%{q}%"
+            query_inv = query_inv.filter(Invitation.denomination.ilike(search_term))
+            
+        invs = query_inv.limit(remaining).all()
+        
+        for inv in invs:
+            # Éviter les doublons si le SIRET est déjà dans les PV
+            if any(r["siret"] == inv.siret for r in results):
+                continue
+                
+            results.append({
+                "type": "invitation",
+                "siret": inv.siret,
+                "nom": inv.denomination,
+                "lat": inv.latitude,
+                "lng": inv.longitude,
+                "inscrits": None, # Pas d'inscrits pour une invit
+                "ville": inv.commune,
+                "fd": inv.fd
+            })
+
+    return results
