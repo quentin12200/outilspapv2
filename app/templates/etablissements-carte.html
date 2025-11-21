@@ -233,12 +233,12 @@
                     SIRET:
                   </span>
                   <a :href="`/siret/${etab.siret}`"
-                     @click.stop
+                     @click.stop.prevent="openSiret(etab.siret)"
                      class="ml-2 font-mono text-cgt-red font-semibold hover:underline"
                      title="Ouvrir la fiche entreprise"
                      target="_blank"
                      rel="noopener">
-                    <span x-text="etab.siret"></span>
+                    <span x-text="etab.siret || 'SIRET indisponible'"></span>
                   </a>
                 </div>
 
@@ -477,8 +477,8 @@
                 <div class="space-y-1 text-sm">
                   <p>
                     <strong>SIRET:</strong>
-                    <a href="/siret/${etab.siret}" target="_blank" rel="noopener" class="font-mono text-blue-600 hover:underline">
-                      ${etab.siret}
+                    <a href="/siret/${etab.siret}" data-siret="${etab.siret}" class="font-mono text-blue-600 hover:underline js-popup-siret">
+                      ${etab.siret || 'SIRET indisponible'}
                     </a>
                   </p>
                   ${etab.est_siege ? '<p class="text-purple-600 font-semibold"><i class="fas fa-star mr-1"></i>Siège social</p>' : ''}
@@ -492,6 +492,18 @@
             `;
 
             marker.bindPopup(popupContent);
+
+            marker.on('popupopen', (e) => {
+              const link = e.popup.getElement().querySelector('.js-popup-siret');
+              if (link && !link.dataset.bound) {
+                link.dataset.bound = 'true';
+                link.addEventListener('click', (evt) => {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  this.openSiret(etab.siret);
+                });
+              }
+            });
             this.markers.push(marker);
           }
         });
@@ -529,6 +541,18 @@
             this.map.invalidateSize();
           }, 300);
         }
+      },
+
+      openSiret(siret) {
+        const cleanSiret = (siret || '').toString().trim();
+
+        if (!cleanSiret) {
+          this.error = 'SIRET manquant pour ouvrir la fiche entreprise';
+          showToast(this.error, 'error');
+          return;
+        }
+
+        window.open(`/siret/${cleanSiret}`, '_blank', 'noopener');
       }
     }
   }
