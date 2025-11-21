@@ -133,8 +133,8 @@
 
     <!-- Info entreprise -->
     <div x-show="entreprise" x-cloak class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-l-4 border-blue-500">
-      <h3 class="text-xl font-bold text-gray-800 mb-3">
-        <i class="fas fa-building text-blue-600 mr-2"></i>
+      <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+        <i class="fas fa-building text-blue-600"></i>
         <span x-text="entreprise?.nom"></span>
       </h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -149,6 +149,42 @@
         <div>
           <span class="font-semibold text-gray-700">Géolocalisés:</span>
           <span class="ml-2 text-green-600 font-semibold" x-text="etablissements.filter(e => e.latitude && e.longitude).length"></span>
+        </div>
+        <div x-show="entreprise?.forme_juridique">
+          <span class="font-semibold text-gray-700">Forme juridique:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.forme_juridique"></span>
+        </div>
+        <div x-show="entreprise?.categorie_entreprise">
+          <span class="font-semibold text-gray-700">Catégorie:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.categorie_entreprise"></span>
+        </div>
+        <div x-show="entreprise?.activite_principale">
+          <span class="font-semibold text-gray-700">Activité principale:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.activite_principale"></span>
+        </div>
+        <div x-show="entreprise?.libelle_activite">
+          <span class="font-semibold text-gray-700">Libellé NAF:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.libelle_activite"></span>
+        </div>
+        <div x-show="entreprise?.effectif || entreprise?.tranche_effectif || entreprise?.effectif_libelle">
+          <span class="font-semibold text-gray-700">Effectifs:</span>
+          <span class="ml-2 text-gray-900" x-text="formatEffectif(entreprise?.effectif_libelle, entreprise?.tranche_effectif)"></span>
+        </div>
+        <div x-show="entreprise?.idcc">
+          <span class="font-semibold text-gray-700">IDCC:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.idcc"></span>
+        </div>
+        <div x-show="entreprise?.date_creation">
+          <span class="font-semibold text-gray-700">Créée le:</span>
+          <span class="ml-2 text-gray-900" x-text="formatDate(entreprise?.date_creation)"></span>
+        </div>
+        <div x-show="entreprise?.capital">
+          <span class="font-semibold text-gray-700">Capital:</span>
+          <span class="ml-2 text-gray-900" x-text="formatCapital(entreprise?.capital)"></span>
+        </div>
+        <div x-show="entreprise?.siege_adresse" class="md:col-span-3">
+          <span class="font-semibold text-gray-700">Siège social:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.siege_adresse"></span>
         </div>
       </div>
     </div>
@@ -328,6 +364,38 @@
                     Activité:
                   </span>
                   <span class="ml-1 text-gray-900" x-text="etab.libelle_activite"></span>
+                </div>
+
+                <div x-show="etab.effectifs_label || etab.tranche_effectifs">
+                  <span class="text-gray-600">
+                    <i class="fas fa-users text-indigo-500 mr-1"></i>
+                    Effectifs:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="formatEffectif(etab.effectifs_label, etab.tranche_effectifs)"></span>
+                </div>
+
+                <div x-show="etab.forme_juridique">
+                  <span class="text-gray-600">
+                    <i class="fas fa-balance-scale text-yellow-500 mr-1"></i>
+                    Forme:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.forme_juridique"></span>
+                </div>
+
+                <div x-show="etab.idcc">
+                  <span class="text-gray-600">
+                    <i class="fas fa-file-contract text-red-500 mr-1"></i>
+                    IDCC:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.idcc"></span>
+                </div>
+
+                <div x-show="etab.date_creation">
+                  <span class="text-gray-600">
+                    <i class="fas fa-calendar-alt text-teal-500 mr-1"></i>
+                    Ouvert le:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="formatDate(etab.date_creation)"></span>
                 </div>
 
                 <div x-show="!etab.latitude || !etab.longitude">
@@ -596,6 +664,9 @@
                   ${etab.commune ? `<p><strong>Ville:</strong> ${etab.code_postal} ${etab.commune}</p>` : ''}
                   ${etab.activite_principale ? `<p><strong>NAF:</strong> ${etab.activite_principale}</p>` : ''}
                   ${etab.libelle_activite ? `<p><strong>Activité:</strong> ${etab.libelle_activite}</p>` : ''}
+                  ${etab.effectifs_label || etab.tranche_effectifs ? `<p><strong>Effectifs:</strong> ${etab.effectifs_label || etab.tranche_effectifs}</p>` : ''}
+                  ${etab.forme_juridique ? `<p><strong>Forme:</strong> ${etab.forme_juridique}</p>` : ''}
+                  ${etab.idcc ? `<p><strong>IDCC:</strong> ${etab.idcc}</p>` : ''}
                 </div>
               </div>
             `;
@@ -683,6 +754,28 @@
         link.download = `etablissements_${this.entreprise?.siren || 'liste'}.csv`;
         link.click();
         URL.revokeObjectURL(url);
+      },
+
+      formatDate(dateStr) {
+        if (!dateStr) return '';
+        const parsed = new Date(dateStr);
+        if (Number.isNaN(parsed.getTime())) return dateStr;
+        return parsed.toLocaleDateString('fr-FR');
+      },
+
+      formatEffectif(label, tranche) {
+        if (label) return label;
+        if (tranche) return tranche;
+        return 'Non communiqué';
+      },
+
+      formatCapital(value) {
+        if (value === null || value === undefined || value === '') return '';
+        const num = Number(value);
+        if (!Number.isNaN(num)) {
+          return `${num.toLocaleString('fr-FR')} €`;
+        }
+        return value;
       }
     }
   }
