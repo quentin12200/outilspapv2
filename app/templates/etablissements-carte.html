@@ -139,21 +139,31 @@
 
     <div id="map"></div>
 
-    <div class="mt-4 flex items-center gap-4 text-sm">
-      <div class="flex items-center gap-2">
-        <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow"></div>
-        <span class="text-gray-700">Établissement actif</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <div class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow"></div>
-        <span class="text-gray-700">Établissement inactif</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-purple-600 border-3 border-white shadow-lg flex items-center justify-center">
-          <i class="fas fa-star text-white text-xs"></i>
+    <div class="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <!-- Légende -->
+      <div class="flex flex-wrap items-center gap-4 text-sm">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow"></div>
+          <span class="text-gray-700">Établissement actif</span>
         </div>
-        <span class="text-gray-700">Siège social</span>
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow"></div>
+          <span class="text-gray-700">Établissement inactif</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-purple-600 border-3 border-white shadow-lg flex items-center justify-center">
+            <i class="fas fa-star text-white text-xs"></i>
+          </div>
+          <span class="text-gray-700">Siège social</span>
+        </div>
       </div>
+
+      <!-- Bouton recentrer -->
+      <button @click="resetMapToFrance()"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2 text-sm whitespace-nowrap">
+        <i class="fas fa-crosshairs"></i>
+        <span>Recentrer sur France</span>
+      </button>
     </div>
   </section>
 
@@ -293,13 +303,31 @@
       markers: [],
 
       init() {
-        // Initialiser la carte Leaflet
-        this.map = L.map('map').setView([46.603354, 1.888334], 6); // Centre de la France
+        // Initialiser la carte Leaflet - Centre géographique de la France
+        this.map = L.map('map', {
+          center: [46.7111, 1.7191],
+          zoom: 6,
+          minZoom: 5,
+          maxZoom: 19
+        });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap contributors',
           maxZoom: 19
         }).addTo(this.map);
+
+        // Forcer un recalcul des dimensions après l'initialisation
+        setTimeout(() => {
+          this.map.invalidateSize();
+        }, 100);
+      },
+
+      resetMapToFrance() {
+        // Recentrer la carte sur la France avec animation
+        this.map.invalidateSize();
+        this.map.flyTo([46.7111, 1.7191], 6, {
+          duration: 1.5
+        });
       },
 
       async searchEtablissements() {
