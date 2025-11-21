@@ -2370,12 +2370,25 @@ def invitations(
 
     # Récupérer les listes pour les filtres
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
-    all_uds = [row[0] for row in db.query(Invitation.ud).distinct().order_by(Invitation.ud).all() if row[0]]
+
+    def _ud_sort_key(value):
+        match = re.search(r"\d+", value)
+        if match:
+            return (0, int(match.group()), value)
+        return (1, value)
+
+    all_uds = sorted(
+        {row[0] for row in db.query(Invitation.ud).distinct().all() if row[0]},
+        key=_ud_sort_key,
+    )
     all_fds = [row[0] for row in db.query(Invitation.fd).distinct().order_by(Invitation.fd).all() if row[0]]
 
     # Liste des départements depuis les codes postaux
     all_depts_raw = db.query(func.substr(Invitation.code_postal, 1, 2)).distinct().all()
-    all_depts = sorted([row[0] for row in all_depts_raw if row[0] and row[0].isdigit()])
+    all_depts = sorted(
+        {row[0] for row in all_depts_raw if row[0] and row[0].isdigit()},
+        key=lambda x: int(x),
+    )
 
     # Pagination
     total_invitations = len(invitations)
