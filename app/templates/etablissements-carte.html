@@ -155,7 +155,7 @@
   </section>
 
   <!-- Map Section -->
-  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8 mb-6">
+  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8 mb-6 space-y-6">
     <h2 class="text-2xl font-bold text-gray-800 mb-6">
       <i class="fas fa-map text-green-500 mr-2"></i>
       Carte interactive
@@ -164,8 +164,71 @@
       </span>
     </h2>
 
-    <div id="map"></div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-blue-500 font-semibold">Total trouvés</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.length"></p>
+      </div>
+      <div class="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-green-600 font-semibold">Géolocalisés</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => e.latitude && e.longitude).length"></p>
+      </div>
+      <div class="bg-purple-50 border-l-4 border-purple-600 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-purple-700 font-semibold">Sièges</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => e.est_siege).length"></p>
+      </div>
+      <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-red-600 font-semibold">Inactifs</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => !e.est_actif).length"></p>
+      </div>
+    </div>
 
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+      <div class="flex flex-col md:flex-row gap-4 flex-1">
+        <div class="flex-1">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Filtrer par département</label>
+          <select x-model="selectedDepartement"
+                  @change="handleFilterChange"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent bg-white">
+            <option value="">Tous les départements</option>
+            <template x-for="dept in departementOptions" :key="dept">
+              <option :value="dept" x-text="dept"></option>
+            </template>
+          </select>
+        </div>
+        <div class="flex items-center space-x-3">
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlyGeolocated" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Uniquement géolocalisés</span>
+          </label>
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlyActifs" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Actifs</span>
+          </label>
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlySiege" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Siège uniquement</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button @click="exportCSV"
+                :disabled="!filteredEtablissements.length"
+                :class="!filteredEtablissements.length ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg transition flex items-center space-x-2">
+          <i class="fas fa-file-csv"></i>
+          <span>Exporter la liste</span>
+        </button>
+        <button @click="resetMapToFrance()"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2 text-sm whitespace-nowrap">
+          <i class="fas fa-crosshairs"></i>
+          <span>Recentrer sur France</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="map"></div>
     <div class="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <!-- Légende -->
       <div class="flex flex-wrap items-center gap-4 text-sm">
@@ -184,13 +247,6 @@
           <span class="text-gray-700">Siège social</span>
         </div>
       </div>
-
-      <!-- Bouton recentrer -->
-      <button @click="resetMapToFrance()"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2 text-sm whitespace-nowrap">
-        <i class="fas fa-crosshairs"></i>
-        <span>Recentrer sur France</span>
-      </button>
     </div>
   </section>
 
@@ -198,14 +254,14 @@
   <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8">
     <h2 class="text-2xl font-bold text-gray-800 mb-6">
       <i class="fas fa-list text-orange-500 mr-2"></i>
-      Liste des établissements
+      Liste des établissements filtrée
       <span class="text-sm font-normal text-gray-500 ml-2">
-        (<span x-text="etablissements.length"></span> au total)
+        (<span x-text="filteredEtablissements.length"></span> affichés / <span x-text="etablissements.length"></span> au total)
       </span>
     </h2>
 
     <div class="space-y-4">
-      <template x-for="(etab, index) in etablissements" :key="index">
+      <template x-for="(etab, index) in filteredEtablissements" :key="index">
         <div class="etablissement-card border border-gray-200 rounded-lg p-6 hover:border-cgt-red cursor-pointer"
              @click="focusEtablissement(etab)">
           <div class="flex items-start justify-between">
@@ -330,6 +386,11 @@
     return {
       siretOrSiren: '',
       selectedNational: '',
+      selectedDepartement: '',
+      departementOptions: [],
+      showOnlyGeolocated: false,
+      showOnlyActifs: false,
+      showOnlySiege: false,
       loading: false,
       error: null,
       entreprise: null,
@@ -384,6 +445,10 @@
         this.error = null;
         this.etablissements = [];
         this.entreprise = null;
+        this.selectedDepartement = '';
+        this.showOnlyGeolocated = false;
+        this.showOnlyActifs = false;
+        this.showOnlySiege = false;
 
         // Nettoyer les marqueurs existants
         this.clearMarkers();
@@ -399,6 +464,7 @@
           if (data.success) {
             this.entreprise = data.entreprise;
             this.etablissements = data.etablissements;
+            this.buildDepartementOptions();
 
             // Attendre que le DOM soit mis à jour (x-show révèle la carte)
             // et forcer le recalcul des dimensions de la carte
@@ -406,10 +472,7 @@
               this.map.invalidateSize();
 
               // Ajouter les marqueurs sur la carte
-              this.addMarkersToMap();
-
-              // Centrer la carte sur les établissements
-              this.fitMapToBounds();
+              this.handleFilterChange();
 
               // Re-forcer le recalcul après le fitBounds
               setTimeout(() => {
@@ -435,8 +498,54 @@
         this.markers = [];
       },
 
+      buildDepartementOptions() {
+        const seen = new Set();
+        const options = [];
+        this.etablissements.forEach((etab) => {
+          const cp = (etab.code_postal || '').toString();
+          const dept = cp.slice(0, 2);
+          if (dept && !seen.has(dept)) {
+            seen.add(dept);
+            options.push(dept);
+          }
+        });
+
+        this.departementOptions = options
+          .map(code => ({ code, sortKey: parseInt(code, 10) || 0 }))
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .map(entry => entry.code);
+      },
+
+      get filteredEtablissements() {
+        let results = [...this.etablissements];
+
+        if (this.selectedDepartement) {
+          results = results.filter((etab) => (etab.code_postal || '').toString().startsWith(this.selectedDepartement));
+        }
+
+        if (this.showOnlyGeolocated) {
+          results = results.filter((etab) => etab.latitude && etab.longitude);
+        }
+
+        if (this.showOnlyActifs) {
+          results = results.filter((etab) => etab.est_actif);
+        }
+
+        if (this.showOnlySiege) {
+          results = results.filter((etab) => etab.est_siege);
+        }
+
+        return results;
+      },
+
+      handleFilterChange() {
+        this.clearMarkers();
+        this.addMarkersToMap();
+        this.fitMapToBounds();
+      },
+
       addMarkersToMap() {
-        this.etablissements.forEach((etab, index) => {
+        this.filteredEtablissements.forEach((etab, index) => {
           if (etab.latitude && etab.longitude) {
             // Couleur du marqueur selon le statut
             let markerColor = etab.est_actif ? 'blue' : 'red';
@@ -553,6 +662,27 @@
         }
 
         window.open(`/siret/${cleanSiret}`, '_blank', 'noopener');
+      },
+
+      exportCSV() {
+        const headers = ['siret', 'denomination', 'adresse', 'code_postal', 'commune', 'est_actif', 'est_siege', 'activite_principale', 'libelle_activite'];
+        const lines = [headers.join(';')];
+
+        this.filteredEtablissements.forEach((etab) => {
+          const row = headers.map((key) => {
+            const value = etab[key];
+            return typeof value === 'boolean' ? (value ? 'oui' : 'non') : (value || '');
+          });
+          lines.push(row.join(';'));
+        });
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `etablissements_${this.entreprise?.siren || 'liste'}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
       }
     }
   }
