@@ -1633,6 +1633,47 @@ async def enrichir_siret_from_api(siret: str):
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
 
 
+@router.get("/etablissements/{siret_or_siren}")
+async def get_etablissements_by_siret_or_siren(siret_or_siren: str):
+    """
+    Récupère tous les établissements d'une entreprise à partir d'un SIRET ou SIREN.
+
+    Si un SIRET est fourni (14 chiffres), on extrait le SIREN et on récupère tous les établissements.
+    Si un SIREN est fourni (9 chiffres), on récupère directement tous les établissements.
+
+    Utilise l'API Pappers pour obtenir les données avec géolocalisation.
+    """
+    from ..services.pappers_api import pappers_api
+
+    # Nettoyer l'input
+    clean_value = siret_or_siren.strip().replace(" ", "")
+
+    # Déterminer si c'est un SIRET ou un SIREN
+    if len(clean_value) == 14 and clean_value.isdigit():
+        # C'est un SIRET, extraire le SIREN (9 premiers chiffres)
+        siren = clean_value[:9]
+        logger.info(f"SIRET détecté: {clean_value}, extraction du SIREN: {siren}")
+    elif len(clean_value) == 9 and clean_value.isdigit():
+        # C'est un SIREN
+        siren = clean_value
+        logger.info(f"SIREN détecté: {siren}")
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Format invalide. Attendu: SIRET (14 chiffres) ou SIREN (9 chiffres). Reçu: {len(clean_value)} chiffres"
+        )
+
+    # Appeler l'API Pappers
+    result = await pappers_api.get_etablissements_by_siren(siren)
+
+    if not result.get("success"):
+        error_msg = result.get("error", "Erreur inconnue")
+        if "non trouvé" in error_msg.lower():
+            raise HTTPException(status_code=404, detail=error_msg)
+        else:
+            raise HTTPException(status_code=503, detail=f"Erreur API Pappers: {error_msg}")
+
+    return result
 
 
 # AUDIT LOGS

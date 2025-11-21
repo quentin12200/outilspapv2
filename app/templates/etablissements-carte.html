@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}Carte des Établissements — PAP/CSE{% endblock %}
+
+{% block head %}
+<!-- Leaflet for map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+  #map {
+    height: 600px;
+    width: 100%;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .leaflet-popup-content {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .etablissement-card {
+    transition: all 0.3s ease;
+  }
+
+  .etablissement-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .siege-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .actif-badge {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="etablissementsApp()" x-init="init()">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-4xl font-bold text-gray-900 mb-2 flex items-center space-x-3">
+      <i class="fas fa-map-marker-alt text-cgt-red"></i>
+      <span>Carte des Établissements</span>
+    </h1>
+    <p class="text-gray-600 text-lg">
+      Visualisez tous les établissements d'une entreprise sur une carte interactive
+    </p>
+  </div>
+
+  <!-- Search Section -->
+  <section class="bg-white rounded-xl shadow-md p-8 mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-search text-blue-500 mr-2"></i>
+      Rechercher une entreprise
+    </h2>
+
+    <form @submit.prevent="searchEtablissements" class="space-y-6">
+      <div class="max-w-2xl">
+        <label for="siret_or_siren" class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+          SIRET (14 chiffres) ou SIREN (9 chiffres)
+        </label>
+        <div class="flex gap-3">
+          <input type="text"
+                 id="siret_or_siren"
+                 x-model="siretOrSiren"
+                 required
+                 placeholder="Ex: 552032534 ou 55203253400056"
+                 class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg" />
+          <button type="submit"
+                  :disabled="loading || !siretOrSiren"
+                  :class="loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cgt-darkred'"
+                  class="px-8 py-3 bg-cgt-red text-white rounded-lg transition shadow-lg flex items-center space-x-2 text-lg font-bold">
+            <i :class="loading ? 'fas fa-spinner fa-spin' : 'fas fa-search'"></i>
+            <span x-text="loading ? 'Recherche...' : 'Rechercher'"></span>
+          </button>
+        </div>
+        <p class="text-sm text-gray-500 mt-2 italic">
+          <i class="fas fa-info-circle mr-1"></i>
+          Entrez un SIRET (14 chiffres) pour un établissement spécifique, ou un SIREN (9 chiffres) pour tous les établissements de l'entreprise
+        </p>
+      </div>
+    </form>
+
+    <!-- Info entreprise -->
+    <div x-show="entreprise" x-cloak class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-l-4 border-blue-500">
+      <h3 class="text-xl font-bold text-gray-800 mb-3">
+        <i class="fas fa-building text-blue-600 mr-2"></i>
+        <span x-text="entreprise?.nom"></span>
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <span class="font-semibold text-gray-700">SIREN:</span>
+          <span class="ml-2 font-mono text-cgt-red" x-text="entreprise?.siren"></span>
+        </div>
+        <div>
+          <span class="font-semibold text-gray-700">Établissements:</span>
+          <span class="ml-2 text-gray-900" x-text="etablissements.length"></span>
+        </div>
+        <div>
+          <span class="font-semibold text-gray-700">Géolocalisés:</span>
+          <span class="ml-2 text-green-600 font-semibold" x-text="etablissements.filter(e => e.latitude && e.longitude).length"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Map Section -->
+  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8 mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-map text-green-500 mr-2"></i>
+      Carte interactive
+      <span class="text-sm font-normal text-gray-500 ml-2">
+        (<span x-text="etablissements.filter(e => e.latitude && e.longitude).length"></span> établissements géolocalisés)
+      </span>
+    </h2>
+
+    <div id="map"></div>
+
+    <div class="mt-4 flex items-center gap-4 text-sm">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow"></div>
+        <span class="text-gray-700">Établissement actif</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow"></div>
+        <span class="text-gray-700">Établissement inactif</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-purple-600 border-3 border-white shadow-lg flex items-center justify-center">
+          <i class="fas fa-star text-white text-xs"></i>
+        </div>
+        <span class="text-gray-700">Siège social</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Liste des établissements -->
+  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-list text-orange-500 mr-2"></i>
+      Liste des établissements
+      <span class="text-sm font-normal text-gray-500 ml-2">
+        (<span x-text="etablissements.length"></span> au total)
+      </span>
+    </h2>
+
+    <div class="space-y-4">
+      <template x-for="(etab, index) in etablissements" :key="index">
+        <div class="etablissement-card border border-gray-200 rounded-lg p-6 hover:border-cgt-red cursor-pointer"
+             @click="focusEtablissement(etab)">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <!-- Nom et badges -->
+              <div class="flex items-center gap-3 mb-3">
+                <h3 class="text-lg font-bold text-gray-900" x-text="etab.denomination || 'Nom non disponible'"></h3>
+                <span x-show="etab.est_siege"
+                      class="siege-badge text-white text-xs px-3 py-1 rounded-full font-semibold">
+                  <i class="fas fa-star mr-1"></i>
+                  Siège
+                </span>
+                <span x-show="!etab.est_actif"
+                      class="actif-badge text-white text-xs px-3 py-1 rounded-full font-semibold">
+                  <i class="fas fa-exclamation-triangle mr-1"></i>
+                  Inactif
+                </span>
+              </div>
+
+              <!-- Infos -->
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <span class="text-gray-600">
+                    <i class="fas fa-hashtag text-blue-500 mr-1"></i>
+                    SIRET:
+                  </span>
+                  <span class="ml-1 font-mono text-cgt-red font-semibold" x-text="etab.siret"></span>
+                </div>
+
+                <div x-show="etab.adresse">
+                  <span class="text-gray-600">
+                    <i class="fas fa-map-marker-alt text-green-500 mr-1"></i>
+                    Adresse:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.adresse"></span>
+                </div>
+
+                <div x-show="etab.commune">
+                  <span class="text-gray-600">
+                    <i class="fas fa-city text-purple-500 mr-1"></i>
+                    Ville:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.code_postal + ' ' + etab.commune"></span>
+                </div>
+
+                <div x-show="etab.activite_principale">
+                  <span class="text-gray-600">
+                    <i class="fas fa-briefcase text-orange-500 mr-1"></i>
+                    NAF:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.activite_principale"></span>
+                </div>
+
+                <div x-show="etab.libelle_activite">
+                  <span class="text-gray-600">
+                    <i class="fas fa-tag text-pink-500 mr-1"></i>
+                    Activité:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.libelle_activite"></span>
+                </div>
+
+                <div x-show="!etab.latitude || !etab.longitude">
+                  <span class="text-gray-400 italic">
+                    <i class="fas fa-map-pin mr-1"></i>
+                    Non géolocalisé
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button x-show="etab.latitude && etab.longitude"
+                    @click.stop="focusEtablissement(etab)"
+                    class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>Voir sur la carte</span>
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- Loading State -->
+  <div x-show="loading"
+       x-transition
+       x-cloak
+       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl p-8 text-center max-w-md">
+      <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
+      <p class="text-lg font-semibold text-gray-800 mb-2">Recherche en cours...</p>
+      <p class="text-sm text-gray-600">Récupération des établissements depuis l'API Pappers</p>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div x-show="error"
+       x-transition
+       x-cloak
+       class="fixed bottom-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md">
+    <div class="flex items-start gap-3">
+      <i class="fas fa-exclamation-circle text-2xl"></i>
+      <div>
+        <p class="font-semibold mb-1">Erreur</p>
+        <p class="text-sm" x-text="error"></p>
+      </div>
+      <button @click="error = null" class="ml-4">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function etablissementsApp() {
+    return {
+      siretOrSiren: '',
+      loading: false,
+      error: null,
+      entreprise: null,
+      etablissements: [],
+      map: null,
+      markers: [],
+
+      init() {
+        // Initialiser la carte Leaflet
+        this.map = L.map('map').setView([46.603354, 1.888334], 6); // Centre de la France
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(this.map);
+      },
+
+      async searchEtablissements() {
+        if (!this.siretOrSiren) return;
+
+        this.loading = true;
+        this.error = null;
+        this.etablissements = [];
+        this.entreprise = null;
+
+        // Nettoyer les marqueurs existants
+        this.clearMarkers();
+
+        try {
+          const response = await fetch(`/api/etablissements/${this.siretOrSiren}`);
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || 'Erreur lors de la recherche');
+          }
+
+          if (data.success) {
+            this.entreprise = data.entreprise;
+            this.etablissements = data.etablissements;
+
+            // Ajouter les marqueurs sur la carte
+            this.addMarkersToMap();
+
+            // Centrer la carte sur les établissements
+            this.fitMapToBounds();
+
+            showToast(`${data.total} établissement(s) trouvé(s)`, 'success');
+          } else {
+            throw new Error(data.error || 'Aucun établissement trouvé');
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+          this.error = err.message || 'Erreur lors de la recherche';
+          showToast(this.error, 'error');
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      clearMarkers() {
+        this.markers.forEach(marker => this.map.removeLayer(marker));
+        this.markers = [];
+      },
+
+      addMarkersToMap() {
+        this.etablissements.forEach((etab, index) => {
+          if (etab.latitude && etab.longitude) {
+            // Couleur du marqueur selon le statut
+            let markerColor = etab.est_actif ? 'blue' : 'red';
+            let iconSize = etab.est_siege ? [35, 35] : [25, 25];
+
+            // Créer l'icône personnalisée
+            const icon = L.divIcon({
+              className: 'custom-marker',
+              html: `
+                <div style="position: relative; width: ${iconSize[0]}px; height: ${iconSize[1]}px;">
+                  <div style="
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 50%;
+                    background-color: ${markerColor === 'blue' ? '#3b82f6' : '#ef4444'};
+                    border: ${etab.est_siege ? '3px' : '2px'} solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  ">
+                    ${etab.est_siege ? '<i class="fas fa-star" style="color: white; font-size: 12px;"></i>' : ''}
+                  </div>
+                </div>
+              `,
+              iconSize: iconSize,
+              iconAnchor: [iconSize[0] / 2, iconSize[1] / 2],
+              popupAnchor: [0, -iconSize[1] / 2]
+            });
+
+            const marker = L.marker([etab.latitude, etab.longitude], { icon })
+              .addTo(this.map);
+
+            // Popup content
+            const popupContent = `
+              <div class="p-2">
+                <h3 class="font-bold text-lg mb-2">${etab.denomination || 'Sans nom'}</h3>
+                <div class="space-y-1 text-sm">
+                  <p><strong>SIRET:</strong> <span class="font-mono">${etab.siret}</span></p>
+                  ${etab.est_siege ? '<p class="text-purple-600 font-semibold"><i class="fas fa-star mr-1"></i>Siège social</p>' : ''}
+                  ${!etab.est_actif ? '<p class="text-red-600 font-semibold"><i class="fas fa-exclamation-triangle mr-1"></i>Établissement inactif</p>' : ''}
+                  ${etab.adresse ? `<p><strong>Adresse:</strong> ${etab.adresse}</p>` : ''}
+                  ${etab.commune ? `<p><strong>Ville:</strong> ${etab.code_postal} ${etab.commune}</p>` : ''}
+                  ${etab.activite_principale ? `<p><strong>NAF:</strong> ${etab.activite_principale}</p>` : ''}
+                  ${etab.libelle_activite ? `<p><strong>Activité:</strong> ${etab.libelle_activite}</p>` : ''}
+                </div>
+              </div>
+            `;
+
+            marker.bindPopup(popupContent);
+            this.markers.push(marker);
+          }
+        });
+      },
+
+      fitMapToBounds() {
+        if (this.markers.length > 0) {
+          const group = L.featureGroup(this.markers);
+          this.map.fitBounds(group.getBounds().pad(0.1));
+        }
+      },
+
+      focusEtablissement(etab) {
+        if (etab.latitude && etab.longitude) {
+          this.map.setView([etab.latitude, etab.longitude], 15);
+
+          // Trouver et ouvrir le popup correspondant
+          const marker = this.markers.find(m => {
+            const pos = m.getLatLng();
+            return pos.lat === etab.latitude && pos.lng === etab.longitude;
+          });
+
+          if (marker) {
+            marker.openPopup();
+          }
+
+          // Scroll to map
+          document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
+
+{% endblock %}

@@ -88,6 +88,66 @@ class PappersAPI:
             logger.error(f"Erreur réseau API Pappers pour SIRET {siret_clean}: {e}")
             raise PappersAPIError(f"Erreur de connexion à l'API Pappers: {type(e).__name__}")
 
+    async def get_etablissements_by_siren(self, siren: str) -> Dict[str, Any]:
+        """
+        Récupère tous les établissements d'une entreprise par son SIREN via Pappers
+
+        Args:
+            siren: Numéro SIREN (9 chiffres)
+
+        Returns:
+            Dictionnaire avec les infos de l'entreprise et la liste de ses établissements
+        """
+        if not self.api_key:
+            logger.error("[PAPPERS API] Tentative d'appel sans clé API")
+            return {"success": False, "error": "API key manquante"}
+
+        siren_clean = siren.strip().replace(" ", "")
+        if len(siren_clean) != 9 or not siren_clean.isdigit():
+            logger.warning(f"SIREN invalide: {siren}")
+            return {"success": False, "error": "SIREN invalide"}
+
+        url = f"{PAPPERS_API_BASE}/entreprise"
+        params = {
+            "api_token": self.api_key,
+            "siren": siren_clean
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                response = await client.get(url, params=params)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    etablissements_data = data.get("etablissements", [])
+
+                    # Parser tous les établissements
+                    etablissements_parsed = []
+                    for etab in etablissements_data:
+                        parsed = self._parse_etablissement(etab, data)
+                        etablissements_parsed.append(parsed)
+
+                    return {
+                        "success": True,
+                        "entreprise": {
+                            "siren": data.get("siren"),
+                            "nom": data.get("nom_entreprise"),
+                            "siege": data.get("siege", {})
+                        },
+                        "etablissements": etablissements_parsed,
+                        "total": len(etablissements_parsed)
+                    }
+                elif response.status_code == 404:
+                    logger.info(f"SIREN non trouvé (Pappers): {siren_clean}")
+                    return {"success": False, "error": "SIREN non trouvé"}
+                else:
+                    logger.error(f"Erreur API Pappers pour SIREN {siren_clean} ({response.status_code}): {response.text[:200]}")
+                    return {"success": False, "error": f"Erreur API (code {response.status_code})"}
+
+        except httpx.RequestError as e:
+            logger.error(f"Erreur réseau API Pappers pour SIREN {siren_clean}: {e}")
+            return {"success": False, "error": f"Erreur de connexion: {type(e).__name__}"}
+
     async def search_siret(
         self,
         q: str,
@@ -108,7 +168,7 @@ class PappersAPI:
             "par_page": limit,
             "bases": "entreprises" # On cherche dans la base entreprises
         }
-        
+
         if code_postal:
             params["code_postal"] = code_postal
         if commune:
@@ -130,10 +190,10 @@ class PappersAPI:
                         etab = res
                         # Adaptation selon la structure de réponse de Pappers (qui peut varier)
                         # Pour la recherche, Pappers retourne une liste d'entreprises avec un établissement représentatif souvent
-                        
+
                         parsed = self._parse_search_result(res)
                         parsed_results.append(parsed)
-                        
+
                     return parsed_results[:limit]
                 else:
                     logger.error(f"Erreur recherche Pappers ({response.status_code}): {response.text[:200]}")
