@@ -1854,7 +1854,7 @@ async def update_fd_from_idcc(
         db.commit()
         log_admin_action(
             request,
-            api_key,
+            current_user.email,
             "update_fd_from_idcc",
             "invitations",
             True,
