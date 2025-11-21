@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Demande d'export de données</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #d5001c;
+            color: white;
+            padding: 15px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            text-decoration: none;
+            color: white;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .approve {
+            background-color: #4CAF50;
+        }
+
+        .reject {
+            background-color: #f44336;
+        }
+
+        .details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="margin:0;">Nouvelle demande d'export</h2>
+        </div>
+        <div class="content">
+            <p>Bonjour,</p>
+            <p>L'utilisateur <strong>{{ user.full_name }}</strong> ({{ user.email }}) souhaite télécharger la base de
+                données "Calendrier +1000".</p>
+
+            <div class="details">
+                <h3>Détails de la demande :</h3>
+                <ul style="list-style: none; padding-left: 0;">
+                    <li><strong>Date :</strong> {{ request_date }}</li>
+                    <li><strong>Effectif min :</strong> {{ filters.min_effectif }}</li>
+                    <li><strong>Recherche :</strong> {{ filters.q or "Aucune" }}</li>
+                    <li><strong>Fédération :</strong> {{ filters.fd or "Toutes" }}</li>
+                    <li><strong>Union Départementale :</strong> {{ filters.ud or "Toutes" }}</li>
+                </ul>
+            </div>
+
+            <p>Veuillez valider ou refuser cette demande :</p>
+            <div style="text-align: center;">
+                <a href="{{ approve_link }}" class="button approve">Autoriser le téléchargement</a>
+                <a href="{{ reject_link }}" class="button reject">Refuser</a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

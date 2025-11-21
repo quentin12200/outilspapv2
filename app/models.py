@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON, Index
+from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON, Index, ForeignKey
 from sqlalchemy.orm import synonym, deferred
 from .db import Base
 
@@ -587,3 +587,29 @@ class PasswordResetToken(Base):
         Index('idx_token_valid', 'token', 'is_valid', 'is_used'),
         Index('idx_user_created', 'user_id', 'created_at'),
     )
+
+
+class DataExportRequest(Base):
+    """
+    Table pour gérer les demandes d'export de données sécurisées.
+    """
+    __tablename__ = "data_export_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    
+    # Status: PENDING, APPROVED, REJECTED, DOWNLOADED, EXPIRED
+    status = Column(String(20), default="PENDING", nullable=False, index=True)
+    
+    # Filtres utilisés pour l'export (stockés en JSON)
+    filters = Column(JSON, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    processed_at = Column(DateTime, nullable=True)  # Date de validation/refus
+    expires_at = Column(DateTime, nullable=True)    # Date d'expiration du lien
+    
+    def __repr__(self):
+        return f"<DataExportRequest(id={self.id}, user_id={self.user_id}, status={self.status})>"
+
