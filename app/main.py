@@ -4268,6 +4268,17 @@ def recherche_siret_page(request: Request):
     })
 
 
+@app.get("/etablissements-carte", response_class=HTMLResponse)
+def etablissements_carte_page(request: Request):
+    """
+    Page de recherche et visualisation des établissements d'une entreprise sur une carte.
+    Utilise l'API Pappers pour récupérer les données avec géolocalisation.
+    """
+    return templates.TemplateResponse("etablissements-carte.html", {
+        "request": request,
+    })
+
+
 @app.get("/mentions-legales", response_class=HTMLResponse)
 def mentions_legales_page(request: Request):
     return templates.TemplateResponse("mentions-legales.html", {"request": request})

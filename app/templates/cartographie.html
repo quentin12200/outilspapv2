@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Cartographie France{% endblock %}
 
@@ -78,7 +78,7 @@
       <span>Cartographie France</span>
     </h1>
     <p class="text-gray-600 text-lg">
-      Visualisation g├®ographique des donn├®es par d├®partement
+      Visualisation géographique des données par département
     </p>
   </div>
 
@@ -89,7 +89,7 @@
         :class="activeTab === 'inscrits' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-users"></i>
-        <span>Inscrits par d├®partement</span>
+        <span>Inscrits par département</span>
       </button>
       <button @click="activeTab = 'pap'"
         :class="activeTab === 'pap' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
@@ -101,7 +101,7 @@
         :class="activeTab === 'federations' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-industry"></i>
-        <span>F├®d├®rations</span>
+        <span>Fédérations</span>
       </button>
     </div>
   </div>
@@ -110,7 +110,7 @@
   <div x-show="loading" class="flex items-center justify-center py-20">
     <div class="text-center">
       <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
-      <p class="text-gray-600 text-lg">Chargement des donn├®es cartographiques...</p>
+      <p class="text-gray-600 text-lg">Chargement des données cartographiques...</p>
     </div>
   </div>
 
@@ -123,7 +123,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Total d├®partements</p>
+            <p class="text-sm font-medium text-gray-600">Total départements</p>
             <p class="text-3xl font-bold text-gray-900" x-text="stats.total_departements"></p>
           </div>
           <i class="fas fa-map text-3xl text-blue-500 opacity-50"></i>
@@ -163,7 +163,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Moyenne par d├®partement</p>
+            <p class="text-sm font-medium text-gray-600">Moyenne par département</p>
             <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.moyenne_par_dept)"></p>
           </div>
           <i class="fas fa-chart-bar text-3xl text-cgt-red opacity-50"></i>
@@ -171,19 +171,19 @@
       </div>
     </div>
 
-    <!-- Carte et top d├®partements -->
+    <!-- Carte et top départements -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <!-- Carte de France -->
       <div class="lg:col-span-2">
         <div class="bg-white rounded-xl shadow-md p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
             <i class="fas fa-map text-cgt-red"></i>
-            <span>Carte des inscrits par d├®partement</span>
+            <span>Carte des inscrits par département</span>
           </h2>
 
-          <!-- L├®gende -->
+          <!-- Légende -->
           <div class="mb-6 bg-gray-50 rounded-lg p-4">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Densit├® d'inscrits</h3>
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Densité d'inscrits</h3>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div class="legend-item">
                 <div class="legend-color" style="background-color: #f0f0f0;"></div>
@@ -218,12 +218,12 @@
         </div>
       </div>
 
-      <!-- Top d├®partements inscrits -->
+      <!-- Top départements inscrits -->
       <div class="lg:col-span-1">
         <div class="bg-white rounded-xl shadow-md p-6 sticky top-24">
           <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
             <i class="fas fa-trophy text-yellow-500"></i>
-            <span>Top 10 D├®partements</span>
+            <span>Top 10 Départements</span>
           </h2>
 
           <div class="space-y-3">
@@ -269,7 +269,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">D├®partements couverts</p>
+            <p class="text-sm font-medium text-gray-600">Départements couverts</p>
             <p class="text-3xl font-bold text-gray-900" x-text="statsPAP.total_departements"></p>
           </div>
           <i class="fas fa-map text-3xl text-green-500 opacity-50"></i>
@@ -279,7 +279,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Unions D├®partementales</p>
+            <p class="text-sm font-medium text-gray-600">Unions Départementales</p>
             <p class="text-3xl font-bold text-gray-900" x-text="statsPAP.total_uds"></p>
           </div>
           <i class="fas fa-sitemap text-3xl text-purple-500 opacity-50"></i>
@@ -289,7 +289,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Moyenne par d├®partement</p>
+            <p class="text-sm font-medium text-gray-600">Moyenne par département</p>
             <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(statsPAP.moyenne_par_dept)"></p>
           </div>
           <i class="fas fa-chart-bar text-3xl text-cgt-red opacity-50"></i>
@@ -297,17 +297,17 @@
       </div>
     </div>
 
-    <!-- Carte et top d├®partements PAP -->
+    <!-- Carte et top départements PAP -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <!-- Carte de France PAP -->
       <div class="lg:col-span-2">
         <div class="bg-white rounded-xl shadow-md p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
             <i class="fas fa-map text-cgt-red"></i>
-            <span>Carte des invitations PAP par d├®partement</span>
+            <span>Carte des invitations PAP par département</span>
           </h2>
 
-          <!-- L├®gende PAP -->
+          <!-- Légende PAP -->
           <div class="mb-6 bg-gray-50 rounded-lg p-4">
             <h3 class="text-sm font-semibold text-gray-700 mb-3">Nombre d'invitations PAP</h3>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -344,12 +344,12 @@
         </div>
       </div>
 
-      <!-- Top d├®partements PAP -->
+      <!-- Top départements PAP -->
       <div class="lg:col-span-1">
         <div class="bg-white rounded-xl shadow-md p-6 sticky top-24">
           <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
             <i class="fas fa-trophy text-yellow-500"></i>
-            <span>Top 10 D├®partements</span>
+            <span>Top 10 Départements</span>
           </h2>
 
           <div class="space-y-3">
@@ -376,7 +376,7 @@
       <div class="bg-white rounded-xl shadow-md p-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center space-x-2">
           <i class="fas fa-sitemap text-cgt-red"></i>
-          <span>Invitations PAP par Union D├®partementale (UD)</span>
+          <span>Invitations PAP par Union Départementale (UD)</span>
         </h2>
 
         <div class="overflow-x-auto">
@@ -384,7 +384,7 @@
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Union D├®partementale
+                  Union Départementale
                 </th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Nombre d'invitations
@@ -412,13 +412,13 @@
     </div>
   </div>
 
-  <!-- Modal d├®tails d├®partement inscrits -->
+  <!-- Modal détails département inscrits -->
   <div x-show="selectedDeptInscrits !== null" x-cloak @click.self="selectedDeptInscrits = null"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
-          <h3 class="text-2xl font-bold" x-text="'D├®partement ' + (selectedDeptInscrits?.dept || '')"></h3>
+          <h3 class="text-2xl font-bold" x-text="'Département ' + (selectedDeptInscrits?.dept || '')"></h3>
           <button @click="selectedDeptInscrits = null" class="text-white hover:bg-white/20 rounded-full p-2 transition">
             <i class="fas fa-times text-xl"></i>
           </button>
@@ -438,13 +438,13 @@
       <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
         <h4 class="text-lg font-bold text-gray-900 mb-4">
           <i class="fas fa-building text-cgt-red mr-2"></i>
-          ├ëtablissements avec 1000+ inscrits
+          Établissements avec 1000+ inscrits
         </h4>
 
         <template x-if="(selectedDeptInscrits?.cibles_1000plus || []).length === 0">
           <p class="text-gray-500 text-center py-8">
             <i class="fas fa-info-circle text-3xl mb-2"></i><br>
-            Aucune cible avec 1000+ inscrits dans ce d├®partement
+            Aucune cible avec 1000+ inscrits dans ce département
           </p>
         </template>
 
@@ -478,15 +478,15 @@
   </div>
 
   <!-- ========================================= -->
-  <!-- TAB 3: F├ëD├ëRATIONS -->
+  <!-- TAB 3: FÉDÉRATIONS -->
   <!-- ========================================= -->
   <div x-show="activeTab === 'federations' && !loading">
-    <!-- S├®lecteur de f├®d├®ration -->
+    <!-- Sélecteur de fédération -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-8">
-      <label class="block text-sm font-medium text-gray-700 mb-2">Choisir une f├®d├®ration</label>
+      <label class="block text-sm font-medium text-gray-700 mb-2">Choisir une fédération</label>
       <select x-model="selectedFederation"
         class="w-full md:w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-cgt-red">
-        <option value="">S├®lectionnez une f├®d├®ration...</option>
+        <option value="">Sélectionnez une fédération...</option>
         <template x-for="fd in federations" :key="fd">
           <option :value="fd" x-text="fd"></option>
         </template>
@@ -494,7 +494,7 @@
     </div>
 
     <div x-show="selectedFederation">
-      <!-- Stats globales F├®d├®ration -->
+      <!-- Stats globales Fédération -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
           <div class="flex items-center justify-between">
@@ -531,7 +531,7 @@
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-cgt-red">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-600">D├®partements pr├®sents</p>
+              <p class="text-sm font-medium text-gray-600">Départements présents</p>
               <p class="text-3xl font-bold text-gray-900" x-text="statsFederation.total_departements"></p>
             </div>
             <i class="fas fa-map-marker-alt text-3xl text-cgt-red opacity-50"></i>
@@ -539,9 +539,9 @@
         </div>
       </div>
 
-      <!-- Carte et top d├®partements F├®d├®ration -->
+      <!-- Carte et top départements Fédération -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Carte de France F├®d├®ration -->
+        <!-- Carte de France Fédération -->
         <div class="lg:col-span-2">
           <div class="bg-white rounded-xl shadow-md p-6">
             <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
@@ -549,9 +549,9 @@
               <span>Implantation : <span x-text="selectedFederation"></span></span>
             </h2>
 
-            <!-- L├®gende -->
+            <!-- Légende -->
             <div class="mb-6 bg-gray-50 rounded-lg p-4">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">Densit├® d'inscrits</h3>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Densité d'inscrits</h3>
               <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div class="legend-item">
                   <div class="legend-color" style="background-color: #f0f0f0;"></div>
@@ -576,22 +576,22 @@
               </div>
             </div>
 
-            <!-- Carte SVG F├®d├®ration -->
+            <!-- Carte SVG Fédération -->
             <div id="map-container-federation" class="w-full" style="min-height: 600px;">
               <svg id="france-map-federation" width="100%" height="600"></svg>
             </div>
 
-            <!-- Tooltip F├®d├®ration -->
+            <!-- Tooltip Fédération -->
             <div id="map-tooltip-federation" class="tooltip-map"></div>
           </div>
         </div>
 
-        <!-- Top d├®partements F├®d├®ration -->
+        <!-- Top départements Fédération -->
         <div class="lg:col-span-1">
           <div class="bg-white rounded-xl shadow-md p-6 sticky top-24">
             <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
               <i class="fas fa-trophy text-yellow-500"></i>
-              <span>Top D├®partements</span>
+              <span>Top Départements</span>
             </h2>
 
             <div class="space-y-3">
@@ -619,13 +619,13 @@
     </div>
   </div>
 
-  <!-- Modal d├®tails d├®partement F├®d├®ration -->
+  <!-- Modal détails département Fédération -->
   <div x-show="selectedDeptFederation !== null" x-cloak @click.self="selectedDeptFederation = null"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
-          <h3 class="text-2xl font-bold" x-text="'D├®partement ' + (selectedDeptFederation?.dept || '')"></h3>
+          <h3 class="text-2xl font-bold" x-text="'Département ' + (selectedDeptFederation?.dept || '')"></h3>
           <button @click="selectedDeptFederation = null"
             class="text-white hover:bg-white/20 rounded-full p-2 transition">
             <i class="fas fa-times text-xl"></i>
@@ -646,13 +646,13 @@
       <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
         <h4 class="text-lg font-bold text-gray-900 mb-4">
           <i class="fas fa-building text-cgt-red mr-2"></i>
-          ├ëtablissements avec 1000+ inscrits (F├®d├®ration)
+          Établissements avec 1000+ inscrits (Fédération)
         </h4>
 
         <template x-if="(selectedDeptFederation?.cibles_1000plus || []).length === 0">
           <p class="text-gray-500 text-center py-8">
             <i class="fas fa-info-circle text-3xl mb-2"></i><br>
-            Aucune cible avec 1000+ inscrits dans ce d├®partement pour cette f├®d├®ration
+            Aucune cible avec 1000+ inscrits dans ce département pour cette fédération
           </p>
         </template>
 
@@ -685,13 +685,13 @@
     </div>
   </div>
 
-  <!-- Modal d├®tails d├®partement PAP -->
+  <!-- Modal détails département PAP -->
   <div x-show="selectedDeptPAP !== null" x-cloak @click.self="selectedDeptPAP = null"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
       <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred p-6 text-white">
         <div class="flex items-center justify-between">
-          <h3 class="text-2xl font-bold" x-text="'D├®partement ' + (selectedDeptPAP?.dept || '')"></h3>
+          <h3 class="text-2xl font-bold" x-text="'Département ' + (selectedDeptPAP?.dept || '')"></h3>
           <button @click="selectedDeptPAP = null" class="text-white hover:bg-white/20 rounded-full p-2 transition">
             <i class="fas fa-times text-xl"></i>
           </button>
@@ -711,7 +711,7 @@
         <template x-if="(selectedDeptPAP?.invitations || []).length === 0">
           <p class="text-gray-500 text-center py-8">
             <i class="fas fa-info-circle text-3xl mb-2"></i><br>
-            Aucune invitation PAP dans ce d├®partement
+            Aucune invitation PAP dans ce département
           </p>
         </template>
 
@@ -755,8 +755,8 @@
       departementsPAP: [],
       departementsFederation: [],
       parUD: [],
-      geojsonData: null,  // Stocker le GeoJSON pour r├®utilisation
-      mapPAPLoaded: false,  // Flag pour savoir si la carte PAP a ├®t├® charg├®e
+      geojsonData: null,  // Stocker le GeoJSON pour réutilisation
+      mapPAPLoaded: false,  // Flag pour savoir si la carte PAP a été chargée
       mapFederationLoaded: false,
       federations: [],
       selectedFederation: '',
@@ -792,10 +792,10 @@
         await this.loadMap();
         this.loading = false;
 
-        // Watch activeTab pour charger la carte PAP quand n├®cessaire
+        // Watch activeTab pour charger la carte PAP quand nécessaire
         this.$watch('activeTab', (newTab) => {
           if (newTab === 'pap' && !this.mapPAPLoaded) {
-            // Attendre que le DOM soit mis ├á jour avec le nouveau tab visible
+            // Attendre que le DOM soit mis à jour avec le nouveau tab visible
             this.$nextTick(() => {
               this.loadMapPAP();
               this.mapPAPLoaded = true;
@@ -824,7 +824,7 @@
           const response = await fetch('/api/geo/federations');
           this.federations = await response.json();
         } catch (error) {
-          console.error('Erreur chargement f├®d├®rations:', error);
+          console.error('Erreur chargement fédérations:', error);
         }
       },
 
@@ -839,8 +839,8 @@
           this.statsFederation.total_entreprises_c4 = data.total_entreprises_c4 || 0;
           this.statsFederation.total_departements = this.departementsFederation.length;
         } catch (error) {
-          console.error('Erreur chargement donn├®es f├®d├®ration:', error);
-          showToast('Erreur lors du chargement des donn├®es f├®d├®ration', 'error');
+          console.error('Erreur chargement données fédération:', error);
+          showToast('Erreur lors du chargement des données fédération', 'error');
         }
       },
 
@@ -865,8 +865,8 @@
           this.stats.total_entreprises_c4 = data.total_entreprises_c4 || 0;
           this.stats.moyenne_par_dept = Math.round(data.total_inscrits_france / this.departements.length);
         } catch (error) {
-          console.error('Erreur chargement donn├®es inscrits:', error);
-          showToast('Erreur lors du chargement des donn├®es inscrits', 'error');
+          console.error('Erreur chargement données inscrits:', error);
+          showToast('Erreur lors du chargement des données inscrits', 'error');
         }
       },
 
@@ -884,8 +884,8 @@
             ? Math.round(data.total_invitations / data.total_departements)
             : 0;
         } catch (error) {
-          console.error('Erreur chargement donn├®es PAP:', error);
-          showToast('Erreur lors du chargement des donn├®es PAP', 'error');
+          console.error('Erreur chargement données PAP:', error);
+          showToast('Erreur lors du chargement des données PAP', 'error');
         }
       },
 
@@ -921,7 +921,7 @@
         try {
           this.drawMap(this.geojsonData, 'federation');
         } catch (error) {
-          console.error('Erreur dessin carte F├®d├®ration:', error);
+          console.error('Erreur dessin carte Fédération:', error);
         }
       },
 
@@ -950,9 +950,9 @@
         const svg = d3.select(svgId);
         let width = container.clientWidth;
 
-        // Si le conteneur est cach├®, la largeur sera 0, utiliser une valeur par d├®faut
+        // Si le conteneur est caché, la largeur sera 0, utiliser une valeur par défaut
         if (width === 0) {
-          width = 800;  // Largeur par d├®faut
+          width = 800;  // Largeur par défaut
         }
 
         const height = 600;
@@ -1036,7 +1036,7 @@
                   <div>Inscrits: <strong>${this.formatNumber(data.total_inscrits)}</strong></div>
                   <div>Cibles 1000+: <strong>${data.nb_cibles_1000plus}</strong></div>
                 </div>
-              ` : '<div class="text-sm text-gray-300">Aucune donn├®e</div>'}
+              ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
             `;
             } else {
               content = `
@@ -1045,7 +1045,7 @@
                 <div class="text-sm">
                   <div>Invitations PAP: <strong>${data.nb_invitations}</strong></div>
                 </div>
-              ` : '<div class="text-sm text-gray-300">Aucune donn├®e</div>'}
+              ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
             `;
             }
 

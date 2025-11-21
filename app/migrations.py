@@ -39,6 +39,12 @@ MANUAL_INVITATION_COLUMNS = [
     ("structure_saisie", "TEXT"),
 ]
 
+# Colonnes de géolocalisation pour invitations
+GEOLOCATION_COLUMNS = [
+    ("latitude", "FLOAT"),
+    ("longitude", "FLOAT"),
+]
+
 # Nouvelles colonnes pour pv_events (v1.0.0 - scores syndicaux complets)
 PV_EVENTS_NEW_COLUMNS = [
     ("id_pv", "VARCHAR(50)"),
@@ -277,6 +283,11 @@ def add_sirene_columns_if_needed():
 def add_manual_invitation_columns_if_needed():
     """Ajoute les colonnes pour l'ajout manuel d'invitations PAP."""
     add_columns_to_table("invitations", MANUAL_INVITATION_COLUMNS)
+
+
+def add_geolocation_columns_if_needed():
+    """Ajoute les colonnes de géolocalisation à la table invitations."""
+    add_columns_to_table("invitations", GEOLOCATION_COLUMNS)
 
 
 def add_pv_events_columns_if_needed():
@@ -539,6 +550,9 @@ def run_migrations():
 
         # Migration colonnes manuelles pour invitations PAP
         add_manual_invitation_columns_if_needed()
+
+        # Migration colonnes de géolocalisation pour invitations
+        add_geolocation_columns_if_needed()
 
         # Migration données invitations
         fill_invitation_columns_from_raw()
