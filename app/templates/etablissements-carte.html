@@ -227,12 +227,19 @@
 
               <!-- Infos -->
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-                <div>
+                <div class="flex items-center">
                   <span class="text-gray-600">
                     <i class="fas fa-hashtag text-blue-500 mr-1"></i>
                     SIRET:
                   </span>
-                  <span class="ml-1 font-mono text-cgt-red font-semibold" x-text="etab.siret"></span>
+                  <a :href="`/siret/${etab.siret}`"
+                     @click.stop
+                     class="ml-2 font-mono text-cgt-red font-semibold hover:underline"
+                     title="Ouvrir la fiche entreprise"
+                     target="_blank"
+                     rel="noopener">
+                    <span x-text="etab.siret"></span>
+                  </a>
                 </div>
 
                 <div x-show="etab.adresse">
@@ -468,7 +475,12 @@
               <div class="p-2">
                 <h3 class="font-bold text-lg mb-2">${etab.denomination || 'Sans nom'}</h3>
                 <div class="space-y-1 text-sm">
-                  <p><strong>SIRET:</strong> <span class="font-mono">${etab.siret}</span></p>
+                  <p>
+                    <strong>SIRET:</strong>
+                    <a href="/siret/${etab.siret}" target="_blank" rel="noopener" class="font-mono text-blue-600 hover:underline">
+                      ${etab.siret}
+                    </a>
+                  </p>
                   ${etab.est_siege ? '<p class="text-purple-600 font-semibold"><i class="fas fa-star mr-1"></i>Siège social</p>' : ''}
                   ${!etab.est_actif ? '<p class="text-red-600 font-semibold"><i class="fas fa-exclamation-triangle mr-1"></i>Établissement inactif</p>' : ''}
                   ${etab.adresse ? `<p><strong>Adresse:</strong> ${etab.adresse}</p>` : ''}
