@@ -15,6 +15,17 @@
     width: 100%;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Force le chargement correct des tuiles Leaflet */
+  .leaflet-container {
+    background: #fff;
+  }
+
+  .leaflet-tile-container {
+    opacity: 1 !important;
   }
 
   .leaflet-popup-content {
@@ -37,6 +48,10 @@
 
   .actif-badge {
     background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  }
+
+  [x-cloak] {
+    display: none !important;
   }
 </style>
 {% endblock %}
@@ -310,11 +325,22 @@
             this.entreprise = data.entreprise;
             this.etablissements = data.etablissements;
 
-            // Ajouter les marqueurs sur la carte
-            this.addMarkersToMap();
+            // Attendre que le DOM soit mis à jour (x-show révèle la carte)
+            // et forcer le recalcul des dimensions de la carte
+            setTimeout(() => {
+              this.map.invalidateSize();
 
-            // Centrer la carte sur les établissements
-            this.fitMapToBounds();
+              // Ajouter les marqueurs sur la carte
+              this.addMarkersToMap();
+
+              // Centrer la carte sur les établissements
+              this.fitMapToBounds();
+
+              // Re-forcer le recalcul après le fitBounds
+              setTimeout(() => {
+                this.map.invalidateSize();
+              }, 200);
+            }, 150);
 
             showToast(`${data.total} établissement(s) trouvé(s)`, 'success');
           } else {
@@ -400,6 +426,9 @@
 
       focusEtablissement(etab) {
         if (etab.latitude && etab.longitude) {
+          // Forcer le recalcul de la taille au cas où
+          this.map.invalidateSize();
+
           this.map.setView([etab.latitude, etab.longitude], 15);
 
           // Trouver et ouvrir le popup correspondant
@@ -414,14 +443,15 @@
 
           // Scroll to map
           document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // Re-forcer après le scroll
+          setTimeout(() => {
+            this.map.invalidateSize();
+          }, 300);
         }
       }
     }
   }
 </script>
-
-<style>
-  [x-cloak] { display: none !important; }
-</style>
 
 {% endblock %}
