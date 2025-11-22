@@ -13,9 +13,15 @@
         Retrouvez ci-dessous l'ensemble des invitations au PAP Cycle 5 importées dans l'outil. Utilisez les filtres pour affiner la liste ou cliquer sur les en-têtes du tableau pour réordonner les colonnes.
       </p>
     </div>
-    <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
-      <p class="text-sm text-gray-500 uppercase font-semibold">Invitations recensées</p>
-      <p class="text-3xl font-bold text-gray-800">{{ total_invitations }}</p>
+    <div class="flex flex-wrap gap-4">
+      <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+        <p class="text-sm text-gray-500 uppercase font-semibold">Invitations recensées</p>
+        <p class="text-3xl font-bold text-gray-800">{{ total_invitations }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow px-5 py-4 text-center">
+        <p class="text-sm text-gray-500 uppercase font-semibold">Salariés connus</p>
+        <p class="text-3xl font-bold text-cgt-red">{{ employees_count }}</p>
+      </div>
     </div>
   </div>
 
@@ -190,6 +196,7 @@
           <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date invitation</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">SIRET</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Raison sociale</th>
+          <th class="px-4 py-3 text-center text-xs font-bold uppercase">Effectif</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">UD (Dép.)</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">IDCC</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">FD</th>
@@ -240,6 +247,14 @@
             <a href="/siret/{{ siret_link }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ invit.siret }}</a>
           </td>
           <td class="px-4 py-3">{{ display_denomination or '—' }}</td>
+          <td class="px-4 py-3 text-center">
+            {# Afficher display_effectif (effectif_connu ou depuis PV) #}
+            {% if invit.display_effectif and invit.display_effectif > 0 %}
+              <span class="px-2 py-1 bg-cgt-red text-white rounded text-xs font-semibold">{{ invit.display_effectif }}</span>
+            {% else %}
+              <span class="text-gray-400">—</span>
+            {% endif %}
+          </td>
           <td class="px-4 py-3 text-center">
             {# Afficher UD si renseigné, sinon le département calculé depuis le CP #}
             {% if invit.ud | clean_nan %}

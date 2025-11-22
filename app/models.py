@@ -598,27 +598,143 @@ class PasswordResetToken(Base):
     )
 
 
-class DataExportRequest(Base):
+class Cartographie(Base):
     """
-    Table pour gérer les demandes d'export de données sécurisées.
+    Cartographies d'entreprise pour le renforcement syndical
+    Permet de visualiser la répartition des salariés et syndiqués par service
     """
-    __tablename__ = "data_export_requests"
+    __tablename__ = "cartographies"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    token = Column(String(255), unique=True, nullable=False, index=True)
-    
-    # Status: PENDING, APPROVED, REJECTED, DOWNLOADED, EXPIRED
-    status = Column(String(20), default="PENDING", nullable=False, index=True)
-    
-    # Filtres utilisés pour l'export (stockés en JSON)
-    filters = Column(JSON, nullable=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
-    processed_at = Column(DateTime, nullable=True)  # Date de validation/refus
-    expires_at = Column(DateTime, nullable=True)    # Date d'expiration du lien
-    
-    def __repr__(self):
-        return f"<DataExportRequest(id={self.id}, user_id={self.user_id}, status={self.status})>"
 
+    # Informations de l'entreprise
+    siret = Column(String(14), index=True, nullable=True)  # SIRET optionnel
+    nom_entreprise = Column(Text, nullable=False)
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Données calculées (stockées pour performance)
+    total_salaries = Column(Integer, default=0)
+    total_syndiques = Column(Integer, default=0)
+    taux_syndicalisation = Column(Float, default=0.0)  # Pourcentage
+
+    # Statut
+    is_archived = Column(Boolean, default=False, nullable=False)
+
+    def __repr__(self):
+        return f"<Cartographie(id={self.id}, nom_entreprise={self.nom_entreprise}, taux={self.taux_syndicalisation}%)>"
+
+    __table_args__ = (
+        Index('idx_carto_siret', 'siret'),
+        Index('idx_carto_user', 'created_by', 'created_at'),
+    )
+
+
+class ServiceCartographie(Base):
+    """
+    Services d'une cartographie d'entreprise
+    Représente un service/département avec ses effectifs
+    """
+    __tablename__ = "services_cartographie"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec la cartographie
+    cartographie_id = Column(Integer, nullable=False, index=True)
+
+    # Informations du service
+    nom_service = Column(Text, nullable=False)
+    nombre_salaries = Column(Integer, default=0, nullable=False)
+    nombre_syndiques = Column(Integer, default=0, nullable=False)
+
+    # Données calculées
+    taux_syndicalisation = Column(Float, default=0.0)  # Pourcentage
+
+    # Ordre d'affichage
+    ordre = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<ServiceCartographie(id={self.id}, nom={self.nom_service}, salaries={self.nombre_salaries}, syndiques={self.nombre_syndiques})>"
+
+    __table_args__ = (
+        Index('idx_service_carto', 'cartographie_id'),
+    )
+
+
+class Retroplanning(Base):
+    """
+    Rétro-plannings pour les campagnes syndicales
+    Permet de planifier les actions en partant d'une date J
+    """
+    __tablename__ = "retroplannings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Informations de base
+    titre = Column(Text, nullable=False)
+    date_evenement = Column(Date, nullable=False, index=True)  # Date J
+    type_campagne = Column(String(50), nullable=False)  # elections_cse, syndicalisation, nao, lutte, formation
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Contexte optionnel
+    siret = Column(String(14), index=True, nullable=True)
+    entreprise = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+
+    # Statut
+    is_archived = Column(Boolean, default=False, nullable=False)
+
+    def __repr__(self):
+        return f"<Retroplanning(id={self.id}, titre={self.titre}, type={self.type_campagne}, date_j={self.date_evenement})>"
+
+    __table_args__ = (
+        Index('idx_retro_date', 'date_evenement', 'is_archived'),
+        Index('idx_retro_user', 'created_by', 'created_at'),
+    )
+
+
+class PhaseRetroplanning(Base):
+    """
+    Phases d'un rétro-planning
+    Représente une étape avec sa durée et son statut
+    """
+    __tablename__ = "phases_retroplanning"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec le rétro-planning
+    retroplanning_id = Column(Integer, nullable=False, index=True)
+
+    # Informations de la phase
+    titre = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    couleur = Column(String(20), default='gray')  # Pour la visualisation
+
+    # Dates calculées
+    jours_avant_j = Column(Integer, nullable=False)  # Nombre de jours avant/après le jour J (négatif = après)
+    date_debut = Column(Date, nullable=True)  # Calculé à partir de date_evenement
+    date_fin = Column(Date, nullable=True)    # Calculé à partir de la phase suivante ou date_evenement
+
+    # Statut
+    statut = Column(String(20), default='a_venir')  # a_venir, en_cours, termine
+
+    # Ordre d'affichage
+    ordre = Column(Integer, default=0, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<PhaseRetroplanning(id={self.id}, titre={self.titre}, jours_avant_j={self.jours_avant_j})>"
+
+    __table_args__ = (
+        Index('idx_phase_retro', 'retroplanning_id', 'ordre'),
+    )
