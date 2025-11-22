@@ -19,6 +19,10 @@ try:
 except ImportError:
     from app.rate_limiter import sirene_rate_limiter
 
+# Configuration API Pappers (Clé fournie par l'utilisateur)
+if not os.getenv("PAPPERS_API_KEY"):
+    os.environ["PAPPERS_API_KEY"] = "592b23c8aef6a9a4be892ed05d9ae1c0ff0d0ea0350b18e1"
+
 # URL de base de l'API Sirene (version 3.11)
 # Documentation: https://api.insee.fr/catalogue/
 SIRENE_API_BASE = "https://api.insee.fr/api-sirene/3.11"
@@ -429,17 +433,27 @@ class SireneAPI:
 # Instance par défaut sans clé API (limite: 30 req/min)
 sirene_api = SireneAPI()
 
+# Instance Pappers API
+from .pappers_api import PappersAPI
+pappers_api = PappersAPI()
+
 
 async def enrichir_siret(siret: str) -> Optional[Dict[str, Any]]:
     """
     Fonction helper pour enrichir un SIRET
-
-    Args:
-        siret: Numéro SIRET
-
-    Returns:
-        Dictionnaire avec les infos enrichies ou None
+    Essaie d'abord Pappers, puis Sirene en fallback
     """
+    # 1. Essayer Pappers si la clé est configurée
+    if pappers_api.api_key:
+        try:
+            data = await pappers_api.get_siret(siret)
+            if data:
+                logger.info(f"Enrichissement SIRET {siret} via Pappers réussi")
+                return data
+        except Exception as e:
+            logger.warning(f"Erreur Pappers pour SIRET {siret}: {e}. Fallback sur Sirene.")
+
+    # 2. Fallback sur Sirene
     try:
         return await sirene_api.get_siret(siret)
     except SireneAPIError as e:
@@ -453,8 +467,21 @@ async def rechercher_siret(
     commune: Optional[str] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Helper pour rechercher des établissements via l'API Sirene."""
+    """
+    Helper pour rechercher des établissements.
+    Essaie d'abord Pappers, puis Sirene en fallback.
+    """
+    # 1. Essayer Pappers si la clé est configurée
+    if pappers_api.api_key:
+        try:
+            results = await pappers_api.search_siret(denomination, code_postal, commune, limit)
+            if results:
+                logger.info(f"Recherche Pappers réussie: {len(results)} résultats")
+                return results
+        except Exception as e:
+            logger.warning(f"Erreur recherche Pappers: {e}. Fallback sur Sirene.")
 
+    # 2. Fallback sur Sirene
     try:
         return await sirene_api.search_siret(denomination, code_postal, commune, limit)
     except SireneAPIError as e:

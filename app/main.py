@@ -63,7 +63,10 @@ from .user_auth import (
     USER_SESSION_MAX_AGE,
     UserAuthException
 )
-from .models import User, PasswordResetToken
+from .models import User, PasswordResetToken, DataExportRequest
+import uuid
+from .services.export_service import generate_calendrier_excel
+from .services.email_service import get_resend_service
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -240,12 +243,7 @@ def _build_local_kit_candidates() -> list[str]:
 
 
 KIT_PDF_LOCAL_HINTS = _build_local_kit_candidates()
-KIT_PDF_LOCAL_GLOBS = [
-    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.pdf"),
-    os.path.join(_DEFAULT_DATA_DIR, "kit", "*.PDF"),
-    os.path.join(_DEFAULT_DATA_DIR, "*.pdf"),
-    os.path.join(_DEFAULT_DATA_DIR, "*.PDF"),
-]
+KIT_PDF_LOCAL_GLOBS = []
 
 
 def _kit_candidate_is_valid(path: str | None) -> bool:
@@ -2256,475 +2254,197 @@ def calendrier_export(
     region: str = "",
     year: str = "",
     db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
 ):
     """
     Export Excel de la sélection filtrée du calendrier +1000.
-    Une colonne par information, une ligne par SIRET.
+    Réservé aux administrateurs.
     """
-    today = date.today()
+    if not is_admin_user(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs. Veuillez utiliser la fonction 'Demander l'export'.")
 
-    stmt = (
-        db.query(
-            PVEvent.siret,
-            PVEvent.raison_sociale,
-            PVEvent.ud,
-            PVEvent.region,
-            PVEvent.effectif_siret,
-            PVEvent.inscrits,
-            PVEvent.cycle,
-            PVEvent.date_prochain_scrutin,
-            PVEvent.date_pv,
-            PVEvent.institution,
-            PVEvent.fd,
-            PVEvent.idcc,
-            PVEvent.sve,
-            PVEvent.tx_participation_pv,
-            PVEvent.votants,
-            PVEvent.nb_college_siret,
-            PVEvent.cgt_voix,
-            PVEvent.cfdt_voix,
-            PVEvent.fo_voix,
-            PVEvent.cftc_voix,
-            PVEvent.cgc_voix,
-            PVEvent.unsa_voix,
-            PVEvent.sud_voix,
-            PVEvent.autre_voix,
-        )
-        .filter(PVEvent.date_prochain_scrutin.isnot(None))
+    filters = {
+        "min_effectif": min_effectif,
+        "q": q,
+        "cycle": cycle,
+        "institution": institution,
+        "fd": fd,
+        "idcc": idcc,
+        "ud": ud,
+        "region": region,
+        "year": year,
+    }
+
+    excel_buffer = generate_calendrier_excel(db, filters)
+    filename = f"calendrier_elections_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    return StreamingResponse(
+        excel_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-    search_term = q.strip().lower()
-    cycle_filter = cycle.strip()
-    institution_filter = institution.strip()
-    fd_filter = fd.strip()
-    idcc_filter = idcc.strip()
-    ud_filter = ud.strip()
-    region_filter = region.strip()
-    year_filter = year.strip()
 
-    # ÉTAPE 1 : Calculer pour CHAQUE collège/PV (ne pas dédupliquer encore)
-    per_siret: dict[str, dict[str, Any]] = {}
-    for row in stmt:
-        parsed_date = _parse_date(row.date_prochain_scrutin)
-        if not parsed_date or parsed_date < today:
-            continue
-
-        # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
-        effectif_siret_value = _to_number(row.effectif_siret)
-        effectif_college = _to_number(row.inscrits)  # Effectif du collège
-
-        filter_effectif = effectif_siret_value if effectif_siret_value is not None else effectif_college
-
-        if min_effectif and (filter_effectif is None or filter_effectif < min_effectif):
-            continue
-
-        if cycle_filter and (row.cycle or "") != cycle_filter:
-            continue
-        if institution_filter and (row.institution or "") != institution_filter:
-            continue
-        if fd_filter and (row.fd or "") != fd_filter:
-            continue
-        if idcc_filter and (str(row.idcc or "")) != idcc_filter:
-            continue
-        if ud_filter and (row.ud or "") != ud_filter:
-            continue
-        if region_filter and (row.region or "") != region_filter:
-            continue
-        if year_filter and str(parsed_date.year) != year_filter:
-            continue
-
-        if search_term:
-            siret_value = str(row.siret or "")
-            raison = (row.raison_sociale or "").lower()
-            if search_term not in siret_value.lower() and search_term not in raison:
-                continue
-
-        sve_value = _to_number(getattr(row, "sve", None))
-        participation_value = _to_number(getattr(row, "tx_participation_pv", None))
-
-        # Si tx_participation_pv est vide, calculer à partir de votants/inscrits
-        if participation_value is None:
-            votants_value = _to_number(getattr(row, "votants", None))
-            inscrits_value = _to_number(row.inscrits)
-            if votants_value is not None and inscrits_value is not None and inscrits_value > 0:
-                participation_value = (votants_value / inscrits_value) * 100
-
-        nb_college_value = _to_number(getattr(row, "nb_college_siret", None))
-
-        # Calculer les voix par organisation pour ce collège
-        voix_par_orga = {}
-        for attr, label in PV_ORGANISATION_FIELDS:
-            votes_value = _to_number(getattr(row, attr, None))
-            if votes_value and votes_value > 0:
-                voix_par_orga[label] = votes_value
-
-        # Calculer les élus CSE pour ce collège (uniquement C4, plafonné à 35 sièges pour 10 000+)
-        # IMPORTANT: Utiliser l'effectif DU COLLÈGE (inscrits), PAS l'effectif total entreprise (effectif_siret)
-        elus_par_orga = {}
-        nb_sieges_cse = None
-
-        if row.cycle == "C4" and effectif_college and effectif_college > 0 and voix_par_orga:
-            calcul_elus = calculer_elus_cse_complet(
-                int(effectif_college),  # Effectif du collège (inscrits) - JAMAIS effectif_siret !
-                {label: int(v) for label, v in voix_par_orga.items()}
+@app.post("/calendrier/export/request")
+async def calendrier_export_request(
+    request: Request,
+    min_effectif: int = Form(1000),
+    q: str = Form(""),
+    cycle: str = Form(""),
+    institution: str = Form(""),
+    fd: str = Form(""),
+    idcc: str = Form(""),
+    ud: str = Form(""),
+    region: str = Form(""),
+    year: str = Form(""),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Créer une demande d'export de données.
+    Envoie un email aux administrateurs pour validation.
+    """
+    # Créer le token unique
+    token = str(uuid.uuid4())
+    
+    filters = {
+        "min_effectif": min_effectif,
+        "q": q,
+        "cycle": cycle,
+        "institution": institution,
+        "fd": fd,
+        "idcc": idcc,
+        "ud": ud,
+        "region": region,
+        "year": year,
+    }
+    
+    # Créer la demande en base
+    export_request = DataExportRequest(
+        user_id=current_user.id,
+        token=token,
+        status="PENDING",
+        filters=filters,
+        created_at=datetime.now()
+    )
+    db.add(export_request)
+    db.commit()
+    
+    # Envoyer email aux admins
+    admins = db.query(User).filter(User.role == "admin", User.is_active == True).all()
+    admin_emails = [admin.email for admin in admins]
+    
+    if admin_emails:
+        base_url = str(request.base_url).rstrip("/")
+        approve_link = f"{base_url}/admin/exports/{token}/approve"
+        reject_link = f"{base_url}/admin/exports/{token}/reject"
+        
+        # Rendu du template email
+        html_content = templates.get_template("emails/export_request_admin.html").render(
+            user=current_user,
+            request_date=datetime.now().strftime("%d/%m/%Y à %H:%M"),
+            filters=filters,
+            approve_link=approve_link,
+            reject_link=reject_link
+        )
+        
+        email_service = get_resend_service()
+        for admin_email in admin_emails:
+            background_tasks.add_task(
+                email_service.send_email,
+                to=admin_email,
+                subject=f"Demande d'export - {current_user.full_name}",
+                html=html_content
             )
-            nb_sieges_cse = calcul_elus["nb_sieges_total"]
-            elus_par_orga = calcul_elus["elus_par_orga"]
+            
+    return {"success": True, "message": "Votre demande a été envoyée aux administrateurs."}
 
-        # Créer une clé unique par collège pour garder tous les collèges
-        college_key = f"{row.siret or 'pv'}_{row.cycle or 'na'}_{id(row)}"
 
-        # Récupérer aussi votants et inscrits pour l'agrégation de la participation
-        votants_college = _to_number(getattr(row, "votants", None)) or 0
-        inscrits_college = _to_number(row.inscrits) or 0
+@app.get("/admin/exports/{token}/{action}")
+async def admin_export_action(
+    token: str,
+    action: str,
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Valider ou refuser une demande d'export.
+    """
+    export_request = db.query(DataExportRequest).filter(DataExportRequest.token == token).first()
+    
+    if not export_request:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+        
+    if export_request.status != "PENDING":
+        return HTMLResponse(f"<h1>Cette demande a déjà été traitée ({export_request.status}).</h1>")
+        
+    requester = db.query(User).filter(User.id == export_request.user_id).first()
+    if not requester:
+        raise HTTPException(status_code=404, detail="Utilisateur demandeur introuvable")
+        
+    if action == "approve":
+        export_request.status = "APPROVED"
+        export_request.processed_at = datetime.now()
+        # Expire dans 24h
+        export_request.expires_at = datetime.now() + timedelta(hours=24)
+        db.commit()
+        
+        # Envoyer email au demandeur
+        base_url = str(request.base_url).rstrip("/")
+        download_link = f"{base_url}/calendrier/export/download/{token}"
+        
+        # Rendu du template email
+        html_content = templates.get_template("emails/export_approved_user.html").render(
+            user=requester,
+            download_link=download_link
+        )
+        
+        email_service = get_resend_service()
+        background_tasks.add_task(
+            email_service.send_email,
+            to=requester.email,
+            subject="Votre export est prêt",
+            html=html_content
+        )
+        
+        return HTMLResponse("<h1>Demande approuvée avec succès. L'utilisateur a été notifié.</h1>")
+        
+    elif action == "reject":
+        export_request.status = "REJECTED"
+        export_request.processed_at = datetime.now()
+        db.commit()
+        
+        return HTMLResponse("<h1>Demande refusée.</h1>")
+        
+    else:
+        raise HTTPException(status_code=400, detail="Action invalide")
 
-        per_siret[college_key] = {
-            "siret": row.siret,
-            "raison_sociale": row.raison_sociale,
-            "ud": row.ud,
-            "region": row.region,
-            "effectif_siret": effectif_siret_value or 0,
-            "effectif_college": effectif_college or 0,
-            "cycle": row.cycle,
-            "date": parsed_date,
-            "date_pv": _parse_date(row.date_pv),
-            "institution": row.institution,
-            "fd": row.fd,
-            "idcc": row.idcc,
-            "sve": sve_value or 0,
-            "votants": votants_college,
-            "inscrits": inscrits_college,
-            "participation": participation_value,
-            "nb_college": nb_college_value,
-            "voix_par_orga": voix_par_orga,
-            "elus_par_orga": elus_par_orga,
-            "nb_sieges_cse": nb_sieges_cse or 0,
-        }
 
-    # ÉTAPE 2 & 3 : Agréger par SIRET (additionner tous les collèges d'un même SIRET)
-    from collections import defaultdict
-
-    siret_aggregated = {}
-    for college_data in per_siret.values():
-        siret = college_data["siret"]
-
-        if siret not in siret_aggregated:
-            # Première fois qu'on voit ce SIRET : initialiser
-            siret_aggregated[siret] = {
-                "siret": siret,
-                "raison_sociale": college_data["raison_sociale"],
-                "ud": college_data["ud"],
-                "region": college_data["region"],
-                "effectif_siret": college_data["effectif_siret"],
-                "cycle": college_data["cycle"],
-                "date": college_data["date"],
-                "date_pv": college_data["date_pv"],
-                "institution": college_data["institution"],
-                "fd": college_data["fd"],
-                "idcc": college_data["idcc"],
-                "nb_college": college_data["nb_college"],
-                "sve": 0,
-                "votants": 0,
-                "inscrits": 0,
-                "nb_sieges_cse": 0,
-                "voix_par_orga": defaultdict(float),
-                "elus_par_orga": defaultdict(int),
-            }
-
-        # Vérifier le quorum du collège AVANT d'agréger ses votes
-        # Le quorum est atteint si : SVE >= (inscrits / 2) + 1
-        # Si le quorum n'est pas atteint, ce collège n'a pas d'élus et ses voix ne comptent pas
-        college_inscrits = college_data["inscrits"]
-        college_sve = college_data["sve"]
-        quorum_atteint = False
-
-        if college_inscrits > 0:
-            quorum_requis = (college_inscrits / 2) + 1
-            quorum_atteint = college_sve >= quorum_requis
-
-        # Additionner les valeurs de ce collège aux totaux du SIRET
-        # UNIQUEMENT si le quorum est atteint
-        if quorum_atteint:
-            siret_aggregated[siret]["sve"] += college_data["sve"]
-            siret_aggregated[siret]["votants"] += college_data["votants"]
-            siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-            # NOTE: Ne pas sommer nb_sieges_cse des collèges !
-            # Le nombre de sièges sera recalculé au niveau SIRET selon l'effectif total
-
-            for orga, voix in college_data["voix_par_orga"].items():
-                siret_aggregated[siret]["voix_par_orga"][orga] += voix
-
-        # NOTE: Ne pas sommer les élus des collèges !
-        # Les élus seront calculés une seule fois au niveau SIRET
-        # après agrégation de tous les votes.
-
-    # Calculer les élus au niveau SIRET en utilisant les votes agrégés
-    # + Plafonner à 35 sièges maximum si nécessaire
-    for siret, data in siret_aggregated.items():
-        # Calculer le nombre de sièges au niveau SIRET en fonction de l'effectif total
-        effectif = data.get("effectif_siret", 0)
-        nb_sieges = calculer_nombre_elus_cse(effectif) if effectif > 0 else 0
-
-        # Plafonner à 35 sièges si nécessaire
-        if nb_sieges > 35:
-            nb_sieges = 35
-
-        # Mettre à jour le nombre de sièges dans les données
-        data["nb_sieges_cse"] = nb_sieges
-
-        # Récupérer les voix agrégées
-        voix_siret = {orga: int(v) for orga, v in data["voix_par_orga"].items() if v > 0}
-
-        # Calculer la répartition des élus au niveau SIRET avec les votes agrégés
-        # Utiliser la méthode QUOTIENT SEUL (plus conservatrice et réaliste)
-        # au lieu de "moyenne haute" qui suppose des listes complètes
-        if voix_siret and nb_sieges > 0:
-            elus_recalcules = repartir_sieges_quotient_seul(voix_siret, nb_sieges)
-            data["elus_par_orga"] = defaultdict(int, elus_recalcules)
-        else:
-            data["elus_par_orga"] = defaultdict(int)
-
-    # Formater les données agrégées pour l'export Excel
-    elections_list = []
-    for siret_data in siret_aggregated.values():
-        # Calculer la participation au niveau SIRET à partir des totaux agrégés
-        participation_siret = None
-        if siret_data["inscrits"] > 0 and siret_data["votants"] > 0:
-            participation_siret = (siret_data["votants"] / siret_data["inscrits"]) * 100
-
-        # Convertir voix_par_orga en all_orgs pour l'affichage
-        sve_total = siret_data["sve"]
-        all_orgs = []
-        for orga, voix in siret_data["voix_par_orga"].items():
-            if voix > 0:
-                percent = (voix / sve_total * 100) if sve_total > 0 else None
-                all_orgs.append({
-                    "label": orga,
-                    "votes": voix,
-                    "percent": percent,
-                })
-
-        elections_list.append({
-            "siret": siret_data["siret"],
-            "raison_sociale": siret_data["raison_sociale"],
-            "ud": siret_data["ud"],
-            "region": siret_data["region"],
-            "effectif": siret_data["effectif_siret"] if siret_data["effectif_siret"] > 0 else None,
-            "cycle": siret_data["cycle"],
-            "date": siret_data["date"],
-            "date_pv": siret_data["date_pv"],
-            "institution": siret_data["institution"],
-            "fd": siret_data["fd"],
-            "idcc": siret_data["idcc"],
-            "sve": siret_data["sve"],
-            "participation": participation_siret,
-            "nb_college": siret_data["nb_college"],
-            "all_orgs": all_orgs,
-            "nb_sieges_cse": siret_data["nb_sieges_cse"] if siret_data["nb_sieges_cse"] > 0 else None,
-            "elus_par_orga": dict(siret_data["elus_par_orga"]),
-        })
-
-    # Trier par date
-    elections_list = sorted(elections_list, key=lambda x: x["date"])
-
-    # Créer le workbook Excel
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Calendrier Elections"
-
-    # En-têtes avec style
-    headers = [
-        "SIRET",
-        "Raison sociale",
-        "UD",
-        "Région",
-        "Effectif",
-        "Cycle",
-        "Date élection",
-        "Date PV",
-        "Institution",
-        "FD",
-        "IDCC",
-        "SVE",
-        "Nb Collèges",
-        "Participation (%)",
-        # Toutes les organisations (voix + %)
-        "CGT - Voix",
-        "CGT - %",
-        "CFDT - Voix",
-        "CFDT - %",
-        "FO - Voix",
-        "FO - %",
-        "CFTC - Voix",
-        "CFTC - %",
-        "CFE-CGC - Voix",
-        "CFE-CGC - %",
-        "UNSA - Voix",
-        "UNSA - %",
-        "Solidaires - Voix",
-        "Solidaires - %",
-        "Autre - Voix",
-        "Autre - %",
-        # Élus CSE (moyenne haute - liste complète)
-        "Nb sièges CSE (moy. haute)",
-        "CGT - Élus (moy. haute)",
-        "CFDT - Élus (moy. haute)",
-        "FO - Élus (moy. haute)",
-        "CFTC - Élus (moy. haute)",
-        "CFE-CGC - Élus (moy. haute)",
-        "UNSA - Élus (moy. haute)",
-        "Solidaires - Élus (moy. haute)",
-        "Autre - Élus (moy. haute)",
-    ]
-
-    # Note d'avertissement en haut de la feuille
-    from openpyxl.styles import Font as OpenpyxlFont, PatternFill as OpenpyxlFill, Alignment as OpenpyxlAlignment
-
-    warning_cell = ws.cell(row=1, column=1, value="⚠️ MOYENNE HAUTE (max 35 sièges) : Les élus CSE sont calculés en supposant que chaque organisation a présenté une liste complète (autant de candidats que de sièges à pourvoir). Plafonné à 35 sièges maximum pour les collèges de 10 000+ inscrits. Le nombre réel d'élus peut être inférieur.")
-    warning_cell.font = OpenpyxlFont(bold=True, color="FF6B35", size=11)
-    warning_cell.fill = OpenpyxlFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
-    warning_cell.alignment = OpenpyxlAlignment(wrap_text=True, vertical="center")
-    ws.merge_cells('A1:AM1')  # Fusionner sur toutes les colonnes
-    ws.row_dimensions[1].height = 40
-
-    # Style des en-têtes
-    header_fill = OpenpyxlFill(start_color="D5001C", end_color="D5001C", fill_type="solid")
-    header_font = OpenpyxlFont(bold=True, color="FFFFFF")
-    header_alignment = OpenpyxlAlignment(horizontal="center", vertical="center", wrap_text=True)
-
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col_num, value=header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = header_alignment
-
-    # Ajuster les largeurs de colonnes
-    ws.column_dimensions['A'].width = 15  # SIRET
-    ws.column_dimensions['B'].width = 40  # Raison sociale
-    ws.column_dimensions['C'].width = 12  # UD
-    ws.column_dimensions['D'].width = 20  # Région
-    ws.column_dimensions['E'].width = 12  # Effectif
-    ws.column_dimensions['F'].width = 10  # Cycle
-    ws.column_dimensions['G'].width = 12  # Date élection
-    ws.column_dimensions['H'].width = 12  # Date PV
-    ws.column_dimensions['I'].width = 12  # Institution
-    ws.column_dimensions['J'].width = 10  # FD
-    ws.column_dimensions['K'].width = 10  # IDCC
-    ws.column_dimensions['L'].width = 12  # SVE
-    ws.column_dimensions['M'].width = 12  # Nb Collèges
-    ws.column_dimensions['N'].width = 15  # Participation
-    # Organisations (8 x 2 colonnes)
-    ws.column_dimensions['O'].width = 12  # CGT Voix
-    ws.column_dimensions['P'].width = 10  # CGT %
-    ws.column_dimensions['Q'].width = 12  # CFDT Voix
-    ws.column_dimensions['R'].width = 10  # CFDT %
-    ws.column_dimensions['S'].width = 12  # FO Voix
-    ws.column_dimensions['T'].width = 10  # FO %
-    ws.column_dimensions['U'].width = 12  # CFTC Voix
-    ws.column_dimensions['V'].width = 10  # CFTC %
-    ws.column_dimensions['W'].width = 12  # CFE-CGC Voix
-    ws.column_dimensions['X'].width = 10  # CFE-CGC %
-    ws.column_dimensions['Y'].width = 12  # UNSA Voix
-    ws.column_dimensions['Z'].width = 10  # UNSA %
-    ws.column_dimensions['AA'].width = 13  # Solidaires Voix
-    ws.column_dimensions['AB'].width = 10  # Solidaires %
-    ws.column_dimensions['AC'].width = 12  # Autre Voix
-    ws.column_dimensions['AD'].width = 10  # Autre %
-    # Élus CSE
-    ws.column_dimensions['AE'].width = 15  # Nb sièges CSE
-    ws.column_dimensions['AF'].width = 12  # CGT Élus
-    ws.column_dimensions['AG'].width = 12  # CFDT Élus
-    ws.column_dimensions['AH'].width = 12  # FO Élus
-    ws.column_dimensions['AI'].width = 12  # CFTC Élus
-    ws.column_dimensions['AJ'].width = 12  # CFE-CGC Élus
-    ws.column_dimensions['AK'].width = 12  # UNSA Élus
-    ws.column_dimensions['AL'].width = 13  # Solidaires Élus
-    ws.column_dimensions['AM'].width = 12  # Autre Élus
-
-    # Remplir les données (commence à la ligne 3, car ligne 1 = avertissement, ligne 2 = en-têtes)
-    for row_num, election in enumerate(elections_list, 3):
-        ws.cell(row=row_num, column=1, value=election["siret"])
-        ws.cell(row=row_num, column=2, value=election["raison_sociale"])
-        ws.cell(row=row_num, column=3, value=election["ud"])
-        ws.cell(row=row_num, column=4, value=election["region"])
-        ws.cell(row=row_num, column=5, value=election["effectif"])
-        ws.cell(row=row_num, column=6, value=election["cycle"])
-        ws.cell(row=row_num, column=7, value=election["date"].strftime("%d/%m/%Y") if election["date"] else "")
-        ws.cell(row=row_num, column=8, value=election["date_pv"].strftime("%d/%m/%Y") if election["date_pv"] else "")
-        ws.cell(row=row_num, column=9, value=election["institution"])
-        ws.cell(row=row_num, column=10, value=election["fd"])
-        ws.cell(row=row_num, column=11, value=election["idcc"])
-        ws.cell(row=row_num, column=12, value=int(election["sve"]) if election["sve"] else None)
-        ws.cell(row=row_num, column=13, value=int(election["nb_college"]) if election["nb_college"] else None)
-        ws.cell(row=row_num, column=14, value=round(election["participation"], 1) if election["participation"] else None)
-
-        # Toutes les organisations (8 x 2 colonnes)
-        all_orgs = election.get("all_orgs", [])
-        # Créer un dictionnaire pour accès rapide par label
-        orgs_dict = {org["label"]: org for org in all_orgs}
-
-        # CGT (colonnes 15-16)
-        cgt = orgs_dict.get("CGT", {})
-        ws.cell(row=row_num, column=15, value=int(cgt["votes"]) if cgt.get("votes") else None)
-        ws.cell(row=row_num, column=16, value=round(cgt["percent"], 1) if cgt.get("percent") else None)
-
-        # CFDT (colonnes 17-18)
-        cfdt = orgs_dict.get("CFDT", {})
-        ws.cell(row=row_num, column=17, value=int(cfdt["votes"]) if cfdt.get("votes") else None)
-        ws.cell(row=row_num, column=18, value=round(cfdt["percent"], 1) if cfdt.get("percent") else None)
-
-        # FO (colonnes 19-20)
-        fo = orgs_dict.get("FO", {})
-        ws.cell(row=row_num, column=19, value=int(fo["votes"]) if fo.get("votes") else None)
-        ws.cell(row=row_num, column=20, value=round(fo["percent"], 1) if fo.get("percent") else None)
-
-        # CFTC (colonnes 21-22)
-        cftc = orgs_dict.get("CFTC", {})
-        ws.cell(row=row_num, column=21, value=int(cftc["votes"]) if cftc.get("votes") else None)
-        ws.cell(row=row_num, column=22, value=round(cftc["percent"], 1) if cftc.get("percent") else None)
-
-        # CFE-CGC (colonnes 23-24)
-        cfe = orgs_dict.get("CFE-CGC", {})
-        ws.cell(row=row_num, column=23, value=int(cfe["votes"]) if cfe.get("votes") else None)
-        ws.cell(row=row_num, column=24, value=round(cfe["percent"], 1) if cfe.get("percent") else None)
-
-        # UNSA (colonnes 25-26)
-        unsa = orgs_dict.get("UNSA", {})
-        ws.cell(row=row_num, column=25, value=int(unsa["votes"]) if unsa.get("votes") else None)
-        ws.cell(row=row_num, column=26, value=round(unsa["percent"], 1) if unsa.get("percent") else None)
-
-        # Solidaires (colonnes 27-28)
-        solidaires = orgs_dict.get("Solidaires", {})
-        ws.cell(row=row_num, column=27, value=int(solidaires["votes"]) if solidaires.get("votes") else None)
-        ws.cell(row=row_num, column=28, value=round(solidaires["percent"], 1) if solidaires.get("percent") else None)
-
-        # Autre (colonnes 29-30)
-        autre = orgs_dict.get("Autre", {})
-        ws.cell(row=row_num, column=29, value=int(autre["votes"]) if autre.get("votes") else None)
-        ws.cell(row=row_num, column=30, value=round(autre["percent"], 1) if autre.get("percent") else None)
-
-        # Nombre d'élus CSE par organisation (colonnes 31-39)
-        ws.cell(row=row_num, column=31, value=election.get("nb_sieges_cse"))
-
-        elus_par_orga = election.get("elus_par_orga", {})
-        ws.cell(row=row_num, column=32, value=elus_par_orga.get("CGT"))
-        ws.cell(row=row_num, column=33, value=elus_par_orga.get("CFDT"))
-        ws.cell(row=row_num, column=34, value=elus_par_orga.get("FO"))
-        ws.cell(row=row_num, column=35, value=elus_par_orga.get("CFTC"))
-        ws.cell(row=row_num, column=36, value=elus_par_orga.get("CFE-CGC"))
-        ws.cell(row=row_num, column=37, value=elus_par_orga.get("UNSA"))
-        ws.cell(row=row_num, column=38, value=elus_par_orga.get("Solidaires"))
-        ws.cell(row=row_num, column=39, value=elus_par_orga.get("Autre"))
-
-    # Geler les 2 premières lignes (avertissement + en-têtes)
-    ws.freeze_panes = "A3"
-
-    # Sauvegarder dans un buffer
-    excel_buffer = BytesIO()
-    wb.save(excel_buffer)
-    excel_buffer.seek(0)
-
-    # Nom du fichier avec timestamp
+@app.get("/calendrier/export/download/{token}")
+def calendrier_export_download(
+    token: str,
+    db: Session = Depends(get_session)
+):
+    """
+    Télécharger un export approuvé.
+    """
+    export_request = db.query(DataExportRequest).filter(DataExportRequest.token == token).first()
+    
+    if not export_request:
+        raise HTTPException(status_code=404, detail="Lien invalide")
+        
+    if export_request.status != "APPROVED":
+        raise HTTPException(status_code=403, detail="Cet export n'est pas validé")
+        
+    if export_request.expires_at and datetime.now() > export_request.expires_at:
+        raise HTTPException(status_code=403, detail="Ce lien a expiré")
+        
+    filters = export_request.filters or {}
+    
+    excel_buffer = generate_calendrier_excel(db, filters)
     filename = f"calendrier_elections_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
     return StreamingResponse(
@@ -5042,6 +4762,17 @@ def recherche_siret_page(request: Request):
     return templates.TemplateResponse("recherche-siret.html", {
         "request": request,
         "admin_api_key": ADMIN_API_KEY,
+    })
+
+
+@app.get("/etablissements-carte", response_class=HTMLResponse)
+def etablissements_carte_page(request: Request):
+    """
+    Page de recherche et visualisation des établissements d'une entreprise sur une carte.
+    Utilise l'API Pappers pour récupérer les données avec géolocalisation.
+    """
+    return templates.TemplateResponse("etablissements-carte.html", {
+        "request": request,
     })
 
 

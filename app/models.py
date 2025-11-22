@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON, Index
+from sqlalchemy import Column, Integer, String, Boolean, Text, Date, DateTime, Float, JSON, Index, ForeignKey
 from sqlalchemy.orm import synonym, deferred
 from .db import Base
 
@@ -175,6 +175,10 @@ class PVEvent(Base):
     # Compatibilité : certains appels hérités utilisent « departement ».
     departement = synonym("ud")
 
+    # Géolocalisation
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
 
 class Invitation(Base):
     __tablename__ = "invitations"
@@ -197,7 +201,12 @@ class Invitation(Base):
     est_siege = Column(Boolean)                                  # True si siège social
     est_actif = Column(Boolean)                                  # True si établissement actif
     categorie_entreprise = Column(String(10))                    # PME, ETI, GE...
+    categorie_entreprise = Column(String(10))                    # PME, ETI, GE...
     date_enrichissement = Column(DateTime)                       # Date du dernier enrichissement
+
+    # Géolocalisation
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
 
     # Données manuelles pour ajout PAP
     ud = Column(String(80))                                      # Union départementale

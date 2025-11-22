@@ -14,7 +14,7 @@ from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_sir
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
-from ..user_auth import require_admin_user
+from ..user_auth import require_admin_user, get_current_user
 from ..models import AuditLog
 from ..audit import log_admin_action
 
@@ -238,7 +238,7 @@ def get_enrichir_idcc_status():
 
 
 @router.get("/siret", response_model=List[SiretSummaryOut])
-def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
+def list_sirets(q: str = Query(None), db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     qs = db.query(SiretSummary)
     if q:
         like = f"%{q}%"
@@ -247,7 +247,7 @@ def list_sirets(q: str = Query(None), db: Session = Depends(get_session)):
 
 
 @router.get("/search/autocomplete")
-def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends(get_session)):
+def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     """
     Endpoint d'autocomplete pour la recherche
     Retourne les 10 premiers résultats correspondants
@@ -277,14 +277,14 @@ def search_autocomplete(q: str = Query(..., min_length=2), db: Session = Depends
     ]
 
 @router.get("/siret/{siret}", response_model=SiretSummaryOut)
-def get_siret(siret: str, db: Session = Depends(get_session)):
+def get_siret(siret: str, db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     row = db.query(SiretSummary).get(siret)
     if not row: 
         return {}
     return row
 
 @router.get("/siret/{siret}/timeseries")
-def siret_timeseries(siret: str, db: Session = Depends(get_session)):
+def siret_timeseries(siret: str, db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     rows = (db.query(PVEvent)
               .filter(PVEvent.siret==siret)
               .order_by(PVEvent.date_pv.asc())
@@ -298,7 +298,7 @@ def siret_timeseries(siret: str, db: Session = Depends(get_session)):
     }
 
 @router.get("/stats/dashboard")
-def dashboard_stats(db: Session = Depends(get_session)):
+def dashboard_stats(db: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     """Retourne les statistiques pour le tableau de bord"""
 
     try:
@@ -1633,6 +1633,47 @@ async def enrichir_siret_from_api(siret: str):
         raise HTTPException(status_code=503, detail=f"Erreur API Sirene: {str(e)}")
 
 
+@router.get("/etablissements/{siret_or_siren}")
+async def get_etablissements_by_siret_or_siren(siret_or_siren: str):
+    """
+    Récupère tous les établissements d'une entreprise à partir d'un SIRET ou SIREN.
+
+    Si un SIRET est fourni (14 chiffres), on extrait le SIREN et on récupère tous les établissements.
+    Si un SIREN est fourni (9 chiffres), on récupère directement tous les établissements.
+
+    Utilise l'API Pappers pour obtenir les données avec géolocalisation.
+    """
+    from ..services.pappers_api import pappers_api
+
+    # Nettoyer l'input
+    clean_value = siret_or_siren.strip().replace(" ", "")
+
+    # Déterminer si c'est un SIRET ou un SIREN
+    if len(clean_value) == 14 and clean_value.isdigit():
+        # C'est un SIRET, extraire le SIREN (9 premiers chiffres)
+        siren = clean_value[:9]
+        logger.info(f"SIRET détecté: {clean_value}, extraction du SIREN: {siren}")
+    elif len(clean_value) == 9 and clean_value.isdigit():
+        # C'est un SIREN
+        siren = clean_value
+        logger.info(f"SIREN détecté: {siren}")
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Format invalide. Attendu: SIRET (14 chiffres) ou SIREN (9 chiffres). Reçu: {len(clean_value)} chiffres"
+        )
+
+    # Appeler l'API Pappers
+    result = await pappers_api.get_etablissements_by_siren(siren)
+
+    if not result.get("success"):
+        error_msg = result.get("error", "Erreur inconnue")
+        if "non trouvé" in error_msg.lower():
+            raise HTTPException(status_code=404, detail=error_msg)
+        else:
+            raise HTTPException(status_code=503, detail=f"Erreur API Pappers: {error_msg}")
+
+    return result
 
 
 # AUDIT LOGS
@@ -1854,7 +1895,7 @@ async def update_fd_from_idcc(
         db.commit()
         log_admin_action(
             request,
-            api_key,
+            current_user.email,
             "update_fd_from_idcc",
             "invitations",
             True,
