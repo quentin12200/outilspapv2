@@ -8,7 +8,7 @@
 
 {% block content %}
 <main class="py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-6xl mx-auto" x-data="cartographieApp()" x-init="init()">
+  <div class="max-w-6xl mx-auto" x-data="cartographieApp()" x-init="init()" x-cloak>
     <!-- Header -->
     <div class="mb-8">
       <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
@@ -442,18 +442,30 @@ function cartographieApp() {
     selectedCartographieId: '',
 
     init() {
-      this.loadSavedCartographies();
+      console.log('Init cartographie app');
+      // Charger les cartographies de manière non-bloquante
+      setTimeout(() => {
+        this.loadSavedCartographies();
+      }, 100);
     },
 
     async loadSavedCartographies() {
       try {
+        console.log('Chargement des cartographies...');
         const response = await fetch('/api/cartographies');
+        console.log('Réponse API:', response.status);
         if (response.ok) {
           const data = await response.json();
+          console.log('Données reçues:', data);
           this.savedCartographies = data.cartographies || [];
+          console.log('Cartographies chargées:', this.savedCartographies.length);
+        } else {
+          console.error('Erreur API:', response.status, response.statusText);
+          this.savedCartographies = [];
         }
       } catch (error) {
         console.error('Erreur chargement cartographies:', error);
+        this.savedCartographies = [];
       }
     },
 
@@ -468,16 +480,28 @@ function cartographieApp() {
         return;
       }
 
+      console.log('Chargement cartographie ID:', this.selectedCartographieId);
       const carto = this.savedCartographies.find(c => c.id == this.selectedCartographieId);
-      if (!carto) return;
+      if (!carto) {
+        console.error('Cartographie non trouvée');
+        return;
+      }
 
+      console.log('Cartographie trouvée:', carto);
       this.nomEntreprise = carto.nom_entreprise || '';
       this.siret = carto.siret || '';
-      this.services = carto.services.map(s => ({
-        nom: s.nom,
-        salaries: s.salaries,
-        syndiques: s.syndiques
-      }));
+
+      // Vérifier que services existe et est un tableau
+      if (carto.services && Array.isArray(carto.services)) {
+        this.services = carto.services.map(s => ({
+          nom: s.nom || '',
+          salaries: s.salaries || 0,
+          syndiques: s.syndiques || 0
+        }));
+      } else {
+        console.warn('Pas de services dans la cartographie');
+        this.services = [{ nom: '', salaries: 0, syndiques: 0 }];
+      }
 
       this.showMessage(`📋 Entreprise "${carto.nom_entreprise}" chargée`, 'success');
     },
