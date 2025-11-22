@@ -40,7 +40,13 @@
           {% else %}
             <p class="text-2xl font-bold text-amber-700">Import en échec</p>
             <p class="text-sm text-amber-700">{{ sync_result.error or 'Erreur inconnue lors du clonage du dépôt.' }}</p>
+            {% if sync_result.error %}
+              <p class="text-xs text-gray-500">Détail : <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ sync_result.error }}</code></p>
+            {% endif %}
             <p class="text-xs text-gray-500">Réessayez avec le bouton «&nbsp;Rafraîchir le miroir&nbsp;».</p>
+            {% if sync_result.missing_git %}
+              <p class="text-xs text-gray-500">Git doit être installé côté serveur pour cloner <code class="bg-gray-100 px-1 rounded">outilsCGT</code>.</p>
+            {% endif %}
           {% endif %}
           <div class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-1">
             <p>Contenu synchronisé : {{ module_cards | map(attribute='path') | join(', ') }}</p>

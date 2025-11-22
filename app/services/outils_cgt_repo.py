@@ -10,6 +10,14 @@ from typing import Dict
 
 import subprocess
 
+
+def _ensure_git_available() -> tuple[bool, str | None]:
+    """Return (is_available, error_message)."""
+
+    if shutil.which("git"):
+        return True, None
+    return False, "Git n’est pas installé sur le serveur (binaire introuvable dans PATH)."
+
 REPO_GIT_URL = "https://github.com/quentin12200/outilsCGT.git"
 DEST_DIR = Path(__file__).resolve().parent.parent / "static" / "outils-cgt"
 ZIP_CACHE_PATH = Path(__file__).resolve().parent.parent / "static" / "outils-cgt.zip"
@@ -38,6 +46,19 @@ def sync_outils_cgt_repo(force: bool = False) -> Dict[str, object]:
             "path": DEST_DIR,
             "zip_path": ZIP_CACHE_PATH if ZIP_CACHE_PATH.exists() else None,
             "from_cache": True,
+        }
+
+    ok_git, git_error = _ensure_git_available()
+    if not ok_git:
+        return {
+            "ok": False,
+            "error": git_error,
+            "missing_git": True,
+            "path": DEST_DIR,
+            "zip_path": ZIP_CACHE_PATH if ZIP_CACHE_PATH.exists() else None,
+            "updated_at": None,
+            "files": 0,
+            "from_cache": False,
         }
 
     tmpdir = Path(tempfile.mkdtemp(prefix="outils-cgt-"))
