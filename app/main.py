@@ -1222,10 +1222,25 @@ async def kit_election_file(file_path: str):
     """Servir un fichier du kit élection"""
     from pathlib import Path
     import mimetypes
+    from urllib.parse import unquote
+
+    # Décoder l'URL (espaces et caractères spéciaux)
+    file_path = unquote(file_path)
 
     # Sécurité : vérifier que le chemin est dans app/data
     full_path = Path("app") / file_path
-    if not full_path.exists() or not str(full_path).startswith("app/data"):
+
+    # Normaliser le chemin et vérifier qu'il est dans app/data
+    try:
+        full_path = full_path.resolve()
+        base_path = Path("app/data").resolve()
+
+        if not str(full_path).startswith(str(base_path)):
+            raise HTTPException(status_code=403, detail="Accès refusé")
+
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail="Fichier non trouvé")
+    except Exception as e:
         raise HTTPException(status_code=404, detail="Fichier non trouvé")
 
     # Déterminer le type MIME

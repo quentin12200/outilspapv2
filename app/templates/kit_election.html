@@ -42,7 +42,7 @@
 
       <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for file in special_files %}
-        <a href="{{ url_for('kit_election_file', file_path=file.path) }}"
+        <a href="/kit-election/file/{{ file.path }}"
            target="_blank"
            class="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-cgt-red hover:bg-red-50 transition">
           <div class="flex-shrink-0">
@@ -94,7 +94,7 @@
       <div x-show="expanded" x-collapse class="mt-6">
         <div class="grid md:grid-cols-2 gap-3">
           {% for file in folder_data.files %}
-          <a href="{{ url_for('kit_election_file', file_path=file.path) }}"
+          <a href="/kit-election/file/{{ file.path }}"
              target="_blank"
              class="group flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition">
             <div class="flex-shrink-0">
