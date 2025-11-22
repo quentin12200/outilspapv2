@@ -59,6 +59,11 @@ from .models import User, PasswordResetToken, DataExportRequest
 import uuid
 from .services.export_service import generate_calendrier_excel
 from .services.email_service import get_resend_service
+from .services.outils_cgt_repo import (
+    DEST_DIR as OUTILS_CGT_DIR,
+    outils_cgt_readme_excerpt,
+    sync_outils_cgt_repo,
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -1095,6 +1100,65 @@ def guide_exploitation(request: Request):
             "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
             "kit_pdf_endpoint": kit_pdf_endpoint,
+        },
+    )
+
+
+@app.get("/outils-cgt", response_class=HTMLResponse)
+def outils_cgt_local(request: Request, refresh: bool = False):
+    """Expose a local mirror of the outilsCGT toolbox for direct reuse."""
+
+    sync_result = sync_outils_cgt_repo(force=refresh)
+    updated_label = None
+    if isinstance(sync_result.get("updated_at"), datetime):
+        updated_label = sync_result["updated_at"].strftime("%d/%m/%Y %H:%M UTC")
+
+    zip_url = request.url_for("static", path="outils-cgt.zip") if sync_result.get("zip_path") else None
+    readme_excerpt = outils_cgt_readme_excerpt()
+
+    module_cards = [
+        {
+            "title": "Cartographie CGT",
+            "path": "frontend/src/components/CartoModule",
+            "description": "Carte stratégique et modules associés prêts à embarquer.",
+        },
+        {
+            "title": "Rétroplanning",
+            "path": "frontend/src/components/RetroplanningModule",
+            "description": "Planification des campagnes avec jalons terrain.",
+        },
+        {
+            "title": "Démarche syndicale",
+            "path": "frontend/src/components/DemarcheModule",
+            "description": "Pas-à-pas militant et pages DemarcheMain/DemarcheRevendicative.",
+        },
+        {
+            "title": "Élections & résultats",
+            "path": "frontend/src/components/ElectionsModule",
+            "description": "Écrans campagne et analyse des scrutins.",
+        },
+        {
+            "title": "Dashboard & layout",
+            "path": "frontend/src/components/Dashboard",
+            "description": "Composants d’interface prêts à intégrer côté PAP/CSE.",
+        },
+        {
+            "title": "Scripts d’export",
+            "path": "scripts",
+            "description": "Utilitaires présents dans le dépôt miroir pour automatiser les flux.",
+        },
+    ]
+
+    return templates.TemplateResponse(
+        "outils_cgt.html",
+        {
+            "request": request,
+            "sync_result": sync_result,
+            "updated_label": updated_label,
+            "zip_url": zip_url,
+            "readme_excerpt": readme_excerpt,
+            "module_cards": module_cards,
+            "mirror_path": str(OUTILS_CGT_DIR),
         },
     )
 
