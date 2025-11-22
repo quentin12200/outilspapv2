@@ -51,7 +51,12 @@
 
     <section class="grid lg:grid-cols-3 gap-4">
       {% for module in module_cards %}
-        <article class="p-4 bg-white rounded-2xl shadow border border-gray-100 flex flex-col justify-between">
+        <article id="{{ module.anchor or '' }}" class="p-4 bg-white rounded-2xl shadow border border-gray-100 flex flex-col justify-between">
+          {% if module.aliases %}
+            {% for alias in module.aliases %}
+              <span id="{{ alias }}" class="sr-only">Alias ancre {{ alias }}</span>
+            {% endfor %}
+          {% endif %}
           <div class="space-y-2">
             <p class="text-xs font-semibold uppercase tracking-widest text-cgt-red">{{ module.title }}</p>
             <p class="text-base font-semibold text-gray-900">{{ module.description }}</p>
@@ -59,6 +64,22 @@
           </div>
         </article>
       {% endfor %}
+    </section>
+
+    <section class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 space-y-4">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-list-check text-cgt-red"></i>
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-widest text-gray-500">To-do d’intégration</p>
+          <p class="text-sm text-gray-700">Checklist pour brancher la copie locale outilsCGT directement dans PAP/CSE.</p>
+        </div>
+      </div>
+      <ol class="list-decimal list-inside space-y-2 text-sm text-gray-800">
+        <li>Depuis cette page, lancez «&nbsp;Rafraîchir le miroir&nbsp;» pour cloner ou mettre à jour <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">app/static/outils-cgt</code> et générer le ZIP.</li>
+        <li>Dans <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">frontend</code>, installez les dépendances (<code>npm ci</code>) puis construisez le bundle (<code>npm run build</code>) pour obtenir un dossier <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">build</code> prêt à être servi.</li>
+        <li>Exposez le bundle via un endpoint PAP/CSE (ou un reverse proxy statique) et mappez les ancres (#cartographie, #retroplanning, #demarche, #campagne, #resultats, #plan-actions) sur les écrans correspondants.</li>
+        <li>Connectez les modules aux données PAP/CSE (SIRET, campagnes, résultats) en réutilisant les composants React clonés.</li>
+      </ol>
     </section>
 
     <section class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 space-y-4">
