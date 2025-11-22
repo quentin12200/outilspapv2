@@ -219,12 +219,51 @@
       </div>
     </div>
 
+    <div x-show="isHeavyDataset" x-cloak class="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4 mb-2">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold text-yellow-800">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Nombre très élevé d'établissements : privilégiez un zoom par région ou département pour éviter un affichage trop lourd.
+          </p>
+          <p class="text-xs text-yellow-700 mt-1">Vous pouvez toujours afficher toute la carte de France mais le chargement peut prendre quelques secondes.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <template x-for="region in regionStats" :key="region.label">
+            <button type="button"
+                    @click="selectedRegion = region.label; selectedDepartement = ''; allowFullMap = false; handleFilterChange()"
+                    class="px-3 py-2 bg-white border border-yellow-300 rounded-lg text-sm text-yellow-800 hover:bg-yellow-100 flex items-center gap-2">
+              <span x-text="region.label"></span>
+              <span class="text-xs bg-yellow-200 text-yellow-900 px-2 py-0.5 rounded-full font-semibold" x-text="region.count"></span>
+            </button>
+          </template>
+          <button type="button"
+                  @click="allowFullMap = true; selectedRegion = ''; selectedDepartement = ''; handleFilterChange()"
+                  class="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 flex items-center gap-2">
+            <i class="fas fa-globe"></i>
+            <span>Afficher la carte France (patienter)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
       <div class="flex flex-col md:flex-row gap-4 flex-1">
         <div class="flex-1">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Filtrer par région</label>
+          <select x-model="selectedRegion"
+                  @change="selectedDepartement = ''; allowFullMap = false; handleFilterChange()"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent bg-white">
+            <option value="">Toutes les régions</option>
+            <template x-for="region in regionOptions" :key="region">
+              <option :value="region" x-text="region"></option>
+            </template>
+          </select>
+        </div>
+        <div class="flex-1">
           <label class="block text-sm font-semibold text-gray-700 mb-1">Filtrer par département</label>
           <select x-model="selectedDepartement"
-                  @change="handleFilterChange"
+                  @change="selectedRegion = ''; allowFullMap = false; handleFilterChange()"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent bg-white">
             <option value="">Tous les départements</option>
             <template x-for="dept in departementOptions" :key="dept">
@@ -265,6 +304,14 @@
     </div>
 
     <div id="map"></div>
+    <div x-show="isHeavyDataset && !allowFullMap && !selectedRegion && !selectedDepartement" x-cloak class="mt-3 text-sm text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-info-circle text-yellow-600 mt-0.5"></i>
+      <span>Choisissez une région ou un département pour afficher les points sur la carte. Pour tout afficher, cliquez sur « Afficher la carte France ».</span>
+    </div>
+    <div x-show="mapRenderingLarge" x-cloak class="mt-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-spinner fa-spin mt-0.5"></i>
+      <span>Chargement de tous les établissements sur la carte nationale, merci de patienter…</span>
+    </div>
     <div class="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <!-- Légende -->
       <div class="flex flex-wrap items-center gap-4 text-sm">
@@ -292,12 +339,17 @@
       <i class="fas fa-list text-orange-500 mr-2"></i>
       Liste des établissements filtrée
       <span class="text-sm font-normal text-gray-500 ml-2">
-        (<span x-text="filteredEtablissements.length"></span> affichés / <span x-text="etablissements.length"></span> au total)
+        (<span x-text="displayedEtablissements.length"></span> affichés / <span x-text="etablissements.length"></span> au total)
       </span>
     </h2>
 
+    <div x-show="isHeavyDataset && !allowFullMap && !selectedRegion && !selectedDepartement" x-cloak class="mb-4 text-sm text-gray-700 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-map-marked-alt text-yellow-600 mt-0.5"></i>
+      <span>La liste complète est volumineuse. Sélectionnez une région ou un département ou activez l'affichage France entière pour charger toutes les lignes.</span>
+    </div>
+
     <div class="space-y-4">
-      <template x-for="(etab, index) in filteredEtablissements" :key="index">
+      <template x-for="(etab, index) in displayedEtablissements" :key="index">
         <div class="etablissement-card border border-gray-200 rounded-lg p-6 hover:border-cgt-red cursor-pointer"
              @click="focusEtablissement(etab)">
           <div class="flex items-start justify-between">
@@ -454,8 +506,10 @@
     return {
       siretOrSiren: '',
       selectedNational: '',
+      selectedRegion: '',
       selectedDepartement: '',
       departementOptions: [],
+      regionOptions: [],
       showOnlyGeolocated: false,
       showOnlyActifs: false,
       showOnlySiege: false,
@@ -463,6 +517,33 @@
       error: null,
       entreprise: null,
       etablissements: [],
+      isHeavyDataset: false,
+      allowFullMap: true,
+      mapRenderingLarge: false,
+      heavyThreshold: 800,
+      regionByDepartement: {
+        '01': 'Auvergne-Rhône-Alpes', '02': 'Hauts-de-France', '03': 'Auvergne-Rhône-Alpes', '04': 'Provence-Alpes-Côte d\'Azur',
+        '05': 'Provence-Alpes-Côte d\'Azur', '06': 'Provence-Alpes-Côte d\'Azur', '07': 'Auvergne-Rhône-Alpes', '08': 'Grand Est',
+        '09': 'Occitanie', '10': 'Grand Est', '11': 'Occitanie', '12': 'Occitanie', '13': 'Provence-Alpes-Côte d\'Azur',
+        '14': 'Normandie', '15': 'Auvergne-Rhône-Alpes', '16': 'Nouvelle-Aquitaine', '17': 'Nouvelle-Aquitaine', '18': 'Centre-Val de Loire',
+        '19': 'Nouvelle-Aquitaine', '2A': 'Corse', '2B': 'Corse', '21': 'Bourgogne-Franche-Comté', '22': 'Bretagne',
+        '23': 'Nouvelle-Aquitaine', '24': 'Nouvelle-Aquitaine', '25': 'Bourgogne-Franche-Comté', '26': 'Auvergne-Rhône-Alpes', '27': 'Normandie',
+        '28': 'Centre-Val de Loire', '29': 'Bretagne', '30': 'Occitanie', '31': 'Occitanie', '32': 'Occitanie',
+        '33': 'Nouvelle-Aquitaine', '34': 'Occitanie', '35': 'Bretagne', '36': 'Centre-Val de Loire', '37': 'Centre-Val de Loire',
+        '38': 'Auvergne-Rhône-Alpes', '39': 'Bourgogne-Franche-Comté', '40': 'Nouvelle-Aquitaine', '41': 'Centre-Val de Loire', '42': 'Auvergne-Rhône-Alpes',
+        '43': 'Auvergne-Rhône-Alpes', '44': 'Pays de la Loire', '45': 'Centre-Val de Loire', '46': 'Occitanie', '47': 'Nouvelle-Aquitaine',
+        '48': 'Occitanie', '49': 'Pays de la Loire', '50': 'Normandie', '51': 'Grand Est', '52': 'Grand Est',
+        '53': 'Pays de la Loire', '54': 'Grand Est', '55': 'Grand Est', '56': 'Bretagne', '57': 'Grand Est',
+        '58': 'Bourgogne-Franche-Comté', '59': 'Hauts-de-France', '60': 'Hauts-de-France', '61': 'Normandie', '62': 'Hauts-de-France',
+        '63': 'Auvergne-Rhône-Alpes', '64': 'Nouvelle-Aquitaine', '65': 'Occitanie', '66': 'Occitanie', '67': 'Grand Est',
+        '68': 'Grand Est', '69': 'Auvergne-Rhône-Alpes', '70': 'Bourgogne-Franche-Comté', '71': 'Bourgogne-Franche-Comté', '72': 'Pays de la Loire',
+        '73': 'Auvergne-Rhône-Alpes', '74': 'Auvergne-Rhône-Alpes', '75': 'Île-de-France', '76': 'Normandie', '77': 'Île-de-France',
+        '78': 'Île-de-France', '79': 'Nouvelle-Aquitaine', '80': 'Hauts-de-France', '81': 'Occitanie', '82': 'Occitanie',
+        '83': 'Provence-Alpes-Côte d\'Azur', '84': 'Provence-Alpes-Côte d\'Azur', '85': 'Pays de la Loire', '86': 'Nouvelle-Aquitaine', '87': 'Nouvelle-Aquitaine',
+        '88': 'Grand Est', '89': 'Bourgogne-Franche-Comté', '90': 'Bourgogne-Franche-Comté', '91': 'Île-de-France', '92': 'Île-de-France',
+        '93': 'Île-de-France', '94': 'Île-de-France', '95': 'Île-de-France', '971': 'Guadeloupe', '972': 'Martinique',
+        '973': 'Guyane', '974': 'La Réunion', '976': 'Mayotte'
+      },
       entreprisesNationales: [
         { nom: 'La Poste', siren: '356000000' },
         { nom: 'SNCF', siren: '552049447' },
@@ -514,9 +595,13 @@
         this.etablissements = [];
         this.entreprise = null;
         this.selectedDepartement = '';
+        this.selectedRegion = '';
         this.showOnlyGeolocated = false;
         this.showOnlyActifs = false;
         this.showOnlySiege = false;
+        this.allowFullMap = true;
+        this.isHeavyDataset = false;
+        this.mapRenderingLarge = false;
 
         // Nettoyer les marqueurs existants
         this.clearMarkers();
@@ -532,7 +617,11 @@
           if (data.success) {
             this.entreprise = data.entreprise;
             this.etablissements = data.etablissements;
+            const geoCount = this.etablissements.filter(e => e.latitude && e.longitude).length;
+            this.isHeavyDataset = geoCount > this.heavyThreshold;
+            this.allowFullMap = !this.isHeavyDataset;
             this.buildDepartementOptions();
+            this.buildRegionOptions();
 
             // Attendre que le DOM soit mis à jour (x-show révèle la carte)
             // et forcer le recalcul des dimensions de la carte
@@ -570,8 +659,7 @@
         const seen = new Set();
         const options = [];
         this.etablissements.forEach((etab) => {
-          const cp = (etab.code_postal || '').toString();
-          const dept = cp.slice(0, 2);
+          const dept = this.extractDepartement(etab.code_postal);
           if (dept && !seen.has(dept)) {
             seen.add(dept);
             options.push(dept);
@@ -584,8 +672,32 @@
           .map(entry => entry.code);
       },
 
+      buildRegionOptions() {
+        const seen = new Set();
+        const regions = [];
+
+        this.etablissements.forEach((etab) => {
+          const dept = this.extractDepartement(etab.code_postal);
+          const region = this.regionByDepartement[dept];
+
+          if (region && !seen.has(region)) {
+            seen.add(region);
+            regions.push(region);
+          }
+        });
+
+        this.regionOptions = regions.sort((a, b) => a.localeCompare(b, 'fr'));
+      },
+
       get filteredEtablissements() {
         let results = [...this.etablissements];
+
+        if (this.selectedRegion) {
+          results = results.filter((etab) => {
+            const dept = this.extractDepartement(etab.code_postal);
+            return this.regionByDepartement[dept] === this.selectedRegion;
+          });
+        }
 
         if (this.selectedDepartement) {
           results = results.filter((etab) => (etab.code_postal || '').toString().startsWith(this.selectedDepartement));
@@ -606,14 +718,52 @@
         return results;
       },
 
+      get displayedEtablissements() {
+        if (this.isHeavyDataset && !this.allowFullMap && !this.selectedRegion && !this.selectedDepartement) {
+          return [];
+        }
+        return this.filteredEtablissements;
+      },
+
+      get regionStats() {
+        const counts = {};
+
+        this.etablissements.forEach((etab) => {
+          const dept = this.extractDepartement(etab.code_postal);
+          const region = this.regionByDepartement[dept];
+
+          if (region) {
+            counts[region] = (counts[region] || 0) + 1;
+          }
+        });
+
+        return Object.entries(counts)
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'fr'));
+      },
+
+      extractDepartement(cpRaw) {
+        const cp = (cpRaw || '').toString();
+        if (!cp) return '';
+        if (cp.startsWith('97')) {
+          return cp.slice(0, 3);
+        }
+        if (cp.startsWith('98')) {
+          return cp.slice(0, 3);
+        }
+        return cp.slice(0, 2);
+      },
+
       handleFilterChange() {
         this.clearMarkers();
+        this.mapRenderingLarge = this.isHeavyDataset && this.allowFullMap && !this.selectedRegion && !this.selectedDepartement;
         this.addMarkersToMap();
         this.fitMapToBounds();
+        this.mapRenderingLarge = false;
       },
 
       addMarkersToMap() {
-        this.filteredEtablissements.forEach((etab, index) => {
+        this.displayedEtablissements.forEach((etab, index) => {
           if (etab.latitude && etab.longitude) {
             // Couleur du marqueur selon le statut
             let markerColor = etab.est_actif ? 'blue' : 'red';
@@ -739,7 +889,7 @@
         const headers = ['siret', 'denomination', 'adresse', 'code_postal', 'commune', 'est_actif', 'est_siege', 'activite_principale', 'libelle_activite'];
         const lines = [headers.join(';')];
 
-        this.filteredEtablissements.forEach((etab) => {
+        this.displayedEtablissements.forEach((etab) => {
           const row = headers.map((key) => {
             const value = etab[key];
             return typeof value === 'boolean' ? (value ? 'oui' : 'non') : (value || '');
