@@ -1159,6 +1159,87 @@ def guide_exploitation(request: Request):
     )
 
 
+@app.get("/kit-election", response_class=HTMLResponse)
+def kit_election_page(request: Request):
+    """Page du kit élection avec tous les documents disponibles"""
+    import os
+    from pathlib import Path
+
+    data_dir = Path("app/data")
+
+    # Scanner tous les dossiers et fichiers
+    kit_structure = {}
+    special_files = []
+
+    # Fichiers spéciaux à la racine
+    for item in data_dir.iterdir():
+        if item.is_file() and item.suffix.lower() in ['.pdf', '.docx', '.pptx']:
+            special_files.append({
+                "name": item.name,
+                "path": str(item.relative_to("app")),
+                "size": item.stat().st_size,
+                "type": item.suffix[1:].upper()
+            })
+
+    # Dossiers numérotés
+    for folder in sorted(data_dir.iterdir()):
+        if folder.is_dir():
+            folder_name = folder.name
+            files_list = []
+
+            # Scanner récursivement
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    file_path = Path(root) / file
+                    if file_path.suffix.lower() in ['.pdf', '.docx', '.pptx', '.txt']:
+                        rel_path = file_path.relative_to(folder)
+                        files_list.append({
+                            "name": file,
+                            "path": str(file_path.relative_to("app")),
+                            "rel_path": str(rel_path),
+                            "size": file_path.stat().st_size,
+                            "type": file_path.suffix[1:].upper()
+                        })
+
+            if files_list:
+                kit_structure[folder_name] = {
+                    "name": folder_name,
+                    "files": sorted(files_list, key=lambda x: x["name"])
+                }
+
+    return templates.TemplateResponse(
+        "kit_election.html",
+        {
+            "request": request,
+            "kit_structure": dict(sorted(kit_structure.items())),
+            "special_files": sorted(special_files, key=lambda x: x["name"]),
+        },
+    )
+
+
+@app.get("/kit-election/file/{file_path:path}")
+async def kit_election_file(file_path: str):
+    """Servir un fichier du kit élection"""
+    from pathlib import Path
+    import mimetypes
+
+    # Sécurité : vérifier que le chemin est dans app/data
+    full_path = Path("app") / file_path
+    if not full_path.exists() or not str(full_path).startswith("app/data"):
+        raise HTTPException(status_code=404, detail="Fichier non trouvé")
+
+    # Déterminer le type MIME
+    mime_type, _ = mimetypes.guess_type(str(full_path))
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+
+    return FileResponse(
+        path=str(full_path),
+        media_type=mime_type,
+        filename=full_path.name
+    )
+
+
 # =========================================================
 # Routes pour la Cartographie d'Entreprise
 # =========================================================

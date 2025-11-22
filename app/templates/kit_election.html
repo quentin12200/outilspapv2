@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Kit Élection CGT · PAP/CSE{% endblock %}
+
+{% block content %}
+<main class="py-10 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-7xl mx-auto space-y-8">
+    <!-- Header -->
+    <div>
+      <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Retour au kit de renforcement
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">Kit Élection CGT</h1>
+      <p class="mt-2 text-gray-600">Tous les documents et ressources pour préparer et réussir vos élections professionnelles</p>
+
+      <div class="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4">
+        <h2 class="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+          <i class="fas fa-info-circle"></i>
+          Kit complet d'accompagnement
+        </h2>
+        <p class="text-xs text-blue-800">
+          Ce kit contient tous les documents nécessaires pour chaque étape du processus électoral :
+          <strong>du ciblage initial à la structuration post-élection</strong>, incluant le cahier revendicatif CGT.
+        </p>
+      </div>
+    </div>
+
+    <!-- Fichiers spéciaux (racine) -->
+    {% if special_files %}
+    <section class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
+          <i class="fas fa-star text-white"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Documents essentiels</h2>
+          <p class="text-sm text-gray-600">Cahier revendicatif et documents de référence</p>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for file in special_files %}
+        <a href="{{ url_for('kit_election_file', file_path=file.path) }}"
+           target="_blank"
+           class="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-cgt-red hover:bg-red-50 transition">
+          <div class="flex-shrink-0">
+            {% if file.type == 'PDF' %}
+            <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <i class="fas fa-file-pdf text-red-600 text-xl"></i>
+            </div>
+            {% elif file.type in ['DOCX', 'DOC'] %}
+            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <i class="fas fa-file-word text-blue-600 text-xl"></i>
+            </div>
+            {% else %}
+            <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+              <i class="fas fa-file text-gray-600 text-xl"></i>
+            </div>
+            {% endif %}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-gray-900 group-hover:text-cgt-red truncate">{{ file.name }}</p>
+            <p class="text-xs text-gray-500">{{ file.type }} · {{ "%.1f"|format(file.size / 1024 / 1024) }} Mo</p>
+          </div>
+          <i class="fas fa-download text-gray-400 group-hover:text-cgt-red"></i>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Dossiers du kit -->
+    {% for folder_key, folder_data in kit_structure.items() %}
+    <section class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6" x-data="{ expanded: {{ 'true' if loop.index <= 2 else 'false' }} }">
+      <button @click="expanded = !expanded" class="w-full flex items-center justify-between group">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center">
+            <span class="text-white font-bold text-sm">{{ folder_key.split('-')[0].strip() if '-' in folder_key else loop.index - 1 }}</span>
+          </div>
+          <div class="text-left">
+            <h2 class="text-xl font-bold text-gray-900 group-hover:text-cgt-red">{{ folder_data.name }}</h2>
+            <p class="text-sm text-gray-600">{{ folder_data.files|length }} document{{ 's' if folder_data.files|length > 1 else '' }}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500 px-3 py-1 bg-gray-100 rounded-full">
+            <i :class="expanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+          </span>
+        </div>
+      </button>
+
+      <div x-show="expanded" x-collapse class="mt-6">
+        <div class="grid md:grid-cols-2 gap-3">
+          {% for file in folder_data.files %}
+          <a href="{{ url_for('kit_election_file', file_path=file.path) }}"
+             target="_blank"
+             class="group flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition">
+            <div class="flex-shrink-0">
+              {% if file.type == 'PDF' %}
+              <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-file-pdf text-red-600"></i>
+              </div>
+              {% elif file.type in ['DOCX', 'DOC'] %}
+              <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-file-word text-blue-600"></i>
+              </div>
+              {% elif file.type in ['PPTX', 'PPT'] %}
+              <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-file-powerpoint text-orange-600"></i>
+              </div>
+              {% elif file.type == 'TXT' %}
+              <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-file-lines text-gray-600"></i>
+              </div>
+              {% else %}
+              <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <i class="fas fa-file text-gray-600"></i>
+              </div>
+              {% endif %}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate">{{ file.name }}</p>
+              <p class="text-xs text-gray-500">{{ file.type }} · {{ "%.1f"|format(file.size / 1024 / 1024) if file.size > 1024*1024 else "%.0f"|format(file.size / 1024) }} {{ 'Mo' if file.size > 1024*1024 else 'Ko' }}</p>
+            </div>
+            <i class="fas fa-download text-gray-400 group-hover:text-blue-600"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+
+    <!-- Guide d'utilisation -->
+    <section class="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl p-6">
+      <h3 class="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
+        <i class="fas fa-circle-question"></i>
+        Comment utiliser ce kit ?
+      </h3>
+      <div class="grid md:grid-cols-3 gap-4 text-sm">
+        <div class="bg-white rounded-xl p-4 border border-emerald-100">
+          <p class="font-bold text-emerald-900 mb-2">1. Commencez par le Mode d'emploi</p>
+          <p class="text-gray-700">Lisez le dossier 0 pour comprendre les enjeux et la démarche globale.</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-emerald-100">
+          <p class="font-bold text-emerald-900 mb-2">2. Suivez les étapes</p>
+          <p class="text-gray-700">Les dossiers 1 à 6 suivent le parcours complet d'une campagne électorale.</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-emerald-100">
+          <p class="font-bold text-emerald-900 mb-2">3. Adaptez à votre contexte</p>
+          <p class="text-gray-700">Tous les documents sont modifiables pour correspondre à votre situation.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock %}
