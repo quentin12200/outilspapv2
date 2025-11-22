@@ -8,7 +8,7 @@
 
 {% block content %}
 <main class="py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-6xl mx-auto" x-data="cartographieApp()" x-init="init()" x-cloak>
+  <div class="max-w-6xl mx-auto" x-data="cartographieApp()" x-init="init()">
     <!-- Header -->
     <div class="mb-8">
       <a href="/guide-exploitation" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red mb-4">
@@ -54,7 +54,7 @@
     </div>
 
     <!-- Sélecteur d'entreprise existante -->
-    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!submitted">
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <div>
           <h2 class="text-xl font-semibold text-gray-900">Choisir une entreprise</h2>
@@ -92,7 +92,7 @@
     </div>
 
     <!-- Formulaire entreprise -->
-    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!submitted">
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Informations de l'entreprise</h2>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
@@ -118,7 +118,7 @@
     </div>
 
     <!-- Liste des services -->
-    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6" x-show="!submitted">
+    <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold text-gray-900">Services de l'entreprise</h2>
         <button
