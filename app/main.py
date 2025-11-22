@@ -1179,7 +1179,18 @@ def cartographie_entreprise(request: Request, user: User | None = Depends(get_cu
 def outils_cgt_local(request: Request, refresh: bool = False):
     """Expose a local mirror of the outilsCGT toolbox for direct reuse."""
 
-    sync_result = sync_outils_cgt_repo(force=refresh)
+    if OUTILS_CGT_DIR.exists() or refresh:
+        sync_result = sync_outils_cgt_repo(force=refresh)
+    else:
+        sync_result = {
+            "ok": False,
+            "error": "La copie locale n’a pas encore été initialisée. Cliquez sur « Rafraîchir le miroir » pour la télécharger.",
+            "files": 0,
+            "updated_at": None,
+            "path": OUTILS_CGT_DIR,
+            "zip_path": None,
+            "from_cache": False,
+        }
     updated_label = None
     if isinstance(sync_result.get("updated_at"), datetime):
         updated_label = sync_result["updated_at"].strftime("%d/%m/%Y %H:%M UTC")
