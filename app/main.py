@@ -1116,7 +1116,8 @@ def outils_cgt_local(request: Request, refresh: bool = False):
     zip_url = request.url_for("static", path="outils-cgt.zip") if sync_result.get("zip_path") else None
     readme_excerpt = outils_cgt_readme_excerpt()
 
-    module_cards = [
+    module_cards = []
+    raw_module_cards = [
         {
             "title": "Cartographie CGT",
             "path": "frontend/src/components/CartoModule",
@@ -1155,6 +1156,17 @@ def outils_cgt_local(request: Request, refresh: bool = False):
         },
     ]
 
+    for module in raw_module_cards:
+        module_path = OUTILS_CGT_DIR / module["path"]
+        module_cards.append({**module, "exists": module_path.exists()})
+
+    build_index = OUTILS_CGT_DIR / "frontend" / "build" / "index.html"
+    build_index_url = (
+        request.url_for("static", path="outils-cgt/frontend/build/index.html")
+        if build_index.exists()
+        else None
+    )
+
     return templates.TemplateResponse(
         "outils_cgt.html",
         {
@@ -1165,6 +1177,7 @@ def outils_cgt_local(request: Request, refresh: bool = False):
             "readme_excerpt": readme_excerpt,
             "module_cards": module_cards,
             "mirror_path": str(OUTILS_CGT_DIR),
+            "build_index_url": build_index_url,
         },
     )
 

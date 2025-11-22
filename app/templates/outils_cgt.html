@@ -41,9 +41,14 @@
             <p class="text-sm text-amber-700">{{ sync_result.error or 'Erreur inconnue lors du clonage du dépôt.' }}</p>
             <p class="text-xs text-gray-500">Réessayez avec le bouton «&nbsp;Rafraîchir le miroir&nbsp;».</p>
           {% endif %}
-          <div class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-3">
+          <div class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-1">
             <p>Contenu synchronisé : {{ module_cards | map(attribute='path') | join(', ') }}</p>
             <p>Les dossiers lourds (<code>node_modules</code>, <code>venv</code>) sont nettoyés automatiquement.</p>
+            {% if build_index_url %}
+              <p class="text-emerald-700 font-semibold">Interface prête : <a class="underline" href="{{ build_index_url }}" target="_blank" rel="noreferrer">ouvrir le front outilsCGT cloné</a></p>
+            {% else %}
+              <p class="text-amber-700">Interface non compilée : exécutez <code class="bg-amber-100 px-1 rounded">npm ci</code> puis <code class="bg-amber-100 px-1 rounded">npm run build</code> dans <code class="bg-amber-100 px-1 rounded">static/outils-cgt/frontend</code>.</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -61,25 +66,14 @@
             <p class="text-xs font-semibold uppercase tracking-widest text-cgt-red">{{ module.title }}</p>
             <p class="text-base font-semibold text-gray-900">{{ module.description }}</p>
             <p class="text-xs text-gray-600">Chemin local : <code class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">outils-cgt/{{ module.path }}</code></p>
+            {% if module.exists %}
+              <p class="text-xs font-semibold text-emerald-700">✅ Module présent dans la copie locale.</p>
+            {% else %}
+              <p class="text-xs font-semibold text-amber-700">⚠️ Module absent : relancez « Rafraîchir le miroir » ou vérifiez le build.</p>
+            {% endif %}
           </div>
         </article>
       {% endfor %}
-    </section>
-
-    <section class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 space-y-4">
-      <div class="flex items-center gap-3">
-        <i class="fas fa-list-check text-cgt-red"></i>
-        <div>
-          <p class="text-sm font-semibold uppercase tracking-widest text-gray-500">To-do d’intégration</p>
-          <p class="text-sm text-gray-700">Checklist pour brancher la copie locale outilsCGT directement dans PAP/CSE.</p>
-        </div>
-      </div>
-      <ol class="list-decimal list-inside space-y-2 text-sm text-gray-800">
-        <li>Depuis cette page, lancez «&nbsp;Rafraîchir le miroir&nbsp;» pour cloner ou mettre à jour <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">app/static/outils-cgt</code> et générer le ZIP.</li>
-        <li>Dans <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">frontend</code>, installez les dépendances (<code>npm ci</code>) puis construisez le bundle (<code>npm run build</code>) pour obtenir un dossier <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">build</code> prêt à être servi.</li>
-        <li>Exposez le bundle via un endpoint PAP/CSE (ou un reverse proxy statique) et mappez les ancres (#cartographie, #retroplanning, #demarche, #campagne, #resultats, #plan-actions) sur les écrans correspondants.</li>
-        <li>Connectez les modules aux données PAP/CSE (SIRET, campagnes, résultats) en réutilisant les composants React clonés.</li>
-      </ol>
     </section>
 
     <section class="bg-white rounded-3xl shadow-xl ring-1 ring-gray-100 p-6 space-y-4">
