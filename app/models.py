@@ -598,6 +598,36 @@ class PasswordResetToken(Base):
     )
 
 
+class DataExportRequest(Base):
+    """Requêtes d'export du calendrier à valider par un administrateur."""
+
+    __tablename__ = "data_export_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+
+    # Détails de la requête
+    filters = Column(JSON, nullable=True)
+    status = Column(String(20), default="PENDING", nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    processed_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return (
+            f"<DataExportRequest(id={self.id}, user_id={self.user_id}, token={self.token}, "
+            f"status={self.status})>"
+        )
+
+    __table_args__ = (
+        Index('idx_export_token_status', 'token', 'status'),
+        Index('idx_export_user_status', 'user_id', 'status'),
+    )
+
+
 class Cartographie(Base):
     """
     Cartographies d'entreprise pour le renforcement syndical
