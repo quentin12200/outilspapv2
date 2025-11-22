@@ -102,12 +102,39 @@
           Entrez un SIRET (14 chiffres) pour un établissement spécifique, ou un SIREN (9 chiffres) pour tous les établissements de l'entreprise
         </p>
       </div>
+
+      <div class="max-w-2xl">
+        <label for="entreprises-nationales" class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fas fa-flag text-gray-400 mr-2"></i>
+          Entreprises nationales (raccourci)
+        </label>
+        <div class="flex gap-3">
+          <select id="entreprises-nationales"
+                  x-model="selectedNational"
+                  @change="selectedNational ? (siretOrSiren = selectedNational, searchEtablissements()) : null"
+                  class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent text-lg bg-white">
+            <option value="">Choisir une entreprise</option>
+            <template x-for="option in entreprisesNationales" :key="option.siren">
+              <option :value="option.siren" x-text="`${option.nom} — ${option.siren}`"></option>
+            </template>
+          </select>
+          <button type="button"
+                  @click="selectedNational = ''; siretOrSiren = ''"
+                  class="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border border-gray-300">
+            Réinitialiser
+          </button>
+        </div>
+        <p class="text-sm text-gray-500 mt-2 italic">
+          <i class="fas fa-link mr-1"></i>
+          La sélection lance automatiquement la recherche via l'API Pappers en conservant le champ SIRET/SIREN.
+        </p>
+      </div>
     </form>
 
     <!-- Info entreprise -->
     <div x-show="entreprise" x-cloak class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-l-4 border-blue-500">
-      <h3 class="text-xl font-bold text-gray-800 mb-3">
-        <i class="fas fa-building text-blue-600 mr-2"></i>
+      <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+        <i class="fas fa-building text-blue-600"></i>
         <span x-text="entreprise?.nom"></span>
       </h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -123,12 +150,48 @@
           <span class="font-semibold text-gray-700">Géolocalisés:</span>
           <span class="ml-2 text-green-600 font-semibold" x-text="etablissements.filter(e => e.latitude && e.longitude).length"></span>
         </div>
+        <div x-show="entreprise?.forme_juridique">
+          <span class="font-semibold text-gray-700">Forme juridique:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.forme_juridique"></span>
+        </div>
+        <div x-show="entreprise?.categorie_entreprise">
+          <span class="font-semibold text-gray-700">Catégorie:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.categorie_entreprise"></span>
+        </div>
+        <div x-show="entreprise?.activite_principale">
+          <span class="font-semibold text-gray-700">Activité principale:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.activite_principale"></span>
+        </div>
+        <div x-show="entreprise?.libelle_activite">
+          <span class="font-semibold text-gray-700">Libellé NAF:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.libelle_activite"></span>
+        </div>
+        <div x-show="entreprise?.effectif || entreprise?.tranche_effectif || entreprise?.effectif_libelle">
+          <span class="font-semibold text-gray-700">Effectifs:</span>
+          <span class="ml-2 text-gray-900" x-text="formatEffectif(entreprise?.effectif_libelle, entreprise?.tranche_effectif)"></span>
+        </div>
+        <div x-show="entreprise?.idcc">
+          <span class="font-semibold text-gray-700">IDCC:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.idcc"></span>
+        </div>
+        <div x-show="entreprise?.date_creation">
+          <span class="font-semibold text-gray-700">Créée le:</span>
+          <span class="ml-2 text-gray-900" x-text="formatDate(entreprise?.date_creation)"></span>
+        </div>
+        <div x-show="entreprise?.capital">
+          <span class="font-semibold text-gray-700">Capital:</span>
+          <span class="ml-2 text-gray-900" x-text="formatCapital(entreprise?.capital)"></span>
+        </div>
+        <div x-show="entreprise?.siege_adresse" class="md:col-span-3">
+          <span class="font-semibold text-gray-700">Siège social:</span>
+          <span class="ml-2 text-gray-900" x-text="entreprise?.siege_adresse"></span>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Map Section -->
-  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8 mb-6">
+  <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8 mb-6 space-y-6">
     <h2 class="text-2xl font-bold text-gray-800 mb-6">
       <i class="fas fa-map text-green-500 mr-2"></i>
       Carte interactive
@@ -137,8 +200,118 @@
       </span>
     </h2>
 
-    <div id="map"></div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-blue-500 font-semibold">Total trouvés</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.length"></p>
+      </div>
+      <div class="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-green-600 font-semibold">Géolocalisés</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => e.latitude && e.longitude).length"></p>
+      </div>
+      <div class="bg-purple-50 border-l-4 border-purple-600 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-purple-700 font-semibold">Sièges</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => e.est_siege).length"></p>
+      </div>
+      <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+        <p class="text-xs uppercase tracking-wide text-red-600 font-semibold">Inactifs</p>
+        <p class="text-3xl font-bold text-gray-900" x-text="etablissements.filter(e => !e.est_actif).length"></p>
+      </div>
+    </div>
 
+    <div x-show="isHeavyDataset" x-cloak class="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4 mb-2">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold text-yellow-800">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Nombre très élevé d'établissements : privilégiez un zoom par région ou département pour éviter un affichage trop lourd.
+          </p>
+          <p class="text-xs text-yellow-700 mt-1">Vous pouvez toujours afficher toute la carte de France mais le chargement peut prendre quelques secondes.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <template x-for="region in regionStats" :key="region.label">
+            <button type="button"
+                    @click="selectedRegion = region.label; selectedDepartement = ''; allowFullMap = false; handleFilterChange()"
+                    class="px-3 py-2 bg-white border border-yellow-300 rounded-lg text-sm text-yellow-800 hover:bg-yellow-100 flex items-center gap-2">
+              <span x-text="region.label"></span>
+              <span class="text-xs bg-yellow-200 text-yellow-900 px-2 py-0.5 rounded-full font-semibold" x-text="region.count"></span>
+            </button>
+          </template>
+          <button type="button"
+                  @click="allowFullMap = true; selectedRegion = ''; selectedDepartement = ''; handleFilterChange()"
+                  class="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 flex items-center gap-2">
+            <i class="fas fa-globe"></i>
+            <span>Afficher la carte France (patienter)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+      <div class="flex flex-col md:flex-row gap-4 flex-1">
+        <div class="flex-1">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Filtrer par région</label>
+          <select x-model="selectedRegion"
+                  @change="selectedDepartement = ''; allowFullMap = false; handleFilterChange()"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent bg-white">
+            <option value="">Toutes les régions</option>
+            <template x-for="region in regionOptions" :key="region">
+              <option :value="region" x-text="region"></option>
+            </template>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Filtrer par département</label>
+          <select x-model="selectedDepartement"
+                  @change="selectedRegion = ''; allowFullMap = false; handleFilterChange()"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent bg-white">
+            <option value="">Tous les départements</option>
+            <template x-for="dept in departementOptions" :key="dept">
+              <option :value="dept" x-text="dept"></option>
+            </template>
+          </select>
+        </div>
+        <div class="flex items-center space-x-3">
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlyGeolocated" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Uniquement géolocalisés</span>
+          </label>
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlyActifs" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Actifs</span>
+          </label>
+          <label class="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" x-model="showOnlySiege" @change="handleFilterChange" class="rounded text-cgt-red border-gray-300 focus:ring-cgt-red">
+            <span>Siège uniquement</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button @click="exportCSV"
+                :disabled="!filteredEtablissements.length"
+                :class="!filteredEtablissements.length ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg transition flex items-center space-x-2">
+          <i class="fas fa-file-csv"></i>
+          <span>Exporter la liste</span>
+        </button>
+        <button @click="resetMapToFrance()"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2 text-sm whitespace-nowrap">
+          <i class="fas fa-crosshairs"></i>
+          <span>Recentrer sur France</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="map"></div>
+    <div x-show="isHeavyDataset && !allowFullMap && !selectedRegion && !selectedDepartement" x-cloak class="mt-3 text-sm text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-info-circle text-yellow-600 mt-0.5"></i>
+      <span>Choisissez une région ou un département pour afficher les points sur la carte. Pour tout afficher, cliquez sur « Afficher la carte France ».</span>
+    </div>
+    <div x-show="mapRenderingLarge" x-cloak class="mt-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-spinner fa-spin mt-0.5"></i>
+      <span>Chargement de tous les établissements sur la carte nationale, merci de patienter…</span>
+    </div>
     <div class="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <!-- Légende -->
       <div class="flex flex-wrap items-center gap-4 text-sm">
@@ -157,13 +330,6 @@
           <span class="text-gray-700">Siège social</span>
         </div>
       </div>
-
-      <!-- Bouton recentrer -->
-      <button @click="resetMapToFrance()"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2 text-sm whitespace-nowrap">
-        <i class="fas fa-crosshairs"></i>
-        <span>Recentrer sur France</span>
-      </button>
     </div>
   </section>
 
@@ -171,14 +337,19 @@
   <section x-show="etablissements.length > 0" x-cloak class="bg-white rounded-xl shadow-md p-8">
     <h2 class="text-2xl font-bold text-gray-800 mb-6">
       <i class="fas fa-list text-orange-500 mr-2"></i>
-      Liste des établissements
+      Liste des établissements filtrée
       <span class="text-sm font-normal text-gray-500 ml-2">
-        (<span x-text="etablissements.length"></span> au total)
+        (<span x-text="displayedEtablissements.length"></span> affichés / <span x-text="etablissements.length"></span> au total)
       </span>
     </h2>
 
+    <div x-show="isHeavyDataset && !allowFullMap && !selectedRegion && !selectedDepartement" x-cloak class="mb-4 text-sm text-gray-700 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3 flex items-start gap-2">
+      <i class="fas fa-map-marked-alt text-yellow-600 mt-0.5"></i>
+      <span>La liste complète est volumineuse. Sélectionnez une région ou un département ou activez l'affichage France entière pour charger toutes les lignes.</span>
+    </div>
+
     <div class="space-y-4">
-      <template x-for="(etab, index) in etablissements" :key="index">
+      <template x-for="(etab, index) in displayedEtablissements" :key="index">
         <div class="etablissement-card border border-gray-200 rounded-lg p-6 hover:border-cgt-red cursor-pointer"
              @click="focusEtablissement(etab)">
           <div class="flex items-start justify-between">
@@ -200,12 +371,19 @@
 
               <!-- Infos -->
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-                <div>
+                <div class="flex items-center">
                   <span class="text-gray-600">
                     <i class="fas fa-hashtag text-blue-500 mr-1"></i>
                     SIRET:
                   </span>
-                  <span class="ml-1 font-mono text-cgt-red font-semibold" x-text="etab.siret"></span>
+                  <a :href="`/siret/${etab.siret}`"
+                     @click.stop.prevent="openSiret(etab.siret)"
+                     class="ml-2 font-mono text-cgt-red font-semibold hover:underline"
+                     title="Ouvrir la fiche entreprise"
+                     target="_blank"
+                     rel="noopener">
+                    <span x-text="etab.siret || 'SIRET indisponible'"></span>
+                  </a>
                 </div>
 
                 <div x-show="etab.adresse">
@@ -238,6 +416,38 @@
                     Activité:
                   </span>
                   <span class="ml-1 text-gray-900" x-text="etab.libelle_activite"></span>
+                </div>
+
+                <div x-show="etab.effectifs_label || etab.tranche_effectifs">
+                  <span class="text-gray-600">
+                    <i class="fas fa-users text-indigo-500 mr-1"></i>
+                    Effectifs:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="formatEffectif(etab.effectifs_label, etab.tranche_effectifs)"></span>
+                </div>
+
+                <div x-show="etab.forme_juridique">
+                  <span class="text-gray-600">
+                    <i class="fas fa-balance-scale text-yellow-500 mr-1"></i>
+                    Forme:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.forme_juridique"></span>
+                </div>
+
+                <div x-show="etab.idcc">
+                  <span class="text-gray-600">
+                    <i class="fas fa-file-contract text-red-500 mr-1"></i>
+                    IDCC:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="etab.idcc"></span>
+                </div>
+
+                <div x-show="etab.date_creation">
+                  <span class="text-gray-600">
+                    <i class="fas fa-calendar-alt text-teal-500 mr-1"></i>
+                    Ouvert le:
+                  </span>
+                  <span class="ml-1 text-gray-900" x-text="formatDate(etab.date_creation)"></span>
                 </div>
 
                 <div x-show="!etab.latitude || !etab.longitude">
@@ -295,10 +505,57 @@
   function etablissementsApp() {
     return {
       siretOrSiren: '',
+      selectedNational: '',
+      selectedRegion: '',
+      selectedDepartement: '',
+      departementOptions: [],
+      regionOptions: [],
+      showOnlyGeolocated: false,
+      showOnlyActifs: false,
+      showOnlySiege: false,
       loading: false,
       error: null,
       entreprise: null,
       etablissements: [],
+      isHeavyDataset: false,
+      allowFullMap: true,
+      mapRenderingLarge: false,
+      heavyThreshold: 800,
+      regionByDepartement: {
+        '01': 'Auvergne-Rhône-Alpes', '02': 'Hauts-de-France', '03': 'Auvergne-Rhône-Alpes', '04': 'Provence-Alpes-Côte d\'Azur',
+        '05': 'Provence-Alpes-Côte d\'Azur', '06': 'Provence-Alpes-Côte d\'Azur', '07': 'Auvergne-Rhône-Alpes', '08': 'Grand Est',
+        '09': 'Occitanie', '10': 'Grand Est', '11': 'Occitanie', '12': 'Occitanie', '13': 'Provence-Alpes-Côte d\'Azur',
+        '14': 'Normandie', '15': 'Auvergne-Rhône-Alpes', '16': 'Nouvelle-Aquitaine', '17': 'Nouvelle-Aquitaine', '18': 'Centre-Val de Loire',
+        '19': 'Nouvelle-Aquitaine', '2A': 'Corse', '2B': 'Corse', '21': 'Bourgogne-Franche-Comté', '22': 'Bretagne',
+        '23': 'Nouvelle-Aquitaine', '24': 'Nouvelle-Aquitaine', '25': 'Bourgogne-Franche-Comté', '26': 'Auvergne-Rhône-Alpes', '27': 'Normandie',
+        '28': 'Centre-Val de Loire', '29': 'Bretagne', '30': 'Occitanie', '31': 'Occitanie', '32': 'Occitanie',
+        '33': 'Nouvelle-Aquitaine', '34': 'Occitanie', '35': 'Bretagne', '36': 'Centre-Val de Loire', '37': 'Centre-Val de Loire',
+        '38': 'Auvergne-Rhône-Alpes', '39': 'Bourgogne-Franche-Comté', '40': 'Nouvelle-Aquitaine', '41': 'Centre-Val de Loire', '42': 'Auvergne-Rhône-Alpes',
+        '43': 'Auvergne-Rhône-Alpes', '44': 'Pays de la Loire', '45': 'Centre-Val de Loire', '46': 'Occitanie', '47': 'Nouvelle-Aquitaine',
+        '48': 'Occitanie', '49': 'Pays de la Loire', '50': 'Normandie', '51': 'Grand Est', '52': 'Grand Est',
+        '53': 'Pays de la Loire', '54': 'Grand Est', '55': 'Grand Est', '56': 'Bretagne', '57': 'Grand Est',
+        '58': 'Bourgogne-Franche-Comté', '59': 'Hauts-de-France', '60': 'Hauts-de-France', '61': 'Normandie', '62': 'Hauts-de-France',
+        '63': 'Auvergne-Rhône-Alpes', '64': 'Nouvelle-Aquitaine', '65': 'Occitanie', '66': 'Occitanie', '67': 'Grand Est',
+        '68': 'Grand Est', '69': 'Auvergne-Rhône-Alpes', '70': 'Bourgogne-Franche-Comté', '71': 'Bourgogne-Franche-Comté', '72': 'Pays de la Loire',
+        '73': 'Auvergne-Rhône-Alpes', '74': 'Auvergne-Rhône-Alpes', '75': 'Île-de-France', '76': 'Normandie', '77': 'Île-de-France',
+        '78': 'Île-de-France', '79': 'Nouvelle-Aquitaine', '80': 'Hauts-de-France', '81': 'Occitanie', '82': 'Occitanie',
+        '83': 'Provence-Alpes-Côte d\'Azur', '84': 'Provence-Alpes-Côte d\'Azur', '85': 'Pays de la Loire', '86': 'Nouvelle-Aquitaine', '87': 'Nouvelle-Aquitaine',
+        '88': 'Grand Est', '89': 'Bourgogne-Franche-Comté', '90': 'Bourgogne-Franche-Comté', '91': 'Île-de-France', '92': 'Île-de-France',
+        '93': 'Île-de-France', '94': 'Île-de-France', '95': 'Île-de-France', '971': 'Guadeloupe', '972': 'Martinique',
+        '973': 'Guyane', '974': 'La Réunion', '976': 'Mayotte'
+      },
+      entreprisesNationales: [
+        { nom: 'La Poste', siren: '356000000' },
+        { nom: 'SNCF', siren: '552049447' },
+        { nom: 'EDF', siren: '552081317' },
+        { nom: 'TotalEnergies', siren: '542051180' },
+        { nom: 'Orange', siren: '380129866' },
+        { nom: 'Carrefour', siren: '652014051' },
+        { nom: 'Auchan', siren: '410409460' },
+        { nom: 'Engie', siren: '542107651' },
+        { nom: 'Bouygues', siren: '572015246' },
+        { nom: 'Veolia Environnement', siren: '403210032' },
+      ],
       map: null,
       markers: [],
 
@@ -337,6 +594,14 @@
         this.error = null;
         this.etablissements = [];
         this.entreprise = null;
+        this.selectedDepartement = '';
+        this.selectedRegion = '';
+        this.showOnlyGeolocated = false;
+        this.showOnlyActifs = false;
+        this.showOnlySiege = false;
+        this.allowFullMap = true;
+        this.isHeavyDataset = false;
+        this.mapRenderingLarge = false;
 
         // Nettoyer les marqueurs existants
         this.clearMarkers();
@@ -352,6 +617,11 @@
           if (data.success) {
             this.entreprise = data.entreprise;
             this.etablissements = data.etablissements;
+            const geoCount = this.etablissements.filter(e => e.latitude && e.longitude).length;
+            this.isHeavyDataset = geoCount > this.heavyThreshold;
+            this.allowFullMap = !this.isHeavyDataset;
+            this.buildDepartementOptions();
+            this.buildRegionOptions();
 
             // Attendre que le DOM soit mis à jour (x-show révèle la carte)
             // et forcer le recalcul des dimensions de la carte
@@ -359,10 +629,7 @@
               this.map.invalidateSize();
 
               // Ajouter les marqueurs sur la carte
-              this.addMarkersToMap();
-
-              // Centrer la carte sur les établissements
-              this.fitMapToBounds();
+              this.handleFilterChange();
 
               // Re-forcer le recalcul après le fitBounds
               setTimeout(() => {
@@ -388,8 +655,115 @@
         this.markers = [];
       },
 
+      buildDepartementOptions() {
+        const seen = new Set();
+        const options = [];
+        this.etablissements.forEach((etab) => {
+          const dept = this.extractDepartement(etab.code_postal);
+          if (dept && !seen.has(dept)) {
+            seen.add(dept);
+            options.push(dept);
+          }
+        });
+
+        this.departementOptions = options
+          .map(code => ({ code, sortKey: parseInt(code, 10) || 0 }))
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .map(entry => entry.code);
+      },
+
+      buildRegionOptions() {
+        const seen = new Set();
+        const regions = [];
+
+        this.etablissements.forEach((etab) => {
+          const dept = this.extractDepartement(etab.code_postal);
+          const region = this.regionByDepartement[dept];
+
+          if (region && !seen.has(region)) {
+            seen.add(region);
+            regions.push(region);
+          }
+        });
+
+        this.regionOptions = regions.sort((a, b) => a.localeCompare(b, 'fr'));
+      },
+
+      get filteredEtablissements() {
+        let results = [...this.etablissements];
+
+        if (this.selectedRegion) {
+          results = results.filter((etab) => {
+            const dept = this.extractDepartement(etab.code_postal);
+            return this.regionByDepartement[dept] === this.selectedRegion;
+          });
+        }
+
+        if (this.selectedDepartement) {
+          results = results.filter((etab) => (etab.code_postal || '').toString().startsWith(this.selectedDepartement));
+        }
+
+        if (this.showOnlyGeolocated) {
+          results = results.filter((etab) => etab.latitude && etab.longitude);
+        }
+
+        if (this.showOnlyActifs) {
+          results = results.filter((etab) => etab.est_actif);
+        }
+
+        if (this.showOnlySiege) {
+          results = results.filter((etab) => etab.est_siege);
+        }
+
+        return results;
+      },
+
+      get displayedEtablissements() {
+        if (this.isHeavyDataset && !this.allowFullMap && !this.selectedRegion && !this.selectedDepartement) {
+          return [];
+        }
+        return this.filteredEtablissements;
+      },
+
+      get regionStats() {
+        const counts = {};
+
+        this.etablissements.forEach((etab) => {
+          const dept = this.extractDepartement(etab.code_postal);
+          const region = this.regionByDepartement[dept];
+
+          if (region) {
+            counts[region] = (counts[region] || 0) + 1;
+          }
+        });
+
+        return Object.entries(counts)
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'fr'));
+      },
+
+      extractDepartement(cpRaw) {
+        const cp = (cpRaw || '').toString();
+        if (!cp) return '';
+        if (cp.startsWith('97')) {
+          return cp.slice(0, 3);
+        }
+        if (cp.startsWith('98')) {
+          return cp.slice(0, 3);
+        }
+        return cp.slice(0, 2);
+      },
+
+      handleFilterChange() {
+        this.clearMarkers();
+        this.mapRenderingLarge = this.isHeavyDataset && this.allowFullMap && !this.selectedRegion && !this.selectedDepartement;
+        this.addMarkersToMap();
+        this.fitMapToBounds();
+        this.mapRenderingLarge = false;
+      },
+
       addMarkersToMap() {
-        this.etablissements.forEach((etab, index) => {
+        this.displayedEtablissements.forEach((etab, index) => {
           if (etab.latitude && etab.longitude) {
             // Couleur du marqueur selon le statut
             let markerColor = etab.est_actif ? 'blue' : 'red';
@@ -428,18 +802,38 @@
               <div class="p-2">
                 <h3 class="font-bold text-lg mb-2">${etab.denomination || 'Sans nom'}</h3>
                 <div class="space-y-1 text-sm">
-                  <p><strong>SIRET:</strong> <span class="font-mono">${etab.siret}</span></p>
+                  <p>
+                    <strong>SIRET:</strong>
+                    <a href="/siret/${etab.siret}" data-siret="${etab.siret}" class="font-mono text-blue-600 hover:underline js-popup-siret">
+                      ${etab.siret || 'SIRET indisponible'}
+                    </a>
+                  </p>
                   ${etab.est_siege ? '<p class="text-purple-600 font-semibold"><i class="fas fa-star mr-1"></i>Siège social</p>' : ''}
                   ${!etab.est_actif ? '<p class="text-red-600 font-semibold"><i class="fas fa-exclamation-triangle mr-1"></i>Établissement inactif</p>' : ''}
                   ${etab.adresse ? `<p><strong>Adresse:</strong> ${etab.adresse}</p>` : ''}
                   ${etab.commune ? `<p><strong>Ville:</strong> ${etab.code_postal} ${etab.commune}</p>` : ''}
                   ${etab.activite_principale ? `<p><strong>NAF:</strong> ${etab.activite_principale}</p>` : ''}
                   ${etab.libelle_activite ? `<p><strong>Activité:</strong> ${etab.libelle_activite}</p>` : ''}
+                  ${etab.effectifs_label || etab.tranche_effectifs ? `<p><strong>Effectifs:</strong> ${etab.effectifs_label || etab.tranche_effectifs}</p>` : ''}
+                  ${etab.forme_juridique ? `<p><strong>Forme:</strong> ${etab.forme_juridique}</p>` : ''}
+                  ${etab.idcc ? `<p><strong>IDCC:</strong> ${etab.idcc}</p>` : ''}
                 </div>
               </div>
             `;
 
             marker.bindPopup(popupContent);
+
+            marker.on('popupopen', (e) => {
+              const link = e.popup.getElement().querySelector('.js-popup-siret');
+              if (link && !link.dataset.bound) {
+                link.dataset.bound = 'true';
+                link.addEventListener('click', (evt) => {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  this.openSiret(etab.siret);
+                });
+              }
+            });
             this.markers.push(marker);
           }
         });
@@ -477,6 +871,61 @@
             this.map.invalidateSize();
           }, 300);
         }
+      },
+
+      openSiret(siret) {
+        const cleanSiret = (siret || '').toString().trim();
+
+        if (!cleanSiret) {
+          this.error = 'SIRET manquant pour ouvrir la fiche entreprise';
+          showToast(this.error, 'error');
+          return;
+        }
+
+        window.open(`/siret/${cleanSiret}`, '_blank', 'noopener');
+      },
+
+      exportCSV() {
+        const headers = ['siret', 'denomination', 'adresse', 'code_postal', 'commune', 'est_actif', 'est_siege', 'activite_principale', 'libelle_activite'];
+        const lines = [headers.join(';')];
+
+        this.displayedEtablissements.forEach((etab) => {
+          const row = headers.map((key) => {
+            const value = etab[key];
+            return typeof value === 'boolean' ? (value ? 'oui' : 'non') : (value || '');
+          });
+          lines.push(row.join(';'));
+        });
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `etablissements_${this.entreprise?.siren || 'liste'}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      },
+
+      formatDate(dateStr) {
+        if (!dateStr) return '';
+        const parsed = new Date(dateStr);
+        if (Number.isNaN(parsed.getTime())) return dateStr;
+        return parsed.toLocaleDateString('fr-FR');
+      },
+
+      formatEffectif(label, tranche) {
+        if (label) return label;
+        if (tranche) return tranche;
+        return 'Non communiqué';
+      },
+
+      formatCapital(value) {
+        if (value === null || value === undefined || value === '') return '';
+        const num = Number(value);
+        if (!Number.isNaN(num)) {
+          return `${num.toLocaleString('fr-FR')} €`;
+        }
+        return value;
       }
     }
   }

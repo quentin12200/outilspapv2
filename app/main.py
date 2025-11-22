@@ -67,6 +67,11 @@ from .models import User, PasswordResetToken, DataExportRequest
 import uuid
 from .services.export_service import generate_calendrier_excel
 from .services.email_service import get_resend_service
+from .services.outils_cgt_repo import (
+    DEST_DIR as OUTILS_CGT_DIR,
+    outils_cgt_readme_excerpt,
+    sync_outils_cgt_repo,
+)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -1170,6 +1175,85 @@ def cartographie_entreprise(request: Request, user: User | None = Depends(get_cu
     )
 
 
+@app.get("/outils-cgt", response_class=HTMLResponse)
+def outils_cgt_local(request: Request, refresh: bool = False):
+    """Expose a local mirror of the outilsCGT toolbox for direct reuse."""
+
+    sync_result = sync_outils_cgt_repo(force=refresh)
+    updated_label = None
+    if isinstance(sync_result.get("updated_at"), datetime):
+        updated_label = sync_result["updated_at"].strftime("%d/%m/%Y %H:%M UTC")
+
+    zip_url = request.url_for("static", path="outils-cgt.zip") if sync_result.get("zip_path") else None
+    readme_excerpt = outils_cgt_readme_excerpt()
+
+    module_cards = []
+    raw_module_cards = [
+        {
+            "title": "Cartographie CGT",
+            "path": "frontend/src/components/CartoModule",
+            "description": "Carte stratégique et modules associés prêts à embarquer.",
+            "anchor": "cartographie",
+        },
+        {
+            "title": "Rétroplanning",
+            "path": "frontend/src/components/RetroplanningModule",
+            "description": "Planification des campagnes avec jalons terrain.",
+            "anchor": "retroplanning",
+        },
+        {
+            "title": "Démarche syndicale",
+            "path": "frontend/src/components/DemarcheModule",
+            "description": "Pas-à-pas militant et pages DemarcheMain/DemarcheRevendicative.",
+            "anchor": "demarche",
+        },
+        {
+            "title": "Campagne & résultats",
+            "path": "frontend/src/components/ElectionsModule",
+            "description": "Écrans campagne et analyse des scrutins (résultats inclus).",
+            "anchor": "campagne",
+            "aliases": ["resultats"],
+        },
+        {
+            "title": "Plan d’actions",
+            "path": "frontend/src/components/pages/PlanActionsPage.js",
+            "description": "Planifier et suivre les objectifs militants avec les écrans dédiés.",
+            "anchor": "plan-actions",
+        },
+        {
+            "title": "Scripts & exports",
+            "path": "scripts",
+            "description": "Utilitaires présents dans le dépôt miroir pour automatiser les flux.",
+        },
+    ]
+
+    for module in raw_module_cards:
+        module_path = OUTILS_CGT_DIR / module["path"]
+        module_cards.append({**module, "exists": module_path.exists()})
+
+    build_index = OUTILS_CGT_DIR / "frontend" / "build" / "index.html"
+    build_index_url = (
+        request.url_for("static", path="outils-cgt/frontend/build/index.html")
+        if build_index.exists()
+        else None
+    )
+
+    return templates.TemplateResponse(
+        "outils_cgt.html",
+        {
+            "request": request,
+            "sync_result": sync_result,
+            "updated_label": updated_label,
+            "zip_url": zip_url,
+            "readme_excerpt": readme_excerpt,
+            "module_cards": module_cards,
+            "mirror_path": str(OUTILS_CGT_DIR),
+            "build_index_url": build_index_url,
+        },
+    )
+
+
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
 @app.post("/api/cartographie")
 async def create_cartographie(
     request: Request,
@@ -2863,12 +2947,25 @@ def invitations(
 
     # Récupérer les listes pour les filtres
     sources = [row[0] for row in db.query(Invitation.source).distinct().order_by(Invitation.source).all() if row[0]]
-    all_uds = [row[0] for row in db.query(Invitation.ud).distinct().order_by(Invitation.ud).all() if row[0]]
+
+    def _ud_sort_key(value):
+        match = re.search(r"\d+", value)
+        if match:
+            return (0, int(match.group()), value)
+        return (1, value)
+
+    all_uds = sorted(
+        {row[0] for row in db.query(Invitation.ud).distinct().all() if row[0]},
+        key=_ud_sort_key,
+    )
     all_fds = [row[0] for row in db.query(Invitation.fd).distinct().order_by(Invitation.fd).all() if row[0]]
 
     # Liste des départements depuis les codes postaux
     all_depts_raw = db.query(func.substr(Invitation.code_postal, 1, 2)).distinct().all()
-    all_depts = sorted([row[0] for row in all_depts_raw if row[0] and row[0].isdigit()])
+    all_depts = sorted(
+        {row[0] for row in all_depts_raw if row[0] and row[0].isdigit()},
+        key=lambda x: int(x),
+    )
 
     # Pagination
     total_invitations = len(invitations)

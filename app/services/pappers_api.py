@@ -127,13 +127,37 @@ class PappersAPI:
                         parsed = self._parse_etablissement(etab, data)
                         etablissements_parsed.append(parsed)
 
+                    siege = data.get("siege", {}) or {}
+                    siege_adresse = " ".join(
+                        part
+                        for part in [
+                            siege.get("adresse_ligne_1", ""),
+                            siege.get("adresse_ligne_2", ""),
+                            ("%s %s" % (siege.get("code_postal", ""), siege.get("ville", ""))).strip(),
+                        ]
+                        if part
+                    ).strip()
+
+                    entreprise_payload = {
+                        "siren": data.get("siren"),
+                        "nom": data.get("nom_entreprise"),
+                        "siege": siege,
+                        "siege_adresse": siege_adresse,
+                        "categorie_entreprise": data.get("categorie_entreprise"),
+                        "forme_juridique": data.get("forme_juridique"),
+                        "activite_principale": data.get("code_naf"),
+                        "libelle_activite": data.get("libelle_code_naf"),
+                        "tranche_effectif": data.get("tranche_effectif"),
+                        "effectif": data.get("effectif"),
+                        "effectif_libelle": data.get("effectif_libelle") or data.get("effectif"),
+                        "date_creation": data.get("date_creation"),
+                        "capital": data.get("capital"),
+                        "idcc": self._extract_idcc(data),
+                    }
+
                     return {
                         "success": True,
-                        "entreprise": {
-                            "siren": data.get("siren"),
-                            "nom": data.get("nom_entreprise"),
-                            "siege": data.get("siege", {})
-                        },
+                        "entreprise": entreprise_payload,
                         "etablissements": etablissements_parsed,
                         "total": len(etablissements_parsed)
                     }
@@ -211,18 +235,7 @@ class PappersAPI:
         adresse_ligne_2 = etab.get("adresse_ligne_2", "")
         adresse_complete = f"{adresse_ligne_1} {adresse_ligne_2}".strip()
 
-        # Convention collective (Pappers donne souvent une liste)
-        cc_list = entreprise.get("convention_collective_principale", {})
-        idcc = None
-        if cc_list:
-             # Parfois c'est un dict, parfois une liste, on gère le cas simple
-             if isinstance(cc_list, dict):
-                 idcc = str(cc_list.get("idcc", ""))
-        
-        if not idcc and entreprise.get("conventions_collectives"):
-             # Prendre la première
-             first_cc = entreprise["conventions_collectives"][0]
-             idcc = str(first_cc.get("idcc", ""))
+        idcc = self._extract_idcc(entreprise)
 
         return {
             "siret": etab.get("siret"),
@@ -236,6 +249,7 @@ class PappersAPI:
             "libelle_activite": etab.get("libelle_code_naf"),
             "tranche_effectifs": entreprise.get("tranche_effectif"), # Pappers donne ça au niveau entreprise souvent
             "effectifs_label": entreprise.get("effectif_libelle"), # Ou à calculer
+            "forme_juridique": entreprise.get("forme_juridique"),
             "est_siege": etab.get("siege", False),
             "est_actif": not (etab.get("etablissement_cesse", False) or entreprise.get("entreprise_cessee", False)),
             "date_creation": etab.get("date_creation"),
@@ -245,6 +259,25 @@ class PappersAPI:
             "latitude": etab.get("latitude"),
             "longitude": etab.get("longitude")
         }
+
+    @staticmethod
+    def _extract_idcc(entreprise: Dict[str, Any]) -> Optional[str]:
+        """Extrait l'IDCC depuis la réponse Pappers (dict ou liste)."""
+
+        cc_list = entreprise.get("convention_collective_principale", {})
+        if cc_list and isinstance(cc_list, dict):
+            idcc = str(cc_list.get("idcc", "")).strip()
+            if idcc:
+                return idcc
+
+        conventions = entreprise.get("conventions_collectives") or []
+        if isinstance(conventions, list) and conventions:
+            first_cc = conventions[0] or {}
+            idcc = str(first_cc.get("idcc", "")).strip()
+            if idcc:
+                return idcc
+
+        return None
 
     def _parse_search_result(self, res: Dict[str, Any]) -> Dict[str, Any]:
         """
