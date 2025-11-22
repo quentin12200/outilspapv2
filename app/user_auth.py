@@ -41,8 +41,12 @@ PUBLIC_ROUTES = {
     "/forgot-password",
     "/reset-password",
     "/static",
-    "/mentions-legales"
+    "/mentions-legales",
+    "/cartographie-entreprise",
+    "/retroplanning",
 }
+
+PUBLIC_ROUTE_PREFIXES: tuple[str, ...] = ()
 
 
 def hash_password(password: str) -> str:
@@ -355,8 +359,14 @@ def is_public_route(path: str) -> bool:
     if path in PUBLIC_ROUTES:
         return True
 
-    # Routes qui commencent par /static, /api, /admin, ou /reset-password (ont leur propre auth)
-    if path.startswith("/static/") or path.startswith("/api/") or path.startswith("/admin") or path.startswith("/reset-password/"):
+    # Routes qui commencent par /static, /api, /admin, /reset-password ou par un préfixe public dédié
+    if (
+        path.startswith("/static/")
+        or path.startswith("/api/")
+        or path.startswith("/admin")
+        or path.startswith("/reset-password")
+        or path.startswith(PUBLIC_ROUTE_PREFIXES)
+    ):
         return True
 
     return False

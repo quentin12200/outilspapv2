@@ -29,7 +29,15 @@ from io import BytesIO
 from .db import get_session, Base, engine, SessionLocal
 from datetime import date, datetime, timedelta
 
-from .models import Invitation, SiretSummary, PVEvent
+from .models import (
+    Invitation,
+    SiretSummary,
+    PVEvent,
+    Cartographie,
+    ServiceCartographie,
+    Retroplanning,
+    PhaseRetroplanning
+)
 from .services.calcul_elus_cse import (
     calculer_nombre_elus_cse,
     repartir_sieges_quotient_puis_plus_forte_moyenne,
@@ -80,24 +88,31 @@ INVITATIONS_GH_TOKEN = os.getenv("INVITATIONS_GH_TOKEN", "").strip() or DB_GH_TO
 INVITATIONS_FAIL_ON_HASH_MISMATCH = os.getenv("INVITATIONS_FAIL_ON_HASH_MISMATCH", "").strip().lower()
 INVITATIONS_AUTO_IMPORT = os.getenv("INVITATIONS_AUTO_IMPORT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-_DEFAULT_KIT_PDF_PRIMARY = (
+_DEFAULT_KIT_PDF_GITHUB = (
     "https://github.com/quentin12200/outilspapv2/releases/download/v1.0.0/Kit.renforcement.compile.30.06.2025.pour.impression.pdf"
 )
-_DEFAULT_KIT_PDF_FALLBACK = (
+_DEFAULT_KIT_PDF_ONEDRIVE = (
     "https://1drv.ms/f/c/7bb16296eeed7fa3/Eh42VXPwAUpAlwK_jNGlf2sBAbKGzOahFc2AGh9OR1VbuA?e=yFBDHw"
 )
 
-KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_PRIMARY).strip()
+# Restaurer GitHub comme source principale (fonctionnait avant)
+KIT_PDF_URL = os.getenv("KIT_PDF_URL", _DEFAULT_KIT_PDF_GITHUB).strip()
 KIT_PDF_FILENAME = os.getenv(
     "KIT_PDF_FILENAME",
     "Kit.renforcement.compile.30.06.2025.pour.impression.pdf",
 ).strip()
 KIT_PDF_URLS = os.getenv("KIT_PDF_URLS", "").strip()
-KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_FALLBACK).strip()
+KIT_PDF_URL_FALLBACKS = os.getenv("KIT_PDF_URL_FALLBACKS", _DEFAULT_KIT_PDF_ONEDRIVE).strip()
 KIT_PDF_LOCAL_PATH = os.getenv("KIT_PDF_LOCAL_PATH", "").strip()
 KIT_PDF_LOCAL_PATHS = os.getenv("KIT_PDF_LOCAL_PATHS", "").strip()
 
 _DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "app", "data")
+
+# Chemin par défaut du PDF dans app/data/kit/ si pas de chemin configuré
+_DEFAULT_KIT_LOCAL_PATH = os.path.join(os.getcwd(), "app", "data", "kit", "Kit.renforcement.compile.30.06.2025.pour.impression.pdf")
+if not KIT_PDF_LOCAL_PATH and os.path.exists(_DEFAULT_KIT_LOCAL_PATH):
+    KIT_PDF_LOCAL_PATH = _DEFAULT_KIT_LOCAL_PATH
+    logger.info(f"Utilisation du PDF local par défaut: {_DEFAULT_KIT_LOCAL_PATH}")
 
 _DEFAULT_KIT_CACHE_DIR = os.path.join(os.getcwd(), "app", "data", "kit")
 KIT_PDF_CACHE_ENABLED = os.getenv("KIT_PDF_CACHE_ENABLED", "true").strip().lower() in {
@@ -195,6 +210,14 @@ def _split_path_list(raw: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+KIT_PDF_EXPECTED_SIZE_MB = _safe_int(os.getenv("KIT_PDF_EXPECTED_SIZE_MB"), 115)
+KIT_PDF_MIN_SIZE_MB = _safe_int(
+    os.getenv("KIT_PDF_MIN_SIZE_MB"),
+    max(80, KIT_PDF_EXPECTED_SIZE_MB - 5),
+)
+KIT_PDF_MIN_SIZE_BYTES = max(1, KIT_PDF_MIN_SIZE_MB) * 1024 * 1024
+
+
 def _build_local_kit_candidates() -> list[str]:
     hints: list[str] = []
 
@@ -228,25 +251,48 @@ KIT_PDF_LOCAL_HINTS = _build_local_kit_candidates()
 KIT_PDF_LOCAL_GLOBS = []
 
 
+def _kit_candidate_is_valid(path: str | None) -> bool:
+    if not path:
+        return False
+    try:
+        if not os.path.exists(path):
+            return False
+        size = os.path.getsize(path)
+    except OSError:
+        return False
+
+    if size < KIT_PDF_MIN_SIZE_BYTES:
+        logger.debug(
+            "Fichier PDF ignoré (%s): taille %s < seuil %s",
+            path,
+            size,
+            KIT_PDF_MIN_SIZE_BYTES,
+        )
+        return False
+
+    return True
+
+
+def _is_valid_kit_size(path: str | None) -> bool:
+    if not path:
+        return False
+    try:
+        return os.path.getsize(path) >= KIT_PDF_MIN_SIZE_BYTES
+    except OSError:
+        return False
+
+
 def _find_local_kit_pdf() -> str | None:
     """Retourne le chemin d'un PDF déjà présent dans app/data (ou via les hints)."""
 
     for candidate in KIT_PDF_LOCAL_HINTS:
-        if not candidate:
-            continue
-        try:
-            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                return candidate
-        except OSError:
-            continue
+        if _kit_candidate_is_valid(candidate):
+            return os.path.abspath(candidate)
 
     for pattern in KIT_PDF_LOCAL_GLOBS:
         for match in sorted(glob.glob(pattern)):
-            try:
-                if os.path.exists(match) and os.path.getsize(match) > 0:
-                    return os.path.abspath(match)
-            except OSError:
-                continue
+            if _kit_candidate_is_valid(match):
+                return os.path.abspath(match)
 
     return None
 
@@ -255,7 +301,7 @@ def _kit_pdf_cache_ready() -> bool:
     if not KIT_PDF_CACHE_ENABLED or not KIT_PDF_CACHE_PATH:
         return False
     try:
-        return os.path.exists(KIT_PDF_CACHE_PATH) and os.path.getsize(KIT_PDF_CACHE_PATH) > 0
+        return _is_valid_kit_size(KIT_PDF_CACHE_PATH)
     except OSError:
         return False
 
@@ -266,18 +312,10 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
         return local_path
 
     if _kit_pdf_cache_ready() and not force_refresh:
-        # Validation de la taille du fichier (le bon fichier fait ~115 Mo)
-        # Si on a un fichier < 50 Mo, c'est probablement une erreur de cache
+        if _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+            return KIT_PDF_CACHE_PATH
         try:
-            size = os.path.getsize(KIT_PDF_CACHE_PATH)
-            if size < 50 * 1024 * 1024:  # 50 MB
-                logger.warning(
-                    "Fichier kit en cache trop petit (%s bytes), suppression pour re-téléchargement.",
-                    size
-                )
-                os.remove(KIT_PDF_CACHE_PATH)
-            else:
-                return KIT_PDF_CACHE_PATH
+            os.remove(KIT_PDF_CACHE_PATH)
         except OSError:
             pass
 
@@ -293,7 +331,17 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
             )
         else:
             logger.info("Kit renforcement déjà présent dans %s", KIT_PDF_CACHE_PATH)
-        return KIT_PDF_CACHE_PATH
+        if _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+            return KIT_PDF_CACHE_PATH
+        logger.warning(
+            "Le PDF local %s est trop léger (< %s Mo), suppression et téléchargement depuis la release",
+            KIT_PDF_CACHE_PATH,
+            KIT_PDF_MIN_SIZE_MB,
+        )
+        try:
+            os.remove(KIT_PDF_CACHE_PATH)
+        except OSError:
+            pass
 
     if not KIT_PDF_URL_CANDIDATES:
         return KIT_PDF_CACHE_PATH if _kit_pdf_cache_ready() else None
@@ -305,13 +353,19 @@ def _ensure_kit_pdf_cached(force_refresh: bool = False) -> str | None:
         tmp_path: str | None = None
         try:
             logger.info("Téléchargement du kit de renforcement via %s", candidate)
-            tmp_path = _download_to_temp(candidate, timeout=KIT_PDF_TIMEOUT)
+            # Utiliser le token GitHub si l'URL est sur github.com
+            token = DB_GH_TOKEN if "github.com" in candidate else None
+            tmp_path = _download_to_temp(candidate, token=token, timeout=KIT_PDF_TIMEOUT)
             with open(tmp_path, "rb") as handle:
                 header = handle.read(5)
                 if not header.startswith(b"%PDF-"):
                     raise ValueError("La ressource récupérée n'est pas un PDF valide")
             os.replace(tmp_path, KIT_PDF_CACHE_PATH)
             tmp_path = None
+            if not _is_valid_kit_size(KIT_PDF_CACHE_PATH):
+                raise ValueError(
+                    f"Document téléchargé trop léger (< {KIT_PDF_MIN_SIZE_MB} Mo)"
+                )
             logger.info("Kit renforcement mis en cache (%s)", KIT_PDF_CACHE_PATH)
             return KIT_PDF_CACHE_PATH
         except Exception as exc:  # pragma: no cover - dépend du réseau
@@ -1100,6 +1154,23 @@ def guide_exploitation(request: Request):
             "kit_pdf_remote_only": kit_status["remote_only"],
             "kit_filename": KIT_PDF_FILENAME or "Kit-renforcement.pdf",
             "kit_pdf_endpoint": kit_pdf_endpoint,
+            "kit_pdf_expected_size_mb": KIT_PDF_EXPECTED_SIZE_MB,
+        },
+    )
+
+
+# =========================================================
+# Routes pour la Cartographie d'Entreprise
+# =========================================================
+
+@app.get("/cartographie-entreprise", response_class=HTMLResponse)
+def cartographie_entreprise(request: Request, user: User | None = Depends(get_current_user_or_none)):
+    """Outil de cartographie d'entreprise par services"""
+    return templates.TemplateResponse(
+        "cartographie_entreprise.html",
+        {
+            "request": request,
+            "user": user,
         },
     )
 
@@ -1183,6 +1254,354 @@ def outils_cgt_local(request: Request, refresh: bool = False):
 
 
 _KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+@app.post("/api/cartographie")
+async def create_cartographie(
+    request: Request,
+    nom_entreprise: str | None = Form(None),
+    siret: str | None = Form(None),
+    services: str | None = Form(None),  # JSON string
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Créer une nouvelle cartographie d'entreprise"""
+    import json
+
+    try:
+        payload: dict[str, Any] = {}
+        content_type = (request.headers.get("content-type") or "").lower()
+
+        if "application/json" in content_type:
+            payload = await request.json()
+            nom_entreprise = payload.get("nom_entreprise", nom_entreprise)
+            siret = payload.get("siret", siret)
+            services = payload.get("services", services)
+
+        if not nom_entreprise or not str(nom_entreprise).strip():
+            raise HTTPException(status_code=400, detail="Le nom de l'entreprise est requis")
+
+        raw_services = services
+        if raw_services is None:
+            raw_services = payload.get("services") if payload else None
+
+        if raw_services is None:
+            raise HTTPException(status_code=400, detail="Aucun service fourni")
+
+        if isinstance(raw_services, str):
+            services_data = json.loads(raw_services)
+        else:
+            services_data = raw_services
+
+        if not isinstance(services_data, list) or not services_data:
+            raise HTTPException(status_code=400, detail="Format de services invalide")
+
+        # Calculer les totaux
+        total_salaries = 0
+        total_syndiques = 0
+
+        for service in services_data:
+            salaries = max(int(service.get('salaries', 0) or 0), 0)
+            syndiques = max(min(int(service.get('syndiques', 0) or 0), salaries), 0)
+            total_salaries += salaries
+            total_syndiques += syndiques
+
+        taux = (total_syndiques / total_salaries * 100) if total_salaries > 0 else 0
+
+        # Créer la cartographie
+        carto = Cartographie(
+            siret=siret if siret and str(siret).strip() else None,
+            nom_entreprise=str(nom_entreprise).strip(),
+            created_by=user.id if user else None,
+            total_salaries=total_salaries,
+            total_syndiques=total_syndiques,
+            taux_syndicalisation=taux,
+        )
+        db.add(carto)
+        db.flush()  # Pour obtenir l'ID
+
+        # Créer les services
+        for idx, service_data in enumerate(services_data):
+            salaries = max(int(service_data.get('salaries', 0) or 0), 0)
+            syndiques = max(min(int(service_data.get('syndiques', 0) or 0), salaries), 0)
+            service_taux = (syndiques / salaries * 100) if salaries > 0 else 0
+
+            service = ServiceCartographie(
+                cartographie_id=carto.id,
+                nom_service=service_data.get('nom', ''),
+                nombre_salaries=salaries,
+                nombre_syndiques=syndiques,
+                taux_syndicalisation=service_taux,
+                ordre=idx,
+            )
+            db.add(service)
+
+        db.commit()
+
+        return {"success": True, "id": carto.id}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de la création de la cartographie: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cartographies")
+def list_cartographies(
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Lister les cartographies de l'utilisateur"""
+    query = db.query(Cartographie).filter(Cartographie.is_archived == False)
+
+    if user:
+        query = query.filter(Cartographie.created_by == user.id)
+
+    cartographies = query.order_by(Cartographie.created_at.desc()).limit(50).all()
+
+    return {
+        "cartographies": [
+            {
+                "id": c.id,
+                "nom_entreprise": c.nom_entreprise,
+                "siret": c.siret,
+                "total_salaries": c.total_salaries,
+                "total_syndiques": c.total_syndiques,
+                "taux_syndicalisation": c.taux_syndicalisation,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in cartographies
+        ]
+    }
+
+
+@app.get("/api/cartographie/fd-inscrits")
+def cartographie_fd_inscrits(db: Session = Depends(get_session)):
+    """Répartition nationale des inscrit·es par fédération (FD)."""
+
+    fd_rows = (
+        db.query(
+            func.coalesce(SiretSummary.fd_c4, SiretSummary.fd_c3, "").label("fd"),
+            func.coalesce(SiretSummary.dep, "").label("dep"),
+            func.sum(
+                func.coalesce(
+                    SiretSummary.inscrits_c4,
+                    SiretSummary.inscrits_c3,
+                    SiretSummary.effectif_siret,
+                    0,
+                )
+            ).label("total_inscrits"),
+            func.count(SiretSummary.siret).label("sirets"),
+        )
+        .group_by("fd", "dep")
+        .all()
+    )
+
+    payload: dict[str, dict[str, Any]] = {}
+
+    for row in fd_rows:
+        fd_label = (row.fd or "").strip()
+        if not fd_label:
+            fd_label = "FD non renseignée"
+
+        total_inscrits = int(row.total_inscrits or 0)
+        if total_inscrits <= 0:
+            continue
+
+        dep_code = (row.dep or "00").strip() or "00"
+        if dep_code.isdigit() and len(dep_code) == 1:
+            dep_code = dep_code.zfill(2)
+
+        entry = payload.setdefault(
+            fd_label,
+            {
+                "fd": fd_label,
+                "total_inscrits": 0,
+                "sirets": 0,
+                "departements": [],
+            },
+        )
+        entry["total_inscrits"] += total_inscrits
+        entry["sirets"] += int(row.sirets or 0)
+        entry["departements"].append(
+            {
+                "dep": dep_code,
+                "total_inscrits": total_inscrits,
+                "sirets": int(row.sirets or 0),
+            }
+        )
+
+    fd_stats = list(payload.values())
+    fd_stats.sort(key=lambda item: item["total_inscrits"], reverse=True)
+
+    for entry in fd_stats:
+        entry["departements"].sort(
+            key=lambda item: (-item["total_inscrits"], item["dep"])
+        )
+
+    total_inscrits = sum(entry["total_inscrits"] for entry in fd_stats)
+    total_sirets = sum(entry["sirets"] for entry in fd_stats)
+
+    return {
+        "fd_stats": fd_stats,
+        "totals": {
+            "total_inscrits": total_inscrits,
+            "total_sirets": total_sirets,
+            "fd_count": len(fd_stats),
+        },
+        "last_generated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+# =========================================================
+# Routes pour le Rétro-planning
+# =========================================================
+
+@app.get("/retroplanning", response_class=HTMLResponse)
+def retroplanning_page(request: Request, user: User | None = Depends(get_current_user_or_none)):
+    """Outil de rétro-planning pour les campagnes syndicales"""
+    return templates.TemplateResponse(
+        "retroplanning.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@app.post("/api/retroplanning")
+async def create_retroplanning(
+    request: Request,
+    titre: str | None = Form(None),
+    date_evenement: str | None = Form(None),
+    type_campagne: str | None = Form(None),
+    entreprise: str | None = Form(None),
+    siret: str | None = Form(None),
+    description: str | None = Form(None),
+    phases: str | None = Form(None),  # JSON string
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Créer un nouveau rétro-planning"""
+    import json
+
+    try:
+        payload: dict[str, Any] = {}
+        content_type = (request.headers.get("content-type") or "").lower()
+
+        if "application/json" in content_type:
+            payload = await request.json()
+            titre = payload.get("titre", titre)
+            date_evenement = payload.get("date_evenement", date_evenement)
+            type_campagne = payload.get("type_campagne", type_campagne)
+            entreprise = payload.get("entreprise", entreprise)
+            siret = payload.get("siret", siret)
+            description = payload.get("description", description)
+            phases = payload.get("phases", phases)
+
+        if not titre or not str(titre).strip():
+            raise HTTPException(status_code=400, detail="Le titre est requis")
+
+        if not date_evenement:
+            raise HTTPException(status_code=400, detail="La date de l'événement est requise")
+
+        if not type_campagne:
+            raise HTTPException(status_code=400, detail="Le type de campagne est requis")
+
+        raw_phases = phases
+        if raw_phases is None:
+            raw_phases = payload.get("phases") if payload else None
+
+        if raw_phases is None:
+            raise HTTPException(status_code=400, detail="Aucune phase fournie")
+
+        if isinstance(raw_phases, str):
+            phases_data = json.loads(raw_phases)
+        else:
+            phases_data = raw_phases
+
+        if not isinstance(phases_data, list) or not phases_data:
+            raise HTTPException(status_code=400, detail="Format de phases invalide")
+
+        # Parser la date
+        from datetime import datetime
+        date_j = datetime.strptime(str(date_evenement), '%Y-%m-%d').date()
+
+        # Créer le rétro-planning
+        retro = Retroplanning(
+            titre=str(titre).strip(),
+            date_evenement=date_j,
+            type_campagne=str(type_campagne).strip(),
+            entreprise=entreprise if entreprise and entreprise.strip() else None,
+            siret=siret if siret and siret.strip() else None,
+            description=description if description and description.strip() else None,
+            created_by=user.id if user else None,
+        )
+        db.add(retro)
+        db.flush()  # Pour obtenir l'ID
+
+        # Créer les phases
+        for idx, phase_data in enumerate(phases_data):
+            # Calculer les dates
+            date_debut_str = phase_data.get('dateDebut')
+            date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date() if date_debut_str else None
+
+            duree = phase_data.get('duree', 0)
+            date_fin = None
+            if date_debut:
+                from datetime import timedelta
+                date_fin = date_debut + timedelta(days=duree)
+
+            phase = PhaseRetroplanning(
+                retroplanning_id=retro.id,
+                titre=phase_data.get('titre', ''),
+                description=phase_data.get('description', ''),
+                jours_avant_j=phase_data.get('joursAvantJ', 0),
+                date_debut=date_debut,
+                date_fin=date_fin,
+                statut=phase_data.get('statut', 'a_venir'),
+                ordre=idx,
+            )
+            db.add(phase)
+
+        db.commit()
+
+        return {"success": True, "id": retro.id}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors de la création du rétro-planning: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/retroplannings")
+def list_retroplannings(
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session),
+):
+    """Lister les rétro-plannings de l'utilisateur"""
+    query = db.query(Retroplanning).filter(Retroplanning.is_archived == False)
+
+    if user:
+        query = query.filter(Retroplanning.created_by == user.id)
+
+    retroplannings = query.order_by(Retroplanning.date_evenement.desc()).limit(50).all()
+
+    return {
+        "retroplannings": [
+            {
+                "id": r.id,
+                "titre": r.titre,
+                "date_evenement": r.date_evenement.isoformat() if r.date_evenement else None,
+                "type_campagne": r.type_campagne,
+                "entreprise": r.entreprise,
+                "siret": r.siret,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in retroplannings
+        ]
+    }
+
+
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n'a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu'il s'active.</p></div></body></html>"""
 
 
 @app.get("/kit-renforcement/document", name="kit_pdf_document")
@@ -1217,7 +1636,61 @@ def kit_pdf_document(download: bool = False):
     response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
     response.headers["Cache-Control"] = "public, max-age=86400"
     if content_length is not None:
+        if content_length < KIT_PDF_MIN_SIZE_BYTES:
+            raise HTTPException(
+                status_code=502,
+                detail="Document distant trop léger pour la diffusion",
+            )
         response.headers["Content-Length"] = str(content_length)
+
+    return response
+
+
+# Mapping des numéros de documents vers les fichiers PDF individuels
+_KIT_INDIVIDUAL_DOCS = {
+    "2": "09_202506_Kit_Renforcement-Doc_2.pdf",
+    "6": "21_202506_Kit_Renforcement-Doc_6.pdf",
+    "7B": "27_202506_Kit_Renforcement-Doc_7B.pdf",
+    "8B": "32_202506_Kit_Renforcement-Doc_8B.pdf",
+    "8C": "31_202506_Kit_Renforcement-Doc_8C.pdf",
+}
+
+
+@app.get("/kit-renforcement/doc/{doc_id}", name="kit_individual_doc")
+def kit_individual_doc(doc_id: str, download: bool = False):
+    """
+    Diffuse un document individuel du kit de renforcement.
+    doc_id peut être: 2, 6, 7B, 8B, 8C
+    """
+    # Normaliser l'ID du document (majuscules)
+    doc_id_normalized = doc_id.upper()
+
+    # Vérifier si le document existe
+    if doc_id_normalized not in _KIT_INDIVIDUAL_DOCS:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} non trouvé")
+
+    # Récupérer le nom du fichier
+    filename = _KIT_INDIVIDUAL_DOCS[doc_id_normalized]
+    file_path = os.path.join(_DEFAULT_DATA_DIR, filename)
+
+    # Vérifier si le fichier existe
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fichier {filename} non trouvé sur le serveur"
+        )
+
+    # Définir le type de disposition (inline pour afficher, attachment pour télécharger)
+    disposition = "attachment" if download else "inline"
+
+    # Créer la réponse avec le fichier PDF
+    response = FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=filename,
+    )
+    response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    response.headers["Cache-Control"] = "public, max-age=86400"
 
     return response
 
@@ -2172,6 +2645,19 @@ def invitations(
         if siret_norm and row[1]:
             pv_c5_dates[siret_norm] = row[1]
 
+    # Dictionnaire SIRET -> effectif (depuis les PV)
+    # Priorité : effectif_siret > inscrits
+    effectifs_pv = {}
+    for row in db.query(PVEvent.siret, PVEvent.effectif_siret, PVEvent.inscrits).all():
+        siret_norm = normalize_siret(row[0])
+        if siret_norm:
+            # Utiliser effectif_siret en priorité, sinon inscrits
+            effectif = row[1] if row[1] and row[1] > 0 else (row[2] if row[2] and row[2] > 0 else None)
+            if effectif:
+                # Garder le plus grand effectif si plusieurs PV pour le même SIRET
+                if siret_norm not in effectifs_pv or effectif > effectifs_pv[siret_norm]:
+                    effectifs_pv[siret_norm] = int(effectif)
+
     # DEBUG: Effectifs côté invitations PAP
     pap_sirets = {
         normalized
@@ -2374,6 +2860,14 @@ def invitations(
             "taille",
         )
 
+        # Enrichissement de l'effectif
+        # Priorité : effectif_connu > effectif depuis PV
+        inv.display_effectif = None
+        if inv.effectif_connu and inv.effectif_connu > 0:
+            inv.display_effectif = inv.effectif_connu
+        elif normalized_siret and normalized_siret in effectifs_pv:
+            inv.display_effectif = effectifs_pv[normalized_siret]
+
         # Calcul du statut basé sur l'existence d'un PV C5, PV précédent et date présumée
         inv.statut = "en_attente"
         inv.statut_badge = "yellow"
@@ -2476,6 +2970,9 @@ def invitations(
     # Pagination
     total_invitations = len(invitations)
 
+    # Calculer le nombre de salariés connus (invitations avec effectif disponible)
+    employees_count = sum(1 for inv in invitations if hasattr(inv, 'display_effectif') and inv.display_effectif and inv.display_effectif > 0)
+
     # Valider et limiter per_page
     per_page = max(10, min(per_page, 500))  # Entre 10 et 500 lignes
     page = max(1, page)  # Au moins page 1
@@ -2510,6 +3007,7 @@ def invitations(
             "all_fds": all_fds,
             "all_depts": all_depts,
             "total_invitations": total_invitations,
+            "employees_count": employees_count,
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
