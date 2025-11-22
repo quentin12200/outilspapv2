@@ -1464,20 +1464,33 @@ def list_cartographies(
 
     cartographies = query.order_by(Cartographie.created_at.desc()).limit(50).all()
 
-    return {
-        "cartographies": [
-            {
-                "id": c.id,
-                "nom_entreprise": c.nom_entreprise,
-                "siret": c.siret,
-                "total_salaries": c.total_salaries,
-                "total_syndiques": c.total_syndiques,
-                "taux_syndicalisation": c.taux_syndicalisation,
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-            }
-            for c in cartographies
-        ]
-    }
+    result = []
+    for c in cartographies:
+        # Charger les services associés
+        services = db.query(ServiceCartographie).filter(
+            ServiceCartographie.cartographie_id == c.id
+        ).order_by(ServiceCartographie.ordre).all()
+
+        result.append({
+            "id": c.id,
+            "nom_entreprise": c.nom_entreprise,
+            "siret": c.siret,
+            "total_salaries": c.total_salaries,
+            "total_syndiques": c.total_syndiques,
+            "taux_syndicalisation": c.taux_syndicalisation,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "services_count": len(services),
+            "services": [
+                {
+                    "nom": s.nom_service,
+                    "salaries": s.nombre_salaries,
+                    "syndiques": s.nombre_syndiques,
+                }
+                for s in services
+            ]
+        })
+
+    return {"cartographies": result}
 
 
 @app.get("/api/cartographie/fd-inscrits")
