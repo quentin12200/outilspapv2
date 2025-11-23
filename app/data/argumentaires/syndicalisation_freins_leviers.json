@@ -1,0 +1,250 @@
+{
+  "titre": "Freins à la syndicalisation et moyens pour les lever",
+  "description": "Document stratégique CGT sur les obstacles à la syndicalisation et les solutions pour les surmonter",
+  "version": "1.0",
+  "date": "2025-01-23",
+  "sections": [
+    {
+      "id": "freins",
+      "titre": "Les freins à la syndicalisation",
+      "description": "Les obstacles se répartissent principalement en deux catégories : ceux liés au contexte (la pression et la répression) et ceux liés aux réalités internes et à la qualité de l'organisation.",
+      "sous_sections": [
+        {
+          "id": "freins_exogenes",
+          "titre": "Les freins liés au contexte (Exogènes)",
+          "description": "Ces obstacles sont souvent liés à la pression patronale, aux lois et à l'évolution du salariat",
+          "points": [
+            {
+              "titre": "Répression patronale et peur des représailles",
+              "contenu": "Le simple fait de se syndiquer est trop souvent source de stigmatisation et de discrimination. La CGT est confrontée aux répressions patronales qui doivent être dénoncées, condamnées et combattues. La peur des représailles de l'employeur est une raison majeure de non-syndicalisation. Les atteintes patronales aux libertés syndicales doivent être systématiquement poursuivies et sanctionnées pénalement.",
+              "mots_cles": ["répression", "peur", "représailles", "discrimination", "stigmatisation"]
+            },
+            {
+              "titre": "Affaiblissement des droits et moyens syndicaux",
+              "contenu": "Des lois successives (comme les ordonnances Macron et lois El Khomri) ont fragilisé et remis en cause la négociation collective, et ont mis à mal les libertés, droits et moyens syndicaux. Les droits existants sont souvent insuffisants, tant dans le secteur privé que public.",
+              "mots_cles": ["droits syndicaux", "ordonnances Macron", "lois El Khomri", "négociation collective"]
+            },
+            {
+              "titre": "L'institutionnalisation et les formations communes",
+              "contenu": "La tendance à l'institutionnalisation de l'activité syndicale est vue comme un danger car elle éloigne les élus et mandatés des travailleur·ses. Le développement des formations communes employeurs/salariés (IRP/employeurs) peut conduire au contournement des formations syndicales CGT.",
+              "mots_cles": ["institutionnalisation", "formations communes", "IRP", "éloignement"]
+            },
+            {
+              "titre": "Difficultés d'atteindre certaines catégories de salarié·es",
+              "contenu": "La syndicalisation de masse continue d'être difficile dans de nombreux secteurs",
+              "categories_ciblees": [
+                "Les femmes (premières concernées)",
+                "Les jeunes",
+                "Les salariés des petites et moyennes entreprises (PME) et très petites entreprises (TPE)",
+                "Les intérimaires et saisonniers et autres emplois précaires",
+                "Les privés d'emploi et les retraités",
+                "Les Ingénieurs, Cadres, Techniciens et Agents de Maîtrise (ICTAM)"
+              ],
+              "mots_cles": ["femmes", "jeunes", "PME", "TPE", "précaires", "intérimaires", "saisonniers", "ICTAM", "cadres"]
+            },
+            {
+              "titre": "Facteurs idéologiques et structurels",
+              "contenu": "Le poids des médias et du discours dominant, ainsi que les divisions syndicales et la logique de concurrence, constituent des freins.",
+              "mots_cles": ["médias", "discours dominant", "divisions syndicales", "concurrence"]
+            }
+          ]
+        },
+        {
+          "id": "freins_internes",
+          "titre": "Les freins liés à l'organisation (Internes - Qualité de Vie Syndicale)",
+          "description": "Les difficultés sont souvent attribuées à la nécessité d'améliorer les pratiques et le fonctionnement interne",
+          "points": [
+            {
+              "titre": "Perte d'adhérent·es (Le « panier percé »)",
+              "contenu": "La CGT enregistre des pertes régulières de syndiqué·es. Notamment, l'organisation perd deux syndiqués sur trois au moment du départ à la retraite si la continuité syndicale n'est pas assurée. Les adhésions sont parfois volatiles (34 000 adhésions volatiles mentionnées), et les pertes surviennent aussi lors du changement d'entreprise.",
+              "chiffres": {
+                "perte_retraite": "2/3",
+                "adhesions_volatiles": 34000
+              },
+              "mots_cles": ["perte", "adhérents", "panier percé", "retraite", "volatiles"]
+            },
+            {
+              "titre": "Qualité de Vie Syndicale (QVS) négligée",
+              "contenu": "La QVS est souvent négligée, ce qui entraîne des dysfonctionnements internes et des pertes d'adhérent·es. Beaucoup de syndicats ne fonctionnent pas correctement, sont repliés sur eux-mêmes ou travaillent en vase clos.",
+              "mots_cles": ["QVS", "qualité de vie syndicale", "dysfonctionnement", "vase clos"]
+            },
+            {
+              "titre": "Manque de démocratie et de rigueur",
+              "contenu": "L'absence de démocratie dans l'activité, le non-respect des décisions ou le non-respect des règles de vie et des statuts (y compris le suivi des cotisations) engendrent des conflits et freinent l'engagement.",
+              "mots_cles": ["démocratie", "rigueur", "statuts", "cotisations", "conflits"]
+            },
+            {
+              "titre": "Faible implication des syndiqués et domination des élus",
+              "contenu": "L'activité des syndicats se réduit trop souvent au rôle des élus dans l'institutionnel. Les syndiqué·es ne sont pas toujours réunis ou le sont seulement pour faire valider des décisions. Il y a un manque de culture d'organisation (\"culture d'orga\").",
+              "mots_cles": ["implication", "élus", "culture d'orga", "participation"]
+            },
+            {
+              "titre": "Isolement des syndiqués",
+              "contenu": "Le nombre de syndiqué·es isolé·es (qui n'ont pas de syndicat de proximité) progresse, ce qui fragilise la construction du rapport de force et pose un problème démocratique.",
+              "mots_cles": ["isolement", "syndiqués isolés", "rapport de force"]
+            },
+            {
+              "titre": "Formation et information insuffisantes",
+              "contenu": "Seulement 10 % des nouveaux syndiqués bénéficient actuellement de la formation syndicale. Il y a un problème de transmission des savoirs et savoir-faire.",
+              "chiffres": {
+                "formation_nouveaux": "10%"
+              },
+              "mots_cles": ["formation", "information", "transmission", "savoirs"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moyens",
+      "titre": "Les moyens pour lever les freins",
+      "description": "La stratégie pour surmonter ces difficultés repose sur la reconquête de la démarche syndicale, liant syndicalisation, élections et luttes.",
+      "sous_sections": [
+        {
+          "id": "renforcement_structuration",
+          "titre": "Renforcement et structuration (Stratégie de Syndicalisation)",
+          "description": "La syndicalisation doit être une priorité quotidienne. La stratégie s'articule autour de trois axes majeurs",
+          "points": [
+            {
+              "titre": "Mettre en œuvre un plan de syndicalisation ciblé",
+              "contenu": "Il faut un plan de syndicalisation s'appuyant sur la connaissance fine de l'environnement (établissement, entreprise, site, etc.). L'objectif principal est de réduire l'écart entre l'audience électorale et le nombre de syndiqués, car chaque électeur CGT est un adhérent potentiel.",
+              "mots_cles": ["plan de syndicalisation", "audience électorale", "électeur", "adhérent potentiel"]
+            },
+            {
+              "titre": "Renforcer la CGT où elle est présente et s'implanter où elle est absente",
+              "contenu": "Ceci passe par la construction de plans de travail, notamment en ciblant des entreprises sans syndicat ou en déficit d'adhérents.",
+              "mots_cles": ["renforcement", "implantation", "plans de travail", "entreprises"]
+            },
+            {
+              "titre": "Adapter la structuration aux réalités du salariat",
+              "sous_points": [
+                {
+                  "categorie": "Précarité et TPE",
+                  "action": "Impulser la création et la coordination de syndicats de site ou de zone pour regrouper les syndiqué·es isolé·es et les salarié·es précaires des TPE/PME."
+                },
+                {
+                  "categorie": "Sous-traitance",
+                  "action": "Mener une nouvelle étape de syndicalisation des salariés des entreprises sous-traitantes et coordonner systématiquement l'activité avec les syndicats des entreprises donneuses d'ordres."
+                },
+                {
+                  "categorie": "ICTAM",
+                  "action": "Identifier, organiser et renforcer une activité spécifique pour les cadres et les professions techniciennes."
+                },
+                {
+                  "categorie": "Privés d'emploi et Retraités",
+                  "action": "Développer la syndicalisation des privé·es d'emploi à partir de leurs lieux de vie. Généraliser l'expérience de collectifs de retraités dans les cités et localités."
+                }
+              ],
+              "mots_cles": ["structuration", "TPE", "sous-traitance", "ICTAM", "retraités", "privés d'emploi"]
+            },
+            {
+              "titre": "Assurer la continuité syndicale",
+              "contenu": "Prendre des dispositions concrètes pour la continuité syndicale actif/retraité afin de ne plus perdre un grand nombre de syndiqués au moment du départ.",
+              "mots_cles": ["continuité syndicale", "actif", "retraité", "départ"]
+            }
+          ]
+        },
+        {
+          "id": "vie_syndicale_democratie",
+          "titre": "Amélioration de la Vie Syndicale et Démocratie",
+          "description": "Le défi est de retrouver une culture d'organisation pour développer un syndicalisme de classe et de masse.",
+          "points": [
+            {
+              "titre": "Faire vivre la démocratie syndicale",
+              "sous_points": [
+                {
+                  "action": "Organisation des congrès",
+                  "detail": "Organiser des congrès de syndicats régulièrement et des assemblées d'adhérents au moins une fois par an. Le congrès est le lieu essentiel pour débattre du fonctionnement et des objectifs, et pour briser l'isolement des syndicats."
+                },
+                {
+                  "action": "Rigueur interne",
+                  "detail": "Rétablir une discipline démocratique et l'application des statuts et règles de vie. Cela inclut un suivi rigoureux des cotisations et des reversements."
+                },
+                {
+                  "action": "Implication des syndiqués",
+                  "detail": "Placer le syndiqué au centre de la vie syndicale en faisant de lui un auteur, décideur et acteur des orientations et de l'action. Le syndicat doit disposer d'un·e responsable à la vie syndicale."
+                }
+              ],
+              "mots_cles": ["démocratie", "congrès", "assemblées", "rigueur", "implication"]
+            },
+            {
+              "titre": "Améliorer l'accueil et l'information",
+              "contenu": "Assurer l'accueil des nouveaux adhérents par la remise systématique d'un livret d'accueil et une information régulière via la presse syndicale et les outils de communication.",
+              "mots_cles": ["accueil", "livret d'accueil", "information", "presse syndicale"]
+            },
+            {
+              "titre": "Coopération inter-structures",
+              "contenu": "Renforcer les liens et la complémentarité entre les syndicats, les Unions Locales (UL), les Unions Départementales (UD) et les Fédérations. Les UL ont un rôle à jouer pour l'accueil et l'organisation des syndiqué·es isolé·es.",
+              "mots_cles": ["coopération", "UL", "UD", "fédérations", "complémentarité"]
+            }
+          ]
+        },
+        {
+          "id": "formation_droits",
+          "titre": "Formation et conquête de droits (Les Moyens d'action)",
+          "points": [
+            {
+              "titre": "Déployer la formation syndicale",
+              "contenu": "La formation est un outil indispensable pour permettre aux syndiqués d'être pleinement acteurs et décideurs.",
+              "sous_points": [
+                {
+                  "action": "Accès universel",
+                  "detail": "Créer les conditions pour que tout nouvel adhérent acquière les connaissances nécessaires dès son adhésion (via la formation « S'impliquer dans la CGT » ou ex-FANS). Seul 10% des nouveaux syndiqués en bénéficient actuellement, d'où la nécessité de la déployer largement.",
+                  "chiffres": {
+                    "formation_actuelle": "10%"
+                  }
+                },
+                {
+                  "action": "Parcours complet",
+                  "detail": "Assurer l'accès à une formation permanente tout au long de la vie syndicale. Toute prise de responsabilité doit être accompagnée d'une formation correspondante."
+                }
+              ],
+              "mots_cles": ["formation", "S'impliquer dans la CGT", "FANS", "parcours formation"]
+            },
+            {
+              "titre": "Conquérir de nouveaux droits syndicaux",
+              "sous_points": [
+                {
+                  "categorie": "Revendications légales",
+                  "actions": [
+                    "Amélioration de l'accès à la formation : Élargir le nombre de bénéficiaires du congé formation syndicale. Obtenir le maintien intégral de la rémunération et l'obligation pour les employeurs de remplacer les salariés absents en formation syndicale.",
+                    "Reconnaissance du militantisme : Revendiquer la reconnaissance des savoirs et savoir-faire acquis par les militants, notamment par la Validation des Acquis de l'Expérience Syndicale (VAES)."
+                  ]
+                },
+                {
+                  "categorie": "Moyens de communication et action",
+                  "actions": [
+                    "Conquérir les moyens nécessaires pour faire parvenir les informations syndicales aux salariés isolés ou éloignés.",
+                    "Revendiquer la libre circulation des militants syndicaux extérieurs dans les entreprises."
+                  ]
+                }
+              ],
+              "mots_cles": ["droits syndicaux", "revendications", "congé formation", "VAES", "communication"]
+            },
+            {
+              "titre": "Sécuriser les moyens financiers",
+              "contenu": "La cotisation syndicale est le fondement de l'indépendance. Il faut généraliser la pratique du prélèvement automatique de la cotisation. Lutter contre l'idée que les moyens syndicaux puissent être captés pour le seul fonctionnement de la structure qui les reçoit, car ils doivent irriguer l'ensemble de l'organisation.",
+              "mots_cles": ["cotisation", "indépendance", "prélèvement automatique", "moyens financiers"]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "conclusion": "Lever les freins à la syndicalisation revient à transformer l'organisation syndicale en une structure robuste, démocratique et omniprésente. C'est comme s'assurer que les murs porteurs d'un bâtiment (la vie syndicale) sont en bon état pour résister aux tempêtes (la répression et les lois défavorables), tout en offrant un toit accueillant et bien isolé (la formation et la solidarité) à tous les occupants, qu'ils soient anciens ou nouveaux, pour qu'ils se sentent auteurs de leur propre maison.",
+  "mots_cles_globaux": [
+    "syndicalisation",
+    "CGT",
+    "freins",
+    "leviers",
+    "répression",
+    "QVS",
+    "formation",
+    "démocratie",
+    "structuration",
+    "ICTAM",
+    "TPE",
+    "retraités",
+    "continuité syndicale"
+  ]
+}

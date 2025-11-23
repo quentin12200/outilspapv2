@@ -54,6 +54,8 @@ app/static/last_ciblage.csv
 *_old_backup.*
 app/data/*
 !app/data/.gitkeep
+!app/data/argumentaires/
+!app/data/argumentaires/*.json
 
 # outilsCGT mirror
 app/static/outils-cgt

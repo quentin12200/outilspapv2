@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
@@ -67,11 +67,6 @@ from .models import User, PasswordResetToken, DataExportRequest
 import uuid
 from .services.export_service import generate_calendrier_excel
 from .services.email_service import get_resend_service
-from .services.outils_cgt_repo import (
-    DEST_DIR as OUTILS_CGT_DIR,
-    outils_cgt_readme_excerpt,
-    sync_outils_cgt_repo,
-)
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -1136,8 +1131,14 @@ def presentation(request: Request, db: Session = Depends(get_session)):
 
 
 @app.get("/guide-exploitation", response_class=HTMLResponse)
-def guide_exploitation(request: Request):
+def guide_exploitation(request: Request, db: Session = Depends(get_session)):
     """Page de synthèse interactive du guide d'exploitation IA."""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_guide_view
+        track_guide_view(db, user)
 
     if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM:
         _ensure_kit_pdf_cached()
@@ -1159,13 +1160,119 @@ def guide_exploitation(request: Request):
     )
 
 
+@app.get("/kit-election", response_class=HTMLResponse)
+def kit_election_page(request: Request):
+    """Page du kit élection avec tous les documents disponibles"""
+    import os
+    from pathlib import Path
+
+    data_dir = Path("app/data")
+
+    # Scanner tous les dossiers et fichiers
+    kit_structure = {}
+    special_files = []
+
+    # Fichiers spéciaux à la racine
+    for item in data_dir.iterdir():
+        if item.is_file() and item.suffix.lower() in ['.pdf', '.docx', '.pptx']:
+            special_files.append({
+                "name": item.name,
+                "path": str(item.relative_to("app")),
+                "size": item.stat().st_size,
+                "type": item.suffix[1:].upper()
+            })
+
+    # Dossiers numérotés
+    for folder in sorted(data_dir.iterdir()):
+        if folder.is_dir():
+            folder_name = folder.name
+            files_list = []
+
+            # Scanner récursivement
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    file_path = Path(root) / file
+                    if file_path.suffix.lower() in ['.pdf', '.docx', '.pptx', '.txt']:
+                        rel_path = file_path.relative_to(folder)
+                        files_list.append({
+                            "name": file,
+                            "path": str(file_path.relative_to("app")),
+                            "rel_path": str(rel_path),
+                            "size": file_path.stat().st_size,
+                            "type": file_path.suffix[1:].upper()
+                        })
+
+            if files_list:
+                kit_structure[folder_name] = {
+                    "name": folder_name,
+                    "files": sorted(files_list, key=lambda x: x["name"])
+                }
+
+    return templates.TemplateResponse(
+        "kit_election.html",
+        {
+            "request": request,
+            "kit_structure": dict(sorted(kit_structure.items())),
+            "special_files": sorted(special_files, key=lambda x: x["name"]),
+        },
+    )
+
+
+@app.get("/kit-election/file/{file_path:path}")
+async def kit_election_file(file_path: str):
+    """Servir un fichier du kit élection"""
+    from pathlib import Path
+    import mimetypes
+    from urllib.parse import unquote
+
+    # Décoder l'URL (espaces et caractères spéciaux)
+    file_path = unquote(file_path)
+
+    # Sécurité : vérifier que le chemin est dans app/data
+    full_path = Path("app") / file_path
+
+    # Normaliser le chemin et vérifier qu'il est dans app/data
+    try:
+        full_path = full_path.resolve()
+        base_path = Path("app/data").resolve()
+
+        if not str(full_path).startswith(str(base_path)):
+            raise HTTPException(status_code=403, detail="Accès refusé")
+
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail="Fichier non trouvé")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Fichier non trouvé")
+
+    # Déterminer le type MIME
+    mime_type, _ = mimetypes.guess_type(str(full_path))
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+
+    return FileResponse(
+        path=str(full_path),
+        media_type=mime_type,
+        filename=full_path.name
+    )
+
+
 # =========================================================
 # Routes pour la Cartographie d'Entreprise
 # =========================================================
 
 @app.get("/cartographie-entreprise", response_class=HTMLResponse)
-def cartographie_entreprise(request: Request, user: User | None = Depends(get_current_user_or_none)):
+def cartographie_entreprise(
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
     """Outil de cartographie d'entreprise par services"""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "cartographie_view", resource_name="Cartographie d'entreprise")
+
     return templates.TemplateResponse(
         "cartographie_entreprise.html",
         {
@@ -1175,96 +1282,7 @@ def cartographie_entreprise(request: Request, user: User | None = Depends(get_cu
     )
 
 
-@app.get("/outils-cgt", response_class=HTMLResponse)
-def outils_cgt_local(request: Request, refresh: bool = False):
-    """Expose a local mirror of the outilsCGT toolbox for direct reuse."""
-
-    if OUTILS_CGT_DIR.exists() or refresh:
-        sync_result = sync_outils_cgt_repo(force=refresh)
-    else:
-        sync_result = {
-            "ok": False,
-            "error": "La copie locale n’a pas encore été initialisée. Cliquez sur « Rafraîchir le miroir » pour la télécharger.",
-            "files": 0,
-            "updated_at": None,
-            "path": OUTILS_CGT_DIR,
-            "zip_path": None,
-            "from_cache": False,
-        }
-    updated_label = None
-    if isinstance(sync_result.get("updated_at"), datetime):
-        updated_label = sync_result["updated_at"].strftime("%d/%m/%Y %H:%M UTC")
-
-    zip_url = request.url_for("static", path="outils-cgt.zip") if sync_result.get("zip_path") else None
-    readme_excerpt = outils_cgt_readme_excerpt()
-
-    module_cards = []
-    raw_module_cards = [
-        {
-            "title": "Cartographie CGT",
-            "path": "frontend/src/components/CartoModule",
-            "description": "Carte stratégique et modules associés prêts à embarquer.",
-            "anchor": "cartographie",
-        },
-        {
-            "title": "Rétroplanning",
-            "path": "frontend/src/components/RetroplanningModule",
-            "description": "Planification des campagnes avec jalons terrain.",
-            "anchor": "retroplanning",
-        },
-        {
-            "title": "Démarche syndicale",
-            "path": "frontend/src/components/DemarcheModule",
-            "description": "Pas-à-pas militant et pages DemarcheMain/DemarcheRevendicative.",
-            "anchor": "demarche",
-        },
-        {
-            "title": "Campagne & résultats",
-            "path": "frontend/src/components/ElectionsModule",
-            "description": "Écrans campagne et analyse des scrutins (résultats inclus).",
-            "anchor": "campagne",
-            "aliases": ["resultats"],
-        },
-        {
-            "title": "Plan d’actions",
-            "path": "frontend/src/components/pages/PlanActionsPage.js",
-            "description": "Planifier et suivre les objectifs militants avec les écrans dédiés.",
-            "anchor": "plan-actions",
-        },
-        {
-            "title": "Scripts & exports",
-            "path": "scripts",
-            "description": "Utilitaires présents dans le dépôt miroir pour automatiser les flux.",
-        },
-    ]
-
-    for module in raw_module_cards:
-        module_path = OUTILS_CGT_DIR / module["path"]
-        module_cards.append({**module, "exists": module_path.exists()})
-
-    build_index = OUTILS_CGT_DIR / "frontend" / "build" / "index.html"
-    build_index_url = (
-        request.url_for("static", path="outils-cgt/frontend/build/index.html")
-        if build_index.exists()
-        else None
-    )
-
-    return templates.TemplateResponse(
-        "outils_cgt.html",
-        {
-            "request": request,
-            "sync_result": sync_result,
-            "updated_label": updated_label,
-            "zip_url": zip_url,
-            "readme_excerpt": readme_excerpt,
-            "module_cards": module_cards,
-            "mirror_path": str(OUTILS_CGT_DIR),
-            "build_index_url": build_index_url,
-        },
-    )
-
-
-_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n’a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu’il s’active.</p></div></body></html>"""
+_KIT_PDF_PLACEHOLDER_HTML = """<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Kit renforcement</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;} .card{background:#fff;border-radius:1.5rem;box-shadow:0 25px 45px rgba(15,23,42,.12);padding:2.75rem;max-width:520px;text-align:center;} h1{font-size:1.5rem;margin-bottom:0.75rem;} p{font-size:1rem;line-height:1.6;color:#475569;} </style></head><body><div class=\"card\"><h1>Document en cours de préparation</h1><p>Le serveur n'a pas encore pu récupérer le kit PDF. Rechargez cette page dans quelques instants ou utilisez le bouton de téléchargement lorsqu'il s'active.</p></div></body></html>"""
 @app.post("/api/cartographie")
 async def create_cartographie(
     request: Request,
@@ -1368,20 +1386,33 @@ def list_cartographies(
 
     cartographies = query.order_by(Cartographie.created_at.desc()).limit(50).all()
 
-    return {
-        "cartographies": [
-            {
-                "id": c.id,
-                "nom_entreprise": c.nom_entreprise,
-                "siret": c.siret,
-                "total_salaries": c.total_salaries,
-                "total_syndiques": c.total_syndiques,
-                "taux_syndicalisation": c.taux_syndicalisation,
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-            }
-            for c in cartographies
-        ]
-    }
+    result = []
+    for c in cartographies:
+        # Charger les services associés
+        services = db.query(ServiceCartographie).filter(
+            ServiceCartographie.cartographie_id == c.id
+        ).order_by(ServiceCartographie.ordre).all()
+
+        result.append({
+            "id": c.id,
+            "nom_entreprise": c.nom_entreprise,
+            "siret": c.siret,
+            "total_salaries": c.total_salaries,
+            "total_syndiques": c.total_syndiques,
+            "taux_syndicalisation": c.taux_syndicalisation,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "services_count": len(services),
+            "services": [
+                {
+                    "nom": s.nom_service,
+                    "salaries": s.nombre_salaries,
+                    "syndiques": s.nombre_syndiques,
+                }
+                for s in services
+            ]
+        })
+
+    return {"cartographies": result}
 
 
 @app.get("/api/cartographie/fd-inscrits")
@@ -1467,8 +1498,18 @@ def cartographie_fd_inscrits(db: Session = Depends(get_session)):
 # =========================================================
 
 @app.get("/retroplanning", response_class=HTMLResponse)
-def retroplanning_page(request: Request, user: User | None = Depends(get_current_user_or_none)):
+def retroplanning_page(
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
     """Outil de rétro-planning pour les campagnes syndicales"""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "retroplanning_view", resource_name="Rétro-planning")
+
     return templates.TemplateResponse(
         "retroplanning.html",
         {
@@ -1707,8 +1748,14 @@ def kit_individual_doc(doc_id: str, download: bool = False):
 
 
 @app.get("/stats", response_class=HTMLResponse)
-def stats(request: Request):
+def stats(request: Request, db: Session = Depends(get_session)):
     """Page dédiée aux visualisations statistiques du tableau de bord."""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_stats_view
+        track_stats_view(db, user)
 
     return templates.TemplateResponse(
         "stats.html",
@@ -1725,12 +1772,110 @@ def test_kpi(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+def index(request: Request, db: Session = Depends(get_session)):
     """
     Page d'accueil publique - Plateforme interne
     """
+    recent_activities = []
+    current_user = get_current_user(request, db)
+
+    if current_user:
+        # Récupérer les activités récentes de l'utilisateur
+        from .models import UserActivity, Cartographie, Retroplanning
+        from datetime import datetime, timedelta
+
+        activities = db.query(UserActivity).filter(
+            UserActivity.user_id == current_user.id
+        ).order_by(
+            UserActivity.accessed_at.desc()
+        ).limit(6).all()
+
+        # Formatter les activités pour l'affichage
+        for activity in activities:
+            # Calculer le temps écoulé
+            now = datetime.now()
+            delta = now - activity.accessed_at
+
+            if delta.days > 0:
+                time_ago = f"Il y a {delta.days} jour{'s' if delta.days > 1 else ''}"
+            elif delta.seconds >= 3600:
+                hours = delta.seconds // 3600
+                time_ago = f"Il y a {hours}h"
+            elif delta.seconds >= 60:
+                minutes = delta.seconds // 60
+                time_ago = f"Il y a {minutes}min"
+            else:
+                time_ago = "À l'instant"
+
+            # Déterminer l'icône, la couleur et l'URL en fonction du type
+            activity_config = {
+                "cartographie_view": {
+                    "icon": "fas fa-building",
+                    "icon_bg": "bg-orange-50",
+                    "icon_color": "text-orange-600",
+                    "title": activity.resource_name or "Cartographie",
+                    "subtitle": "Cartographie entreprise",
+                    "url": f"/cartographie-entreprise?id={activity.resource_id}" if activity.resource_id else "/cartographie-entreprise"
+                },
+                "retroplanning_view": {
+                    "icon": "fas fa-calendar-check",
+                    "icon_bg": "bg-teal-50",
+                    "icon_color": "text-teal-600",
+                    "title": activity.resource_name or "Rétroplanning",
+                    "subtitle": "Planification campagne",
+                    "url": f"/retroplanning?id={activity.resource_id}" if activity.resource_id else "/retroplanning"
+                },
+                "stats_view": {
+                    "icon": "fas fa-chart-line",
+                    "icon_bg": "bg-indigo-50",
+                    "icon_color": "text-indigo-600",
+                    "title": "Statistiques",
+                    "subtitle": "Tableau de bord",
+                    "url": "/stats"
+                },
+                "invitations_view": {
+                    "icon": "fas fa-envelope-open-text",
+                    "icon_bg": "bg-rose-50",
+                    "icon_color": "text-rose-600",
+                    "title": "Invitations PAP",
+                    "subtitle": "Cycle 5",
+                    "url": "/invitations"
+                },
+                "ciblage_view": {
+                    "icon": "fas fa-crosshairs",
+                    "icon_bg": "bg-sky-50",
+                    "icon_color": "text-sky-600",
+                    "title": "Ciblage",
+                    "subtitle": "Établissements prioritaires",
+                    "url": "/ciblage"
+                },
+                "guide_view": {
+                    "icon": "fas fa-book-open",
+                    "icon_bg": "bg-purple-50",
+                    "icon_color": "text-purple-600",
+                    "title": "Guide d'exploitation",
+                    "subtitle": "Kit de renforcement",
+                    "url": "/guide-exploitation"
+                }
+            }
+
+            config = activity_config.get(activity.activity_type, {
+                "icon": "fas fa-file",
+                "icon_bg": "bg-gray-50",
+                "icon_color": "text-gray-600",
+                "title": activity.resource_name or "Document",
+                "subtitle": activity.activity_type,
+                "url": "/"
+            })
+
+            recent_activities.append({
+                **config,
+                "time_ago": time_ago
+            })
+
     return templates.TemplateResponse("index.html", {
         "request": request,
+        "recent_activities": recent_activities
     })
 
 
@@ -2564,6 +2709,17 @@ def invitations(
     per_page: int = 50,
     db: Session = Depends(get_session),
 ):
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_invitations_view
+        filters = {k: v for k, v in {
+            "q": q, "source": source, "est_actif": est_actif,
+            "est_siege": est_siege, "ud": ud, "fd": fd,
+            "departement": departement, "statut": statut
+        }.items() if v}
+        track_invitations_view(db, user, filters if filters else None)
+
     qs = db.query(Invitation)
 
     if q:
@@ -3125,6 +3281,12 @@ def extraction_page(request: Request):
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_ciblage_view
+        track_ciblage_view(db, user)
+
     import pandas as pd
     from .models import Invitation
 
@@ -3168,6 +3330,42 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
     context = _build_ciblage_context(df, siret_list)
     context.update({"request": request})
     return templates.TemplateResponse("ciblage.html", context)
+
+
+# =========================================================
+# Routes pour les Notifications et Alertes
+# =========================================================
+
+@app.get("/api/notifications", response_class=JSONResponse)
+def api_notifications(db: Session = Depends(get_session)):
+    """Endpoint API pour récupérer le compteur de notifications"""
+    from .notifications import get_notifications_count
+    return get_notifications_count(db)
+
+
+@app.get("/notifications", response_class=HTMLResponse)
+def notifications_page(request: Request, db: Session = Depends(get_session)):
+    """Page des notifications et alertes"""
+    from .notifications import get_notification_details, get_notifications_count
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "notifications_view", resource_name="Notifications et alertes")
+
+    counts = get_notifications_count(db)
+    details = get_notification_details(db)
+
+    return templates.TemplateResponse(
+        "notifications.html",
+        {
+            "request": request,
+            "counts": counts,
+            "details": details
+        }
+    )
+
 
 def _format_date(value: date | None) -> str | None:
     if not value:

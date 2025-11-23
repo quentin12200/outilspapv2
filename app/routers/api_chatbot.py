@@ -204,6 +204,17 @@ async def get_chatbot_examples():
                 "Invitations avec source Scan automatique vs manuelles",
                 "Dernières invitations scannées"
             ]
+        },
+        {
+            "category": "🎯 Argumentaires Syndicaux",
+            "questions": [
+                "Quels sont les freins à la syndicalisation ?",
+                "Comment lever les freins à la syndicalisation ?",
+                "Comment améliorer la qualité de vie syndicale ?",
+                "Quelle stratégie pour syndiquer les ICTAM ?",
+                "Comment assurer la continuité syndicale actif/retraité ?",
+                "Pourquoi perdons-nous des adhérents ?"
+            ]
         }
     ]
 
@@ -241,3 +252,116 @@ async def chatbot_health():
         "message": "Service de chatbot prêt" if is_configured else
                    "Clé OpenAI non configurée. Ajoutez OPENAI_API_KEY dans le fichier .env"
     }
+
+
+@router.get("/argumentaires")
+async def get_argumentaires():
+    """
+    Récupère tous les argumentaires disponibles.
+
+    Retourne les argumentaires sur la syndicalisation, les freins et leviers, etc.
+    Ces informations peuvent être utilisées pour nourrir le chatbot ou afficher
+    des guides aux utilisateurs.
+
+    **Réponse:**
+    ```json
+    {
+        "argumentaires": {
+            "syndicalisation": {
+                "titre": "Freins à la syndicalisation et moyens pour les lever",
+                "sections": [...]
+            }
+        },
+        "disponibles": ["syndicalisation"],
+        "total": 1
+    }
+    ```
+    """
+    from pathlib import Path
+    import json
+
+    # Chemin vers le dossier des argumentaires
+    argumentaires_dir = Path(__file__).parent.parent / "data" / "argumentaires"
+    argumentaires = {}
+
+    try:
+        # Charger le fichier de syndicalisation
+        syndi_path = argumentaires_dir / "syndicalisation_freins_leviers.json"
+        if syndi_path.exists():
+            with open(syndi_path, 'r', encoding='utf-8') as f:
+                argumentaires['syndicalisation'] = json.load(f)
+
+        return {
+            "argumentaires": argumentaires,
+            "disponibles": list(argumentaires.keys()),
+            "total": len(argumentaires),
+            "message": f"{len(argumentaires)} argumentaire(s) chargé(s) avec succès"
+        }
+
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement des argumentaires: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors du chargement des argumentaires: {str(e)}"
+        )
+
+
+@router.get("/argumentaires/{argumentaire_id}")
+async def get_argumentaire_by_id(argumentaire_id: str):
+    """
+    Récupère un argumentaire spécifique par son ID.
+
+    **Paramètres:**
+    - argumentaire_id: ID de l'argumentaire (ex: "syndicalisation")
+
+    **Réponse:**
+    ```json
+    {
+        "id": "syndicalisation",
+        "titre": "Freins à la syndicalisation et moyens pour les lever",
+        "description": "...",
+        "sections": [...]
+    }
+    ```
+    """
+    from pathlib import Path
+    import json
+
+    # Chemin vers le dossier des argumentaires
+    argumentaires_dir = Path(__file__).parent.parent / "data" / "argumentaires"
+
+    # Mapping des IDs vers les fichiers
+    fichiers = {
+        "syndicalisation": "syndicalisation_freins_leviers.json"
+    }
+
+    if argumentaire_id not in fichiers:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Argumentaire '{argumentaire_id}' non trouvé. Argumentaires disponibles: {list(fichiers.keys())}"
+        )
+
+    try:
+        fichier_path = argumentaires_dir / fichiers[argumentaire_id]
+        if not fichier_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Fichier d'argumentaire non trouvé: {fichiers[argumentaire_id]}"
+            )
+
+        with open(fichier_path, 'r', encoding='utf-8') as f:
+            argumentaire = json.load(f)
+
+        return {
+            "id": argumentaire_id,
+            **argumentaire
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement de l'argumentaire {argumentaire_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors du chargement de l'argumentaire: {str(e)}"
+        )

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% from "_tooltip.html" import help_tooltip %}
+{% block title %}Notifications — PAP/CSE{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-8">
+  <div class="mb-8">
+    <div class="flex items-center gap-3 mb-4">
+      <h1 class="text-3xl lg:text-4xl font-black leading-tight">Notifications et alertes</h1>
+      {{ help_tooltip(
+        "Centre de notifications",
+        "Suivez les événements importants nécessitant votre attention : invitations en retard, élections proches, et nouvelles invitations scannées.",
+        "Consultez les différentes catégories d'alertes et cliquez sur les éléments pour accéder aux détails.",
+        [
+          "Identifier les invitations PAP en attente de retour",
+          "Anticiper les échéances électorales proches",
+          "Suivre les nouvelles invitations scannées"
+        ]
+      ) }}
+    </div>
+
+    {% if counts.total == 0 %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+      <div class="text-6xl mb-4">✓</div>
+      <h2 class="text-xl font-bold text-gray-900 mb-2">Aucune notification</h2>
+      <p class="text-gray-600">Tout est à jour ! Revenez plus tard pour vérifier les nouvelles alertes.</p>
+    </div>
+    {% else %}
+
+    <!-- Statistiques globales -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-red-700 mb-1">Invitations en retard</div>
+            <div class="text-3xl font-black text-red-900">{{ counts.invitations_retard }}</div>
+          </div>
+          <div class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
+            <i class="fas fa-clock text-white text-xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-orange-700 mb-1">Élections proches</div>
+            <div class="text-3xl font-black text-orange-900">{{ counts.elections_proches }}</div>
+          </div>
+          <div class="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+            <i class="fas fa-calendar-check text-white text-xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-blue-700 mb-1">Nouvelles invitations</div>
+            <div class="text-3xl font-black text-blue-900">{{ counts.nouvelles_invitations }}</div>
+          </div>
+          <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+            <i class="fas fa-inbox text-white text-xl"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invitations en retard -->
+    {% if details.invitations_retard %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <i class="fas fa-clock text-red-500"></i>
+        Invitations en retard (>60 jours)
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Entreprise</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Commune</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Date invitation</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Retard</th>
+              <th class="text-center py-3 px-4 font-semibold text-sm text-gray-700">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in details.invitations_retard %}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+              <td class="py-3 px-4 text-sm">{{ inv.denomination }}</td>
+              <td class="py-3 px-4 text-sm">{{ inv.commune }}</td>
+              <td class="py-3 px-4 text-sm">{{ inv.date_invitation.strftime('%d/%m/%Y') if inv.date_invitation else '-' }}</td>
+              <td class="py-3 px-4">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  {{ inv.jours_retard }} jours
+                </span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <a href="/invitations?q={{ inv.denomination }}" class="text-cgt-red hover:text-cgt-red-dark">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Élections proches -->
+    {% if details.elections_proches %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <i class="fas fa-calendar-check text-orange-500"></i>
+        Élections dans les 15 jours
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Entreprise</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Commune</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Date 1er tour</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Délai</th>
+              <th class="text-center py-3 px-4 font-semibold text-sm text-gray-700">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in details.elections_proches %}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+              <td class="py-3 px-4 text-sm">{{ inv.denomination }}</td>
+              <td class="py-3 px-4 text-sm">{{ inv.commune }}</td>
+              <td class="py-3 px-4 text-sm">{{ inv.date_1er_tour.strftime('%d/%m/%Y') if inv.date_1er_tour else '-' }}</td>
+              <td class="py-3 px-4">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                  Dans {{ inv.jours_restants }} jours
+                </span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <a href="/invitations?q={{ inv.denomination }}" class="text-cgt-red hover:text-cgt-red-dark">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Nouvelles invitations -->
+    {% if details.nouvelles_invitations %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <i class="fas fa-inbox text-blue-500"></i>
+        Nouvelles invitations scannées (7 derniers jours)
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Entreprise</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Commune</th>
+              <th class="text-left py-3 px-4 font-semibold text-sm text-gray-700">Date scan</th>
+              <th class="text-center py-3 px-4 font-semibold text-sm text-gray-700">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in details.nouvelles_invitations %}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+              <td class="py-3 px-4 text-sm">{{ inv.denomination }}</td>
+              <td class="py-3 px-4 text-sm">{{ inv.commune }}</td>
+              <td class="py-3 px-4 text-sm">
+                {{ inv.created_at.strftime('%d/%m/%Y %H:%M') if inv.created_at else '-' }}
+                <span class="text-xs text-gray-500">(il y a {{ inv.jours_depuis }} jour{{ 's' if inv.jours_depuis > 1 else '' }})</span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <a href="/invitations?q={{ inv.denomination }}" class="text-cgt-red hover:text-cgt-red-dark">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

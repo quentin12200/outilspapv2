@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_tooltip.html" import help_tooltip %}
 {% block title %}Statistiques — PAP/CSE{% endblock %}
 
 {% block head %}
@@ -46,7 +47,20 @@
             Actualiser
           </button>
         </div>
-        <h1 class="text-3xl lg:text-4xl font-black leading-tight">Suivi consolidé des invitations PAP et des échéances C5</h1>
+        <div class="flex items-center gap-3">
+          <h1 class="text-3xl lg:text-4xl font-black leading-tight">Suivi consolidé des invitations PAP et des échéances C5</h1>
+          {{ help_tooltip(
+            "Tableau de bord statistiques",
+            "Vue consolidée des données PAP (Protocole d'Accord Pré-électoral) et CSE pour le cycle 5. Permet de suivre les invitations, les échéances électorales et la couverture syndicale.",
+            "Consultez les indicateurs clés en haut de page, explorez les graphiques pour analyser les tendances, et utilisez les filtres pour affiner vos recherches par département, fédération ou statut.",
+            [
+              "Préparer une campagne électorale",
+              "Identifier les retards dans les invitations PAP",
+              "Analyser la couverture CGT par région",
+              "Exporter les données pour rapports"
+            ]
+          ) }}
+        </div>
         <p class="text-white/80 text-base">
           Analysez en un coup d'œil la cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span> inscrit·es, les invitations PAP C5 et les correspondances PV pour préparer au mieux les campagnes.
         </p>
