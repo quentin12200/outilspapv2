@@ -791,7 +791,7 @@ class UserActivity(Base):
     resource_name = Column(Text, nullable=True)  # Nom de la ressource (ex: nom de l'entreprise)
 
     # Détails supplémentaires
-    metadata = Column(JSON, nullable=True)  # Informations additionnelles (filtres appliqués, etc.)
+    extra_data = Column(JSON, nullable=True)  # Informations additionnelles (filtres appliqués, etc.)
 
     # Timestamp
     accessed_at = Column(DateTime, default=datetime.now, nullable=False, index=True)

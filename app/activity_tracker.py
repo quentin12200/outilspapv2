@@ -17,7 +17,7 @@ def track_activity(
     activity_type: str,
     resource_id: Optional[str] = None,
     resource_name: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    extra_data: Optional[Dict[str, Any]] = None
 ):
     """
     Enregistre une activité utilisateur.
@@ -28,7 +28,7 @@ def track_activity(
         activity_type: Type d'activité (ex: "cartographie_view", "retroplanning_view")
         resource_id: Identifiant de la ressource (optionnel)
         resource_name: Nom de la ressource (optionnel)
-        metadata: Métadonnées supplémentaires (optionnel)
+        extra_data: Métadonnées supplémentaires (optionnel)
     """
     if not user:
         return
@@ -57,7 +57,7 @@ def track_activity(
         activity_type=activity_type,
         resource_id=resource_id,
         resource_name=resource_name,
-        metadata=metadata,
+        extra_data=extra_data,
         accessed_at=datetime.now()
     )
 
@@ -104,7 +104,7 @@ def track_invitations_view(db: Session, user: User, filters: Optional[Dict[str, 
         user=user,
         activity_type="invitations_view",
         resource_name="Invitations PAP Cycle 5",
-        metadata=filters
+        extra_data=filters
     )
 
 
