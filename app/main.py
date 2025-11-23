@@ -3331,6 +3331,42 @@ def ciblage_import(request: Request, file: UploadFile = File(...), db: Session =
     context.update({"request": request})
     return templates.TemplateResponse("ciblage.html", context)
 
+
+# =========================================================
+# Routes pour les Notifications et Alertes
+# =========================================================
+
+@app.get("/api/notifications", response_class=JSONResponse)
+def api_notifications(db: Session = Depends(get_session)):
+    """Endpoint API pour récupérer le compteur de notifications"""
+    from .notifications import get_notifications_count
+    return get_notifications_count(db)
+
+
+@app.get("/notifications", response_class=HTMLResponse)
+def notifications_page(request: Request, db: Session = Depends(get_session)):
+    """Page des notifications et alertes"""
+    from .notifications import get_notification_details, get_notifications_count
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "notifications_view", resource_name="Notifications et alertes")
+
+    counts = get_notifications_count(db)
+    details = get_notification_details(db)
+
+    return templates.TemplateResponse(
+        "notifications.html",
+        {
+            "request": request,
+            "counts": counts,
+            "details": details
+        }
+    )
+
+
 def _format_date(value: date | None) -> str | None:
     if not value:
         return None
