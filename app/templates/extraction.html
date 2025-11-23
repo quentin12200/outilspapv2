@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Scanner PAP — PAP/CSE{% endblock %}
+{% block title %}Scanner élections — A.N.D.RE{% endblock %}
 
 {% block content %}
 <section class="mb-8">
@@ -7,7 +7,7 @@
     <div>
       <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
         <i class="fas fa-scan text-cgt-red"></i>
-        Scanner PAP
+        Scanner élections
       </h1>
       <p class="text-sm text-gray-500 mt-2 max-w-2xl">
         Importez des photos ou scans de courriers PAP (invitations C5, protocoles d'accord) et le système extrait automatiquement les informations clés (SIRET, dates, adresses, etc.).
@@ -433,7 +433,7 @@ async function saveInvitation(index) {
         result.data.metadata = { auto_saved: true };
       }
 
-      alert('✅ Invitation ajoutée à la liste PAP avec succès !\n\nVous pouvez la retrouver dans la liste des invitations PAP avec la source "Scan automatique".');
+      alert('✅ Invitation ajoutée à la liste PAP avec succès !\n\nVous pouvez la retrouver dans la liste des invitations électorales avec la source "Scan automatique".');
       displayResults(); // Rafraîchir l'affichage
     } else {
       const error = await response.json();

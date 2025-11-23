@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ajout PAP — PAP/CSE{% endblock %}
+{% block title %}Ajout entreprise — A.N.D.RE{% endblock %}
 
 {% block content %}
 
@@ -7,9 +7,9 @@
 <div class="mb-8">
   <h1 class="text-4xl font-bold text-gray-800 mb-2">
     <i class="fas fa-plus-circle text-cgt-red mr-3"></i>
-    Ajout PAP
+    Ajout entreprise
   </h1>
-  <p class="text-gray-600">Ajoutez une invitation PAP manuellement ou recherchez un SIRET</p>
+  <p class="text-gray-600">Ajoutez une invitation électorale manuellement ou recherchez un SIRET</p>
 </div>
 
 <!-- Tabs Navigation -->
@@ -32,12 +32,12 @@
               :class="activeTab === 'scanner' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
               class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition">
         <i class="fas fa-scan mr-2"></i>
-        Scanner PAP
+        Scanner élections
       </button>
     </nav>
   </div>
 
-  <!-- Tab: Scanner PAP -->
+  <!-- Tab: Scanner élections -->
   <div x-show="activeTab === 'scanner'" x-cloak>
     <section class="bg-white rounded-xl shadow-md p-8 mt-6">
       <div class="max-w-3xl mx-auto text-center">
@@ -46,7 +46,7 @@
             <i class="fas fa-scan text-4xl text-purple-600"></i>
           </div>
           <h2 class="text-3xl font-bold text-gray-800 mb-3">
-            Scanner PAP
+            Scanner élections
           </h2>
           <p class="text-gray-600 mb-6 max-w-2xl mx-auto">
             Importez des photos ou scans de courriers PAP (invitations C5, protocoles d'accord) et le système extrait automatiquement les informations clés : SIRET, dates, adresses, effectifs, etc.
@@ -80,7 +80,7 @@
 
         <a href="/extraction" class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-lg font-bold rounded-xl hover:from-purple-700 hover:to-pink-700 transition shadow-lg hover:shadow-xl">
           <i class="fas fa-scan text-2xl"></i>
-          <span>Accéder au Scanner PAP</span>
+          <span>Accéder au Scanner élections</span>
           <i class="fas fa-arrow-right"></i>
         </a>
 
@@ -273,13 +273,13 @@
     </div>
   </div>
 
-  <!-- Tab: Ajout PAP -->
+  <!-- Tab: Ajout entreprise -->
   <div x-show="activeTab === 'add'" x-cloak x-data="papAdd()">
     <section class="bg-white rounded-xl shadow-md p-8 mt-6">
       <div class="max-w-4xl mx-auto">
         <h2 class="text-2xl font-bold text-gray-800 mb-6">
           <i class="fas fa-plus-circle text-green-500 mr-2"></i>
-          Ajouter une invitation PAP
+          Ajouter une invitation électorale
         </h2>
 
         <form @submit.prevent="submitPapForm" class="space-y-6">
@@ -415,10 +415,10 @@
                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent" />
             </div>
 
-            <!-- Date invitation PAP -->
+            <!-- Date invitation électorale -->
             <div>
               <label for="pap_date_invit" class="block text-sm font-semibold text-gray-700 mb-2">
-                Date invitation PAP *
+                Date invitation électorale *
               </label>
               <input type="date"
                      id="pap_date_invit"
@@ -475,7 +475,7 @@
                     :class="submitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
                     class="px-8 py-3 bg-green-600 text-white rounded-lg transition flex items-center space-x-2">
               <i :class="submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'"></i>
-              <span x-text="submitting ? 'Enregistrement...' : 'Enregistrer l\'invitation PAP'"></span>
+              <span x-text="submitting ? 'Enregistrement...' : 'Enregistrer l\'invitation électorale'"></span>
             </button>
           </div>
         </form>
@@ -677,7 +677,7 @@
             throw new Error(payload?.detail || 'Erreur lors de l\'enregistrement');
           }
 
-          showToast('Invitation PAP ajoutée avec succès !', 'success');
+          showToast('Invitation électorale ajoutée avec succès !', 'success');
           this.resetForm();
         } catch (error) {
           console.error('Erreur:', error);

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_tooltip.html" import help_tooltip %}
-{% block title %}Statistiques — PAP/CSE{% endblock %}
+{% block title %}Statistiques — A.N.D.RE{% endblock %}
 
 {% block head %}
 <style>
@@ -48,21 +48,21 @@
           </button>
         </div>
         <div class="flex items-center gap-3">
-          <h1 class="text-3xl lg:text-4xl font-black leading-tight">Suivi consolidé des invitations PAP et des échéances C5</h1>
+          <h1 class="text-3xl lg:text-4xl font-black leading-tight">Suivi consolidé des invitations électorales et des échéances C5</h1>
           {{ help_tooltip(
             "Tableau de bord statistiques",
             "Vue consolidée des données PAP (Protocole d'Accord Pré-électoral) et CSE pour le cycle 5. Permet de suivre les invitations, les échéances électorales et la couverture syndicale.",
             "Consultez les indicateurs clés en haut de page, explorez les graphiques pour analyser les tendances, et utilisez les filtres pour affiner vos recherches par département, fédération ou statut.",
             [
               "Préparer une campagne électorale",
-              "Identifier les retards dans les invitations PAP",
+              "Identifier les retards dans les invitations électorales",
               "Analyser la couverture CGT par région",
               "Exporter les données pour rapports"
             ]
           ) }}
         </div>
         <p class="text-white/80 text-base">
-          Analysez en un coup d'œil la cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span> inscrit·es, les invitations PAP C5 et les correspondances PV pour préparer au mieux les campagnes.
+          Analysez en un coup d'œil la cible ≥ <span x-text="stats.audience_threshold || 1000">1000</span> inscrit·es, les invitations électorales C5 et les correspondances PV pour préparer au mieux les campagnes.
         </p>
         <div class="flex flex-wrap gap-3">
           <a href="#vue-generale" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 transition text-sm font-semibold">
@@ -155,7 +155,7 @@
       <div class="stat-card bg-white rounded-2xl shadow-lg p-6 border border-red-100">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-widest text-cgt-red">Invitations PAP C5</p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-cgt-red">Invitations électorales C5</p>
             <p class="text-2xl font-bold text-gray-900" x-text="stats.global_stats ? (stats.global_stats.invit_total || 0).toLocaleString('fr-FR') : '0'"></p>
           </div>
           <span class="w-11 h-11 rounded-full bg-red-100 text-cgt-red flex items-center justify-center text-xl"><i class="fas fa-envelope-open-text"></i></span>
@@ -664,7 +664,7 @@
               data: {
                 labels: this.stats.monthly_invitations.map(m => m.label || m.month),
                 datasets: [{
-                  label: 'Invitations PAP C5',
+                  label: 'Invitations électorales C5',
                   data: this.stats.monthly_invitations.map(m => m.count),
                   borderColor: '#d5001c',
                   backgroundColor: 'rgba(213, 0, 28, 0.1)',

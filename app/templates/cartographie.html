@@ -95,7 +95,7 @@
         :class="activeTab === 'pap' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         class="px-6 py-3 rounded-lg font-semibold transition flex items-center space-x-2">
         <i class="fas fa-envelope-open-text"></i>
-        <span>Invitations PAP</span>
+        <span>Invitations électorales</span>
       </button>
       <button @click="activeTab = 'federations'"
         :class="activeTab === 'federations' ? 'bg-cgt-red text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
@@ -259,7 +259,7 @@
       <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Total invitations PAP</p>
+            <p class="text-sm font-medium text-gray-600">Total invitations électorales</p>
             <p class="text-3xl font-bold text-gray-900" x-text="statsPAP.total_invitations"></p>
           </div>
           <i class="fas fa-envelope text-3xl text-blue-500 opacity-50"></i>
@@ -304,12 +304,12 @@
         <div class="bg-white rounded-xl shadow-md p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
             <i class="fas fa-map text-cgt-red"></i>
-            <span>Carte des invitations PAP par département</span>
+            <span>Carte des invitations électorales par département</span>
           </h2>
 
           <!-- Légende PAP -->
           <div class="mb-6 bg-gray-50 rounded-lg p-4">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Nombre d'invitations PAP</h3>
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Nombre d'invitations électorales</h3>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div class="legend-item">
                 <div class="legend-color" style="background-color: #f0f0f0;"></div>
@@ -376,7 +376,7 @@
       <div class="bg-white rounded-xl shadow-md p-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center space-x-2">
           <i class="fas fa-sitemap text-cgt-red"></i>
-          <span>Invitations PAP par Union Départementale (UD)</span>
+          <span>Invitations électorales par Union Départementale (UD)</span>
         </h2>
 
         <div class="overflow-x-auto">
@@ -697,7 +697,7 @@
           </button>
         </div>
         <div class="mt-4">
-          <p class="opacity-80">Nombre d'invitations PAP</p>
+          <p class="opacity-80">Nombre d'invitations électorales</p>
           <p class="text-3xl font-bold" x-text="selectedDeptPAP?.nb_invitations || 0"></p>
         </div>
       </div>
@@ -705,13 +705,13 @@
       <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
         <h4 class="text-lg font-bold text-gray-900 mb-4">
           <i class="fas fa-envelope-open-text text-cgt-red mr-2"></i>
-          Liste des invitations PAP
+          Liste des invitations électorales
         </h4>
 
         <template x-if="(selectedDeptPAP?.invitations || []).length === 0">
           <p class="text-gray-500 text-center py-8">
             <i class="fas fa-info-circle text-3xl mb-2"></i><br>
-            Aucune invitation PAP dans ce département
+            Aucune invitation électorale dans ce département
           </p>
         </template>
 
@@ -1043,7 +1043,7 @@
               <div class="font-bold mb-1">${d.properties.nom} (${code})</div>
               ${data ? `
                 <div class="text-sm">
-                  <div>Invitations PAP: <strong>${data.nb_invitations}</strong></div>
+                  <div>Invitations électorales: <strong>${data.nb_invitations}</strong></div>
                 </div>
               ` : '<div class="text-sm text-gray-300">Aucune donnée</div>'}
             `;

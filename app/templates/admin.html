@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Administration — PAP/CSE{% endblock %}
+{% block title %}Administration — A.N.D.RE{% endblock %}
 
 {% block content %}
 
@@ -16,7 +16,7 @@
     </a>
   </div>
   <p class="text-gray-600">
-    Suivi centralisé des imports, automatisations et nouvelles fonctionnalités de la plateforme PAP/CSE.
+    Suivi centralisé des imports, automatisations et nouvelles fonctionnalités de la plateforme A.N.D.RE.
   </p>
 </div>
 
@@ -51,7 +51,7 @@
   <div class="bg-white rounded-xl shadow-md p-6">
     <div class="flex items-center justify-between mb-3">
       <div>
-        <p class="text-xs font-semibold text-gray-500 uppercase">Invitations PAP C5</p>
+        <p class="text-xs font-semibold text-gray-500 uppercase">Invitations électorales C5</p>
         <p class="text-3xl font-bold text-gray-900">{{ stats.invit_total or 0 }}</p>
       </div>
       <span class="inline-flex items-center justify-center w-12 h-12 bg-green-100 text-green-600 rounded-full">
@@ -410,7 +410,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
     <button onclick="genererRapportIA()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition border border-pink-200 hover:from-pink-600 hover:to-purple-700">
       <div class="text-left">
-        <p class="text-sm font-semibold">⚡ Analyse Avancée PAP</p>
+        <p class="text-sm font-semibold">⚡ Analyse Avancée</p>
         <p class="text-xs opacity-90">Analyse approfondie des cibles prioritaires</p>
       </div>
       <i class="fas fa-chart-line text-white text-xl"></i>
@@ -426,7 +426,7 @@
 
     <a href="/invitations" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-green-100">
       <div>
-        <p class="text-sm font-semibold text-gray-700">Tableau Invitations PAP</p>
+        <p class="text-sm font-semibold text-gray-700">Tableau Invitations électorales</p>
         <p class="text-xs text-gray-500">Consultez et filtrez les imports automatiques ou manuels</p>
       </div>
       <i class="fas fa-envelope text-green-500 text-xl"></i>
@@ -618,7 +618,7 @@
     <div class="bg-white rounded-xl shadow-md p-6 border border-green-50">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h3 class="text-xl font-semibold text-gray-800">Invitations PAP C5</h3>
+          <h3 class="text-xl font-semibold text-gray-800">Invitations électorales C5</h3>
           <p class="text-xs text-gray-500">Préchargement automatique lors du premier démarrage</p>
         </div>
         {% if invit.auto_enabled %}
@@ -663,7 +663,7 @@
         </li>
       </ul>
       <p class="text-xs text-gray-500 mt-4">
-        Si la table est vide au démarrage, le fichier configuré est importé automatiquement puis disponible dans le tableau « Invitations PAP - Cycle 5 ».
+        Si la table est vide au démarrage, le fichier configuré est importé automatiquement puis disponible dans le tableau « Invitations électorales - Cycle 5 ».
       </p>
     </div>
 
@@ -735,7 +735,7 @@
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
         <i class="fas fa-envelope text-green-500 mr-2"></i>
-        Importer Invitations PAP (Cycle 5)
+        Importer Invitations électorales (Cycle 5)
       </h3>
       <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="space-y-4">
         <div>
@@ -807,7 +807,7 @@
       <div class="space-y-4">
         <div class="p-4 bg-indigo-50 border-l-4 border-indigo-500 rounded-lg text-sm text-indigo-800">
           <i class="fas fa-info-circle mr-2"></i>
-          Enrichit les invitations PAP sans IDCC via l'API SIRENE de l'INSEE.
+          Enrichit les invitations électorales sans IDCC via l'API SIRENE de l'INSEE.
         </div>
 
         <!-- Status display -->
@@ -860,7 +860,7 @@
         <li class="flex items-start space-x-3">
           <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">2</span>
           <div>
-            <strong>Ajouter les invitations PAP</strong>
+            <strong>Ajouter les invitations électorales</strong>
             <p class="text-xs text-gray-500 mt-1">Import manuel ou automatique via la variable <code>INVITATIONS_URL</code>.</p>
           </div>
         </li>
@@ -895,7 +895,7 @@
       <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Tables principales</h3>
       <ul class="space-y-1 text-xs">
         <li>• <code>Tous_PV</code> (historique des PV)</li>
-        <li>• <code>invitations</code> (PAP cycle 5)</li>
+        <li>• <code>invitations</code> (Cycle 5)</li>
         <li>• <code>siret_summary</code> (agrégations tableau de bord)</li>
       </ul>
     </div>
@@ -1501,7 +1501,7 @@ function afficherRapportIA(data) {
   let html = `
     <!-- Header -->
     <div class="mb-6">
-      <h2 class="text-3xl font-bold text-gray-800 mb-2">⚡ Analyse Avancée PAP - Cibles Prioritaires</h2>
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">⚡ Analyse Avancée - Cibles Prioritaires</h2>
       <p class="text-sm text-gray-500">Généré le ${data.date_generation}</p>
     </div>
 
@@ -1682,7 +1682,7 @@ function genererTableauEntreprises(entreprises) {
             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Entreprise / Localisation</th>
             <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Effectifs</th>
             <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Status</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dates Élection / PAP</th>
+            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dates Élection</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">FD / UD / Collèges</th>
             <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Résultats CGT</th>
           </tr>
@@ -1719,7 +1719,7 @@ function genererTableauEntreprises(entreprises) {
               `;
             }
 
-            // Invitations PAP
+            // Invitations électorales
             const invitPapHtml = e.invitations_pap && e.invitations_pap.length > 0
               ? `<div class="text-xs mt-1">${e.invitations_pap.map(date =>
                   `<div class="text-purple-700">📬 ${date}</div>`
@@ -1809,11 +1809,11 @@ function genererTableauEntreprises(entreprises) {
               }
             }
 
-            // Analyse invitation PAP
+            // Analyse invitation électorale
             if (e.invitations_pap && e.invitations_pap.length > 0) {
-              analyses.push('📬 Invitation(s) PAP reçue(s) (' + e.invitations_pap.length + ')');
+              analyses.push('📬 Invitation(s) électorale(s) reçue(s) (' + e.invitations_pap.length + ')');
             } else {
-              analyses.push('ℹ️ Pas d\'invitation PAP détectée');
+              analyses.push('ℹ️ Pas d\'invitation électorale détectée');
             }
 
             // Analyse collèges
@@ -1952,7 +1952,7 @@ function genererCarteEntreprise(e) {
           <div class="flex items-center gap-2">
             <span class="text-purple-600">📬</span>
             <div>
-              <p class="text-xs text-purple-600 font-medium">Invitation(s) PAP</p>
+              <p class="text-xs text-purple-600 font-medium">Invitation(s) électorale(s)</p>
               <p class="font-bold text-purple-900">${e.invitations_pap.join(', ')}</p>
             </div>
           </div>
@@ -2256,7 +2256,7 @@ function fermerAssistantExpert() {
         </span>
         <div>
           <h2 class="text-2xl font-bold text-white">Assistant Expert</h2>
-          <p class="text-sm text-indigo-100">Posez vos questions sur les données PAP/CSE en langage naturel</p>
+          <p class="text-sm text-indigo-100">Posez vos questions sur les données A.N.D.RE en langage naturel</p>
         </div>
       </div>
       <div class="flex items-center gap-3">
@@ -2276,14 +2276,14 @@ function fermerAssistantExpert() {
         </div>
         <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
           <p class="text-sm text-gray-800 mb-3">
-            👋 Bonjour ! Je suis votre assistant expert pour analyser les données PAP/CSE.
+            👋 Bonjour ! Je suis votre assistant expert pour analyser les données A.N.D.RE.
           </p>
           <p class="text-sm text-gray-700 mb-3">
             <strong>Exemples de questions que vous pouvez me poser :</strong>
           </p>
           <div class="space-y-2 text-xs">
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations PAP dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
-              💭 "Combien d'invitations PAP dans la base ?"
+            <button onclick="askPredefinedQuestion('Combien d\\'invitations électorales dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
+              💭 "Combien d'invitations électorales dans la base ?"
             </button>
             <button onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
               📅 "Quelles entreprises ont une élection ce mois-ci ?"

@@ -3,7 +3,7 @@
 <html lang="fr" class="scroll-smooth">
 <head>
   <meta charset="utf-8" />
-  <title>{% block title %}PAP/CSE Tableau de bord{% endblock %}</title>
+  <title>{% block title %}A.N.D.RE · Tableau de bord{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Tailwind CSS -->
@@ -199,10 +199,10 @@
 
         <!-- Logo & Title -->
         <div class="flex items-center space-x-4">
-          <img src="{{ url_for('static', path='logo-opcv2.svg') }}" alt="Logo Outils PAP Ciblage" class="h-16 w-auto bg-white/95 rounded-lg p-1 shadow-md object-contain border border-white/50">
+          <img src="{{ url_for('static', path='logo-opcv2.svg') }}" alt="Logo A.N.D.RE" class="h-16 w-auto bg-white/95 rounded-lg p-1 shadow-md object-contain border border-white/50">
           <div class="hidden md:block">
-            <h1 class="text-2xl font-bold text-white tracking-tight">PAP/CSE · Tableau de bord</h1>
-            <p class="text-sm text-red-100">Suivi ciblage PAP</p>
+            <h1 class="text-2xl font-bold text-white tracking-tight">A.N.D.RE</h1>
+            <p class="text-sm text-red-100">Assistant Numérique de la Démarche de REnforcement</p>
           </div>
         </div>
 
@@ -233,7 +233,7 @@
               <a href="/invitations" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
                 <i class="fas fa-envelope-open-text w-5 text-rose-600"></i>
                 <div>
-                  <div class="font-medium">Invitations PAP</div>
+                  <div class="font-medium">Invitations électorales</div>
                   <div class="text-xs text-gray-500">Cycle 5</div>
                 </div>
               </a>
@@ -269,14 +269,14 @@
               <a href="/recherche-siret" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
                 <i class="fas fa-plus-circle w-5 text-violet-600"></i>
                 <div>
-                  <div class="font-medium">Ajout PAP</div>
+                  <div class="font-medium">Ajout entreprise</div>
                   <div class="text-xs text-gray-500">Saisie manuelle</div>
                 </div>
               </a>
               <a href="/extraction" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
                 <i class="fas fa-scan w-5 text-cyan-600"></i>
                 <div>
-                  <div class="font-medium">Scanner PAP</div>
+                  <div class="font-medium">Scanner élections</div>
                   <div class="text-xs text-gray-500">OCR automatique</div>
                 </div>
               </a>
@@ -324,7 +324,7 @@
                 <i class="fas fa-bullseye w-5 text-pink-600"></i>
                 <div>
                   <div class="font-medium">Présentation</div>
-                  <div class="text-xs text-gray-500">Cible PAP Cycle 5</div>
+                  <div class="text-xs text-gray-500">Ciblage Cycle 5</div>
                 </div>
               </a>
             </div>
@@ -504,15 +504,15 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div>
-          <h3 class="text-lg font-bold mb-3">PAP/CSE · Tableau de bord</h3>
-          <p class="text-gray-400 text-sm">Suivi ciblage PAP</p>
+          <h3 class="text-lg font-bold mb-3">A.N.D.RE</h3>
+          <p class="text-gray-400 text-sm">Assistant Numérique de la Démarche de REnforcement</p>
         </div>
         <div>
           <h3 class="text-lg font-bold mb-3">Navigation</h3>
           <ul class="space-y-2 text-sm">
             <li><a href="/" class="text-gray-400 hover:text-white">Accueil</a></li>
             <li><a href="/presentation" class="text-gray-400 hover:text-white">Présentation</a></li>
-            <li><a href="/recherche-siret" class="text-gray-400 hover:text-white">Ajout PAP</a></li>
+            <li><a href="/recherche-siret" class="text-gray-400 hover:text-white">Ajout entreprise</a></li>
             <li><a href="/invitations" class="text-gray-400 hover:text-white">Invitations</a></li>
             <li><a href="/calendrier" class="text-gray-400 hover:text-white">Calendrier élections +1000</a></li>
             <li><a href="/ciblage" class="text-gray-400 hover:text-white">Ciblage</a></li>
