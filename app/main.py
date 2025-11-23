@@ -1745,7 +1745,7 @@ def index(request: Request, db: Session = Depends(get_session)):
     Page d'accueil publique - Plateforme interne
     """
     recent_activities = []
-    current_user = get_current_user(request)
+    current_user = get_current_user(request, db)
 
     if current_user:
         # Récupérer les activités récentes de l'utilisateur
