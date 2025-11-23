@@ -48,6 +48,16 @@
       </div>
     </div>
 
+    <!-- Test Alpine.js -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <p class="text-sm">
+        <strong>Debug:</strong>
+        Alpine.js: <span x-text="'✅ Fonctionne'">❌ Ne fonctionne pas</span> |
+        Services: <span x-text="services.length">0</span> |
+        Submitted: <span x-text="submitted ? 'true' : 'false'">false</span>
+      </p>
+    </div>
+
     <!-- Message -->
     <div x-show="message.show" x-transition class="mb-6 p-4 rounded-lg" :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
       <span x-text="message.text"></span>
