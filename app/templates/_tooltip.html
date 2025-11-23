@@ -1,0 +1,35 @@
+{% macro help_tooltip(title, description, how_to_use=None, use_cases=None) %}
+<div class="help-tooltip" x-data="{ show: false }" @mouseenter="show = true" @mouseleave="show = false">
+  <i class="fas fa-question"></i>
+  <div x-show="show"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0 transform scale-95"
+       x-transition:enter-end="opacity-100 transform scale-100"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="opacity-100 transform scale-100"
+       x-transition:leave-end="opacity-0 transform scale-95"
+       class="tooltip-content"
+       x-cloak>
+    <div class="tooltip-title">{{ title }}</div>
+    <div>{{ description }}</div>
+
+    {% if how_to_use %}
+    <div class="tooltip-section">
+      <div class="tooltip-section-title">Comment l'utiliser</div>
+      <div>{{ how_to_use }}</div>
+    </div>
+    {% endif %}
+
+    {% if use_cases %}
+    <div class="tooltip-section">
+      <div class="tooltip-section-title">Cas d'usage typiques</div>
+      <ul class="tooltip-list">
+        {% for case in use_cases %}
+        <li>{{ case }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}

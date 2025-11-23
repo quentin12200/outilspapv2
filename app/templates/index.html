@@ -159,6 +159,33 @@
     </div>
   </div>
 
+  <!-- Reprendre mon travail -->
+  {% if recent_activities %}
+  <div class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+      <i class="fas fa-history text-cgt-red"></i>
+      Reprendre mon travail
+    </h2>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for activity in recent_activities %}
+      <a href="{{ activity.url }}" class="quick-access-card">
+        <div class="icon-wrapper {{ activity.icon_bg }} {{ activity.icon_color }}">
+          <i class="{{ activity.icon }}"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">{{ activity.title }}</div>
+          <div class="text-xs text-gray-600">{{ activity.subtitle }}</div>
+          <div class="text-xs text-gray-400 mt-1">
+            <i class="fas fa-clock"></i> {{ activity.time_ago }}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Quick Access -->
   <div class="mb-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">

@@ -768,3 +768,38 @@ class PhaseRetroplanning(Base):
     __table_args__ = (
         Index('idx_phase_retro', 'retroplanning_id', 'ordre'),
     )
+
+
+class UserActivity(Base):
+    """
+    Historique des activités des utilisateurs
+    Permet de suivre les accès aux ressources et d'afficher un "Reprendre mon travail"
+    """
+    __tablename__ = "user_activities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Utilisateur
+    user_id = Column(Integer, nullable=False, index=True)
+
+    # Type d'activité
+    activity_type = Column(String(50), nullable=False, index=True)
+    # Types possibles: "cartographie_view", "retroplanning_view", "invitation_view", "stats_view", etc.
+
+    # Ressource accédée
+    resource_id = Column(String(100), nullable=True, index=True)  # ID de la ressource (ex: cartographie_id, retroplanning_id, siret)
+    resource_name = Column(Text, nullable=True)  # Nom de la ressource (ex: nom de l'entreprise)
+
+    # Détails supplémentaires
+    metadata = Column(JSON, nullable=True)  # Informations additionnelles (filtres appliqués, etc.)
+
+    # Timestamp
+    accessed_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<UserActivity(id={self.id}, user_id={self.user_id}, type={self.activity_type}, resource={self.resource_name})>"
+
+    __table_args__ = (
+        Index('idx_activity_user_date', 'user_id', 'accessed_at'),
+        Index('idx_activity_type_date', 'activity_type', 'accessed_at'),
+    )

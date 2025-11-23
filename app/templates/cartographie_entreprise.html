@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_tooltip.html" import help_tooltip %}
 {% block title %}Cartographie d'entreprise · Kit renforcement CGT{% endblock %}
 
 {% block head %}
@@ -17,7 +18,20 @@
         </svg>
         Retour au kit de renforcement
       </a>
-      <h1 class="text-3xl font-bold text-gray-900">Cartographie d'entreprise</h1>
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-gray-900">Cartographie d'entreprise</h1>
+        {{ help_tooltip(
+          "Cartographie stratégique",
+          "Outil d'analyse de la répartition des salariés et syndiqués par service dans une entreprise. Permet d'identifier les zones sous-syndiquées et de définir un plan d'action ciblé pour le renforcement.",
+          "Sélectionnez ou créez une entreprise, renseignez les effectifs par service (salariés et syndiqués). L'outil génère automatiquement des graphiques et recommandations pour guider votre stratégie de syndicalisation.",
+          [
+            "Identifier les services à renforcer en priorité",
+            "Visualiser la couverture syndicale par département",
+            "Définir un plan d'action de syndicalisation",
+            "Suivre l'évolution dans le temps"
+          ]
+        ) }}
+      </div>
       <p class="mt-2 text-gray-600">Analysez la répartition des salariés et syndiqués par service pour identifier les zones à renforcer</p>
 
       <div class="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4">

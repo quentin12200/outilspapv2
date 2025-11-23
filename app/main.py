@@ -1740,12 +1740,110 @@ def test_kpi(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+def index(request: Request, db: Session = Depends(get_session)):
     """
     Page d'accueil publique - Plateforme interne
     """
+    recent_activities = []
+    current_user = get_current_user(request)
+
+    if current_user:
+        # Récupérer les activités récentes de l'utilisateur
+        from .models import UserActivity, Cartographie, Retroplanning
+        from datetime import datetime, timedelta
+
+        activities = db.query(UserActivity).filter(
+            UserActivity.user_id == current_user.id
+        ).order_by(
+            UserActivity.accessed_at.desc()
+        ).limit(6).all()
+
+        # Formatter les activités pour l'affichage
+        for activity in activities:
+            # Calculer le temps écoulé
+            now = datetime.now()
+            delta = now - activity.accessed_at
+
+            if delta.days > 0:
+                time_ago = f"Il y a {delta.days} jour{'s' if delta.days > 1 else ''}"
+            elif delta.seconds >= 3600:
+                hours = delta.seconds // 3600
+                time_ago = f"Il y a {hours}h"
+            elif delta.seconds >= 60:
+                minutes = delta.seconds // 60
+                time_ago = f"Il y a {minutes}min"
+            else:
+                time_ago = "À l'instant"
+
+            # Déterminer l'icône, la couleur et l'URL en fonction du type
+            activity_config = {
+                "cartographie_view": {
+                    "icon": "fas fa-building",
+                    "icon_bg": "bg-orange-50",
+                    "icon_color": "text-orange-600",
+                    "title": activity.resource_name or "Cartographie",
+                    "subtitle": "Cartographie entreprise",
+                    "url": f"/cartographie-entreprise?id={activity.resource_id}" if activity.resource_id else "/cartographie-entreprise"
+                },
+                "retroplanning_view": {
+                    "icon": "fas fa-calendar-check",
+                    "icon_bg": "bg-teal-50",
+                    "icon_color": "text-teal-600",
+                    "title": activity.resource_name or "Rétroplanning",
+                    "subtitle": "Planification campagne",
+                    "url": f"/retroplanning?id={activity.resource_id}" if activity.resource_id else "/retroplanning"
+                },
+                "stats_view": {
+                    "icon": "fas fa-chart-line",
+                    "icon_bg": "bg-indigo-50",
+                    "icon_color": "text-indigo-600",
+                    "title": "Statistiques",
+                    "subtitle": "Tableau de bord",
+                    "url": "/stats"
+                },
+                "invitations_view": {
+                    "icon": "fas fa-envelope-open-text",
+                    "icon_bg": "bg-rose-50",
+                    "icon_color": "text-rose-600",
+                    "title": "Invitations PAP",
+                    "subtitle": "Cycle 5",
+                    "url": "/invitations"
+                },
+                "ciblage_view": {
+                    "icon": "fas fa-crosshairs",
+                    "icon_bg": "bg-sky-50",
+                    "icon_color": "text-sky-600",
+                    "title": "Ciblage",
+                    "subtitle": "Établissements prioritaires",
+                    "url": "/ciblage"
+                },
+                "guide_view": {
+                    "icon": "fas fa-book-open",
+                    "icon_bg": "bg-purple-50",
+                    "icon_color": "text-purple-600",
+                    "title": "Guide d'exploitation",
+                    "subtitle": "Kit de renforcement",
+                    "url": "/guide-exploitation"
+                }
+            }
+
+            config = activity_config.get(activity.activity_type, {
+                "icon": "fas fa-file",
+                "icon_bg": "bg-gray-50",
+                "icon_color": "text-gray-600",
+                "title": activity.resource_name or "Document",
+                "subtitle": activity.activity_type,
+                "url": "/"
+            })
+
+            recent_activities.append({
+                **config,
+                "time_ago": time_ago
+            })
+
     return templates.TemplateResponse("index.html", {
         "request": request,
+        "recent_activities": recent_activities
     })
 
 

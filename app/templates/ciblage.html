@@ -1,14 +1,28 @@
 {% extends "base.html" %}
+{% from "_tooltip.html" import help_tooltip %}
 {% block title %}Ciblage — PAP/CSE{% endblock %}
 
 {% block content %}
 
 <!-- Page Header -->
 <div class="mb-8">
-  <h1 class="text-4xl font-bold text-gray-800 mb-2">
-    <i class="fas fa-crosshairs text-cgt-red mr-3"></i>
-    Ciblage d'Entreprises
-  </h1>
+  <div class="flex items-center gap-3 mb-2">
+    <h1 class="text-4xl font-bold text-gray-800">
+      <i class="fas fa-crosshairs text-cgt-red mr-3"></i>
+      Ciblage d'Entreprises
+    </h1>
+    {{ help_tooltip(
+      "Ciblage d'entreprises prioritaires",
+      "Outil pour importer et croiser des fichiers de ciblage (CAC40, SBF120, listes sectorielles) avec vos données PAP. Identifie rapidement les établissements stratégiques à cibler pour le renforcement syndical.",
+      "Importez un fichier Excel (.xlsx) contenant des SIRET ou raisons sociales. L'outil croise automatiquement avec vos invitations PAP et affiche les correspondances, les retards et les opportunités.",
+      [
+        "Cibler les grandes entreprises (CAC40, SBF120)",
+        "Identifier les établissements sans PAP",
+        "Prioriser les campagnes de renforcement",
+        "Exporter les résultats pour action terrain"
+      ]
+    ) }}
+  </div>
   <p class="text-gray-600">Importez un fichier de ciblage (CAC40, SBF120, etc.) et croisez avec vos données PAP</p>
 </div>
 

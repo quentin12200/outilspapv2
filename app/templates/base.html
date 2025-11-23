@@ -95,6 +95,97 @@
       opacity: 0.7;
       display: inline-block;
     }
+
+    /* Tooltip styles */
+    .help-tooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: white;
+      font-size: 0.875rem;
+      font-weight: bold;
+      cursor: help;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+
+    .help-tooltip:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+    }
+
+    .tooltip-content {
+      position: absolute;
+      bottom: calc(100% + 0.75rem);
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: white;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      width: max-content;
+      max-width: 320px;
+      z-index: 1000;
+      pointer-events: none;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .tooltip-content::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 8px solid transparent;
+      border-top-color: #0f172a;
+    }
+
+    .tooltip-title {
+      font-weight: 700;
+      font-size: 0.9375rem;
+      margin-bottom: 0.5rem;
+      color: #60a5fa;
+    }
+
+    .tooltip-section {
+      margin-top: 0.75rem;
+    }
+
+    .tooltip-section-title {
+      font-weight: 600;
+      font-size: 0.8125rem;
+      color: #93c5fd;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tooltip-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 0.25rem 0;
+    }
+
+    .tooltip-list li {
+      padding-left: 1.25rem;
+      position: relative;
+      margin-bottom: 0.25rem;
+    }
+
+    .tooltip-list li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #60a5fa;
+      font-weight: bold;
+    }
   </style>
 
   {% block head %}{% endblock %}
