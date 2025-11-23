@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_tooltip.html" import help_tooltip %}
-{% block title %}Invitations PAP — PAP/CSE{% endblock %}
+{% block title %}Invitations électorales — A.N.D.RE{% endblock %}
 
 {% block content %}
 <section class="mb-8">
@@ -9,10 +9,10 @@
       <div class="flex items-center gap-3">
         <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
           <i class="fas fa-envelope-open-text text-cgt-red"></i>
-          Invitations PAP importées
+          Invitations électorales importées
         </h1>
         {{ help_tooltip(
-          "Gestion des invitations PAP",
+          "Gestion des invitations électorales",
           "Liste complète des invitations au Protocole d'Accord Pré-électoral (PAP) pour le Cycle 5. Permet de suivre toutes les invitations reçues, leurs statuts et les échéances associées.",
           "Utilisez les filtres (UD, Fédération, Statut) pour cibler les invitations. Cliquez sur les en-têtes de colonnes pour trier. Utilisez les boutons d'export pour extraire les données.",
           [

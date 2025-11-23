@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_tooltip.html" import help_tooltip %}
-{% block title %}Ciblage — PAP/CSE{% endblock %}
+{% block title %}Ciblage — A.N.D.RE{% endblock %}
 
 {% block content %}
 
@@ -14,7 +14,7 @@
     {{ help_tooltip(
       "Ciblage d'entreprises prioritaires",
       "Outil pour importer et croiser des fichiers de ciblage (CAC40, SBF120, listes sectorielles) avec vos données PAP. Identifie rapidement les établissements stratégiques à cibler pour le renforcement syndical.",
-      "Importez un fichier Excel (.xlsx) contenant des SIRET ou raisons sociales. L'outil croise automatiquement avec vos invitations PAP et affiche les correspondances, les retards et les opportunités.",
+      "Importez un fichier Excel (.xlsx) contenant des SIRET ou raisons sociales. L'outil croise automatiquement avec vos invitations électorales et affiche les correspondances, les retards et les opportunités.",
       [
         "Cibler les grandes entreprises (CAC40, SBF120)",
         "Identifier les établissements sans PAP",
@@ -172,7 +172,7 @@
         Colonne SIRET non détectée
       </h3>
       <p class="text-red-800 mb-4">
-        Aucune colonne "SIRET" n'a été trouvée dans votre fichier. Le croisement avec les invitations PAP n'est pas possible.
+        Aucune colonne "SIRET" n'a été trouvée dans votre fichier. Le croisement avec les invitations électorales n'est pas possible.
       </p>
       <div class="bg-white rounded-lg p-4">
         <h4 class="font-semibold text-gray-800 mb-2">
@@ -200,7 +200,7 @@
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-2xl font-bold text-gray-800">
       <i class="fas fa-check-circle text-green-500 mr-2"></i>
-      Correspondances avec invitations PAP
+      Correspondances avec invitations électorales
     </h2>
     {% if match_rows %}
     <div class="flex items-center space-x-2 bg-green-100 text-green-800 px-4 py-2 rounded-lg">
@@ -224,7 +224,7 @@
         <p class="text-green-800 font-semibold">Excellente nouvelle !</p>
         <p class="text-green-700 text-sm mt-1">
           {{ match_count }} entreprise{{ 's' if match_count > 1 else '' }} de votre fichier de ciblage
-          {{ 'ont' if match_count > 1 else 'a' }} reçu une invitation PAP. Ces entreprises sont des cibles prioritaires.
+          {{ 'ont' if match_count > 1 else 'a' }} reçu une invitation électorale. Ces entreprises sont des cibles prioritaires.
         </p>
       </div>
     </div>
@@ -274,7 +274,7 @@
           Aucune correspondance trouvée
         </h3>
         <p class="text-yellow-800 mb-4">
-          Les SIRET de votre fichier de ciblage ne correspondent à aucune invitation PAP enregistrée dans la base.
+          Les SIRET de votre fichier de ciblage ne correspondent à aucune invitation électorale enregistrée dans la base.
         </p>
 
         <div class="bg-white rounded-lg p-4 mb-4">
@@ -285,11 +285,11 @@
           <ul class="space-y-2 text-sm text-gray-700">
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
-              <span><strong>Aucune invitation PAP importée :</strong> Allez dans Admin pour importer les invitations PAP (cycle 5)</span>
+              <span><strong>Aucune invitation électorale importée :</strong> Allez dans Admin pour importer les invitations électorales (cycle 5)</span>
             </li>
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
-              <span><strong>SIRET différents :</strong> Les entreprises de votre fichier de ciblage n'ont pas encore reçu d'invitation PAP</span>
+              <span><strong>SIRET différents :</strong> Les entreprises de votre fichier de ciblage n'ont pas encore reçu d'invitation électorale</span>
             </li>
             <li class="flex items-start space-x-2">
               <i class="fas fa-circle text-xs text-yellow-500 mt-1"></i>
@@ -309,7 +309,7 @@
           </a>
           <a href="/" class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center space-x-2">
             <i class="fas fa-home"></i>
-            <span>Voir les invitations PAP</span>
+            <span>Voir les invitations électorales</span>
           </a>
         </div>
       </div>
@@ -341,7 +341,7 @@
         </li>
         <li class="flex items-start space-x-2">
           <span class="font-bold">4.</span>
-          <span>Le système croisera automatiquement avec les invitations PAP enregistrées</span>
+          <span>Le système croisera automatiquement avec les invitations électorales enregistrées</span>
         </li>
       </ol>
       <div class="mt-4 p-3 bg-white rounded-lg">
