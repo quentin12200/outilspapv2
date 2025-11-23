@@ -7,6 +7,8 @@ générer des requêtes SQL appropriées et retourner des réponses formatées.
 
 import logging
 import json
+import os
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy import text
@@ -16,6 +18,9 @@ from openai import OpenAI
 from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
 
 logger = logging.getLogger(__name__)
+
+# Chemin vers le dossier des argumentaires
+ARGUMENTAIRES_DIR = Path(__file__).parent.parent / "data" / "argumentaires"
 
 
 class ChatbotIA:
@@ -407,9 +412,159 @@ Maintenant, réponds à la question de l'utilisateur.
             # Fallback: retourner les résultats bruts
             return f"Résultats trouvés: {len(results)} entrée(s)\n\n{json.dumps(results[:10], indent=2, default=str)}"
 
+    def _load_argumentaires(self) -> Dict[str, Any]:
+        """
+        Charge les argumentaires depuis les fichiers JSON.
+
+        Returns:
+            Dictionnaire contenant tous les argumentaires chargés
+        """
+        argumentaires = {}
+
+        try:
+            # Charger le fichier de syndicalisation
+            syndi_path = ARGUMENTAIRES_DIR / "syndicalisation_freins_leviers.json"
+            if syndi_path.exists():
+                with open(syndi_path, 'r', encoding='utf-8') as f:
+                    argumentaires['syndicalisation'] = json.load(f)
+                    logger.info("Argumentaires de syndicalisation chargés avec succès")
+            else:
+                logger.warning(f"Fichier d'argumentaires non trouvé: {syndi_path}")
+
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des argumentaires: {str(e)}")
+
+        return argumentaires
+
+    def _detect_question_type(self, question: str) -> str:
+        """
+        Détecte si la question porte sur les données (SQL) ou les argumentaires.
+
+        Args:
+            question: Question de l'utilisateur
+
+        Returns:
+            "sql" ou "argumentaire"
+        """
+        question_lower = question.lower()
+
+        # Mots-clés indiquant une question sur les argumentaires
+        argumentaire_keywords = [
+            "freins", "syndicalisation", "adhésion", "adhérent", "syndiqué",
+            "répression", "peur", "représailles", "qvs", "qualité de vie syndicale",
+            "formation", "démocratie", "congrès", "ictam", "cadres", "tpe", "pme",
+            "retraité", "continuité syndicale", "panier percé", "culture d'orga",
+            "isolement", "institutionnalisation", "droits syndicaux", "cotisation",
+            "leviers", "moyens", "stratégie", "renforcement", "structuration",
+            "argumentaire", "comment convaincre", "comment expliquer", "pourquoi"
+        ]
+
+        # Mots-clés indiquant une question sur les données
+        sql_keywords = [
+            "combien", "nombre", "statistique", "invitations", "pap", "pv",
+            "élection", "scrutin", "siret", "entreprise", "département", "ud", "fd",
+            "fédération", "liste", "quelles", "quels", "où", "region", "effectif",
+            "top", "classement", "taux", "participation", "résultat", "cgt", "cfdt"
+        ]
+
+        # Compter les correspondances
+        argumentaire_score = sum(1 for kw in argumentaire_keywords if kw in question_lower)
+        sql_score = sum(1 for kw in sql_keywords if kw in question_lower)
+
+        logger.info(f"Scores de détection - SQL: {sql_score}, Argumentaire: {argumentaire_score}")
+
+        # Si score égal, privilégier les argumentaires pour les questions générales
+        if argumentaire_score >= sql_score or "pourquoi" in question_lower or "comment" in question_lower:
+            return "argumentaire"
+        else:
+            return "sql"
+
+    def _answer_argumentaire_question(self, question: str, argumentaires: Dict[str, Any]) -> str:
+        """
+        Répond à une question sur les argumentaires en utilisant GPT-4.
+
+        Args:
+            question: Question de l'utilisateur
+            argumentaires: Dictionnaire des argumentaires chargés
+
+        Returns:
+            Réponse formatée en langage naturel
+        """
+        # Préparer le contexte des argumentaires
+        context = json.dumps(argumentaires, indent=2, ensure_ascii=False)
+
+        prompt = f"""Tu es un assistant CGT expert en syndicalisation et en stratégie syndicale.
+
+Tu as accès à une base de connaissances sur les freins à la syndicalisation et les moyens de les lever.
+
+Base de connaissances:
+{context}
+
+Question de l'utilisateur: {question}
+
+INSTRUCTIONS:
+- Réponds de manière claire, structurée et professionnelle
+- Utilise les informations de la base de connaissances pour construire ta réponse
+- Si la question porte sur un sujet spécifique (ex: freins, leviers, formation), cite les éléments pertinents
+- Structure ta réponse avec des titres, listes et émojis appropriés pour la rendre lisible
+- Sois pratique et concret : donne des exemples et des actions concrètes quand c'est pertinent
+- Si la question ne peut pas être répondue avec la base de connaissances actuelle, indique-le clairement
+
+Exemples de formatage:
+
+Pour une question sur les freins:
+"🚧 **Les principaux freins à la syndicalisation**
+
+**Freins externes:**
+- Répression patronale et peur des représailles...
+- Affaiblissement des droits syndicaux...
+
+**Freins internes:**
+- Perte d'adhérents (2/3 au départ en retraite)...
+- QVS négligée..."
+
+Pour une question sur les solutions:
+"💡 **Comment lever les freins à la syndicalisation**
+
+**1. Renforcement et structuration**
+- Plan de syndicalisation ciblé...
+- Adapter la structuration aux réalités...
+
+**2. Amélioration de la vie syndicale**
+- Faire vivre la démocratie...
+- Améliorer l'accueil..."
+
+Maintenant, réponds à la question de l'utilisateur.
+"""
+
+        try:
+            content = self._call_openai_with_fallback(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un assistant expert CGT qui aide les militants syndicaux à comprendre les enjeux de la syndicalisation et à développer des stratégies efficaces."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.4
+            )
+
+            return content
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération de la réponse argumentaire: {str(e)}")
+            return f"❌ Erreur lors de la génération de la réponse. Détails : {str(e)}"
+
     def ask(self, question: str, db: Session) -> Dict[str, Any]:
         """
         Pose une question au chatbot et obtient une réponse.
+
+        Le chatbot peut répondre à deux types de questions:
+        1. Questions sur les données PAP/CSE (génère et exécute du SQL)
+        2. Questions sur les argumentaires syndicaux (utilise la base de connaissances)
 
         Args:
             question: Question en langage naturel
@@ -419,9 +574,9 @@ Maintenant, réponds à la question de l'utilisateur.
             Dictionnaire contenant:
             - question: Question posée
             - answer: Réponse en langage naturel
-            - sql: Requête SQL générée
-            - results: Résultats bruts (limité aux 100 premiers)
-            - metadata: Métadonnées (tokens, coût, etc.)
+            - sql: Requête SQL générée (si question SQL)
+            - results: Résultats bruts (si question SQL)
+            - metadata: Métadonnées (tokens, coût, question_type, etc.)
 
         Raises:
             ValueError: Si la question est vide ou la requête dangereuse
@@ -433,28 +588,68 @@ Maintenant, réponds à la question de l'utilisateur.
         logger.info(f"Question posée: {question}")
 
         try:
-            # 1. Générer la requête SQL
-            sql_info = self._generate_sql_query(question, db)
+            # 1. Détecter le type de question
+            question_type = self._detect_question_type(question)
+            logger.info(f"Type de question détecté: {question_type}")
 
-            # 2. Exécuter la requête
-            results = self._execute_query(sql_info["sql"], db)
+            if question_type == "argumentaire":
+                # Question sur les argumentaires syndicaux
+                argumentaires = self._load_argumentaires()
 
-            # 3. Formater la réponse
-            answer = self._format_response(question, sql_info, results)
+                if not argumentaires:
+                    return {
+                        "question": question,
+                        "answer": "⚠️ Les argumentaires ne sont pas encore chargés dans le système. Veuillez contacter l'administrateur.",
+                        "sql": None,
+                        "metadata": {
+                            "model": self.model,
+                            "timestamp": datetime.now().isoformat(),
+                            "question_type": "argumentaire",
+                            "error": "argumentaires_not_loaded"
+                        }
+                    }
 
-            return {
-                "question": question,
-                "answer": answer,
-                "sql": sql_info["sql"],
-                "sql_explanation": sql_info.get("explanation"),
-                "results": results[:100],  # Limiter les résultats retournés
-                "total_results": len(results),
-                "metadata": {
-                    "model": self.model,
-                    "timestamp": datetime.now().isoformat(),
-                    "response_type": sql_info.get("response_type")
+                # Répondre avec les argumentaires
+                answer = self._answer_argumentaire_question(question, argumentaires)
+
+                return {
+                    "question": question,
+                    "answer": answer,
+                    "sql": None,
+                    "results": None,
+                    "metadata": {
+                        "model": self.model,
+                        "timestamp": datetime.now().isoformat(),
+                        "question_type": "argumentaire",
+                        "argumentaires_loaded": list(argumentaires.keys())
+                    }
                 }
-            }
+
+            else:
+                # Question sur les données PAP/CSE (SQL)
+                # 1. Générer la requête SQL
+                sql_info = self._generate_sql_query(question, db)
+
+                # 2. Exécuter la requête
+                results = self._execute_query(sql_info["sql"], db)
+
+                # 3. Formater la réponse
+                answer = self._format_response(question, sql_info, results)
+
+                return {
+                    "question": question,
+                    "answer": answer,
+                    "sql": sql_info["sql"],
+                    "sql_explanation": sql_info.get("explanation"),
+                    "results": results[:100],  # Limiter les résultats retournés
+                    "total_results": len(results),
+                    "metadata": {
+                        "model": self.model,
+                        "timestamp": datetime.now().isoformat(),
+                        "question_type": "sql",
+                        "response_type": sql_info.get("response_type")
+                    }
+                }
 
         except ValueError as e:
             # Erreur de sécurité ou validation
