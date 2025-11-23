@@ -199,7 +199,9 @@
 
         <!-- Logo & Title -->
         <div class="flex items-center space-x-4">
-          <img src="{{ url_for('static', path='logoandre.svg') }}" alt="Logo A.N.D.RE" class="h-20 w-auto bg-white/95 rounded-lg p-1 shadow-md object-contain border border-white/50">
+          <a href="/" class="block hover:opacity-80 transition-opacity">
+            <img src="{{ url_for('static', path='logoandre.svg') }}" alt="Logo A.N.D.RE" class="h-24 w-auto bg-white/95 rounded-lg p-1 shadow-md object-contain border border-white/50">
+          </a>
           <div class="hidden md:block">
             <h1 class="text-2xl font-bold text-white tracking-tight">A.N.D.RE</h1>
             <p class="text-sm text-red-100">Assistant Numérique de la Démarche de REnforcement</p>
