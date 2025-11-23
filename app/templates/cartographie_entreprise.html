@@ -54,7 +54,9 @@
         <strong>Debug:</strong>
         Alpine.js: <span x-text="'✅ Fonctionne'">❌ Ne fonctionne pas</span> |
         Services: <span x-text="services.length">0</span> |
-        Submitted: <span x-text="submitted ? 'true' : 'false'">false</span>
+        Submitted: <span x-text="submitted ? 'true' : 'false'">false</span> |
+        NomEntreprise: <span x-text="nomEntreprise || '(vide)'">vide</span> |
+        CanSubmit: <span x-text="canSubmit() ? '✅' : '❌'">?</span>
       </p>
     </div>
 
@@ -560,7 +562,9 @@ function cartographieApp() {
     },
 
     addService() {
+      console.log('🔵 addService() appelé, services avant:', this.services.length);
       this.services.push({ nom: '', salaries: 0, syndiques: 0 });
+      console.log('🔵 addService() terminé, services après:', this.services.length);
     },
 
     removeService(index) {
@@ -575,10 +579,18 @@ function cartographieApp() {
     },
 
     generateCartographie() {
+      console.log('🟢 generateCartographie() appelé');
+      console.log('  - nomEntreprise:', this.nomEntreprise);
+      console.log('  - services:', this.services);
+      console.log('  - canSubmit:', this.canSubmit());
+
       if (!this.canSubmit()) {
+        console.log('❌ canSubmit est false, affichage alerte');
         alert('Veuillez renseigner le nom de l\'entreprise et au moins un service avec des effectifs.');
         return;
       }
+
+      console.log('✅ Génération de la cartographie...');
 
       const analyses = this.services
         .map(service => {
