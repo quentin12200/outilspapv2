@@ -1131,8 +1131,14 @@ def presentation(request: Request, db: Session = Depends(get_session)):
 
 
 @app.get("/guide-exploitation", response_class=HTMLResponse)
-def guide_exploitation(request: Request):
+def guide_exploitation(request: Request, db: Session = Depends(get_session)):
     """Page de synthèse interactive du guide d'exploitation IA."""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_guide_view
+        track_guide_view(db, user)
 
     if KIT_PDF_CACHE_ENABLED and KIT_PDF_AUTO_WARM:
         _ensure_kit_pdf_cached()
@@ -1255,8 +1261,18 @@ async def kit_election_file(file_path: str):
 # =========================================================
 
 @app.get("/cartographie-entreprise", response_class=HTMLResponse)
-def cartographie_entreprise(request: Request, user: User | None = Depends(get_current_user_or_none)):
+def cartographie_entreprise(
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
     """Outil de cartographie d'entreprise par services"""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "cartographie_view", resource_name="Cartographie d'entreprise")
+
     return templates.TemplateResponse(
         "cartographie_entreprise.html",
         {
@@ -1482,8 +1498,18 @@ def cartographie_fd_inscrits(db: Session = Depends(get_session)):
 # =========================================================
 
 @app.get("/retroplanning", response_class=HTMLResponse)
-def retroplanning_page(request: Request, user: User | None = Depends(get_current_user_or_none)):
+def retroplanning_page(
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
     """Outil de rétro-planning pour les campagnes syndicales"""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "retroplanning_view", resource_name="Rétro-planning")
+
     return templates.TemplateResponse(
         "retroplanning.html",
         {
@@ -1722,8 +1748,14 @@ def kit_individual_doc(doc_id: str, download: bool = False):
 
 
 @app.get("/stats", response_class=HTMLResponse)
-def stats(request: Request):
+def stats(request: Request, db: Session = Depends(get_session)):
     """Page dédiée aux visualisations statistiques du tableau de bord."""
+
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_stats_view
+        track_stats_view(db, user)
 
     return templates.TemplateResponse(
         "stats.html",
@@ -2677,6 +2709,17 @@ def invitations(
     per_page: int = 50,
     db: Session = Depends(get_session),
 ):
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_invitations_view
+        filters = {k: v for k, v in {
+            "q": q, "source": source, "est_actif": est_actif,
+            "est_siege": est_siege, "ud": ud, "fd": fd,
+            "departement": departement, "statut": statut
+        }.items() if v}
+        track_invitations_view(db, user, filters if filters else None)
+
     qs = db.query(Invitation)
 
     if q:
@@ -3238,6 +3281,12 @@ def extraction_page(request: Request):
 
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
+    # Tracker l'activité si l'utilisateur est connecté
+    user = get_current_user_or_none(request, db)
+    if user:
+        from .activity_tracker import track_ciblage_view
+        track_ciblage_view(db, user)
+
     import pandas as pd
     from .models import Invitation
 
