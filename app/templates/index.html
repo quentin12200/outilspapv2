@@ -3,318 +3,353 @@
 
 {% block content %}
 {% if current_user %}
-<!-- Menu pour utilisateurs connectés -->
+<!-- Page d'accueil pour utilisateurs connectés -->
 <style>
-  .homepage-shell {
-    padding: 4rem 1.5rem 5rem;
-    background: #f8fafc;
-  }
-
-  .homepage-intro {
-    max-width: 720px;
-    margin: 0 auto 2.5rem;
-    text-align: center;
-  }
-
-  .homepage-intro h1 {
-    font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 700;
-    color: #0f172a;
-    margin-bottom: 0.75rem;
-  }
-
-  .homepage-intro p {
-    font-size: 1.05rem;
-    line-height: 1.6;
-    color: #475569;
-    margin: 0;
-  }
-
-  .modules-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .module-card {
-    --card-bg: #ffffff;
-    --card-ink: #111827;
-    --card-muted: #4b5563;
-    --card-icon-bg: rgba(79, 70, 229, 0.12);
-    --card-icon-color: #4338ca;
-    background: var(--card-bg);
-    border-radius: 1.25rem;
-    padding: 1.75rem 1.5rem;
-    box-shadow: 0 18px 45px -28px rgba(15, 23, 42, 0.45);
-    border: 1px solid rgba(226, 232, 240, 0.9);
+  .journey-card {
+    background: linear-gradient(135deg, var(--bg-from) 0%, var(--bg-to) 100%);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    box-shadow: 0 20px 50px -20px var(--shadow-color);
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    cursor: pointer;
     text-decoration: none;
     color: inherit;
+  }
+
+  .journey-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 30px 60px -20px var(--shadow-color);
+    border-color: var(--border-color);
+  }
+
+  .journey-card--discover {
+    --bg-from: #eff6ff;
+    --bg-to: #dbeafe;
+    --shadow-color: rgba(59, 130, 246, 0.3);
+    --border-color: #3b82f6;
+  }
+
+  .journey-card--campaign {
+    --bg-from: #fef3c7;
+    --bg-to: #fde68a;
+    --shadow-color: rgba(245, 158, 11, 0.3);
+    --border-color: #f59e0b;
+  }
+
+  .journey-card--manage {
+    --bg-from: #f0fdf4;
+    --bg-to: #dcfce7;
+    --shadow-color: rgba(34, 197, 94, 0.3);
+    --border-color: #22c55e;
+  }
+
+  .quick-access-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow: 0 4px 15px -5px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
     display: flex;
-    flex-direction: column;
-    gap: 0.9rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .module-card:hover,
-  .module-card:focus-visible {
-    transform: translateY(-6px);
-    box-shadow: 0 24px 60px -28px rgba(79, 70, 229, 0.35);
-    outline: none;
-  }
-
-  .module-card:focus-visible {
-    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25);
-  }
-
-  .module-icon {
-    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 0.95rem;
-    background: var(--card-icon-bg);
-    color: var(--card-icon-color);
-    font-size: 1.35rem;
+    gap: 1rem;
+    text-decoration: none;
+    color: inherit;
   }
 
-  .module-card h3 {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--card-ink);
-    margin: 0;
+  .quick-access-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 25px -8px rgba(0, 0, 0, 0.15);
+    border-color: #d5001c;
   }
 
-  .module-card p {
-    margin: 0;
-    color: var(--card-muted);
-    line-height: 1.5;
-    font-size: 0.95rem;
-  }
-
-  button.module-card {
+  button.quick-access-card {
     border: none;
-    background: var(--card-bg);
     cursor: pointer;
   }
 
-  .module-card--indigo {
-    --card-bg: linear-gradient(135deg, #e0e7ff, #c7d2fe);
-    --card-ink: #1e1b4b;
-    --card-muted: rgba(30, 27, 75, 0.8);
-    --card-icon-bg: rgba(79, 70, 229, 0.25);
-    --card-icon-color: #4338ca;
-  }
-
-  .module-card--rose {
-    --card-bg: linear-gradient(135deg, #ffe4e6, #fecdd3);
-    --card-ink: #881337;
-    --card-muted: rgba(136, 19, 55, 0.8);
-    --card-icon-bg: rgba(244, 114, 182, 0.35);
-    --card-icon-color: #be185d;
-  }
-
-  .module-card--emerald {
-    --card-bg: linear-gradient(135deg, #d1fae5, #bbf7d0);
-    --card-ink: #064e3b;
-    --card-muted: rgba(6, 78, 59, 0.8);
-    --card-icon-bg: rgba(16, 185, 129, 0.35);
-    --card-icon-color: #047857;
-  }
-
-  .module-card--amber {
-    --card-bg: linear-gradient(135deg, #fef3c7, #fde68a);
-    --card-ink: #78350f;
-    --card-muted: rgba(120, 53, 15, 0.8);
-    --card-icon-bg: rgba(251, 191, 36, 0.35);
-    --card-icon-color: #d97706;
-  }
-
-  .module-card--sky {
-    --card-bg: linear-gradient(135deg, #e0f2fe, #bae6fd);
-    --card-ink: #0c4a6e;
-    --card-muted: rgba(12, 74, 110, 0.8);
-    --card-icon-bg: rgba(56, 189, 248, 0.35);
-    --card-icon-color: #0284c7;
-  }
-
-  .module-card--violet {
-    --card-bg: linear-gradient(135deg, #ede9fe, #ddd6fe);
-    --card-ink: #4c1d95;
-    --card-muted: rgba(76, 29, 149, 0.8);
-    --card-icon-bg: rgba(167, 139, 250, 0.35);
-    --card-icon-color: #7c3aed;
-  }
-
-  .module-card--teal {
-    --card-bg: linear-gradient(135deg, #ccfbf1, #99f6e4);
-    --card-ink: #134e4a;
-    --card-muted: rgba(19, 78, 74, 0.8);
-    --card-icon-bg: rgba(45, 212, 191, 0.35);
-    --card-icon-color: #0f766e;
-  }
-
-  .module-card--cyan {
-    --card-bg: linear-gradient(135deg, #cffafe, #a5f3fc);
-    --card-ink: #155e75;
-    --card-muted: rgba(21, 94, 117, 0.8);
-    --card-icon-bg: rgba(6, 182, 212, 0.35);
-    --card-icon-color: #0e7490;
-  }
-
-  .module-card--blue {
-    --card-bg: linear-gradient(135deg, #e0f2fe, #bfdbfe);
-    --card-ink: #1d4ed8;
-    --card-muted: rgba(37, 99, 235, 0.8);
-    --card-icon-bg: rgba(59, 130, 246, 0.2);
-    --card-icon-color: #1d4ed8;
-  }
-
-  .module-card--red {
-    --card-bg: linear-gradient(135deg, #fee2e2, #fecaca);
-    --card-ink: #7f1d1d;
-    --card-muted: rgba(127, 29, 29, 0.8);
-    --card-icon-bg: rgba(248, 113, 113, 0.35);
-    --card-icon-color: #b91c1c;
-  }
-
-  .module-card--slate {
-    --card-bg: linear-gradient(135deg, #e2e8f0, #cbd5f5);
-    --card-ink: #0f172a;
-    --card-muted: rgba(15, 23, 42, 0.75);
-    --card-icon-bg: rgba(100, 116, 139, 0.25);
-    --card-icon-color: #1e293b;
-  }
-
-  .module-card--stone {
-    --card-bg: linear-gradient(135deg, #f5f5f4, #e7e5e4);
-    --card-ink: #1c1917;
-    --card-muted: rgba(28, 25, 23, 0.75);
-    --card-icon-bg: rgba(120, 113, 108, 0.25);
-    --card-icon-color: #57534e;
-  }
-
-  @media (max-width: 768px) {
-    .homepage-shell {
-      padding: 3rem 1rem 3.75rem;
-    }
-
-    .homepage-intro {
-      margin-bottom: 2rem;
-    }
+  .icon-wrapper {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
   }
 </style>
 
-<div class="max-w-6xl mx-auto px-4">
-  <div class="homepage-shell">
-    <div class="homepage-intro">
-      <h1>Bienvenue, {{ current_user.first_name }} !</h1>
-      <p>
-        Cette plateforme vous permet de piloter vos invitations PAP Cycle 5, suivre les prochaines échéances électorales et analyser la couverture syndicale CGT sur l'ensemble du territoire. Accédez aux statistiques, générez des rapports détaillés et trouvez rapidement des réponses à vos questions.
-      </p>
+<div class="max-w-7xl mx-auto">
+  <!-- Welcome Section -->
+  <div class="mb-12 text-center">
+    <h1 class="text-4xl font-bold text-gray-900 mb-3">
+      Bonjour {{ current_user.first_name }} 👋
+    </h1>
+    <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+      Plateforme de pilotage PAP/CSE et d'accompagnement au renforcement syndical
+    </p>
+  </div>
+
+  <!-- Journey Selection -->
+  <div class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+      <i class="fas fa-compass text-cgt-red"></i>
+      Quel est votre objectif aujourd'hui ?
+    </h2>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- Parcours 1: Découvrir -->
+      <a href="/stats" class="journey-card journey-card--discover group">
+        <div class="flex items-center justify-between mb-4">
+          <div class="icon-wrapper bg-blue-100 text-blue-600">
+            <i class="fas fa-map-marked-alt"></i>
+          </div>
+          <i class="fas fa-arrow-right text-blue-600 text-xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Découvrir mon territoire</h3>
+        <p class="text-sm text-gray-700 mb-4">
+          Visualiser les données PAP, cartographie CGT et prochaines échéances
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Statistiques</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Cartographie</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Calendrier</span>
+        </div>
+      </a>
+
+      <!-- Parcours 2: Préparer une campagne -->
+      <a href="/guide-exploitation" class="journey-card journey-card--campaign group">
+        <div class="flex items-center justify-between mb-4">
+          <div class="icon-wrapper bg-amber-100 text-amber-600">
+            <i class="fas fa-bullseye"></i>
+          </div>
+          <i class="fas fa-arrow-right text-amber-600 text-xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Préparer une campagne</h3>
+        <p class="text-sm text-gray-700 mb-4">
+          Guide complet, outils d'analyse et documents pour mener une campagne électorale
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Guide</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Rétroplanning</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Kit élection</span>
+        </div>
+      </a>
+
+      <!-- Parcours 3: Gérer les données -->
+      <a href="/invitations" class="journey-card journey-card--manage group">
+        <div class="flex items-center justify-between mb-4">
+          <div class="icon-wrapper bg-green-100 text-green-600">
+            <i class="fas fa-database"></i>
+          </div>
+          <i class="fas fa-arrow-right text-green-600 text-xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Gérer les données PAP</h3>
+        <p class="text-sm text-gray-700 mb-4">
+          Saisie, scanner automatique, ciblage et exports pour le suivi administratif
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Invitations</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Scanner</span>
+          <span class="px-2 py-1 bg-white/50 rounded text-xs font-medium text-gray-700">Ciblage</span>
+        </div>
+      </a>
     </div>
+  </div>
 
-    <div class="modules-grid">
-      <a href="/stats" class="module-card module-card--indigo">
-        <div class="module-icon">
-          <i class="fas fa-chart-line"></i>
-        </div>
-        <h3>Statistiques</h3>
-        <p>Consultez les indicateurs clés, graphiques et tableaux de bord.</p>
-      </a>
+  <!-- Quick Access -->
+  <div class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+      <i class="fas fa-bolt text-cgt-red"></i>
+      Accès rapide
+    </h2>
 
-      <a href="/invitations" class="module-card module-card--rose">
-        <div class="module-icon">
-          <i class="fas fa-envelope-open-text"></i>
-        </div>
-        <h3>Invitations PAP</h3>
-        <p>Gérez la liste complète des invitations PAP Cycle 5.</p>
-      </a>
-
-      <a href="/calendrier" class="module-card module-card--emerald">
-        <div class="module-icon">
-          <i class="fas fa-calendar-alt"></i>
-        </div>
-        <h3>Calendrier +1000</h3>
-        <p>Visualisez les prochaines échéances électorales majeures.</p>
-      </a>
-
-      <a href="/cartographie" class="module-card module-card--amber">
-        <div class="module-icon">
-          <i class="fas fa-map"></i>
-        </div>
-        <h3>Cartographie</h3>
-        <p>Explorez la couverture territoriale de la CGT.</p>
-      </a>
-
-      <a href="/etablissements-carte" class="module-card module-card--blue">
-        <div class="module-icon">
-          <i class="fas fa-map-location-dot"></i>
-        </div>
-        <h3>Carte établissements</h3>
-        <p>Consultez les établissements d'une entreprise sur une carte interactive.</p>
-      </a>
-
-      <a href="/ciblage" class="module-card module-card--sky">
-        <div class="module-icon">
-          <i class="fas fa-crosshairs"></i>
-        </div>
-        <h3>Ciblage</h3>
-        <p>Repérez les établissements prioritaires selon vos critères.</p>
-      </a>
-
-      <a href="/recherche-siret" class="module-card module-card--violet">
-        <div class="module-icon">
-          <i class="fas fa-plus-circle"></i>
-        </div>
-        <h3>Ajout PAP</h3>
-        <p>Ajoutez manuellement une nouvelle invitation PAP.</p>
-      </a>
-
-      <a href="/presentation" class="module-card module-card--teal">
-        <div class="module-icon">
-          <i class="fas fa-bullseye"></i>
-        </div>
-        <h3>Présentation</h3>
-        <p>Découvrez la cible PAP Cycle 5 et ses objectifs.</p>
-      </a>
-
-      <a href="/extraction" class="module-card module-card--cyan">
-        <div class="module-icon">
-          <i class="fas fa-scan"></i>
-        </div>
-        <h3>Scanner PAP</h3>
-        <p>Analysez automatiquement vos documents PAP.</p>
-      </a>
-
-      <button type="button" class="module-card module-card--action module-card--red" onclick="ouvrirAssistantExpert()">
-        <div class="module-icon">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <button onclick="ouvrirAssistantExpert()" class="quick-access-card">
+        <div class="icon-wrapper bg-blue-50 text-blue-600">
           <i class="fas fa-comments"></i>
         </div>
-        <h3>Chatbot</h3>
-        <p>Posez vos questions et obtenez des réponses ciblées.</p>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Chatbot IA</div>
+          <div class="text-xs text-gray-600">Questions & argumentaires</div>
+        </div>
       </button>
 
-      <button type="button" class="module-card module-card--action module-card--slate" onclick="genererRapportIA()">
-        <div class="module-icon">
+      <a href="/cartographie-entreprise" class="quick-access-card">
+        <div class="icon-wrapper bg-orange-50 text-orange-600">
+          <i class="fas fa-building"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Cartographie</div>
+          <div class="text-xs text-gray-600">Analyse entreprise</div>
+        </div>
+      </a>
+
+      <a href="/retroplanning" class="quick-access-card">
+        <div class="icon-wrapper bg-teal-50 text-teal-600">
+          <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Rétroplanning</div>
+          <div class="text-xs text-gray-600">Planifier campagne</div>
+        </div>
+      </a>
+
+      <button onclick="genererRapportIA()" class="quick-access-card">
+        <div class="icon-wrapper bg-green-50 text-green-600">
           <i class="fas fa-chart-pie"></i>
         </div>
-        <h3>Super rapport</h3>
-        <p>Générez un rapport stratégique en quelques clics.</p>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Super rapport</div>
+          <div class="text-xs text-gray-600">Rapport stratégique</div>
+        </div>
       </button>
+    </div>
+  </div>
+
+  <!-- All Tools Grid (collapsible) -->
+  <div class="mb-8" x-data="{ expanded: false }">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
+        <i class="fas fa-th text-cgt-red"></i>
+        Tous les outils
+      </h2>
+      <button @click="expanded = !expanded" class="text-cgt-red hover:text-cgt-darkred font-semibold flex items-center gap-2">
+        <span x-text="expanded ? 'Masquer' : 'Afficher'"></span>
+        <i class="fas fa-chevron-down transition-transform" :class="expanded ? 'rotate-180' : ''"></i>
+      </button>
+    </div>
+
+    <div x-show="expanded" x-transition class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Données -->
+      <a href="/stats" class="quick-access-card">
+        <div class="icon-wrapper bg-indigo-50 text-indigo-600">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Statistiques</div>
+          <div class="text-xs text-gray-600">Indicateurs & KPI</div>
+        </div>
+      </a>
+
+      <a href="/invitations" class="quick-access-card">
+        <div class="icon-wrapper bg-rose-50 text-rose-600">
+          <i class="fas fa-envelope-open-text"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Invitations PAP</div>
+          <div class="text-xs text-gray-600">Cycle 5</div>
+        </div>
+      </a>
+
+      <a href="/calendrier" class="quick-access-card">
+        <div class="icon-wrapper bg-emerald-50 text-emerald-600">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Calendrier +1000</div>
+          <div class="text-xs text-gray-600">Échéances</div>
+        </div>
+      </a>
+
+      <a href="/cartographie" class="quick-access-card">
+        <div class="icon-wrapper bg-amber-50 text-amber-600">
+          <i class="fas fa-map"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Cartographie</div>
+          <div class="text-xs text-gray-600">Couverture CGT</div>
+        </div>
+      </a>
+
+      <a href="/etablissements-carte" class="quick-access-card">
+        <div class="icon-wrapper bg-blue-50 text-blue-600">
+          <i class="fas fa-map-location-dot"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Carte établissements</div>
+          <div class="text-xs text-gray-600">Vue géographique</div>
+        </div>
+      </a>
+
+      <a href="/ciblage" class="quick-access-card">
+        <div class="icon-wrapper bg-sky-50 text-sky-600">
+          <i class="fas fa-crosshairs"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Ciblage</div>
+          <div class="text-xs text-gray-600">Établissements prioritaires</div>
+        </div>
+      </a>
+
+      <a href="/recherche-siret" class="quick-access-card">
+        <div class="icon-wrapper bg-violet-50 text-violet-600">
+          <i class="fas fa-plus-circle"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Ajout PAP</div>
+          <div class="text-xs text-gray-600">Saisie manuelle</div>
+        </div>
+      </a>
+
+      <a href="/extraction" class="quick-access-card">
+        <div class="icon-wrapper bg-cyan-50 text-cyan-600">
+          <i class="fas fa-scan"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Scanner PAP</div>
+          <div class="text-xs text-gray-600">OCR automatique</div>
+        </div>
+      </a>
+
+      <!-- Renforcement -->
+      <a href="/guide-exploitation" class="quick-access-card">
+        <div class="icon-wrapper bg-purple-50 text-purple-600">
+          <i class="fas fa-book-open"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Guide d'exploitation</div>
+          <div class="text-xs text-gray-600">Stratégie complète</div>
+        </div>
+      </a>
+
+      <a href="/kit-election" class="quick-access-card">
+        <div class="icon-wrapper bg-red-50 text-red-600">
+          <i class="fas fa-box-archive"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Kit élection</div>
+          <div class="text-xs text-gray-600">Documents électoraux</div>
+        </div>
+      </a>
+
+      <a href="/presentation" class="quick-access-card">
+        <div class="icon-wrapper bg-pink-50 text-pink-600">
+          <i class="fas fa-bullseye"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Présentation</div>
+          <div class="text-xs text-gray-600">Cible PAP Cycle 5</div>
+        </div>
+      </a>
 
       {% if current_user.role == "admin" %}
-      <a href="/admin" class="module-card module-card--stone">
-        <div class="module-icon">
+      <a href="/admin" class="quick-access-card">
+        <div class="icon-wrapper bg-stone-50 text-stone-600">
           <i class="fas fa-cog"></i>
         </div>
-        <h3>Administration</h3>
-        <p>Pilotez les imports, utilisateurs et outils avancés.</p>
+        <div class="flex-1">
+          <div class="font-semibold text-gray-900">Administration</div>
+          <div class="text-xs text-gray-600">Gestion avancée</div>
+        </div>
       </a>
       {% endif %}
     </div>
   </div>
 </div>
+
 <!-- Inclure les modals chatbot et rapport -->
 {% include '_chat_rapport_modals.html' %}
 

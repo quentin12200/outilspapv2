@@ -116,17 +116,158 @@
         </div>
 
         <!-- Desktop Navigation -->
-        <div class="hidden md:flex items-center space-x-2 ml-auto">
-          <!-- Lien vers le guide IA -->
-          <a href="/guide-exploitation" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
-            <i class="fas fa-wand-magic-sparkles"></i>
-            <span>Kit renforcement</span>
-          </a>
+        <div class="hidden md:flex items-center space-x-1 ml-auto">
           {% if current_user %}
-          <!-- Bouton Accueil pour utilisateurs connectés -->
-          <a href="/" class="px-4 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+          <!-- Bouton Accueil -->
+          <a href="/" class="px-3 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
             <i class="fas fa-home"></i>
             <span>Accueil</span>
+          </a>
+
+          <!-- Menu Données -->
+          <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+            <button class="px-3 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+              <i class="fas fa-database"></i>
+              <span>Données</span>
+              <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div x-cloak x-show="open" x-transition class="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-2">
+              <a href="/stats" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-chart-line w-5 text-indigo-600"></i>
+                <div>
+                  <div class="font-medium">Statistiques</div>
+                  <div class="text-xs text-gray-500">Indicateurs & KPI</div>
+                </div>
+              </a>
+              <a href="/invitations" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-envelope-open-text w-5 text-rose-600"></i>
+                <div>
+                  <div class="font-medium">Invitations PAP</div>
+                  <div class="text-xs text-gray-500">Cycle 5</div>
+                </div>
+              </a>
+              <a href="/calendrier" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-calendar-alt w-5 text-emerald-600"></i>
+                <div>
+                  <div class="font-medium">Calendrier +1000</div>
+                  <div class="text-xs text-gray-500">Échéances électorales</div>
+                </div>
+              </a>
+              <a href="/cartographie" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-map w-5 text-amber-600"></i>
+                <div>
+                  <div class="font-medium">Cartographie</div>
+                  <div class="text-xs text-gray-500">Couverture CGT</div>
+                </div>
+              </a>
+              <a href="/etablissements-carte" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-map-location-dot w-5 text-blue-600"></i>
+                <div>
+                  <div class="font-medium">Carte établissements</div>
+                  <div class="text-xs text-gray-500">Vue géographique</div>
+                </div>
+              </a>
+              <div class="border-t border-gray-100 my-1"></div>
+              <a href="/ciblage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-crosshairs w-5 text-sky-600"></i>
+                <div>
+                  <div class="font-medium">Ciblage</div>
+                  <div class="text-xs text-gray-500">Établissements prioritaires</div>
+                </div>
+              </a>
+              <a href="/recherche-siret" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-plus-circle w-5 text-violet-600"></i>
+                <div>
+                  <div class="font-medium">Ajout PAP</div>
+                  <div class="text-xs text-gray-500">Saisie manuelle</div>
+                </div>
+              </a>
+              <a href="/extraction" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-scan w-5 text-cyan-600"></i>
+                <div>
+                  <div class="font-medium">Scanner PAP</div>
+                  <div class="text-xs text-gray-500">OCR automatique</div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Menu Renforcement -->
+          <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+            <button class="px-3 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+              <i class="fas fa-wand-magic-sparkles"></i>
+              <span>Renforcement</span>
+              <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div x-cloak x-show="open" x-transition class="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-2">
+              <a href="/guide-exploitation" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-book-open w-5 text-purple-600"></i>
+                <div>
+                  <div class="font-medium">Guide d'exploitation</div>
+                  <div class="text-xs text-gray-500">Stratégie complète</div>
+                </div>
+              </a>
+              <a href="/cartographie-entreprise" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-building w-5 text-orange-600"></i>
+                <div>
+                  <div class="font-medium">Cartographie entreprise</div>
+                  <div class="text-xs text-gray-500">Analyse stratégique</div>
+                </div>
+              </a>
+              <a href="/retroplanning" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-calendar-check w-5 text-teal-600"></i>
+                <div>
+                  <div class="font-medium">Rétroplanning</div>
+                  <div class="text-xs text-gray-500">Planification campagne</div>
+                </div>
+              </a>
+              <a href="/kit-election" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-box-archive w-5 text-red-600"></i>
+                <div>
+                  <div class="font-medium">Kit élection</div>
+                  <div class="text-xs text-gray-500">Documents électoraux</div>
+                </div>
+              </a>
+              <div class="border-t border-gray-100 my-1"></div>
+              <a href="/presentation" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-bullseye w-5 text-pink-600"></i>
+                <div>
+                  <div class="font-medium">Présentation</div>
+                  <div class="text-xs text-gray-500">Cible PAP Cycle 5</div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Menu Outils IA -->
+          <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+            <button class="px-3 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+              <i class="fas fa-robot"></i>
+              <span>Outils IA</span>
+              <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div x-cloak x-show="open" x-transition class="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 py-2">
+              <button onclick="ouvrirAssistantExpert()" class="w-full text-left block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-comments w-5 text-blue-600"></i>
+                <div>
+                  <div class="font-medium">Chatbot IA</div>
+                  <div class="text-xs text-gray-500">Questions & argumentaires</div>
+                </div>
+              </button>
+              <button onclick="genererRapportIA()" class="w-full text-left block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3">
+                <i class="fas fa-chart-pie w-5 text-green-600"></i>
+                <div>
+                  <div class="font-medium">Super rapport</div>
+                  <div class="text-xs text-gray-500">Rapport stratégique</div>
+                </div>
+              </button>
+            </div>
+          </div>
+          {% else %}
+          <!-- Pour visiteurs non connectés -->
+          <a href="/guide-exploitation" class="px-3 py-2 rounded-lg text-white/95 hover:bg-white/20 transition flex items-center space-x-2">
+            <i class="fas fa-wand-magic-sparkles"></i>
+            <span>Kit renforcement</span>
           </a>
           {% endif %}
 
