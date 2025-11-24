@@ -22,6 +22,8 @@ except ImportError:
     logger.warning("pdf2image non installé - support PDF désactivé")
 
 from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
+from .pappers_api import PappersAPI
+from .sirene_api import SireneAPI
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +137,149 @@ class DocumentExtractor:
 
         except Exception as e:
             raise DocumentExtractorError(f"Erreur lors de la conversion du PDF: {str(e)}")
+
+    async def _enrich_data_with_apis(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enrichit les données extraites avec les APIs Pappers/Sirene si des informations manquent.
+
+        Si le SIRET est trouvé mais que effectif, commune, code_postal ou idcc manquent,
+        cette fonction les récupère automatiquement via les APIs.
+
+        Args:
+            extracted_data: Données extraites du document
+
+        Returns:
+            Données enrichies avec les informations des APIs
+        """
+        siret = extracted_data.get('siret')
+
+        # Si pas de SIRET valide, on ne peut pas enrichir
+        if not self._is_valid_siret(siret):
+            return extracted_data
+
+        # Vérifier quelles données manquent
+        missing_fields = []
+        if not extracted_data.get('effectif'):
+            missing_fields.append('effectif')
+        if not extracted_data.get('ville'):
+            missing_fields.append('ville')
+        if not extracted_data.get('code_postal'):
+            missing_fields.append('code_postal')
+        if not extracted_data.get('idcc'):
+            missing_fields.append('idcc')
+
+        # Si rien ne manque, pas besoin d'enrichir
+        if not missing_fields:
+            logger.info(f"✅ Toutes les données essentielles sont présentes pour {siret}")
+            return extracted_data
+
+        logger.info(f"🔍 Enrichissement des données pour {siret} - Champs manquants: {', '.join(missing_fields)}")
+
+        # Essayer d'abord Pappers (plus complet)
+        try:
+            pappers = PappersAPI()
+            pappers_data = await pappers.get_siret(siret)
+
+            if pappers_data:
+                logger.info(f"✅ Données Pappers récupérées pour {siret}")
+
+                # Enrichir les données manquantes
+                enriched_fields = []
+
+                if not extracted_data.get('effectif') and pappers_data.get('effectifs_label'):
+                    try:
+                        # Pappers retourne parfois un label "10 à 19 salariés"
+                        effectif_label = str(pappers_data['effectifs_label'])
+                        # Si c'est un nombre, l'utiliser directement
+                        if effectif_label.isdigit():
+                            extracted_data['effectif'] = int(effectif_label)
+                            enriched_fields.append('effectif')
+                        else:
+                            # Sinon garder le label en note
+                            note = f"Effectif (Pappers): {effectif_label}"
+                            if extracted_data.get('notes'):
+                                extracted_data['notes'] = f"{extracted_data['notes']} | {note}"
+                            else:
+                                extracted_data['notes'] = note
+                    except (ValueError, TypeError):
+                        pass
+
+                if not extracted_data.get('ville') and pappers_data.get('commune'):
+                    extracted_data['ville'] = pappers_data['commune']
+                    enriched_fields.append('ville')
+
+                if not extracted_data.get('code_postal') and pappers_data.get('code_postal'):
+                    extracted_data['code_postal'] = pappers_data['code_postal']
+                    enriched_fields.append('code_postal')
+
+                if not extracted_data.get('idcc') and pappers_data.get('idcc'):
+                    extracted_data['idcc'] = pappers_data['idcc']
+                    enriched_fields.append('idcc')
+
+                if not extracted_data.get('raison_sociale') and pappers_data.get('denomination'):
+                    extracted_data['raison_sociale'] = pappers_data['denomination']
+                    enriched_fields.append('raison_sociale')
+
+                if enriched_fields:
+                    logger.info(f"✅ Données enrichies via Pappers: {', '.join(enriched_fields)}")
+                    # Ajouter une note pour l'utilisateur
+                    note_enrichissement = f"✅ Données auto-complétées via Pappers: {', '.join(enriched_fields)}"
+                    if extracted_data.get('notes'):
+                        extracted_data['notes'] = f"{extracted_data['notes']} | {note_enrichissement}"
+                    else:
+                        extracted_data['notes'] = note_enrichissement
+
+                    # Ajouter dans les métadonnées
+                    if '_metadata' not in extracted_data:
+                        extracted_data['_metadata'] = {}
+                    extracted_data['_metadata']['enriched_with_pappers'] = True
+                    extracted_data['_metadata']['enriched_fields'] = enriched_fields
+
+                return extracted_data
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors de l'enrichissement via Pappers: {str(e)}")
+
+        # Fallback sur Sirene si Pappers échoue
+        try:
+            sirene = SireneAPI()
+            sirene_data = await sirene.get_siret(siret)
+
+            if sirene_data and sirene_data.get('success'):
+                logger.info(f"✅ Données Sirene récupérées pour {siret}")
+                etab = sirene_data.get('etablissement', {})
+
+                enriched_fields = []
+
+                if not extracted_data.get('ville') and etab.get('commune'):
+                    extracted_data['ville'] = etab['commune']
+                    enriched_fields.append('ville')
+
+                if not extracted_data.get('code_postal') and etab.get('code_postal'):
+                    extracted_data['code_postal'] = etab['code_postal']
+                    enriched_fields.append('code_postal')
+
+                if not extracted_data.get('raison_sociale') and etab.get('denomination'):
+                    extracted_data['raison_sociale'] = etab['denomination']
+                    enriched_fields.append('raison_sociale')
+
+                if enriched_fields:
+                    logger.info(f"✅ Données enrichies via Sirene: {', '.join(enriched_fields)}")
+                    note_enrichissement = f"✅ Données auto-complétées via Sirene: {', '.join(enriched_fields)}"
+                    if extracted_data.get('notes'):
+                        extracted_data['notes'] = f"{extracted_data['notes']} | {note_enrichissement}"
+                    else:
+                        extracted_data['notes'] = note_enrichissement
+
+                    if '_metadata' not in extracted_data:
+                        extracted_data['_metadata'] = {}
+                    extracted_data['_metadata']['enriched_with_sirene'] = True
+                    extracted_data['_metadata']['enriched_fields'] = enriched_fields
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors de l'enrichissement via Sirene: {str(e)}")
+
+        return extracted_data
 
     @staticmethod
     def _is_valid_siret(siret: Optional[str]) -> bool:
@@ -503,6 +648,9 @@ IMPORTANT: Le SIRET doit contenir exactement 14 chiffres. Vérifie bien que c'es
                         logger.error(f"❌ Aucun SIRET trouvé automatiquement pour '{raison_sociale}'")
                 else:
                     logger.warning(f"⚠️ Impossible de rechercher le SIRET: raison sociale manquante")
+
+            # Enrichir les données manquantes avec les APIs (Pappers/Sirene)
+            extracted_data = await self._enrich_data_with_apis(extracted_data)
 
             return extracted_data
 
