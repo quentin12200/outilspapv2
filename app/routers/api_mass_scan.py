@@ -10,17 +10,21 @@ Fonctionnalités:
 
 import os
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+logger = logging.getLogger(__name__)
+
 from ..db import get_db
 from ..models import MassScanBatch, MassScanPAP, User, SiretSummary, Invitation, PVEvent
 from ..user_auth import require_admin_user
 from ..services.sirene_api import SireneAPI
 from ..services.pappers_api import PappersAPI
+from ..services.pap_extractor import extract_pap_auto, PAPExtractionError
 from ..etl import ingest_pv_excel
 
 router = APIRouter(prefix="/api/mass-scan", tags=["mass-scan"])
@@ -215,39 +219,43 @@ async def analyze_pap_file(
     pappers_api: PappersAPI
 ) -> MassScanPAP:
     """
-    Analyse un fichier PAP et extrait les informations
+    Analyse un fichier PAP et extrait les informations via ETL ou IA
     """
     try:
-        # Ingérer le fichier via l'ETL
-        # Note: Ceci est une version simplifiée, vous devrez adapter selon votre format
-        # Pour l'instant, on suppose que les fichiers sont des Excel avec les colonnes standard
+        # Extraire les données du fichier (auto-détection Excel vs Image/PDF)
+        pap_data = await extract_pap_auto(file_path)
 
-        # Créer l'objet MassScanPAP
+        # Créer l'objet MassScanPAP avec les données extraites
         pap = MassScanPAP(
             batch_id=batch_id,
             file_name=file_name,
             file_path=file_path,
-            status='pending'
+            siret=pap_data.get('siret'),
+            raison_sociale=pap_data.get('raison_sociale'),
+            inscrits=pap_data.get('inscrits'),
+            ud=pap_data.get('ud'),
+            fd=pap_data.get('fd'),
+            idcc=pap_data.get('idcc'),
+            code_postal=pap_data.get('cp'),
+            commune=pap_data.get('ville'),
+            adresse=pap_data.get('adresse'),
+            status='pending'  # Sera mis à jour lors de l'enrichissement
         )
-
-        # TODO: Extraire les données du fichier (via ETL ou extraction IA)
-        # Pour l'instant, on simule avec des données vides
-        # Dans une vraie implémentation, il faudrait:
-        # 1. Lire le fichier Excel
-        # 2. Extraire SIRET, raison sociale, etc.
-        # 3. Enrichir via Sirene/Pappers
-
-        # Exemple de workflow:
-        # data = ingest_pv_excel(file_path, db)
-        # siret = data.get('siret')
-
-        # Pour l'instant, on retourne un PAP avec statut pending
-        # L'analyse réelle se fera dans une tâche de fond
 
         return pap
 
+    except PAPExtractionError as e:
+        print(f"Erreur extraction PAP {file_name}: {e}")
+        pap = MassScanPAP(
+            batch_id=batch_id,
+            file_name=file_name,
+            file_path=file_path,
+            status='error',
+            error=f"Extraction échouée: {str(e)}"
+        )
+        return pap
     except Exception as e:
-        print(f"Erreur analyse PAP {file_name}: {e}")
+        print(f"Erreur inattendue PAP {file_name}: {e}")
         pap = MassScanPAP(
             batch_id=batch_id,
             file_name=file_name,
@@ -286,7 +294,34 @@ async def process_batch_analysis(
 
         for pap in paps:
             try:
-                # Si le PAP a un SIRET, enrichir les données
+                # Étape 1: Extraire les données du fichier si pas déjà fait
+                if not pap.siret and pap.file_path:
+                    try:
+                        logger.info(f"Extraction des données pour {pap.file_name}")
+                        pap_data = await extract_pap_auto(pap.file_path)
+
+                        # Mettre à jour le PAP avec les données extraites
+                        pap.siret = pap_data.get('siret')
+                        pap.raison_sociale = pap_data.get('raison_sociale')
+                        pap.inscrits = pap_data.get('inscrits')
+                        pap.ud = pap_data.get('ud')
+                        pap.fd = pap_data.get('fd')
+                        pap.idcc = pap_data.get('idcc')
+                        pap.code_postal = pap_data.get('cp')
+                        pap.commune = pap_data.get('ville')
+                        pap.adresse = pap_data.get('adresse')
+
+                        db.commit()
+                        logger.info(f"✅ Extraction réussie: {pap.siret}")
+
+                    except PAPExtractionError as e:
+                        logger.error(f"❌ Erreur extraction {pap.file_name}: {e}")
+                        pap.status = 'error'
+                        pap.error = f"Extraction échouée: {str(e)}"
+                        db.commit()
+                        continue
+
+                # Étape 2: Si le PAP a un SIRET, enrichir les données via Pappers/Sirene
                 if pap.siret:
                     # Récupérer les infos de l'entreprise
                     try:
