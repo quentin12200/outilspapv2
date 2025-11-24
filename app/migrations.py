@@ -540,6 +540,46 @@ def fill_invitation_columns_from_raw():
         session.close()
 
 
+def create_mass_scan_tables_if_needed():
+    """
+    Crée les tables pour le scan en masse de PAP si elles n'existent pas.
+    """
+    logger.info("🔍 Vérification des tables mass_scan...")
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    tables_to_create = []
+    if "mass_scan_batches" not in existing_tables:
+        tables_to_create.append("mass_scan_batches")
+    if "mass_scan_paps" not in existing_tables:
+        tables_to_create.append("mass_scan_paps")
+
+    if not tables_to_create:
+        logger.info("  ✅ Tables mass_scan déjà présentes")
+        return
+
+    logger.info(f"  📦 Création des tables: {', '.join(tables_to_create)}")
+
+    try:
+        # Importer les modèles
+        from .models import MassScanBatch, MassScanPAP
+        from .db import Base
+
+        # Créer uniquement les tables manquantes
+        Base.metadata.create_all(bind=engine, tables=[
+            Base.metadata.tables.get(table_name)
+            for table_name in tables_to_create
+            if Base.metadata.tables.get(table_name) is not None
+        ])
+
+        logger.info("  ✅ Tables mass_scan créées avec succès")
+
+    except Exception as e:
+        logger.error(f"  ❌ Erreur création tables mass_scan: {e}")
+        raise
+
+
 def run_migrations():
     """Point d'entrée pour exécuter toutes les migrations."""
     try:
@@ -559,6 +599,9 @@ def run_migrations():
 
         # Migration statistiques de connexion utilisateurs
         add_user_session_tracking_columns_if_needed()
+
+        # Migration tables scan en masse
+        create_mass_scan_tables_if_needed()
 
         logger.info("✅ Toutes les migrations ont été exécutées avec succès!")
     except Exception as e:

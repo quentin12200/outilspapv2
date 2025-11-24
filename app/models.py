@@ -803,3 +803,97 @@ class UserActivity(Base):
         Index('idx_activity_user_date', 'user_id', 'accessed_at'),
         Index('idx_activity_type_date', 'activity_type', 'accessed_at'),
     )
+
+
+class MassScanBatch(Base):
+    """
+    Table pour stocker les lots de scans en masse de PAP
+    Un lot correspond à une session de scan par un admin
+    """
+    __tablename__ = "mass_scan_batches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Utilisateur qui a créé le lot
+    user_id = Column(Integer, nullable=False, index=True)
+    user_email = Column(String(255), nullable=False)
+
+    # Informations du lot
+    total_paps = Column(Integer, default=0, nullable=False)  # Nombre total de PAP scannés
+    paps_enjeux = Column(Integer, default=0, nullable=False)  # Nombre de PAP à enjeux
+    paps_standard = Column(Integer, default=0, nullable=False)  # Nombre de PAP standards
+
+    # Statut
+    status = Column(String(20), default='pending', nullable=False)  # pending, processing, completed, failed
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    completed_at = Column(DateTime)
+
+    def __repr__(self):
+        return f"<MassScanBatch(id={self.id}, total={self.total_paps}, enjeux={self.paps_enjeux})>"
+
+    __table_args__ = (
+        Index('idx_batch_user_date', 'user_id', 'created_at'),
+    )
+
+
+class MassScanPAP(Base):
+    """
+    Table pour stocker les PAP analysés dans un lot de scan en masse
+    Chaque ligne représente un PAP avec sa classification et les données extraites
+    """
+    __tablename__ = "mass_scan_paps"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Référence au lot
+    batch_id = Column(Integer, ForeignKey('mass_scan_batches.id'), nullable=False, index=True)
+
+    # Données du PAP
+    siret = Column(String(14), index=True)
+    raison_sociale = Column(Text)
+    denomination = Column(Text)
+    adresse = Column(Text)
+    code_postal = Column(String(10))
+    commune = Column(Text)
+
+    # Données syndicales
+    ud = Column(String(80))  # Union départementale
+    fd = Column(String(80))  # Fédération
+    idcc = Column(String(20))
+
+    # Données effectifs
+    effectif_total = Column(Integer)  # Effectif total de l'entreprise
+    inscrits = Column(Integer)  # Nombre d'inscrits au PV
+    effectif_departement = Column(Integer)  # Effectif moyen des entreprises du département
+
+    # Classification
+    is_enjeux = Column(Boolean, default=False, nullable=False)  # True si PAP à enjeux
+    raison_enjeux = Column(Text)  # Raison de la classification (>1000 salariés, inscrits importants, etc.)
+
+    # Fichier PAP
+    file_name = Column(Text)  # Nom du fichier original
+    file_path = Column(Text)  # Chemin du fichier sur le serveur
+
+    # Template d'email généré
+    email_subject = Column(Text)  # Sujet de l'email
+    email_body = Column(Text)  # Corps de l'email
+    email_recipient = Column(String(255))  # Destinataire suggéré (UD)
+
+    # Statut
+    status = Column(String(20), default='pending', nullable=False)  # pending, analyzed, email_sent
+    error = Column(Text)  # Erreur si l'analyse a échoué
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    analyzed_at = Column(DateTime)  # Date de l'analyse
+    email_sent_at = Column(DateTime)  # Date d'envoi de l'email
+
+    def __repr__(self):
+        return f"<MassScanPAP(id={self.id}, siret={self.siret}, is_enjeux={self.is_enjeux})>"
+
+    __table_args__ = (
+        Index('idx_mass_pap_batch', 'batch_id', 'created_at'),
+        Index('idx_mass_pap_siret', 'siret'),
+    )

@@ -686,6 +686,7 @@ from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
+from .routers import api_mass_scan  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -755,6 +756,7 @@ app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
+app.include_router(api_mass_scan.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -4447,6 +4449,20 @@ def delete_user(
         "success": True,
         "message": f"Utilisateur {name} ({email}) supprimé définitivement"
     }
+
+
+@app.get("/admin/mass-scan", response_class=HTMLResponse)
+def admin_mass_scan_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """Page de scan en masse de PAP avec classification automatique"""
+    return templates.TemplateResponse("admin_mass_scan.html", {
+        "request": request,
+        "user": current_user,
+        "is_admin": current_user.role == "admin"
+    })
 
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
