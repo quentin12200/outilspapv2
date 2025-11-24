@@ -323,44 +323,79 @@ IMPORTANT: Le SIRET doit contenir exactement 14 chiffres. Vérifie bien que c'es
 
             # Construire le prompt pour l'extraction
             prompt = """
-            Analyse ce courrier PAP (Protocole d'Accord Préélectoral) ou cette invitation C5 et extrait TOUTES les informations suivantes au format JSON structuré.
+            Analyse ce document de PAP (Protocole d'Accord Préélectoral), invitation C5 ou courrier électoral français et extrait TOUTES les informations suivantes.
 
-            Retourne UNIQUEMENT un objet JSON valide avec les champs suivants (utilise null si l'information n'est pas disponible) :
+            CONTEXTE IMPORTANT:
+            - Un PAP est un accord entre l'employeur et les organisations syndicales avant des élections professionnelles (CSE, DP, CE)
+            - Il contient des informations sur l'établissement, les modalités de l'élection, les collèges, effectifs, etc.
+            - Les chiffres comme le SIRET, l'effectif et le nombre d'inscrits sont ESSENTIELS
+
+            INSTRUCTIONS SPÉCIFIQUES POUR L'EXTRACTION:
+
+            1. SIRET (CRUCIAL):
+               - Cherche un nombre de 14 chiffres (peut être espacé: "123 456 789 01234" ou "12345678901234")
+               - Peut être précédé de "SIRET:", "n° SIRET", "Numéro SIRET", etc.
+               - Peut être sur l'en-tête, dans les coordonnées de l'entreprise
+               - EXTRAIT LE MÊME SI IL EST MAL FORMATÉ (espaces, points, tirets)
+
+            2. EFFECTIF (CRUCIAL):
+               - Cherche "effectif", "nombre de salariés", "salariés de l'établissement"
+               - Peut être écrit en chiffres ou en toutes lettres ("cinquante salariés")
+               - Peut être dans une phrase comme "L'établissement compte 150 salariés"
+               - CHERCHE PARTOUT DANS LE DOCUMENT
+
+            3. INSCRITS (CRUCIAL):
+               - Cherche "inscrits", "électeurs inscrits", "liste électorale", "nombre d'électeurs"
+               - Peut être par collège: "Collège 1: 45 inscrits, Collège 2: 30 inscrits" → somme = 75
+               - Peut être dans un tableau récapitulatif
+               - Si tu trouves des inscrits par collège, ADDITIONNE-LES pour le total
+
+            4. COMMUNE/VILLE (CRUCIAL):
+               - Cherche la ville dans l'adresse de l'établissement
+               - Format souvent: "Code postal VILLE" (ex: "75001 PARIS", "13010 MARSEILLE")
+               - La ville peut être en MAJUSCULES après le code postal
+               - Extrait le nom exact de la commune
+
+            Retourne UNIQUEMENT un objet JSON valide avec cette structure:
 
             {
-                "siret": "Numéro SIRET de l'établissement (14 chiffres)",
-                "siren": "Numéro SIREN si mentionné (9 chiffres)",
-                "raison_sociale": "Raison sociale / nom de l'entreprise",
-                "enseigne": "Enseigne commerciale si différente de la raison sociale",
-                "adresse": "Adresse complète de l'établissement",
-                "code_postal": "Code postal",
-                "ville": "Ville",
-                "date_invitation": "Date du courrier/invitation au format YYYY-MM-DD",
-                "date_election": "Date prévue de l'élection au format YYYY-MM-DD",
-                "date_limite_candidature": "Date limite de dépôt des candidatures au format YYYY-MM-DD",
-                "effectif": "Effectif de l'entreprise (nombre entier)",
-                "type_scrutin": "Type de scrutin (CSE, DP, CE, CHSCT, etc.)",
-                "colleges": "Liste des collèges électoraux",
+                "siret": "Numéro SIRET exact à 14 chiffres (enlève espaces/points/tirets)",
+                "siren": "Numéro SIREN si visible (9 premiers chiffres du SIRET)",
+                "raison_sociale": "Raison sociale exacte de l'entreprise",
+                "enseigne": "Enseigne commerciale si différente",
+                "adresse": "Adresse complète (numéro, rue)",
+                "code_postal": "Code postal (5 chiffres)",
+                "ville": "Nom de la commune/ville EXACT (comme écrit dans le document)",
+                "date_invitation": "Date du courrier au format YYYY-MM-DD",
+                "date_election": "Date de l'élection au format YYYY-MM-DD",
+                "date_limite_candidature": "Date limite candidatures au format YYYY-MM-DD",
+                "effectif": "Effectif TOTAL de l'établissement (nombre entier)",
+                "inscrits": "Nombre total d'électeurs inscrits (somme de tous les collèges)",
+                "type_scrutin": "Type d'élection (CSE, DP, CE, CHSCT, etc.)",
+                "colleges": "Description des collèges électoraux",
                 "sieges_pourvoir": "Nombre total de sièges à pourvoir",
-                "source": "Type de document (PAP C5, Invitation, Courrier, etc.)",
-                "idcc": "Code IDCC de la convention collective si mentionné",
+                "source": "Type de document (PAP, Invitation C5, Courrier, etc.)",
+                "idcc": "Code IDCC de la convention collective",
                 "convention_collective": "Nom de la convention collective",
-                "syndicats_invites": "Liste des organisations syndicales invitées",
-                "contact_nom": "Nom du contact mentionné",
+                "syndicats_invites": "Liste des syndicats invités",
+                "contact_nom": "Nom du contact",
                 "contact_fonction": "Fonction du contact",
                 "contact_email": "Email du contact",
                 "contact_telephone": "Téléphone du contact",
                 "notes": "Autres informations importantes",
-                "raw_text": "Texte brut complet extrait du document",
+                "raw_text": "Texte brut complet du document",
                 "confidence": "Niveau de confiance (high/medium/low)"
             }
 
-            IMPORTANT:
-            - Retourne UNIQUEMENT le JSON, sans texte avant ou après
-            - Utilise null pour les valeurs manquantes
-            - Les dates doivent être au format YYYY-MM-DD
-            - Le SIRET doit être exact (14 chiffres sans espaces)
-            - Sois très précis sur les chiffres (SIRET, effectif, dates)
+            RÈGLES STRICTES:
+            - Retourne UNIQUEMENT le JSON, rien d'autre
+            - Utilise null si une information n'est vraiment pas dans le document
+            - Les dates DOIVENT être au format YYYY-MM-DD
+            - Le SIRET DOIT contenir exactement 14 chiffres (nettoie les espaces/tirets)
+            - L'effectif et les inscrits DOIVENT être des nombres entiers
+            - La ville doit être le nom exact de la commune (pas d'abréviation)
+            - Sois TRÈS MINUTIEUX pour les chiffres (SIRET, effectif, inscrits, dates)
+            - Si tu trouves plusieurs collèges avec des inscrits, ADDITIONNE-LES
             """
 
             # Essayer plusieurs modèles en fallback si le premier échoue
