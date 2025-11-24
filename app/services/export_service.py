@@ -293,12 +293,26 @@ def generate_calendrier_excel(
 
         # Agréger les données de tous les collèges de ce SIRET
         for college_data in colleges.values():
-            siret_aggregated[siret]["sve"] += (college_data["sve"] or 0)
-            siret_aggregated[siret]["votants"] += college_data["votants"]
-            siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
-            
-            for orga, voix in college_data["voix_par_orga"].items():
-                siret_aggregated[siret]["voix_par_orga"][orga] += voix
+            # Vérifier le quorum du collège AVANT d'agréger ses votes
+            # Le quorum est atteint si : SVE >= (inscrits / 2) + 1
+            # Si le quorum n'est pas atteint, ce collège n'a pas d'élus et ses voix ne comptent pas
+            college_inscrits = college_data["inscrits"]
+            college_sve = college_data["sve"] or 0
+            quorum_atteint = False
+
+            if college_inscrits > 0:
+                quorum_requis = (college_inscrits / 2) + 1
+                quorum_atteint = college_sve >= quorum_requis
+
+            # Additionner les valeurs de ce collège aux totaux du SIRET
+            # UNIQUEMENT si le quorum est atteint
+            if quorum_atteint:
+                siret_aggregated[siret]["sve"] += college_sve
+                siret_aggregated[siret]["votants"] += college_data["votants"]
+                siret_aggregated[siret]["inscrits"] += college_data["inscrits"]
+
+                for orga, voix in college_data["voix_par_orga"].items():
+                    siret_aggregated[siret]["voix_par_orga"][orga] += voix
 
             siret_aggregated[siret]["colleges_details"].append({
                 "effectif": college_data["effectif"],

@@ -794,7 +794,7 @@
       <nav class="flex items-center gap-2">
         <!-- Première page -->
         {% if page > 1 %}
-        <a href="?page=1&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page=1&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
           <i class="fas fa-angles-left"></i>
         </a>
@@ -806,7 +806,7 @@
 
         <!-- Page précédente -->
         {% if page > 1 %}
-        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
           <i class="fas fa-angle-left"></i>
         </a>
@@ -828,7 +828,7 @@
         {% if p == page %}
         <span class="px-4 py-2 rounded-lg bg-cgt-red text-white font-semibold text-sm">{{ p }}</span>
         {% else %}
-        <a href="?page={{ p }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page={{ p }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">{{ p
           }}</a>
         {% endif %}
@@ -839,7 +839,7 @@
 
           <!-- Page suivante -->
           {% if page < total_pages %} <a
-            href="?page={{ page + 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+            href="?page={{ page + 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
             class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
             <i class="fas fa-angle-right"></i>
             </a>
@@ -851,7 +851,7 @@
 
             <!-- Dernière page -->
             {% if page < total_pages %} <a
-              href="?page={{ total_pages }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+              href="?page={{ total_pages }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
               class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
               <i class="fas fa-angles-right"></i>
               </a>
