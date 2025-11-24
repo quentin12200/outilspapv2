@@ -19,7 +19,7 @@ from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
 
-from ..db import get_db
+from ..db import get_session
 from ..models import MassScanBatch, MassScanPAP, User, SiretSummary, Invitation, PVEvent
 from ..user_auth import require_admin_user
 from ..services.sirene_api import SireneAPI
@@ -404,7 +404,7 @@ async def create_batch(
     files: List[UploadFile] = File(...),
     background_tasks: BackgroundTasks = None,
     user: User = Depends(require_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ):
     """
     Crée un nouveau lot de scan en masse et upload les fichiers PAP
@@ -464,7 +464,7 @@ async def create_batch(
 async def get_batch_status(
     batch_id: int,
     user: User = Depends(require_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ):
     """
     Récupère le statut d'un lot de scan
@@ -505,7 +505,7 @@ async def get_batch_status(
 async def get_batch_paps(
     batch_id: int,
     user: User = Depends(require_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ):
     """
     Récupère la liste détaillée des PAP d'un lot
@@ -549,7 +549,7 @@ async def get_pap_email(
     batch_id: int,
     pap_id: int,
     user: User = Depends(require_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ):
     """
     Récupère le template d'email pour un PAP spécifique
@@ -574,7 +574,7 @@ async def get_pap_email(
 @router.get("/batches")
 async def list_batches(
     user: User = Depends(require_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ):
     """
     Liste tous les lots de scan
