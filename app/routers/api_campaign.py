@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..services.document_extractor import DocumentExtractor, DocumentExtractorError
 from ..services.pap_campaign_service import PAPCampaignService
+from ..services.pappers_api import PappersAPI
 from ..audit import log_admin_action
 from ..user_auth import require_admin_user
 from ..models import User
@@ -232,6 +233,50 @@ async def generate_email_content(
     except Exception as e:
         logger.error(f"Erreur génération email: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pappers/{siret}")
+async def get_pappers_data(
+    siret: str,
+    request: Request,
+    current_user: User = Depends(require_admin_user)
+):
+    """
+    Interroge l'API Pappers pour récupérer les informations complètes d'une entreprise.
+
+    Args:
+        siret: Numéro SIRET de l'entreprise (14 chiffres)
+
+    Returns:
+        Informations complètes de l'entreprise depuis Pappers
+    """
+    try:
+        # Nettoyer le SIRET
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        if len(siret_clean) != 14:
+            raise HTTPException(status_code=400, detail="SIRET invalide (doit contenir 14 chiffres)")
+
+        # Interroger Pappers
+        pappers = PappersAPI()
+        pappers_data = await pappers.get_siret(siret_clean)
+
+        if not pappers_data:
+            raise HTTPException(status_code=404, detail="Entreprise non trouvée dans Pappers")
+
+        logger.info(f"✅ Données Pappers récupérées pour {siret_clean}")
+
+        return {
+            "success": True,
+            "siret": siret_clean,
+            "data": pappers_data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de l'interrogation Pappers: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
 
 
 @router.get("/health")
