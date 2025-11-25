@@ -257,12 +257,30 @@ async def get_pappers_data(
         if len(siret_clean) != 14:
             raise HTTPException(status_code=400, detail="SIRET invalide (doit contenir 14 chiffres)")
 
-        # Interroger Pappers
-        pappers = PappersAPI()
-        pappers_data = await pappers.get_siret(siret_clean)
+        # Interroger Pappers directement avec httpx pour obtenir toutes les données brutes
+        import httpx
 
-        if not pappers_data:
-            raise HTTPException(status_code=404, detail="Entreprise non trouvée dans Pappers")
+        pappers = PappersAPI()
+        if not pappers.api_key:
+            raise HTTPException(status_code=503, detail="Clé API Pappers non configurée")
+
+        url = f"https://api.pappers.fr/v2/entreprise"
+        params = {
+            "api_token": pappers.api_key,
+            "siret": siret_clean
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params)
+
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Entreprise non trouvée dans Pappers")
+
+            if response.status_code != 200:
+                logger.error(f"Erreur API Pappers ({response.status_code}): {response.text[:200]}")
+                raise HTTPException(status_code=502, detail=f"Erreur API Pappers (code {response.status_code})")
+
+            pappers_data = response.json()
 
         logger.info(f"✅ Données Pappers récupérées pour {siret_clean}")
 
