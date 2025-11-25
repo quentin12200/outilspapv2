@@ -16,6 +16,8 @@ from ..db import get_session
 from ..services.document_extractor import DocumentExtractor, DocumentExtractorError
 from ..services.pap_campaign_service import PAPCampaignService
 from ..audit import log_admin_action
+from ..user_auth import require_admin_user
+from ..models import User
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +38,12 @@ class EmailGenerationRequest(BaseModel):
     is_priority: bool = False
 
 
-@router.post("/analyze-batch", response_model=CampaignAnalysisResult)
+@router.post("/analyze-batch")
 async def analyze_pap_batch(
     request: Request,
     files: List[UploadFile] = File(..., description="Liste de PDFs de PAP à analyser"),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
 ):
     """
     Analyse un lot de PAP et les classe par priorité (enjeux vs standard).

@@ -86,17 +86,20 @@ class PAPCampaignService:
                 result['category'] = 'enjeux'
 
         # Récupérer les infos UD/FD depuis la base si SIRET connu
-        if siret:
-            summary = self.db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
-            if summary:
-                if summary.ud_c3 or summary.ud_c4:
-                    result['ud'] = summary.ud_c3 or summary.ud_c4
-                if summary.fd_c3 or summary.fd_c4:
-                    result['fd'] = summary.fd_c3 or summary.fd_c4
-                if summary.dep:
-                    result['departement'] = summary.dep
-                    if not result['ud']:
-                        result['ud'] = f"UD {summary.dep}"
+        if siret and self.db:
+            try:
+                summary = self.db.query(SiretSummary).filter(SiretSummary.siret == siret).first()
+                if summary:
+                    if summary.ud_c3 or summary.ud_c4:
+                        result['ud'] = summary.ud_c3 or summary.ud_c4
+                    if summary.fd_c3 or summary.fd_c4:
+                        result['fd'] = summary.fd_c3 or summary.fd_c4
+                    if summary.dep:
+                        result['departement'] = summary.dep
+                        if not result['ud']:
+                            result['ud'] = f"UD {summary.dep}"
+            except Exception as e:
+                logger.warning(f"Erreur lors de la récupération des infos UD/FD pour {siret}: {str(e)}")
 
         return result
 
@@ -111,6 +114,10 @@ class PAPCampaignService:
             Moyenne des inscrits ou None si pas de données
         """
         try:
+            if not self.db:
+                logger.warning("Session DB non disponible pour calcul moyenne")
+                return None
+
             # Calculer la moyenne des inscrits dans le département (collèges 3 et 4)
             result = self.db.query(
                 func.avg(
