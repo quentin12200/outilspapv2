@@ -2640,15 +2640,19 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
     for pv in pv_list:
         # Calculer les organisations et leurs voix
         organisations = []
+
+        # Utiliser getattr pour éviter les AttributeError
+        sud_voix_value = getattr(pv, 'sud_voix', None) or getattr(pv, 'solidaire_voix', None)
+
         org_map = [
-            ("CGT", pv.cgt_voix, getattr(pv, 'cgt_siege', None)),
-            ("CFDT", pv.cfdt_voix, getattr(pv, 'cfdt_siege', None)),
-            ("FO", pv.fo_voix, getattr(pv, 'fo_siege', None)),
-            ("CFTC", pv.cftc_voix, getattr(pv, 'cftc_siege', None)),
-            ("CGC", pv.cgc_voix, getattr(pv, 'cgc_siege', None)),
-            ("UNSA", pv.unsa_voix, getattr(pv, 'unsa_siege', None)),
-            ("SUD/Solidaires", pv.sud_voix or pv.solidaire_voix, getattr(pv, 'sud_siege', None)),
-            ("Autre", pv.autre_voix, getattr(pv, 'autre_siege', None)),
+            ("CGT", getattr(pv, 'cgt_voix', None), getattr(pv, 'cgt_siege', None)),
+            ("CFDT", getattr(pv, 'cfdt_voix', None), getattr(pv, 'cfdt_siege', None)),
+            ("FO", getattr(pv, 'fo_voix', None), getattr(pv, 'fo_siege', None)),
+            ("CFTC", getattr(pv, 'cftc_voix', None), getattr(pv, 'cftc_siege', None)),
+            ("CGC", getattr(pv, 'cgc_voix', None), getattr(pv, 'cgc_siege', None)),
+            ("UNSA", getattr(pv, 'unsa_voix', None), getattr(pv, 'unsa_siege', None)),
+            ("SUD/Solidaires", sud_voix_value, getattr(pv, 'sud_siege', None)),
+            ("Autre", getattr(pv, 'autre_voix', None), getattr(pv, 'autre_siege', None)),
         ]
 
         total_voix = 0
@@ -2673,48 +2677,53 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
 
         # Calculer taux de participation
         taux_participation = None
-        if pv.inscrits and pv.inscrits > 0 and pv.votants:
-            taux_participation = round((pv.votants / pv.inscrits) * 100, 2)
+        inscrits = getattr(pv, 'inscrits', None)
+        votants = getattr(pv, 'votants', None)
+        if inscrits and inscrits > 0 and votants:
+            taux_participation = round((votants / inscrits) * 100, 2)
 
         # Déterminer si c'est une carence
         carence = False
-        if pv.institution and "car" in pv.institution.lower():
+        institution = getattr(pv, 'institution', None)
+        votants = getattr(pv, 'votants', None)
+        if institution and "car" in str(institution).lower():
             carence = True
-        elif not pv.votants or pv.votants <= 0:
+        elif not votants or votants <= 0:
             carence = True
 
         # Parser la date
         date_scrutin = None
-        if pv.date_pv:
+        date_pv = getattr(pv, 'date_pv', None)
+        if date_pv:
             try:
-                from datetime import datetime
-                if isinstance(pv.date_pv, str):
-                    date_scrutin = datetime.strptime(pv.date_pv, "%Y-%m-%d").strftime("%Y-%m-%d")
+                if isinstance(date_pv, str):
+                    date_scrutin = datetime.strptime(date_pv, "%Y-%m-%d").strftime("%Y-%m-%d")
                 else:
-                    date_scrutin = pv.date_pv.strftime("%Y-%m-%d") if hasattr(pv.date_pv, 'strftime') else str(pv.date_pv)
-            except:
-                date_scrutin = str(pv.date_pv)
+                    date_scrutin = date_pv.strftime("%Y-%m-%d") if hasattr(date_pv, 'strftime') else str(date_pv)
+            except Exception as e:
+                logger.warning(f"Erreur parsing date {date_pv}: {e}")
+                date_scrutin = str(date_pv) if date_pv else None
 
         formatted_results.append({
-            "siret": pv.siret,
-            "cycle": pv.cycle or "N/A",
+            "siret": getattr(pv, 'siret', None),
+            "cycle": getattr(pv, 'cycle', None) or "N/A",
             "date_scrutin": date_scrutin,
-            "raison_sociale": pv.raison_sociale,
-            "ville": pv.ville,
-            "cp": pv.cp,
-            "ud": pv.ud,
-            "fd": pv.fd,
-            "region": pv.region,
-            "inscrits": int(pv.inscrits) if pv.inscrits else 0,
-            "votants": int(pv.votants) if pv.votants else 0,
+            "raison_sociale": getattr(pv, 'raison_sociale', None),
+            "ville": getattr(pv, 'ville', None),
+            "cp": getattr(pv, 'cp', None),
+            "ud": getattr(pv, 'ud', None),
+            "fd": getattr(pv, 'fd', None),
+            "region": getattr(pv, 'region', None),
+            "inscrits": int(getattr(pv, 'inscrits', 0)) if getattr(pv, 'inscrits', None) else 0,
+            "votants": int(getattr(pv, 'votants', 0)) if getattr(pv, 'votants', None) else 0,
             "taux_participation": taux_participation,
             "carence": carence,
             "organisations": organisations,
             "total_voix": total_voix,
-            "effectif_siret": int(pv.effectif_siret) if pv.effectif_siret else None,
-            "effectif_siren": int(pv.effectif_siren) if pv.effectif_siren else None,
-            "idcc": pv.idcc,
-            "nb_colleges": int(pv.nb_college_siret) if pv.nb_college_siret else None
+            "effectif_siret": int(getattr(pv, 'effectif_siret', 0)) if getattr(pv, 'effectif_siret', None) else None,
+            "effectif_siren": int(getattr(pv, 'effectif_siren', 0)) if getattr(pv, 'effectif_siren', None) else None,
+            "idcc": getattr(pv, 'idcc', None),
+            "nb_colleges": int(getattr(pv, 'nb_college_siret', 0)) if getattr(pv, 'nb_college_siret', None) else None
         })
 
     # Trier par date décroissante
