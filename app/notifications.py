@@ -32,8 +32,8 @@ def get_notifications_count(db: Session) -> dict:
     date_60_jours = now - timedelta(days=60)
     invitations_retard = db.query(func.count(Invitation.id)).filter(
         and_(
-            Invitation.date_invitation.isnot(None),
-            Invitation.date_invitation < date_60_jours,
+            Invitation.date_invit.isnot(None),
+            Invitation.date_invit < date_60_jours,
             or_(
                 Invitation.date_retour_invitation.is_(None),
                 Invitation.date_retour_invitation == ""
@@ -86,15 +86,15 @@ def get_notification_details(db: Session) -> dict:
     date_60_jours = now - timedelta(days=60)
     invitations_retard_list = db.query(Invitation).filter(
         and_(
-            Invitation.date_invitation.isnot(None),
-            Invitation.date_invitation < date_60_jours,
+            Invitation.date_invit.isnot(None),
+            Invitation.date_invit < date_60_jours,
             or_(
                 Invitation.date_retour_invitation.is_(None),
                 Invitation.date_retour_invitation == ""
             ),
             Invitation.est_actif == True
         )
-    ).order_by(Invitation.date_invitation.asc()).limit(50).all()
+    ).order_by(Invitation.date_invit.asc()).limit(50).all()
 
     # Élections proches
     date_15_jours = now + timedelta(days=15)
@@ -123,8 +123,8 @@ def get_notification_details(db: Session) -> dict:
                 "id": inv.id,
                 "denomination": inv.denomination,
                 "commune": inv.commune,
-                "date_invitation": inv.date_invitation,
-                "jours_retard": (now - inv.date_invitation).days if inv.date_invitation else 0
+                "date_invitation": inv.date_invit,
+                "jours_retard": (now - inv.date_invit).days if inv.date_invit else 0
             }
             for inv in invitations_retard_list
         ],
