@@ -2507,3 +2507,112 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "entreprises": priorite_2
         }
     }
+
+
+@router.get("/pv/siret/{siret}")
+async def get_pv_by_siret(
+    siret: str,
+    db: Session = Depends(get_session)
+):
+    """
+    Récupère tous les PV (procès-verbaux) associés à un SIRET.
+    Retourne les résultats électoraux : inscrits, voix par organisation, etc.
+
+    Args:
+        siret: Numéro SIRET (14 chiffres)
+
+    Returns:
+        Liste des PV avec résultats électoraux détaillés
+    """
+    try:
+        # Nettoyer le SIRET
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        if len(siret_clean) != 14:
+            raise HTTPException(status_code=400, detail="SIRET invalide (doit contenir 14 chiffres)")
+
+        # Récupérer tous les PV pour ce SIRET
+        pv_list = db.query(PVEvent).filter(PVEvent.siret == siret_clean).all()
+
+        if not pv_list:
+            return {
+                "success": True,
+                "siret": siret_clean,
+                "count": 0,
+                "pv": []
+            }
+
+        # Formatter les résultats
+        formatted_pv = []
+        for pv in pv_list:
+            # Calculer les organisations présentes avec leurs voix
+            organisations = []
+
+            org_map = [
+                ("CGT", pv.cgt_voix, pv.pres_pv_cgt),
+                ("CFDT", pv.cfdt_voix, pv.pres_pv_cfdt),
+                ("FO", pv.fo_voix, pv.pres_pv_fo),
+                ("CFTC", pv.cftc_voix, pv.pres_pv_cftc),
+                ("CGC", pv.cgc_voix, pv.pres_pv_cgc),
+                ("UNSA", pv.unsa_voix, pv.pres_pv_unsa),
+                ("SUD/Solidaires", pv.sud_voix, pv.pres_pv_sud),
+                ("Autre", pv.autre_voix, pv.pres_pv_autre),
+            ]
+
+            total_voix = 0
+            for nom, voix, presence in org_map:
+                if voix and voix > 0:
+                    total_voix += voix
+                    organisations.append({
+                        "nom": nom,
+                        "voix": voix,
+                        "presence": presence or "OUI"
+                    })
+
+            # Calculer les pourcentages
+            for org in organisations:
+                if total_voix > 0:
+                    org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
+                else:
+                    org["pourcentage"] = 0
+
+            # Trier par nombre de voix décroissant
+            organisations.sort(key=lambda x: x["voix"], reverse=True)
+
+            formatted_pv.append({
+                "id_pv": pv.id_pv,
+                "date_scrutin": pv.date_pv,
+                "cycle": pv.cycle,
+                "institution": pv.institution,
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "cp": pv.cp,
+                "ud": pv.ud,
+                "region": pv.region,
+                "inscrits": pv.inscrits,
+                "votants": pv.votants,
+                "sve": pv.sve,
+                "taux_participation": pv.tx_participation_pv,
+                "organisations": organisations,
+                "total_voix": total_voix,
+                "effectif_siret": pv.effectif_siret,
+                "idcc": pv.idcc
+            })
+
+        # Trier par date décroissante (plus récent en premier)
+        formatted_pv.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+        logger.info(f"✅ {len(formatted_pv)} PV trouvés pour SIRET {siret_clean}")
+
+        return {
+            "success": True,
+            "siret": siret_clean,
+            "count": len(formatted_pv),
+            "pv": formatted_pv
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des PV pour SIRET {siret}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
