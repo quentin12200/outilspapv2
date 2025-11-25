@@ -2644,15 +2644,17 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
         # Utiliser getattr pour éviter les AttributeError
         sud_voix_value = getattr(pv, 'sud_voix', None) or getattr(pv, 'solidaire_voix', None)
 
+        # NOTE: Les colonnes siege_* n'existent pas dans toutes les bases de données
+        # On les met à None pour éviter les erreurs SQL lors du fallback
         org_map = [
-            ("CGT", getattr(pv, 'cgt_voix', None), getattr(pv, 'cgt_siege', None)),
-            ("CFDT", getattr(pv, 'cfdt_voix', None), getattr(pv, 'cfdt_siege', None)),
-            ("FO", getattr(pv, 'fo_voix', None), getattr(pv, 'fo_siege', None)),
-            ("CFTC", getattr(pv, 'cftc_voix', None), getattr(pv, 'cftc_siege', None)),
-            ("CGC", getattr(pv, 'cgc_voix', None), getattr(pv, 'cgc_siege', None)),
-            ("UNSA", getattr(pv, 'unsa_voix', None), getattr(pv, 'unsa_siege', None)),
-            ("SUD/Solidaires", sud_voix_value, getattr(pv, 'sud_siege', None)),
-            ("Autre", getattr(pv, 'autre_voix', None), getattr(pv, 'autre_siege', None)),
+            ("CGT", getattr(pv, 'cgt_voix', None), None),
+            ("CFDT", getattr(pv, 'cfdt_voix', None), None),
+            ("FO", getattr(pv, 'fo_voix', None), None),
+            ("CFTC", getattr(pv, 'cftc_voix', None), None),
+            ("CGC", getattr(pv, 'cgc_voix', None), None),
+            ("UNSA", getattr(pv, 'unsa_voix', None), None),
+            ("SUD/Solidaires", sud_voix_value, None),
+            ("Autre", getattr(pv, 'autre_voix', None), None),
         ]
 
         total_voix = 0

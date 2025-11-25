@@ -38,16 +38,8 @@ def get_notifications_count(db: Session) -> dict:
         )
     ).scalar() or 0
 
-    # Élections dans les 15 jours
-    date_15_jours = now + timedelta(days=15)
-    elections_proches = db.query(func.count(Invitation.id)).filter(
-        and_(
-            Invitation.date_1er_tour.isnot(None),
-            Invitation.date_1er_tour >= now,
-            Invitation.date_1er_tour <= date_15_jours,
-            Invitation.est_actif == True
-        )
-    ).scalar() or 0
+    # Élections dans les 15 jours (désactivé - champ date_1er_tour inexistant)
+    elections_proches = 0
 
     # Nouvelles invitations scannées (dernières 7 jours)
     date_7_jours = now - timedelta(days=7)
