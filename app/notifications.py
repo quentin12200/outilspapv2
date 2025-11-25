@@ -34,10 +34,6 @@ def get_notifications_count(db: Session) -> dict:
         and_(
             Invitation.date_invit.isnot(None),
             Invitation.date_invit < date_60_jours,
-            or_(
-                Invitation.date_retour_invitation.is_(None),
-                Invitation.date_retour_invitation == ""
-            ),
             Invitation.est_actif == True
         )
     ).scalar() or 0
@@ -88,10 +84,6 @@ def get_notification_details(db: Session) -> dict:
         and_(
             Invitation.date_invit.isnot(None),
             Invitation.date_invit < date_60_jours,
-            or_(
-                Invitation.date_retour_invitation.is_(None),
-                Invitation.date_retour_invitation == ""
-            ),
             Invitation.est_actif == True
         )
     ).order_by(Invitation.date_invit.asc()).limit(50).all()
