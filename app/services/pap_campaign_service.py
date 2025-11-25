@@ -208,8 +208,10 @@ class PAPCampaignService:
         effectif = pap_data.get('effectif', 'N/A')
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
+        idcc = pap_data.get('idcc', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
         priority_reasons = pap_data.get('priority_reason', [])
+        pdf_url = pap_data.get('pdf_url')
 
         if is_priority:
             # Email pour PAP à enjeux
@@ -231,6 +233,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 • Effectif : {effectif} salarié(s)
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
+• IDCC : {idcc}
 • Union Départementale : {ud}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -241,7 +244,22 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
             for reason in priority_reasons:
                 body += f"✓ {reason}\n"
 
-            body += f"""
+            # Ajouter le lien PDF si disponible
+            if pdf_url:
+                # Construire l'URL complète (à adapter selon votre domaine)
+                full_pdf_url = f"https://votre-domaine.fr{pdf_url}"
+                body += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📎 Document PAP disponible en ligne :
+{full_pdf_url}
+
+Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
+
+Cordialement,
+Confédération CGT"""
+            else:
+                body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Le document PAP complet est joint à cet email.
@@ -269,11 +287,23 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral :
 • Effectif : {effectif} salarié(s)
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
+• IDCC : {idcc}
 • Union Départementale : {ud}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Le document PAP complet est joint à cet email.
+"""
+            # Ajouter le lien PDF si disponible
+            if pdf_url:
+                # Construire l'URL complète (à adapter selon votre domaine)
+                full_pdf_url = f"https://votre-domaine.fr{pdf_url}"
+                body += f"""📎 Document PAP disponible en ligne :
+{full_pdf_url}
+
+Cordialement,
+Confédération CGT"""
+            else:
+                body += f"""Le document PAP complet est joint à cet email.
 
 Cordialement,
 Confédération CGT"""

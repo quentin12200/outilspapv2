@@ -326,6 +326,7 @@ function renderPAPCard(pap, isEnjeux, index) {
         ${pap.effectif ? `<div><span class="font-semibold">Effectif:</span> ${pap.effectif}</div>` : ''}
         ${pap.inscrits ? `<div><span class="font-semibold">Inscrits:</span> ${pap.inscrits}</div>` : ''}
         ${pap.date_election ? `<div><span class="font-semibold">Élection:</span> ${pap.date_election}</div>` : ''}
+        ${pap.idcc ? `<div><span class="font-semibold">IDCC:</span> ${pap.idcc}</div>` : ''}
       </div>
 
       ${isEnjeux && pap.priority_reason && pap.priority_reason.length > 0 ? `

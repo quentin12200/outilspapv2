@@ -6,7 +6,10 @@ et de générer les contenus d'emails pour les UD.
 """
 
 import logging
+import os
+import uuid
 from typing import List, Dict, Any
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -20,6 +23,10 @@ from ..user_auth import require_admin_user
 from ..models import User
 
 logger = logging.getLogger(__name__)
+
+# Répertoire de stockage des PDFs
+PAP_UPLOADS_DIR = Path("app/static/pap_uploads")
+PAP_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(prefix="/api/campaign", tags=["Campagnes PAP"])
 
@@ -100,8 +107,27 @@ async def analyze_pap_batch(
             # Extraire les informations
             extracted_data = await extractor.extract_from_document(file_data, is_pdf=is_pdf)
 
-            # Ajouter le nom de fichier pour référence
+            # Stocker le PDF et générer l'URL publique
+            pdf_url = None
+            if is_pdf:
+                try:
+                    # Générer un nom de fichier unique
+                    unique_filename = f"{uuid.uuid4()}.pdf"
+                    pdf_path = PAP_UPLOADS_DIR / unique_filename
+
+                    # Sauvegarder le PDF
+                    with open(pdf_path, 'wb') as f:
+                        f.write(file_data)
+
+                    # Générer l'URL publique
+                    pdf_url = f"/static/pap_uploads/{unique_filename}"
+                    logger.info(f"✅ PDF stocké : {pdf_url}")
+                except Exception as e:
+                    logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")
+
+            # Ajouter le nom de fichier et l'URL pour référence
             extracted_data['filename'] = file.filename
+            extracted_data['pdf_url'] = pdf_url
             # Note: on ne stocke PAS file_data ici car bytes ne sont pas JSON-sérialisables
 
             extracted_paps.append(extracted_data)
