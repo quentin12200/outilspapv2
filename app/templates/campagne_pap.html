@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% block title %}Gestion de Campagne PAP — A.N.D.RE{% endblock %}
+
+{% block content %}
+<section class="mb-8">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fas fa-bullhorn text-cgt-red"></i>
+        Gestion de Campagne PAP
+      </h1>
+      <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+        Scannez vos PAP en masse, identifiez automatiquement les cibles prioritaires et générez les emails pour les UD.
+      </p>
+    </div>
+    <a href="/admin" class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+      <i class="fas fa-arrow-left mr-2"></i>
+      Retour Admin
+    </a>
+  </div>
+
+  <!-- Zone d'upload -->
+  <div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 mb-8">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-cloud-upload-alt text-cgt-red mr-2"></i>
+      Upload massif de PAP
+    </h3>
+
+    <!-- Info -->
+    <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-600 text-xl mt-1"></i>
+        <div class="text-sm text-blue-800">
+          <p class="font-semibold mb-2">Comment ça marche ?</p>
+          <ol class="list-decimal list-inside space-y-1">
+            <li>Uploadez vos PDFs de PAP (max 10MB par fichier)</li>
+            <li>L'outil extrait automatiquement les données et identifie les cibles prioritaires</li>
+            <li>Vous obtenez deux listes : <span class="font-semibold text-red-600">PAP à enjeux</span> et <span class="font-semibold">PAP standards</span></li>
+            <li>Cliquez sur "Générer Email" pour ouvrir votre client email avec le contenu pré-rempli</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div id="drop-zone" class="border-4 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-cgt-red transition-colors cursor-pointer">
+      <i class="fas fa-file-pdf text-6xl text-gray-400 mb-4"></i>
+      <p class="text-lg font-semibold text-gray-700 mb-2">Glissez-déposez vos fichiers PAP ici</p>
+      <p class="text-sm text-gray-500 mb-4">ou cliquez pour sélectionner des fichiers</p>
+      <p class="text-xs text-gray-400">PDF uniquement (max 10MB par fichier)</p>
+      <input type="file" id="file-input" multiple accept="application/pdf" class="hidden">
+    </div>
+
+    <div class="mt-6">
+      <button id="analyze-btn" disabled class="bg-cgt-red text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="fas fa-search mr-2"></i>
+        Analyser les PAP
+      </button>
+      <button id="clear-btn" class="ml-3 bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition">
+        <i class="fas fa-trash mr-2"></i>
+        Effacer
+      </button>
+    </div>
+  </div>
+
+  <!-- Zone de preview des fichiers -->
+  <div id="preview-zone" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-files text-cgt-red mr-2"></i>
+      Fichiers sélectionnés (<span id="file-count">0</span>)
+    </h3>
+    <div id="preview-list" class="space-y-2"></div>
+  </div>
+
+  <!-- Barre de progression -->
+  <div id="progress-zone" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">
+      <i class="fas fa-spinner fa-spin text-cgt-red mr-2"></i>
+      Analyse en cours...
+    </h3>
+    <div class="w-full bg-gray-200 rounded-full h-4">
+      <div id="progress-bar" class="bg-cgt-red h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+    </div>
+    <p id="progress-text" class="text-sm text-gray-600 mt-2">Extraction et analyse des PAP...</p>
+  </div>
+
+  <!-- Zone de résultats -->
+  <div id="results-zone" class="hidden">
+    <!-- Statistiques globales -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">
+        <i class="fas fa-chart-bar text-cgt-red mr-2"></i>
+        Statistiques de la campagne
+      </h3>
+      <div id="stats-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+    </div>
+
+    <!-- PAP à enjeux -->
+    <div id="enjeux-zone" class="bg-white rounded-xl shadow-md border-2 border-red-300 p-6 mb-8 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-red-700 flex items-center gap-2">
+          <i class="fas fa-fire"></i>
+          PAP à Enjeux (<span id="enjeux-count">0</span>)
+        </h3>
+      </div>
+      <div id="enjeux-list" class="space-y-4"></div>
+    </div>
+
+    <!-- PAP standards -->
+    <div id="standard-zone" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-gray-700 flex items-center gap-2">
+          <i class="fas fa-envelope"></i>
+          PAP Standards (<span id="standard-count">0</span>)
+        </h3>
+      </div>
+      <div id="standard-list" class="space-y-4"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+// État global
+let selectedFiles = [];
+let analysisResults = null;
+
+// Gestion du drag & drop
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('border-cgt-red', 'bg-red-50');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('border-cgt-red', 'bg-red-50');
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('border-cgt-red', 'bg-red-50');
+
+  const files = Array.from(e.dataTransfer.files).filter(f =>
+    f.type === 'application/pdf' && f.size <= 10 * 1024 * 1024
+  );
+
+  addFiles(files);
+});
+
+fileInput.addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  addFiles(files);
+});
+
+function addFiles(files) {
+  selectedFiles = [...selectedFiles, ...files];
+  updatePreview();
+  document.getElementById('analyze-btn').disabled = selectedFiles.length === 0;
+}
+
+function updatePreview() {
+  const previewZone = document.getElementById('preview-zone');
+  const previewList = document.getElementById('preview-list');
+  const fileCount = document.getElementById('file-count');
+
+  if (selectedFiles.length === 0) {
+    previewZone.classList.add('hidden');
+    return;
+  }
+
+  previewZone.classList.remove('hidden');
+  fileCount.textContent = selectedFiles.length;
+
+  previewList.innerHTML = selectedFiles.map((file, index) => `
+    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-file-pdf text-red-600 text-xl"></i>
+        <span class="text-sm font-medium text-gray-700">${file.name}</span>
+        <span class="text-xs text-gray-500">(${(file.size / 1024).toFixed(1)} KB)</span>
+      </div>
+      <button onclick="removeFile(${index})" class="text-red-600 hover:text-red-800">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `).join('');
+}
+
+function removeFile(index) {
+  selectedFiles.splice(index, 1);
+  updatePreview();
+  document.getElementById('analyze-btn').disabled = selectedFiles.length === 0;
+}
+
+// Analyse des PAP
+document.getElementById('analyze-btn').addEventListener('click', async () => {
+  if (selectedFiles.length === 0) return;
+
+  const progressZone = document.getElementById('progress-zone');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+  const resultsZone = document.getElementById('results-zone');
+
+  progressZone.classList.remove('hidden');
+  resultsZone.classList.add('hidden');
+
+  // Simuler la progression
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress = Math.min(progress + 2, 90);
+    progressBar.style.width = `${progress}%`;
+  }, 200);
+
+  try {
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
+      formData.append('files', file);
+    });
+
+    progressText.textContent = `Analyse de ${selectedFiles.length} PAP en cours...`;
+
+    const response = await fetch('/api/campaign/analyze-batch', {
+      method: 'POST',
+      body: formData
+    });
+
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP: ${response.status}`);
+    }
+
+    analysisResults = await response.json();
+
+    setTimeout(() => {
+      progressZone.classList.add('hidden');
+      displayResults();
+    }, 500);
+
+  } catch (error) {
+    clearInterval(progressInterval);
+    progressZone.classList.add('hidden');
+    alert('Erreur lors de l\'analyse : ' + error.message);
+    console.error('Erreur:', error);
+  }
+});
+
+// Affichage des résultats
+function displayResults() {
+  const resultsZone = document.getElementById('results-zone');
+  const statsSummary = document.getElementById('stats-summary');
+  const enjeuxZone = document.getElementById('enjeux-zone');
+  const enjeuxList = document.getElementById('enjeux-list');
+  const enjeuxCount = document.getElementById('enjeux-count');
+  const standardZone = document.getElementById('standard-zone');
+  const standardList = document.getElementById('standard-list');
+  const standardCount = document.getElementById('standard-count');
+
+  // Afficher les statistiques
+  statsSummary.innerHTML = `
+    <div class="bg-gray-50 rounded-lg p-4">
+      <p class="text-sm text-gray-600">Total PAP</p>
+      <p class="text-3xl font-bold text-gray-800">${analysisResults.total}</p>
+    </div>
+    <div class="bg-red-50 rounded-lg p-4">
+      <p class="text-sm text-red-600">PAP à Enjeux</p>
+      <p class="text-3xl font-bold text-red-700">${analysisResults.stats.count_enjeux}</p>
+    </div>
+    <div class="bg-blue-50 rounded-lg p-4">
+      <p class="text-sm text-blue-600">PAP Standards</p>
+      <p class="text-3xl font-bold text-blue-700">${analysisResults.stats.count_standard}</p>
+    </div>
+    <div class="bg-green-50 rounded-lg p-4">
+      <p class="text-sm text-green-600">Taux extraction</p>
+      <p class="text-3xl font-bold text-green-700">${analysisResults.extraction_success_rate.toFixed(0)}%</p>
+    </div>
+  `;
+
+  // Afficher les PAP à enjeux
+  if (analysisResults.enjeux.length > 0) {
+    enjeuxZone.classList.remove('hidden');
+    enjeuxCount.textContent = analysisResults.enjeux.length;
+    enjeuxList.innerHTML = analysisResults.enjeux.map((pap, index) => renderPAPCard(pap, true, index)).join('');
+  }
+
+  // Afficher les PAP standards
+  if (analysisResults.standard.length > 0) {
+    standardZone.classList.remove('hidden');
+    standardCount.textContent = analysisResults.standard.length;
+    standardList.innerHTML = analysisResults.standard.map((pap, index) => renderPAPCard(pap, false, index)).join('');
+  }
+
+  resultsZone.classList.remove('hidden');
+}
+
+function renderPAPCard(pap, isEnjeux, index) {
+  const borderColor = isEnjeux ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white';
+  const badgeColor = isEnjeux ? 'bg-red-600' : 'bg-blue-600';
+
+  return `
+    <div class="border-2 ${borderColor} rounded-lg p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div class="flex-1">
+          <h4 class="text-lg font-bold text-gray-800 mb-1">
+            ${pap.raison_sociale || 'Entreprise'}
+          </h4>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-3 py-1 ${badgeColor} text-white text-xs font-semibold rounded-full">
+              ${isEnjeux ? '🔥 ENJEUX' : 'Standard'}
+            </span>
+            ${pap.ud ? `<span class="px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full">${pap.ud}</span>` : ''}
+          </div>
+        </div>
+        <button onclick="generateEmail(${isEnjeux ? 'true' : 'false'}, ${index})" class="px-4 py-2 bg-cgt-red text-white font-semibold rounded-lg hover:bg-red-700 transition flex items-center gap-2">
+          <i class="fas fa-envelope"></i>
+          Générer Email
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+        ${pap.siret ? `<div><span class="font-semibold">SIRET:</span> ${pap.siret}</div>` : ''}
+        ${pap.ville ? `<div><span class="font-semibold">Ville:</span> ${pap.ville}</div>` : ''}
+        ${pap.code_postal ? `<div><span class="font-semibold">CP:</span> ${pap.code_postal}</div>` : ''}
+        ${pap.effectif ? `<div><span class="font-semibold">Effectif:</span> ${pap.effectif}</div>` : ''}
+        ${pap.inscrits ? `<div><span class="font-semibold">Inscrits:</span> ${pap.inscrits}</div>` : ''}
+        ${pap.date_election ? `<div><span class="font-semibold">Élection:</span> ${pap.date_election}</div>` : ''}
+      </div>
+
+      ${isEnjeux && pap.priority_reason && pap.priority_reason.length > 0 ? `
+        <div class="bg-white rounded-lg p-3 border border-red-200">
+          <p class="text-xs font-semibold text-red-700 mb-2">🎯 Pourquoi c'est un enjeu :</p>
+          <ul class="text-xs text-red-600 space-y-1">
+            ${pap.priority_reason.map(reason => `<li>✓ ${reason}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+
+      ${pap.filename ? `<p class="text-xs text-gray-500 mt-3">📎 Fichier: ${pap.filename}</p>` : ''}
+    </div>
+  `;
+}
+
+async function generateEmail(isEnjeux, index) {
+  const pap = isEnjeux ? analysisResults.enjeux[index] : analysisResults.standard[index];
+
+  try {
+    const response = await fetch('/api/campaign/generate-email', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        pap_data: pap,
+        is_priority: isEnjeux
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP: ${response.status}`);
+    }
+
+    const emailData = await response.json();
+
+    // Afficher le modal avec le contenu de l'email
+    showEmailModal(emailData, pap);
+
+  } catch (error) {
+    alert('Erreur lors de la génération de l\'email : ' + error.message);
+    console.error('Erreur:', error);
+  }
+}
+
+function showEmailModal(emailData, pap) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold flex items-center gap-2">
+          <i class="fas fa-envelope text-cgt-red"></i>
+          Email généré
+        </h3>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+
+      <div class="mb-4">
+        <p class="text-sm font-semibold text-gray-600 mb-1">Destinataire :</p>
+        <p class="text-lg text-gray-800">${emailData.recipient}</p>
+      </div>
+
+      <div class="mb-4">
+        <p class="text-sm font-semibold text-gray-600 mb-1">Sujet :</p>
+        <p class="text-lg text-gray-800">${emailData.subject}</p>
+      </div>
+
+      <div class="mb-6">
+        <p class="text-sm font-semibold text-gray-600 mb-2">Corps de l'email :</p>
+        <div class="bg-gray-100 p-4 rounded-lg border border-gray-300 max-h-96 overflow-auto">
+          <pre class="text-sm text-gray-800 whitespace-pre-wrap">${emailData.body}</pre>
+        </div>
+      </div>
+
+      <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+        <p class="text-sm text-yellow-800">
+          <i class="fas fa-info-circle mr-2"></i>
+          <strong>Note :</strong> Le PDF du PAP devra être joint manuellement à votre email.
+          Le fichier est : <span class="font-mono">${pap.filename}</span>
+        </p>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="copyToClipboard(\`${emailData.body.replace(/`/g, '\\`')}\`)" class="flex-1 px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+          <i class="fas fa-copy"></i>
+          Copier le texte
+        </button>
+        <a href="${emailData.mailto_link}" class="flex-1 px-4 py-3 bg-cgt-red text-white font-semibold rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2">
+          <i class="fas fa-external-link-alt"></i>
+          Ouvrir dans mon client email
+        </a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    alert('✅ Texte copié dans le presse-papier !');
+  }).catch(err => {
+    alert('❌ Erreur lors de la copie : ' + err);
+  });
+}
+
+// Bouton effacer
+document.getElementById('clear-btn').addEventListener('click', () => {
+  selectedFiles = [];
+  analysisResults = null;
+  updatePreview();
+  document.getElementById('results-zone').classList.add('hidden');
+  document.getElementById('analyze-btn').disabled = true;
+  fileInput.value = '';
+});
+</script>
+
+{% endblock %}
