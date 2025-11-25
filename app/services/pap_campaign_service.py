@@ -246,8 +246,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète (à adapter selon votre domaine)
-                full_pdf_url = f"https://votre-domaine.fr{pdf_url}"
+                # Construire l'URL complète
+                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
                 body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -295,8 +295,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral :
 """
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète (à adapter selon votre domaine)
-                full_pdf_url = f"https://votre-domaine.fr{pdf_url}"
+                # Construire l'URL complète
+                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
                 body += f"""📎 Document PAP disponible en ligne :
 {full_pdf_url}
 
