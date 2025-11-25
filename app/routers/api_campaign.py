@@ -102,7 +102,7 @@ async def analyze_pap_batch(
 
             # Ajouter le nom de fichier pour référence
             extracted_data['filename'] = file.filename
-            extracted_data['file_data'] = file_data  # Garder pour génération email avec PJ
+            # Note: on ne stocke PAS file_data ici car bytes ne sont pas JSON-sérialisables
 
             extracted_paps.append(extracted_data)
             logger.info(f"✅ Extraction réussie - SIRET: {extracted_data.get('siret', 'N/A')}")
