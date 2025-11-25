@@ -1,0 +1,71 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables (Railway provides them)
+.env
+.env.local
+.env.example
+
+# Database (should be remote)
+*.db
+*.sqlite
+*.sqlite3
+papcse.db
+
+# Documentation
+docs/
+README.md
+SECURITY.md
+LICENSE
+
+# Test files
+test_*.py
+*_test.py
+tests/
+verify_*.py
+check_*.py
+
+# Scripts
+scripts/
+*.sh
+
+# Logs
+*.log
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*_backup.*
+*_old_backup.*
+*~
+
+# Development files
+*.md
