@@ -2616,3 +2616,115 @@ async def get_pv_by_siret(
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des PV pour SIRET {siret}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.get("/pv/siren/{siren}")
+async def get_pv_by_siren(
+    siren: str,
+    db: Session = Depends(get_session)
+):
+    """
+    Récupère tous les PV (procès-verbaux) associés à un SIREN (entreprise).
+    Les PV du CSE regroupent tous les établissements de l'entreprise.
+    Retourne les résultats électoraux : inscrits, voix par organisation, etc.
+
+    Args:
+        siren: Numéro SIREN (9 chiffres)
+
+    Returns:
+        Liste des PV avec résultats électoraux détaillés
+    """
+    try:
+        # Nettoyer le SIREN
+        siren_clean = ''.join(c for c in siren if c.isdigit())
+
+        if len(siren_clean) != 9:
+            raise HTTPException(status_code=400, detail="SIREN invalide (doit contenir 9 chiffres)")
+
+        # Récupérer tous les PV pour ce SIREN
+        pv_list = db.query(PVEvent).filter(PVEvent.siren == siren_clean).all()
+
+        if not pv_list:
+            return {
+                "success": True,
+                "siren": siren_clean,
+                "count": 0,
+                "pv": []
+            }
+
+        # Formatter les résultats
+        formatted_pv = []
+        for pv in pv_list:
+            # Calculer les organisations présentes avec leurs voix
+            organisations = []
+
+            org_map = [
+                ("CGT", pv.cgt_voix, pv.pres_pv_cgt),
+                ("CFDT", pv.cfdt_voix, pv.pres_pv_cfdt),
+                ("FO", pv.fo_voix, pv.pres_pv_fo),
+                ("CFTC", pv.cftc_voix, pv.pres_pv_cftc),
+                ("CGC", pv.cgc_voix, pv.pres_pv_cgc),
+                ("UNSA", pv.unsa_voix, pv.pres_pv_unsa),
+                ("SUD/Solidaires", pv.sud_voix, pv.pres_pv_sud),
+                ("Autre", pv.autre_voix, pv.pres_pv_autre),
+            ]
+
+            total_voix = 0
+            for nom, voix, presence in org_map:
+                if voix and voix > 0:
+                    total_voix += voix
+                    organisations.append({
+                        "nom": nom,
+                        "voix": voix,
+                        "presence": presence or "OUI"
+                    })
+
+            # Calculer les pourcentages
+            for org in organisations:
+                if total_voix > 0:
+                    org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
+                else:
+                    org["pourcentage"] = 0
+
+            # Trier par nombre de voix décroissant
+            organisations.sort(key=lambda x: x["voix"], reverse=True)
+
+            formatted_pv.append({
+                "id_pv": pv.id_pv,
+                "siret": pv.siret,
+                "date_scrutin": pv.date_pv,
+                "cycle": pv.cycle,
+                "institution": pv.institution,
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "cp": pv.cp,
+                "ud": pv.ud,
+                "region": pv.region,
+                "inscrits": pv.inscrits,
+                "votants": pv.votants,
+                "sve": pv.sve,
+                "taux_participation": pv.tx_participation_pv,
+                "organisations": organisations,
+                "total_voix": total_voix,
+                "effectif_siret": pv.effectif_siret,
+                "effectif_siren": pv.effectif_siren,
+                "idcc": pv.idcc
+            })
+
+        # Trier par date décroissante (plus récent en premier)
+        formatted_pv.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+        logger.info(f"✅ {len(formatted_pv)} PV trouvés pour SIREN {siren_clean}")
+
+        return {
+            "success": True,
+            "siren": siren_clean,
+            "count": len(formatted_pv),
+            "pv": formatted_pv
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des PV pour SIREN {siren}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
