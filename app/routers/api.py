@@ -2618,6 +2618,119 @@ async def get_pv_by_siret(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
 
 
+async def _get_pv_from_tous_pv(siren: str, db: Session):
+    """
+    Fonction fallback qui interroge directement la table Tous_PV quand siret_summary est vide.
+    Retourne le même format que get_pv_by_siren.
+    """
+    # Récupérer tous les PV de ce SIREN
+    pv_list = db.query(PVEvent).filter(PVEvent.siren == siren).all()
+
+    if not pv_list:
+        return {
+            "success": True,
+            "siren": siren,
+            "count": 0,
+            "pv": [],
+            "source": "Tous_PV"
+        }
+
+    formatted_results = []
+
+    for pv in pv_list:
+        # Calculer les organisations et leurs voix
+        organisations = []
+        org_map = [
+            ("CGT", pv.cgt_voix, getattr(pv, 'cgt_siege', None)),
+            ("CFDT", pv.cfdt_voix, getattr(pv, 'cfdt_siege', None)),
+            ("FO", pv.fo_voix, getattr(pv, 'fo_siege', None)),
+            ("CFTC", pv.cftc_voix, getattr(pv, 'cftc_siege', None)),
+            ("CGC", pv.cgc_voix, getattr(pv, 'cgc_siege', None)),
+            ("UNSA", pv.unsa_voix, getattr(pv, 'unsa_siege', None)),
+            ("SUD/Solidaires", pv.sud_voix or pv.solidaire_voix, getattr(pv, 'sud_siege', None)),
+            ("Autre", pv.autre_voix, getattr(pv, 'autre_siege', None)),
+        ]
+
+        total_voix = 0
+        for nom, voix, sieges in org_map:
+            if voix and voix > 0:
+                total_voix += voix
+                organisations.append({
+                    "nom": nom,
+                    "voix": int(voix),
+                    "sieges": int(sieges) if sieges else 0
+                })
+
+        # Calculer les pourcentages
+        for org in organisations:
+            if total_voix > 0:
+                org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
+            else:
+                org["pourcentage"] = 0
+
+        # Trier par nombre de voix décroissant
+        organisations.sort(key=lambda x: x["voix"], reverse=True)
+
+        # Calculer taux de participation
+        taux_participation = None
+        if pv.inscrits and pv.inscrits > 0 and pv.votants:
+            taux_participation = round((pv.votants / pv.inscrits) * 100, 2)
+
+        # Déterminer si c'est une carence
+        carence = False
+        if pv.institution and "car" in pv.institution.lower():
+            carence = True
+        elif not pv.votants or pv.votants <= 0:
+            carence = True
+
+        # Parser la date
+        date_scrutin = None
+        if pv.date_pv:
+            try:
+                from datetime import datetime
+                if isinstance(pv.date_pv, str):
+                    date_scrutin = datetime.strptime(pv.date_pv, "%Y-%m-%d").strftime("%Y-%m-%d")
+                else:
+                    date_scrutin = pv.date_pv.strftime("%Y-%m-%d") if hasattr(pv.date_pv, 'strftime') else str(pv.date_pv)
+            except:
+                date_scrutin = str(pv.date_pv)
+
+        formatted_results.append({
+            "siret": pv.siret,
+            "cycle": pv.cycle or "N/A",
+            "date_scrutin": date_scrutin,
+            "raison_sociale": pv.raison_sociale,
+            "ville": pv.ville,
+            "cp": pv.cp,
+            "ud": pv.ud,
+            "fd": pv.fd,
+            "region": pv.region,
+            "inscrits": int(pv.inscrits) if pv.inscrits else 0,
+            "votants": int(pv.votants) if pv.votants else 0,
+            "taux_participation": taux_participation,
+            "carence": carence,
+            "organisations": organisations,
+            "total_voix": total_voix,
+            "effectif_siret": int(pv.effectif_siret) if pv.effectif_siret else None,
+            "effectif_siren": int(pv.effectif_siren) if pv.effectif_siren else None,
+            "idcc": pv.idcc,
+            "nb_colleges": int(pv.nb_college_siret) if pv.nb_college_siret else None
+        })
+
+    # Trier par date décroissante
+    formatted_results.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+    logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren} depuis Tous_PV (fallback)")
+
+    return {
+        "success": True,
+        "siren": siren,
+        "count": len(formatted_results),
+        "pv": formatted_results,
+        "source": "Tous_PV"
+    }
+
+
 @router.get("/pv/siren/{siren}")
 async def get_pv_by_siren(
     siren: str,
@@ -2626,6 +2739,7 @@ async def get_pv_by_siren(
     """
     Récupère tous les résultats électoraux associés à un SIREN (entreprise).
     Utilise la table siret_summary (calendrier) qui contient les données agrégées.
+    Si siret_summary est vide, fallback vers la table Tous_PV directement.
     Retourne les résultats électoraux : inscrits, voix par organisation, sièges, etc.
 
     Args:
@@ -2644,13 +2758,10 @@ async def get_pv_by_siren(
         # Récupérer tous les SIRETs de cette entreprise depuis siret_summary
         sirets_list = db.query(SiretSummary).filter(SiretSummary.siren == siren_clean).all()
 
+        # FALLBACK: Si siret_summary est vide, chercher dans Tous_PV directement
         if not sirets_list:
-            return {
-                "success": True,
-                "siren": siren_clean,
-                "count": 0,
-                "pv": []
-            }
+            logger.info(f"⚠️  SIREN {siren_clean} non trouvé dans siret_summary, fallback vers Tous_PV")
+            return await _get_pv_from_tous_pv(siren_clean, db)
 
         # Formatter les résultats
         formatted_results = []
@@ -2789,7 +2900,8 @@ async def get_pv_by_siren(
             "success": True,
             "siren": siren_clean,
             "count": len(formatted_results),
-            "pv": formatted_results
+            "pv": formatted_results,
+            "source": "siret_summary"
         }
 
     except HTTPException:
