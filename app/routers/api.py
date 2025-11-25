@@ -2624,15 +2624,15 @@ async def get_pv_by_siren(
     db: Session = Depends(get_session)
 ):
     """
-    Récupère tous les PV (procès-verbaux) associés à un SIREN (entreprise).
-    Les PV du CSE regroupent tous les établissements de l'entreprise.
-    Retourne les résultats électoraux : inscrits, voix par organisation, etc.
+    Récupère tous les résultats électoraux associés à un SIREN (entreprise).
+    Utilise la table siret_summary (calendrier) qui contient les données agrégées.
+    Retourne les résultats électoraux : inscrits, voix par organisation, sièges, etc.
 
     Args:
         siren: Numéro SIREN (9 chiffres)
 
     Returns:
-        Liste des PV avec résultats électoraux détaillés
+        Liste des résultats électoraux avec données agrégées (Cycle 3 et Cycle 4)
     """
     try:
         # Nettoyer le SIREN
@@ -2641,10 +2641,10 @@ async def get_pv_by_siren(
         if len(siren_clean) != 9:
             raise HTTPException(status_code=400, detail="SIREN invalide (doit contenir 9 chiffres)")
 
-        # Récupérer tous les PV pour ce SIREN
-        pv_list = db.query(PVEvent).filter(PVEvent.siren == siren_clean).all()
+        # Récupérer tous les SIRETs de cette entreprise depuis siret_summary
+        sirets_list = db.query(SiretSummary).filter(SiretSummary.siren == siren_clean).all()
 
-        if not pv_list:
+        if not sirets_list:
             return {
                 "success": True,
                 "siren": siren_clean,
@@ -2653,78 +2653,147 @@ async def get_pv_by_siren(
             }
 
         # Formatter les résultats
-        formatted_pv = []
-        for pv in pv_list:
-            # Calculer les organisations présentes avec leurs voix
-            organisations = []
+        formatted_results = []
 
-            org_map = [
-                ("CGT", pv.cgt_voix, pv.pres_pv_cgt),
-                ("CFDT", pv.cfdt_voix, pv.pres_pv_cfdt),
-                ("FO", pv.fo_voix, pv.pres_pv_fo),
-                ("CFTC", pv.cftc_voix, pv.pres_pv_cftc),
-                ("CGC", pv.cgc_voix, pv.pres_pv_cgc),
-                ("UNSA", pv.unsa_voix, pv.pres_pv_unsa),
-                ("SUD/Solidaires", pv.sud_voix, pv.pres_pv_sud),
-                ("Autre", pv.autre_voix, pv.pres_pv_autre),
-            ]
+        for siret_data in sirets_list:
+            # Traiter Cycle 3 si présent
+            if siret_data.date_pv_c3:
+                organisations_c3 = []
 
-            total_voix = 0
-            for nom, voix, presence in org_map:
-                if voix and voix > 0:
-                    total_voix += voix
-                    organisations.append({
-                        "nom": nom,
-                        "voix": voix,
-                        "presence": presence or "OUI"
-                    })
+                org_map_c3 = [
+                    ("CGT", siret_data.cgt_voix_c3, siret_data.cgt_siege_c3),
+                    ("CFDT", siret_data.cfdt_voix_c3, siret_data.cfdt_siege_c3),
+                    ("FO", siret_data.fo_voix_c3, siret_data.fo_siege_c3),
+                    ("CFTC", siret_data.cftc_voix_c3, siret_data.cftc_siege_c3),
+                    ("CGC", siret_data.cgc_voix_c3, siret_data.cgc_siege_c3),
+                    ("UNSA", siret_data.unsa_voix_c3, siret_data.unsa_siege_c3),
+                    ("SUD/Solidaires", siret_data.sud_voix_c3 or siret_data.solidaire_voix_c3, siret_data.sud_siege_c3),
+                    ("Autre", siret_data.autre_voix_c3, siret_data.autre_siege_c3),
+                ]
 
-            # Calculer les pourcentages
-            for org in organisations:
-                if total_voix > 0:
-                    org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
-                else:
-                    org["pourcentage"] = 0
+                total_voix_c3 = 0
+                for nom, voix, sieges in org_map_c3:
+                    if voix and voix > 0:
+                        total_voix_c3 += voix
+                        organisations_c3.append({
+                            "nom": nom,
+                            "voix": voix,
+                            "sieges": sieges or 0
+                        })
 
-            # Trier par nombre de voix décroissant
-            organisations.sort(key=lambda x: x["voix"], reverse=True)
+                # Calculer les pourcentages
+                for org in organisations_c3:
+                    if total_voix_c3 > 0:
+                        org["pourcentage"] = round((org["voix"] / total_voix_c3) * 100, 2)
+                    else:
+                        org["pourcentage"] = 0
 
-            formatted_pv.append({
-                "id_pv": pv.id_pv,
-                "siret": pv.siret,
-                "date_scrutin": pv.date_pv,
-                "cycle": pv.cycle,
-                "institution": pv.institution,
-                "raison_sociale": pv.raison_sociale,
-                "ville": pv.ville,
-                "cp": pv.cp,
-                "ud": pv.ud,
-                "region": pv.region,
-                "inscrits": pv.inscrits,
-                "votants": pv.votants,
-                "sve": pv.sve,
-                "taux_participation": pv.tx_participation_pv,
-                "organisations": organisations,
-                "total_voix": total_voix,
-                "effectif_siret": pv.effectif_siret,
-                "effectif_siren": pv.effectif_siren,
-                "idcc": pv.idcc
-            })
+                # Trier par nombre de voix décroissant
+                organisations_c3.sort(key=lambda x: x["voix"], reverse=True)
+
+                # Calculer taux de participation
+                taux_participation_c3 = None
+                if siret_data.inscrits_c3 and siret_data.inscrits_c3 > 0 and siret_data.votants_c3:
+                    taux_participation_c3 = round((siret_data.votants_c3 / siret_data.inscrits_c3) * 100, 2)
+
+                formatted_results.append({
+                    "siret": siret_data.siret,
+                    "cycle": "Cycle 3",
+                    "date_scrutin": siret_data.date_pv_c3.strftime("%Y-%m-%d") if siret_data.date_pv_c3 else None,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "cp": siret_data.cp,
+                    "ud": siret_data.ud_c3,
+                    "fd": siret_data.fd_c3,
+                    "region": siret_data.region,
+                    "inscrits": siret_data.inscrits_c3,
+                    "votants": siret_data.votants_c3,
+                    "taux_participation": taux_participation_c3,
+                    "carence": siret_data.carence_c3,
+                    "organisations": organisations_c3,
+                    "total_voix": total_voix_c3,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                    "nb_colleges": siret_data.nb_college_siret
+                })
+
+            # Traiter Cycle 4 si présent
+            if siret_data.date_pv_c4:
+                organisations_c4 = []
+
+                org_map_c4 = [
+                    ("CGT", siret_data.cgt_voix_c4, siret_data.cgt_siege_c4),
+                    ("CFDT", siret_data.cfdt_voix_c4, siret_data.cfdt_siege_c4),
+                    ("FO", siret_data.fo_voix_c4, siret_data.fo_siege_c4),
+                    ("CFTC", siret_data.cftc_voix_c4, siret_data.cftc_siege_c4),
+                    ("CGC", siret_data.cgc_voix_c4, siret_data.cgc_siege_c4),
+                    ("UNSA", siret_data.unsa_voix_c4, siret_data.unsa_siege_c4),
+                    ("SUD/Solidaires", siret_data.sud_voix_c4 or siret_data.solidaire_voix_c4, siret_data.sud_siege_c4),
+                    ("Autre", siret_data.autre_voix_c4, siret_data.autre_siege_c4),
+                ]
+
+                total_voix_c4 = 0
+                for nom, voix, sieges in org_map_c4:
+                    if voix and voix > 0:
+                        total_voix_c4 += voix
+                        organisations_c4.append({
+                            "nom": nom,
+                            "voix": voix,
+                            "sieges": sieges or 0
+                        })
+
+                # Calculer les pourcentages
+                for org in organisations_c4:
+                    if total_voix_c4 > 0:
+                        org["pourcentage"] = round((org["voix"] / total_voix_c4) * 100, 2)
+                    else:
+                        org["pourcentage"] = 0
+
+                # Trier par nombre de voix décroissant
+                organisations_c4.sort(key=lambda x: x["voix"], reverse=True)
+
+                # Calculer taux de participation
+                taux_participation_c4 = None
+                if siret_data.inscrits_c4 and siret_data.inscrits_c4 > 0 and siret_data.votants_c4:
+                    taux_participation_c4 = round((siret_data.votants_c4 / siret_data.inscrits_c4) * 100, 2)
+
+                formatted_results.append({
+                    "siret": siret_data.siret,
+                    "cycle": "Cycle 4",
+                    "date_scrutin": siret_data.date_pv_c4.strftime("%Y-%m-%d") if siret_data.date_pv_c4 else None,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "cp": siret_data.cp,
+                    "ud": siret_data.ud_c4,
+                    "fd": siret_data.fd_c4,
+                    "region": siret_data.region,
+                    "inscrits": siret_data.inscrits_c4,
+                    "votants": siret_data.votants_c4,
+                    "taux_participation": taux_participation_c4,
+                    "carence": siret_data.carence_c4,
+                    "organisations": organisations_c4,
+                    "total_voix": total_voix_c4,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                    "nb_colleges": siret_data.nb_college_siret
+                })
 
         # Trier par date décroissante (plus récent en premier)
-        formatted_pv.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+        formatted_results.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
 
-        logger.info(f"✅ {len(formatted_pv)} PV trouvés pour SIREN {siren_clean}")
+        logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren_clean} depuis siret_summary")
 
         return {
             "success": True,
             "siren": siren_clean,
-            "count": len(formatted_pv),
-            "pv": formatted_pv
+            "count": len(formatted_results),
+            "pv": formatted_results
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des PV pour SIREN {siren}: {str(e)}")
+        logger.error(f"Erreur lors de la récupération des résultats électoraux pour SIREN {siren}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
