@@ -214,6 +214,14 @@
 
                 <!-- Liste des PV du cycle -->
                 <div class="p-6 bg-gray-50 space-y-4">
+                  <!-- Debug pour ce cycle -->
+                  <div class="p-2 bg-blue-50 border border-blue-200 rounded text-xs mb-4">
+                    <strong>🐛 Debug cycle <span x-text="cycleData.cycle"></span>:</strong>
+                    pvs existe: <span x-text="cycleData.pvs ? 'oui' : 'non'"></span> |
+                    pvs.length: <span x-text="cycleData.pvs ? cycleData.pvs.length : 0"></span> |
+                    typeof pvs: <span x-text="typeof cycleData.pvs"></span>
+                  </div>
+
                   <template x-for="pv in cycleData.pvs" :key="pv.siret + pv.date_scrutin">
                     <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
                       <div class="flex items-start justify-between mb-4">
