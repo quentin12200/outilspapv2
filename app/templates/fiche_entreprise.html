@@ -219,10 +219,16 @@
                     <strong>🐛 Debug cycle <span x-text="cycleData.cycle"></span>:</strong>
                     pvs existe: <span x-text="cycleData.pvs ? 'oui' : 'non'"></span> |
                     pvs.length: <span x-text="cycleData.pvs ? cycleData.pvs.length : 0"></span> |
-                    typeof pvs: <span x-text="typeof cycleData.pvs"></span>
+                    typeof pvs: <span x-text="typeof cycleData.pvs"></span> |
+                    <span class="font-bold text-lg" x-text="Array.isArray(cycleData.pvs) ? '✅ EST UN ARRAY' : '❌ PAS UN ARRAY'"></span>
                   </div>
 
-                  <template x-for="pv in cycleData.pvs" :key="pv.siret + pv.date_scrutin">
+                  <!-- Message visible si Array -->
+                  <div x-show="Array.isArray(cycleData.pvs) && cycleData.pvs.length > 0" class="p-3 bg-green-100 border-2 border-green-500 rounded mb-4 font-bold">
+                    ✅ Il devrait y avoir <span x-text="cycleData.pvs.length"></span> carte(s) PV affichées ci-dessous
+                  </div>
+
+                  <template x-for="(pv, index) in cycleData.pvs" :key="cycleData.cycle + '-' + index">
                     <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
                       <div class="flex items-start justify-between mb-4">
                         <div>
