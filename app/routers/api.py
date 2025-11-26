@@ -2626,7 +2626,15 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
     Retourne le même format que get_pv_by_siren.
     """
     # Récupérer tous les PV de ce SIREN
-    pv_list = db.query(PVEvent).filter(PVEvent.siren == siren).all()
+    # Chercher par siren ET par siret qui commence par siren (fallback si siren pas rempli)
+    pv_list = db.query(PVEvent).filter(
+        or_(
+            PVEvent.siren == siren,
+            PVEvent.siret.like(f"{siren}%")
+        )
+    ).all()
+
+    logger.info(f"🔍 Fallback Tous_PV pour SIREN {siren}: {len(pv_list)} PV trouvés")
 
     if not pv_list:
         return {
@@ -3044,10 +3052,16 @@ async def get_entreprise_fiche_complete(
         # ==================== 2. PV ÉLECTORAUX (CYCLE 4 UNIQUEMENT) ====================
         pv_data = await get_pv_by_siren(siren, db)
 
-        # Filtrer pour ne garder que Cycle 4
+        # Filtrer pour ne garder que Cycle 4 (accepter C4, c4, Cycle 4, cycle 4, 4, etc.)
         pv_cycle_4 = []
         if pv_data.get("success") and pv_data.get("pv"):
-            pv_cycle_4 = [pv for pv in pv_data["pv"] if pv.get("cycle") == "Cycle 4"]
+            for pv in pv_data["pv"]:
+                cycle = str(pv.get("cycle", "")).upper().strip()
+                # Accepter C4, CYCLE 4, 4, etc.
+                if "C4" in cycle or "CYCLE 4" in cycle or cycle == "4":
+                    pv_cycle_4.append(pv)
+
+        logger.info(f"🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux, {len(pv_cycle_4)} PV Cycle 4")
 
         # ==================== 3. INVITATIONS PAP ====================
         # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
