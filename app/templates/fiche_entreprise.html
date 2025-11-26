@@ -8,6 +8,8 @@
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -286,6 +288,46 @@
       </div>
     </div>
 
+    <!-- Graphiques Comparatifs C3 vs C4 -->
+    <div x-show="data?.totaux_par_cycle && (data.totaux_par_cycle['C3'] || data.totaux_par_cycle['C4'])" class="mb-8">
+      <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-center justify-between cursor-pointer"
+             @click="showGraphiques = !showGraphiques">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chart-bar text-3xl"></i>
+            <div>
+              <h2 class="text-2xl font-bold">Graphiques Comparatifs</h2>
+              <p class="text-white/80 text-sm">Analyse évolution C3 → C4</p>
+            </div>
+          </div>
+          <i :class="showGraphiques ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="text-2xl"></i>
+        </div>
+
+        <div x-show="showGraphiques" x-collapse class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Graphique 1: Présence CGT C3 vs C4 -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">📊 Présence CGT par cycle</h3>
+              <canvas id="chart-presence-cgt" height="250"></canvas>
+            </div>
+
+            <!-- Graphique 2: Taux participation C3 vs C4 -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">📈 Taux de participation</h3>
+              <canvas id="chart-participation" height="250"></canvas>
+            </div>
+
+            <!-- Graphique 3: Répartition organisations C4 (camembert) -->
+            <div class="bg-gray-50 rounded-xl p-4 md:col-span-2">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">🥧 Répartition organisations syndicales (C4)</h3>
+              <div class="max-w-md mx-auto">
+                <canvas id="chart-organisations" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modale Recommandations -->
     <div x-show="showRecommandations" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
@@ -758,6 +800,8 @@ function ficheEntreprise() {
     map: null,
     markersLayer: null,
     showScoreDetails: false,
+    showGraphiques: true,
+    charts: {},
 
     async init() {
       // Récupérer le SIRET depuis l'URL
@@ -793,11 +837,146 @@ function ficheEntreprise() {
           }));
         }
 
+        // Initialiser les graphiques après un court délai
+        setTimeout(() => this.initCharts(), 300);
+
       } catch (err) {
         console.error('Erreur:', err);
         this.error = err.message || 'Erreur lors du chargement de la fiche';
       } finally {
         this.loading = false;
+      }
+    },
+
+    initCharts() {
+      if (!this.data?.totaux_par_cycle) return;
+
+      const totaux = this.data.totaux_par_cycle;
+      const c3 = totaux['C3'] || totaux['Cycle 3'];
+      const c4 = totaux['C4'] || totaux['Cycle 4'];
+
+      // Graphique 1: Présence CGT C3 vs C4
+      const ctxPresence = document.getElementById('chart-presence-cgt');
+      if (ctxPresence) {
+        if (this.charts.presence) this.charts.presence.destroy();
+        this.charts.presence = new Chart(ctxPresence, {
+          type: 'bar',
+          data: {
+            labels: ['Cycle 3', 'Cycle 4'],
+            datasets: [{
+              label: 'Établissements avec CGT',
+              data: [
+                c3?.presence_cgt || 0,
+                c4?.presence_cgt || 0
+              ],
+              backgroundColor: ['rgba(220, 38, 38, 0.7)', 'rgba(220, 38, 38, 0.9)'],
+              borderColor: ['rgb(220, 38, 38)', 'rgb(220, 38, 38)'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+          }
+        });
+      }
+
+      // Graphique 2: Taux de participation C3 vs C4
+      const ctxParticipation = document.getElementById('chart-participation');
+      if (ctxParticipation) {
+        if (this.charts.participation) this.charts.participation.destroy();
+        this.charts.participation = new Chart(ctxParticipation, {
+          type: 'line',
+          data: {
+            labels: ['Cycle 3', 'Cycle 4'],
+            datasets: [{
+              label: 'Taux de participation (%)',
+              data: [
+                c3?.taux_participation || 0,
+                c4?.taux_participation || 0
+              ],
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } }
+            }
+          }
+        });
+      }
+
+      // Graphique 3: Répartition organisations C4 (camembert)
+      const ctxOrgs = document.getElementById('chart-organisations');
+      if (ctxOrgs && this.data.pv_par_cycle) {
+        const pv_c4 = this.data.pv_par_cycle['C4'] || this.data.pv_par_cycle['Cycle 4'] || [];
+
+        // Agréger les voix par organisation
+        const orgsVoix = {};
+        pv_c4.forEach(pv => {
+          (pv.organisations || []).forEach(org => {
+            if (!orgsVoix[org.nom]) orgsVoix[org.nom] = 0;
+            orgsVoix[org.nom] += parseInt(org.voix) || 0;
+          });
+        });
+
+        const couleurs = {
+          'CGT': 'rgb(220, 38, 38)',
+          'CFDT': 'rgb(34, 197, 94)',
+          'FO': 'rgb(249, 115, 22)',
+          'CGT-FO': 'rgb(249, 115, 22)',
+          'CGC': 'rgb(59, 130, 246)',
+          'CFE-CGC': 'rgb(59, 130, 246)',
+          'UNSA': 'rgb(168, 85, 247)',
+          'SUD': 'rgb(236, 72, 153)'
+        };
+
+        if (this.charts.organisations) this.charts.organisations.destroy();
+        this.charts.organisations = new Chart(ctxOrgs, {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(orgsVoix),
+            datasets: [{
+              data: Object.values(orgsVoix),
+              backgroundColor: Object.keys(orgsVoix).map(nom => couleurs[nom] || 'rgb(107, 114, 128)'),
+              borderWidth: 2,
+              borderColor: '#fff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right' },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const pourcentage = ((context.parsed / total) * 100).toFixed(1);
+                    return `${context.label}: ${context.parsed} voix (${pourcentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
       }
     },
 
