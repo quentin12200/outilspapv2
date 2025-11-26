@@ -2635,6 +2635,7 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
     ).all()
 
     logger.info(f"🔍 Fallback Tous_PV pour SIREN {siren}: {len(pv_list)} PV trouvés")
+    print(f"[DEBUG FALLBACK] 🔍 Fallback Tous_PV pour SIREN {siren}: {len(pv_list)} PV trouvés", flush=True)
 
     if not pv_list:
         return {
@@ -2758,6 +2759,8 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
 
     logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren} depuis Tous_PV (fallback)")
     logger.info(f"📊 Répartition par cycle: {cycles_count}")
+    print(f"[DEBUG FALLBACK] ✅ {len(formatted_results)} PV trouvés depuis Tous_PV", flush=True)
+    print(f"[DEBUG FALLBACK] 📊 Répartition par cycle: {cycles_count}", flush=True)
 
     return {
         "success": True,
@@ -3072,6 +3075,8 @@ async def get_entreprise_fiche_complete(
         all_cycles = [str(pv.get("cycle", "N/A")) for pv in pv_data.get("pv", [])]
         logger.info(f"🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux")
         logger.info(f"🔍 Cycles présents: {set(all_cycles)}")
+        print(f"[DEBUG MAIN] 🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux récupérés", flush=True)
+        print(f"[DEBUG MAIN] 🔍 Cycles présents AVANT filtrage: {set(all_cycles)}", flush=True)
 
         # Filtrer pour ne garder que Cycle 4 (accepter C4, c4, Cycle 4, cycle 4, 4, etc.)
         pv_cycle_4 = []
@@ -3087,8 +3092,12 @@ async def get_entreprise_fiche_complete(
                     cycles_rejected.append(cycle_raw)
 
         logger.info(f"✅ {len(pv_cycle_4)} PV Cycle 4 après filtrage")
+        print(f"[DEBUG MAIN] ✅ {len(pv_cycle_4)} PV Cycle 4 APRÈS filtrage", flush=True)
         if cycles_rejected:
             logger.info(f"⚠️ Cycles rejetés: {set(cycles_rejected)}")
+            print(f"[DEBUG MAIN] ⚠️ Cycles rejetés: {set(cycles_rejected)}", flush=True)
+        else:
+            print(f"[DEBUG MAIN] ✅ Aucun cycle rejeté (tous les PV sont Cycle 4)", flush=True)
 
         # ==================== 3. INVITATIONS PAP ====================
         # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
