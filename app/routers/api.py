@@ -3479,10 +3479,10 @@ async def get_recommandations_strategiques(
 - Nombre d'invitations: {stats.get('nb_invitations_pap', 0)}
 
 ## Résultats électoraux détaillés
-{self._format_pv_for_prompt(pv_cycle_4[:5])}
+{_format_pv_for_prompt(pv_cycle_4[:5])}
 
 ## Historique invitations PAP
-{self._format_invitations_for_prompt(invitations_pap[:3])}
+{_format_invitations_for_prompt(invitations_pap[:3])}
 """
 
         instructions = """Tu es un expert CGT en stratégie syndicale et renforcement organisationnel.
