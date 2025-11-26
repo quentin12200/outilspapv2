@@ -58,8 +58,11 @@
 
         <div class="text-right">
           <div class="text-white/70 mb-1 text-sm">Effectif SIREN</div>
-          <div class="text-4xl font-bold" x-text="data?.info_base?.effectif_siren || 'N/A'"></div>
-          <div class="text-white/80 text-xs mt-1">salariés</div>
+          <div class="text-4xl font-bold" x-text="data?.info_base?.effectif_siren || data?.pappers?.effectif || 'N/A'"></div>
+          <div class="text-white/80 text-xs mt-1">
+            <span x-show="data?.pappers?.tranche_effectif" x-text="'(' + data.pappers.tranche_effectif + ')'"></span>
+            <span x-show="!data?.pappers?.tranche_effectif">salariés</span>
+          </div>
         </div>
       </div>
     </div>
@@ -206,72 +209,72 @@
                 <!-- Liste des PV du cycle -->
                 <div class="p-6 bg-gray-50 space-y-4">
                   <template x-for="pv in pvs" :key="pv.siret + pv.date_scrutin">
-              <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
-                <div class="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 class="text-xl font-bold text-gray-900" x-text="pv.raison_sociale"></h3>
-                    <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="pv.siret"></span></span>
-                      <span><i class="fas fa-calendar mr-1"></i><span x-text="pv.date_scrutin"></span></span>
-                      <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="pv.ville"></span></span>
-                    </div>
-                  </div>
-                  <div x-show="pv.carence" class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
-                    CARENCE
-                  </div>
-                </div>
+                    <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
+                      <div class="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 class="text-xl font-bold text-gray-900" x-text="pv.raison_sociale"></h3>
+                          <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                            <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="pv.siret"></span></span>
+                            <span><i class="fas fa-calendar mr-1"></i><span x-text="pv.date_scrutin"></span></span>
+                            <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="pv.ville"></span></span>
+                          </div>
+                        </div>
+                        <div x-show="pv.carence" class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
+                          CARENCE
+                        </div>
+                      </div>
 
-                <!-- Stats -->
-                <div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <div class="text-xs text-gray-600 mb-1">Inscrits</div>
-                    <div class="text-lg font-bold" x-text="pv.inscrits"></div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-600 mb-1">Votants</div>
-                    <div class="text-lg font-bold" x-text="pv.votants"></div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-600 mb-1">Participation</div>
-                    <div class="text-lg font-bold" x-text="pv.taux_participation ? pv.taux_participation + '%' : 'N/A'"></div>
-                  </div>
-                </div>
+                      <!-- Stats PV individuel -->
+                      <div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-100 rounded-lg">
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Inscrits</div>
+                          <div class="text-lg font-bold" x-text="pv.inscrits"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Votants</div>
+                          <div class="text-lg font-bold" x-text="pv.votants"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Participation</div>
+                          <div class="text-lg font-bold" x-text="pv.taux_participation ? pv.taux_participation + '%' : 'N/A'"></div>
+                        </div>
+                      </div>
 
-                <!-- Organisations -->
-                <template x-if="pv.organisations && pv.organisations.length > 0">
-                  <div>
-                    <h4 class="font-semibold text-gray-900 mb-3">Résultats par organisation</h4>
-                    <div class="space-y-2">
-                      <template x-for="org in pv.organisations" :key="org.nom">
-                        <div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
-                          <div class="flex items-center gap-3 flex-1">
-                            <div :class="org.nom === 'CGT' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
-                                 class="w-16 h-16 rounded-lg flex items-center justify-center font-bold text-sm">
-                              <span x-text="org.nom"></span>
-                            </div>
-                            <div class="flex-1">
-                              <div class="flex items-center gap-4">
-                                <div>
-                                  <div class="text-xs text-gray-600">Voix</div>
-                                  <div class="text-lg font-bold" x-text="org.voix"></div>
-                                </div>
-                                <div>
-                                  <div class="text-xs text-gray-600">Sièges</div>
-                                  <div class="text-lg font-bold" x-text="org.sieges"></div>
-                                </div>
-                                <div>
-                                  <div class="text-xs text-gray-600">Score</div>
-                                  <div class="text-lg font-bold" x-text="org.pourcentage + '%'"></div>
+                      <!-- Organisations -->
+                      <template x-if="pv.organisations && pv.organisations.length > 0">
+                        <div>
+                          <h4 class="font-semibold text-gray-900 mb-3">Résultats par organisation</h4>
+                          <div class="space-y-2">
+                            <template x-for="org in pv.organisations" :key="org.nom">
+                              <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div class="flex items-center gap-3 flex-1">
+                                  <div :class="org.nom === 'CGT' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+                                       class="w-16 h-16 rounded-lg flex items-center justify-center font-bold text-sm">
+                                    <span x-text="org.nom"></span>
+                                  </div>
+                                  <div class="flex-1">
+                                    <div class="flex items-center gap-4">
+                                      <div>
+                                        <div class="text-xs text-gray-600">Voix</div>
+                                        <div class="text-lg font-bold" x-text="org.voix"></div>
+                                      </div>
+                                      <div>
+                                        <div class="text-xs text-gray-600">Sièges</div>
+                                        <div class="text-lg font-bold" x-text="org.sieges"></div>
+                                      </div>
+                                      <div>
+                                        <div class="text-xs text-gray-600">Score</div>
+                                        <div class="text-lg font-bold" x-text="org.pourcentage + '%'"></div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            </template>
                           </div>
                         </div>
                       </template>
                     </div>
-                  </div>
-                </template>
-                  </div>
                   </template>
                 </div>
               </div>
