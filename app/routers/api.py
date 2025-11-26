@@ -3276,8 +3276,10 @@ async def get_entreprise_fiche_complete(
             logger.warning(f"⚠️ Erreur Pappers (non-bloquant) : {e}")
 
         # Enrichir les établissements avec les données Pappers
+        sirets_en_base = set()
         for etab in etablissements_list:
             siret_str = str(etab["siret"])
+            sirets_en_base.add(siret_str)
             if siret_str in pappers_etablissements:
                 pappers_etab = pappers_etablissements[siret_str]
                 etab["pappers"] = {
@@ -3290,9 +3292,46 @@ async def get_entreprise_fiche_complete(
                     "tranche_effectif": pappers_etab.get("tranche_effectif"),
                     "date_creation": pappers_etab.get("date_creation"),
                     "est_siege": pappers_etab.get("est_siege"),
+                    "latitude": pappers_etab.get("latitude"),
+                    "longitude": pappers_etab.get("longitude"),
                 }
+                etab["source"] = "base_et_pappers"
             else:
                 etab["pappers"] = None
+                etab["source"] = "base_seulement"
+
+        # Ajouter les établissements Pappers qui ne sont PAS en base
+        for siret_pap, pappers_etab in pappers_etablissements.items():
+            if siret_pap not in sirets_en_base:
+                is_siege = str(siret_pap).endswith("00001") or pappers_etab.get("est_siege", False)
+
+                etablissements_list.append({
+                    "siret": siret_pap,
+                    "raison_sociale": pappers_etab.get("nom_complet") or pappers_etab.get("denomination"),
+                    "ville": pappers_etab.get("commune"),
+                    "code_postal": pappers_etab.get("code_postal"),
+                    "effectif_siret": None,
+                    "has_pv_c3": False,
+                    "has_pv_c4": False,
+                    "siege": is_siege,
+                    "source": "pappers_seulement",
+                    "pappers": {
+                        "nom_complet": pappers_etab.get("nom_complet"),
+                        "enseigne": pappers_etab.get("enseigne"),
+                        "adresse_complete": pappers_etab.get("adresse_complete") or pappers_etab.get("adresse"),
+                        "code_naf": pappers_etab.get("code_naf") or pappers_etab.get("activite_principale"),
+                        "libelle_code_naf": pappers_etab.get("libelle_code_naf") or pappers_etab.get("libelle_activite"),
+                        "effectif": pappers_etab.get("effectif"),
+                        "tranche_effectif": pappers_etab.get("tranche_effectif"),
+                        "date_creation": pappers_etab.get("date_creation"),
+                        "est_siege": is_siege,
+                        "latitude": pappers_etab.get("latitude"),
+                        "longitude": pappers_etab.get("longitude"),
+                    }
+                })
+
+        # Re-trier pour mettre le siège en premier après ajout des établissements Pappers
+        etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
 
         # ==================== RÉPONSE FINALE ====================
         logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_total']} PV totaux, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
