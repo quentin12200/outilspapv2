@@ -2709,12 +2709,21 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
         if date_pv:
             try:
                 if isinstance(date_pv, str):
-                    date_scrutin = datetime.strptime(date_pv, "%Y-%m-%d").strftime("%Y-%m-%d")
+                    # Essayer plusieurs formats de date
+                    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"]:
+                        try:
+                            date_scrutin = datetime.strptime(date_pv, fmt).strftime("%Y-%m-%d")
+                            break
+                        except ValueError:
+                            continue
+                    if not date_scrutin:
+                        # Si aucun format ne fonctionne, extraire juste la partie date
+                        date_scrutin = date_pv.split()[0] if ' ' in date_pv else date_pv
                 else:
                     date_scrutin = date_pv.strftime("%Y-%m-%d") if hasattr(date_pv, 'strftime') else str(date_pv)
             except Exception as e:
                 logger.warning(f"Erreur parsing date {date_pv}: {e}")
-                date_scrutin = str(date_pv) if date_pv else None
+                date_scrutin = str(date_pv).split()[0] if date_pv and ' ' in str(date_pv) else str(date_pv) if date_pv else None
 
         formatted_results.append({
             "siret": getattr(pv, 'siret', None),
@@ -2741,7 +2750,14 @@ async def _get_pv_from_tous_pv(siren: str, db: Session):
     # Trier par date décroissante
     formatted_results.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
 
+    # Log détaillé des cycles trouvés
+    cycles_count = {}
+    for pv in formatted_results:
+        cycle = pv.get("cycle", "N/A")
+        cycles_count[cycle] = cycles_count.get(cycle, 0) + 1
+
     logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren} depuis Tous_PV (fallback)")
+    logger.info(f"📊 Répartition par cycle: {cycles_count}")
 
     return {
         "success": True,
@@ -3052,16 +3068,27 @@ async def get_entreprise_fiche_complete(
         # ==================== 2. PV ÉLECTORAUX (CYCLE 4 UNIQUEMENT) ====================
         pv_data = await get_pv_by_siren(siren, db)
 
+        # Log les cycles trouvés AVANT filtrage
+        all_cycles = [str(pv.get("cycle", "N/A")) for pv in pv_data.get("pv", [])]
+        logger.info(f"🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux")
+        logger.info(f"🔍 Cycles présents: {set(all_cycles)}")
+
         # Filtrer pour ne garder que Cycle 4 (accepter C4, c4, Cycle 4, cycle 4, 4, etc.)
         pv_cycle_4 = []
+        cycles_rejected = []
         if pv_data.get("success") and pv_data.get("pv"):
             for pv in pv_data["pv"]:
-                cycle = str(pv.get("cycle", "")).upper().strip()
+                cycle_raw = pv.get("cycle", "")
+                cycle = str(cycle_raw).upper().strip()
                 # Accepter C4, CYCLE 4, 4, etc.
                 if "C4" in cycle or "CYCLE 4" in cycle or cycle == "4":
                     pv_cycle_4.append(pv)
+                else:
+                    cycles_rejected.append(cycle_raw)
 
-        logger.info(f"🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux, {len(pv_cycle_4)} PV Cycle 4")
+        logger.info(f"✅ {len(pv_cycle_4)} PV Cycle 4 après filtrage")
+        if cycles_rejected:
+            logger.info(f"⚠️ Cycles rejetés: {set(cycles_rejected)}")
 
         # ==================== 3. INVITATIONS PAP ====================
         # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
