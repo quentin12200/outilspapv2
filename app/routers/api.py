@@ -3156,7 +3156,7 @@ async def get_entreprise_fiche_complete(
         etablissements_list = []
         for etab in etablissements_summary:
             # Le siège est généralement le SIRET qui finit par 00001
-            is_siege = etab.siret.endswith("00001")
+            is_siege = str(etab.siret).endswith("00001")
 
             etablissements_list.append({
                 "siret": etab.siret,
@@ -3184,7 +3184,7 @@ async def get_entreprise_fiche_complete(
                 siret_pv = getattr(pv, 'siret', None)
                 if siret_pv and siret_pv not in sirets_vus:
                     sirets_vus.add(siret_pv)
-                    is_siege = siret_pv.endswith("00001")
+                    is_siege = str(siret_pv).endswith("00001")
 
                     etablissements_list.append({
                         "siret": siret_pv,
