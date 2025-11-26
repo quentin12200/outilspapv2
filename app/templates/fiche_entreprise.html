@@ -851,6 +851,11 @@ function ficheEntreprise() {
 
     initMap() {
       console.log('🗺️ initMap appelée');
+      console.log('📊 Données:', {
+        hasData: !!this.data,
+        hasEtablissements: !!this.data?.etablissements,
+        nbEtablissements: this.data?.etablissements?.length || 0
+      });
 
       const mapEl = document.getElementById('map-etablissements');
       if (!mapEl) {
@@ -858,50 +863,64 @@ function ficheEntreprise() {
         return;
       }
 
+      console.log('📐 Dimensions:', { width: mapEl.offsetWidth, height: mapEl.offsetHeight });
+
       // Vérifier que le conteneur est visible
       if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
-        console.warn('⚠️ Le conteneur de la carte n\'est pas encore visible, réessai dans 300ms...');
+        console.warn('⚠️ Conteneur pas visible, réessai dans 300ms...');
         setTimeout(() => this.initMap(), 300);
         return;
       }
 
       // Éviter de réinitialiser si déjà créée
       if (this.map) {
-        console.log('🔄 Carte déjà créée, invalidateSize()');
+        console.log('🔄 Carte existe, invalidateSize()');
         setTimeout(() => this.map.invalidateSize(), 100);
         return;
       }
 
       // Vérifier que les données sont chargées
       if (!this.data || !this.data.etablissements) {
-        console.error('❌ Données établissements non disponibles');
+        console.error('❌ Données établissements manquantes');
         return;
       }
+
+      // Debug: afficher exemples
+      console.log('🔍 Exemples établissements:',
+        this.data.etablissements.slice(0, 2).map(e => ({
+          siret: e.siret,
+          pappers: !!e.pappers,
+          lat: e.pappers?.latitude,
+          lon: e.pappers?.longitude
+        }))
+      );
 
       // Filtrer les établissements avec coordonnées GPS
       const etablissementsAvecCoord = this.data.etablissements.filter(etab =>
         etab.pappers?.latitude && etab.pappers?.longitude
       );
 
-      console.log(`📍 ${etablissementsAvecCoord.length} établissements avec coordonnées GPS`);
+      console.log(`📍 ${etablissementsAvecCoord.length}/${this.data.etablissements.length} établissements avec GPS`);
 
       if (etablissementsAvecCoord.length === 0) {
-        mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><p>Aucune coordonnée GPS disponible pour afficher la carte</p></div>';
+        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-yellow-50 text-gray-700 p-4"><p><i class="fas fa-map-marker-alt-slash mr-2"></i>Aucune coordonnée GPS disponible pour afficher la carte</p></div>';
         return;
       }
 
       // Créer la carte centrée sur le premier établissement
       const firstEtab = etablissementsAvecCoord[0];
-      console.log(`🎯 Centre carte sur : ${firstEtab.pappers.latitude}, ${firstEtab.pappers.longitude}`);
+      console.log(`🎯 Centre: ${firstEtab.pappers.latitude}, ${firstEtab.pappers.longitude}`);
+      console.log('🌍 Leaflet:', typeof L !== 'undefined');
 
       try {
         this.map = L.map('map-etablissements').setView(
           [firstEtab.pappers.latitude, firstEtab.pappers.longitude],
           10
         );
-        console.log('✅ Carte Leaflet créée avec succès');
+        console.log('✅ Carte créée!');
       } catch (err) {
-        console.error('❌ Erreur création carte Leaflet:', err);
+        console.error('❌ Erreur Leaflet:', err);
+        mapEl.innerHTML = `<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur: ${err.message}</p></div>`;
         return;
       }
 

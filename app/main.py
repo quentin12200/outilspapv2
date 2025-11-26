@@ -2096,6 +2096,18 @@ def calendrier_elections(
 ):
     today = date.today()
 
+    # Récupérer l'utilisateur connecté pour appliquer les restrictions de profil
+    current_user = getattr(request.state, "current_user", None)
+
+    # Si l'utilisateur n'est pas admin, appliquer automatiquement les filtres de son profil
+    if current_user and current_user.role != "admin":
+        # Si l'utilisateur a un UD assigné, forcer le filtre sur cet UD
+        if current_user.ud and not ud:
+            ud = current_user.ud
+        # Si l'utilisateur a une région assignée et pas de filtre UD, forcer la région
+        elif current_user.region and not region and not ud:
+            region = current_user.region
+
     stmt = (
         db.query(
             PVEvent.siret,
@@ -2151,21 +2163,6 @@ def calendrier_elections(
         if not parsed_date or parsed_date < today:
             continue
 
-        if row.cycle:
-            options["cycles"].add(row.cycle)
-        if row.institution:
-            options["institutions"].add(row.institution)
-        if row.fd:
-            options["fds"].add(row.fd)
-        if row.idcc:
-            options["idccs"].add(str(row.idcc))
-        if row.ud:
-            options["uds"].add(row.ud)
-        if row.region:
-            options["regions"].add(row.region)
-        if parsed_date:
-            options["years"].add(str(parsed_date.year))
-
         # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
@@ -2197,6 +2194,22 @@ def calendrier_elections(
             raison = (row.raison_sociale or "").lower()
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
+
+        # Ajouter aux options APRÈS avoir appliqué les filtres
+        if row.cycle:
+            options["cycles"].add(row.cycle)
+        if row.institution:
+            options["institutions"].add(row.institution)
+        if row.fd:
+            options["fds"].add(row.fd)
+        if row.idcc:
+            options["idccs"].add(str(row.idcc))
+        if row.ud:
+            options["uds"].add(row.ud)
+        if row.region:
+            options["regions"].add(row.region)
+        if parsed_date:
+            options["years"].add(str(parsed_date.year))
 
         # ÉTAPE 1 : Calculer pour CHAQUE collège/PV (ne pas dédupliquer encore)
         # On va créer une entrée par collège, puis agréger par SIRET après
