@@ -12,6 +12,8 @@ from ..models import SiretSummary, PVEvent, Invitation, User, UserActivity
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 from ..services.idcc_enrichment import get_idcc_enrichment_service
+from ..services.pappers_api import pappers_api
+from ..services.chatbot_ia import ChatbotIA
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
 from ..user_auth import require_admin_user, get_current_user
@@ -3135,6 +3137,32 @@ async def get_entreprise_fiche_complete(
         stats["presence_cgt_c4"] = nb_pv_avec_cgt
         stats["total_voix_cgt_c4"] = total_voix_cgt
 
+        # ==================== 6. ENRICHISSEMENT PAPPERS ====================
+        pappers_data = None
+        try:
+            logger.info(f"📡 Enrichissement Pappers pour SIREN {siren}")
+            pappers_result = await pappers_api.get_etablissements_by_siren(siren)
+
+            if pappers_result.get("success"):
+                entreprise_data = pappers_result.get("entreprise", {})
+                pappers_data = {
+                    "nom": entreprise_data.get("nom"),
+                    "forme_juridique": entreprise_data.get("forme_juridique"),
+                    "capital": entreprise_data.get("capital"),
+                    "date_creation": entreprise_data.get("date_creation"),
+                    "categorie_entreprise": entreprise_data.get("categorie_entreprise"),
+                    "tranche_effectif": entreprise_data.get("tranche_effectif"),
+                    "effectif": entreprise_data.get("effectif"),
+                    "activite_principale": entreprise_data.get("activite_principale"),
+                    "libelle_activite": entreprise_data.get("libelle_activite"),
+                    "siege_adresse": entreprise_data.get("siege_adresse"),
+                }
+                logger.info(f"✅ Données Pappers récupérées : {entreprise_data.get('nom')}")
+            else:
+                logger.warning(f"⚠️ Pappers: {pappers_result.get('error', 'Aucune donnée')}")
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur Pappers (non-bloquant) : {e}")
+
         # ==================== RÉPONSE FINALE ====================
         logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_c4']} PV C4, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
 
@@ -3165,6 +3193,7 @@ async def get_entreprise_fiche_complete(
             "siret": siret_principal,
             "siren": siren,
             "info_base": info_base,
+            "pappers": pappers_data,
             "pv_cycle_4": pv_cycle_4,
             "invitations_pap": invitations_list,
             "etablissements": etablissements_list,
@@ -3176,3 +3205,257 @@ async def get_entreprise_fiche_complete(
     except Exception as e:
         logger.error(f"Erreur lors de la récupération de la fiche entreprise: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.post("/entreprise/{siret}/recommandations")
+async def get_recommandations_strategiques(
+    siret: str,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Génère des recommandations stratégiques personnalisées pour une entreprise
+    en utilisant ChatGPT et le kit de renforcement syndical.
+
+    Analyse:
+    - Présence CGT actuelle dans l'entreprise
+    - Historique des élections et résultats
+    - Invitations PAP en cours
+    - Caractéristiques de l'entreprise (effectif, secteur, etc.)
+
+    Recommandations basées sur:
+    - Kit de renforcement syndical CGT
+    - Freins à la syndicalisation identifiés
+    - Moyens pour lever ces freins
+    - Stratégies adaptées au contexte
+
+    Args:
+        siret: Numéro SIRET (14 chiffres) ou SIREN (9 chiffres)
+
+    Returns:
+        Recommandations stratégiques personnalisées
+    """
+    try:
+        # Nettoyer l'input
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        # Déterminer si c'est un SIRET ou SIREN
+        if len(siret_clean) == 14:
+            siren = siret_clean[:9]
+        elif len(siret_clean) == 9:
+            siren = siret_clean
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Numéro invalide (doit contenir 9 chiffres pour SIREN ou 14 pour SIRET)"
+            )
+
+        logger.info(f"🤖 Génération recommandations stratégiques pour SIREN {siren}")
+
+        # Récupérer les données de l'entreprise
+        fiche = await get_entreprise_fiche_complete(siret, db, current_user)
+
+        if not fiche.get("success"):
+            raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+
+        # Préparer le contexte pour ChatGPT
+        info_base = fiche.get("info_base", {})
+        pappers = fiche.get("pappers", {})
+        stats = fiche.get("stats", {})
+        pv_cycle_4 = fiche.get("pv_cycle_4", [])
+        invitations_pap = fiche.get("invitations_pap", [])
+
+        # Analyser la présence CGT
+        presence_cgt = stats.get("presence_cgt_c4", 0)
+        total_pv = stats.get("nb_pv_c4", 0)
+        pourcentage_cgt = (presence_cgt / total_pv * 100) if total_pv > 0 else 0
+
+        # Calculer score moyen CGT
+        total_voix_cgt = stats.get("total_voix_cgt_c4", 0)
+        score_moyen_cgt = 0
+        if presence_cgt > 0:
+            # Score moyen par établissement où CGT est présente
+            for pv in pv_cycle_4:
+                for org in pv.get("organisations", []):
+                    if org.get("nom") == "CGT":
+                        score_moyen_cgt += org.get("pourcentage", 0)
+                        break
+            score_moyen_cgt = score_moyen_cgt / presence_cgt if presence_cgt > 0 else 0
+
+        # Construire le prompt pour ChatGPT
+        contexte = f"""# DONNÉES DE L'ENTREPRISE
+
+## Informations générales
+- Raison sociale: {info_base.get('raison_sociale', 'N/A')}
+- SIREN: {siren}
+- Secteur d'activité: {pappers.get('libelle_activite', 'N/A')} ({pappers.get('activite_principale', 'N/A')})
+- Forme juridique: {pappers.get('forme_juridique', 'N/A')}
+- Effectif total SIREN: {info_base.get('effectif_siren', 'N/A')} salariés
+- Nombre d'établissements: {stats.get('nb_etablissements', 0)}
+- Localisation: {info_base.get('ville', 'N/A')} ({info_base.get('code_postal', 'N/A')})
+- Date de création: {pappers.get('date_creation', 'N/A')}
+
+## Situation syndicale (Cycle 4)
+- Nombre de PV Cycle 4: {total_pv}
+- Présence CGT: {presence_cgt} établissements ({pourcentage_cgt:.1f}%)
+- Score moyen CGT (quand présente): {score_moyen_cgt:.1f}%
+- Total voix CGT: {total_voix_cgt}
+
+## Invitations PAP en cours
+- Nombre d'invitations: {stats.get('nb_invitations_pap', 0)}
+
+## Résultats électoraux détaillés
+{self._format_pv_for_prompt(pv_cycle_4[:5])}
+
+## Historique invitations PAP
+{self._format_invitations_for_prompt(invitations_pap[:3])}
+"""
+
+        instructions = """Tu es un expert CGT en stratégie syndicale et renforcement organisationnel.
+
+Analyse les données de l'entreprise ci-dessus et génère des **recommandations stratégiques personnalisées** pour renforcer la présence CGT.
+
+Base tes recommandations sur:
+1. **Le kit de renforcement syndical CGT** (freins à la syndicalisation et moyens pour les lever)
+2. **La situation concrète de l'entreprise** (présence CGT, résultats électoraux, taille, secteur)
+3. **Les opportunités identifiées** (invitations PAP en cours, établissements sans CGT, etc.)
+
+Structure ta réponse avec:
+
+## 🎯 Diagnostic de la situation
+
+[Analyse de la présence CGT actuelle, points forts et points faibles]
+
+## 🚧 Freins identifiés
+
+[Liste des freins à la syndicalisation dans ce contexte spécifique, en référence au kit CGT]
+
+## 💡 Recommandations stratégiques
+
+[Recommandations concrètes et actionnables, organisées par priorité]
+
+### 1. Actions prioritaires
+- [Actions à mener en priorité]
+
+### 2. Renforcement de l'organisation
+- [Actions pour structurer et renforcer]
+
+### 3. Communication et visibilité
+- [Actions de communication interne/externe]
+
+## 📋 Plan d'action suggéré
+
+[Timeline suggérée avec étapes clés]
+
+## ⚠️ Points de vigilance
+
+[Risques et difficultés potentielles à anticiper]
+
+Sois **concret, pratique et réaliste**. Utilise des émojis pour rendre le texte plus lisible."""
+
+        # Appeler ChatGPT
+        try:
+            chatbot = ChatbotIA()
+            from pathlib import Path
+            import json
+
+            # Charger le kit de renforcement
+            kit_path = Path(__file__).parent.parent / "data" / "argumentaires" / "syndicalisation_freins_leviers.json"
+            kit_renforcement = {}
+            if kit_path.exists():
+                with open(kit_path, 'r', encoding='utf-8') as f:
+                    kit_renforcement = json.load(f)
+
+            # Construire le prompt complet
+            kit_context = json.dumps(kit_renforcement, indent=2, ensure_ascii=False)
+
+            full_prompt = f"""{contexte}
+
+# KIT DE RENFORCEMENT SYNDICAL CGT
+
+{kit_context}
+
+---
+
+{instructions}
+"""
+
+            # Appeler l'API OpenAI
+            content = chatbot._call_openai_with_fallback(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert CGT en stratégie syndicale et renforcement organisationnel. Tu analyses les données d'entreprises et proposes des recommandations concrètes basées sur le kit de renforcement CGT."
+                    },
+                    {
+                        "role": "user",
+                        "content": full_prompt
+                    }
+                ],
+                temperature=0.4
+            )
+
+            logger.info(f"✅ Recommandations générées pour {info_base.get('raison_sociale', siren)}")
+
+            return {
+                "success": True,
+                "siren": siren,
+                "raison_sociale": info_base.get("raison_sociale"),
+                "recommandations": content,
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "presence_cgt": f"{presence_cgt}/{total_pv}",
+                    "score_moyen_cgt": f"{score_moyen_cgt:.1f}%",
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération des recommandations: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur lors de la génération des recommandations: {str(e)}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur dans recommandations stratégiques: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+def _format_pv_for_prompt(pv_list):
+    """Formate les PV pour le prompt ChatGPT"""
+    if not pv_list:
+        return "Aucun résultat électoral disponible."
+
+    result = []
+    for pv in pv_list:
+        result.append(f"- {pv.get('raison_sociale', 'N/A')} ({pv.get('ville', 'N/A')})")
+        result.append(f"  Date: {pv.get('date_scrutin', 'N/A')}")
+        result.append(f"  Inscrits: {pv.get('inscrits', 0)}, Taux participation: {pv.get('taux_participation', 0)}%")
+
+        orgs = pv.get('organisations', [])
+        if orgs:
+            result.append("  Résultats:")
+            for org in orgs[:5]:  # Top 5 organisations
+                result.append(f"    • {org.get('nom')}: {org.get('pourcentage', 0):.1f}% ({org.get('voix', 0)} voix, {org.get('sieges', 0)} sièges)")
+        result.append("")
+
+    return "\n".join(result)
+
+
+def _format_invitations_for_prompt(inv_list):
+    """Formate les invitations pour le prompt ChatGPT"""
+    if not inv_list:
+        return "Aucune invitation PAP récente."
+
+    result = []
+    for inv in inv_list:
+        result.append(f"- {inv.get('raison_sociale', 'N/A')} ({inv.get('ville', 'N/A')})")
+        result.append(f"  SIRET: {inv.get('siret', 'N/A')}")
+        result.append(f"  Date invitation: {inv.get('date_invit', 'N/A')}")
+        result.append(f"  Date élection: {inv.get('date_election', 'N/A') or 'Non définie'}")
+        result.append(f"  Effectif: {inv.get('effectif_connu', 'N/A')}")
+        result.append("")
+
+    return "\n".join(result)

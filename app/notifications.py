@@ -45,9 +45,10 @@ def get_notifications_count(db: Session) -> dict:
     date_7_jours = now - timedelta(days=7)
     nouvelles_invitations = db.query(func.count(Invitation.id)).filter(
         and_(
-            Invitation.created_at.isnot(None),
-            Invitation.created_at >= date_7_jours,
-            Invitation.source == "scan"
+            Invitation.date_invit.isnot(None),
+            Invitation.date_invit >= date_7_jours,
+            Invitation.source == "Scan automatique",
+            Invitation.est_actif == True
         )
     ).scalar() or 0
 
@@ -80,55 +81,39 @@ def get_notification_details(db: Session) -> dict:
         )
     ).order_by(Invitation.date_invit.asc()).limit(50).all()
 
-    # Élections proches
-    date_15_jours = now + timedelta(days=15)
-    elections_proches_list = db.query(Invitation).filter(
-        and_(
-            Invitation.date_1er_tour.isnot(None),
-            Invitation.date_1er_tour >= now,
-            Invitation.date_1er_tour <= date_15_jours,
-            Invitation.est_actif == True
-        )
-    ).order_by(Invitation.date_1er_tour.asc()).limit(50).all()
+    # Élections proches (désactivé - champ date_1er_tour inexistant)
+    elections_proches_list = []
 
     # Nouvelles invitations
     date_7_jours = now - timedelta(days=7)
     nouvelles_invitations_list = db.query(Invitation).filter(
         and_(
-            Invitation.created_at.isnot(None),
-            Invitation.created_at >= date_7_jours,
-            Invitation.source == "scan"
+            Invitation.date_invit.isnot(None),
+            Invitation.date_invit >= date_7_jours,
+            Invitation.source == "Scan automatique",
+            Invitation.est_actif == True
         )
-    ).order_by(Invitation.created_at.desc()).limit(50).all()
+    ).order_by(Invitation.date_invit.desc()).limit(50).all()
 
     return {
         "invitations_retard": [
             {
                 "id": inv.id,
-                "denomination": inv.denomination,
-                "commune": inv.commune,
+                "raison_sociale": inv.raison_sociale,
+                "ville": inv.ville,
                 "date_invitation": inv.date_invit,
-                "jours_retard": (now - inv.date_invit).days if inv.date_invit else 0
+                "jours_retard": (now.date() - inv.date_invit).days if inv.date_invit else 0
             }
             for inv in invitations_retard_list
         ],
-        "elections_proches": [
-            {
-                "id": inv.id,
-                "denomination": inv.denomination,
-                "commune": inv.commune,
-                "date_1er_tour": inv.date_1er_tour,
-                "jours_restants": (inv.date_1er_tour - now).days if inv.date_1er_tour else 0
-            }
-            for inv in elections_proches_list
-        ],
+        "elections_proches": [],
         "nouvelles_invitations": [
             {
                 "id": inv.id,
-                "denomination": inv.denomination,
-                "commune": inv.commune,
-                "created_at": inv.created_at,
-                "jours_depuis": (now - inv.created_at).days if inv.created_at else 0
+                "raison_sociale": inv.raison_sociale,
+                "ville": inv.ville,
+                "date_invit": inv.date_invit,
+                "jours_depuis": (now.date() - inv.date_invit).days if inv.date_invit else 0
             }
             for inv in nouvelles_invitations_list
         ]
