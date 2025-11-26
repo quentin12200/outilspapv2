@@ -512,10 +512,33 @@ function cartographieApp() {
 
     init() {
       console.log('Init cartographie app');
-      // Charger les cartographies de manière non-bloquante
-      setTimeout(() => {
-        this.loadSavedCartographies();
-      }, 100);
+
+      // Récupérer le SIRET depuis l'URL si fourni
+      const urlParams = new URLSearchParams(window.location.search);
+      const siretParam = urlParams.get('siret');
+
+      if (siretParam) {
+        console.log('SIRET fourni dans l\'URL:', siretParam);
+        this.siret = siretParam;
+        // Essayer de trouver une cartographie existante pour ce SIRET
+        setTimeout(() => {
+          this.loadSavedCartographies().then(() => {
+            const existing = this.savedCartographies.find(c => c.siret === siretParam);
+            if (existing) {
+              console.log('Cartographie existante trouvée:', existing.id);
+              this.selectedCartographieId = existing.id.toString();
+              this.loadCartographie();
+            } else {
+              console.log('Pas de cartographie existante, nouvelle création pour', siretParam);
+            }
+          });
+        }, 100);
+      } else {
+        // Charger les cartographies de manière non-bloquante
+        setTimeout(() => {
+          this.loadSavedCartographies();
+        }, 100);
+      }
     },
 
     async loadSavedCartographies() {
