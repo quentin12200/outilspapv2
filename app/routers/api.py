@@ -3068,36 +3068,51 @@ async def get_entreprise_fiche_complete(
                 detail=f"Aucune donnée trouvée pour {'SIRET' if is_siret else 'SIREN'} {siret_clean or siren}"
             )
 
-        # ==================== 2. PV ÉLECTORAUX (CYCLE 4 UNIQUEMENT) ====================
+        # ==================== 2. PV ÉLECTORAUX (TOUS CYCLES) ====================
         pv_data = await get_pv_by_siren(siren, db)
 
-        # Log les cycles trouvés AVANT filtrage
-        all_cycles = [str(pv.get("cycle", "N/A")) for pv in pv_data.get("pv", [])]
-        logger.info(f"🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux")
-        logger.info(f"🔍 Cycles présents: {set(all_cycles)}")
-        print(f"[DEBUG MAIN] 🔍 SIREN {siren}: {len(pv_data.get('pv', []))} PV totaux récupérés", flush=True)
-        print(f"[DEBUG MAIN] 🔍 Cycles présents AVANT filtrage: {set(all_cycles)}", flush=True)
+        # Organiser les PV par cycle
+        pv_par_cycle = {}
+        tous_pv = []
 
-        # Filtrer pour ne garder que Cycle 4 (accepter C4, c4, Cycle 4, cycle 4, 4, etc.)
-        pv_cycle_4 = []
-        cycles_rejected = []
         if pv_data.get("success") and pv_data.get("pv"):
             for pv in pv_data["pv"]:
-                cycle_raw = pv.get("cycle", "")
-                cycle = str(cycle_raw).upper().strip()
-                # Accepter C4, CYCLE 4, 4, etc.
-                if "C4" in cycle or "CYCLE 4" in cycle or cycle == "4":
-                    pv_cycle_4.append(pv)
-                else:
-                    cycles_rejected.append(cycle_raw)
+                cycle_raw = pv.get("cycle", "N/A")
+                cycle = str(cycle_raw).strip() if cycle_raw else "N/A"
 
-        logger.info(f"✅ {len(pv_cycle_4)} PV Cycle 4 après filtrage")
-        print(f"[DEBUG MAIN] ✅ {len(pv_cycle_4)} PV Cycle 4 APRÈS filtrage", flush=True)
-        if cycles_rejected:
-            logger.info(f"⚠️ Cycles rejetés: {set(cycles_rejected)}")
-            print(f"[DEBUG MAIN] ⚠️ Cycles rejetés: {set(cycles_rejected)}", flush=True)
-        else:
-            print(f"[DEBUG MAIN] ✅ Aucun cycle rejeté (tous les PV sont Cycle 4)", flush=True)
+                # Normaliser le nom du cycle pour le regroupement
+                if not cycle or cycle == "N/A":
+                    cycle_key = "Autre"
+                else:
+                    cycle_key = cycle
+
+                if cycle_key not in pv_par_cycle:
+                    pv_par_cycle[cycle_key] = []
+
+                pv_par_cycle[cycle_key].append(pv)
+                tous_pv.append(pv)
+
+        # Calculer les totaux par cycle
+        totaux_par_cycle = {}
+        for cycle, pvs in pv_par_cycle.items():
+            total_inscrits = sum(pv.get("inscrits", 0) or 0 for pv in pvs)
+            total_votants = sum(pv.get("votants", 0) or 0 for pv in pvs)
+            total_voix = sum(pv.get("total_voix", 0) or 0 for pv in pvs)
+
+            # Compter la présence CGT
+            presence_cgt = sum(1 for pv in pvs if any(org.get("nom") == "CGT" and org.get("voix", 0) > 0 for org in pv.get("organisations", [])))
+
+            totaux_par_cycle[cycle] = {
+                "nb_pv": len(pvs),
+                "total_inscrits": total_inscrits,
+                "total_votants": total_votants,
+                "total_voix": total_voix,
+                "taux_participation": round((total_votants / total_inscrits * 100), 2) if total_inscrits > 0 else 0,
+                "presence_cgt": presence_cgt
+            }
+
+        print(f"[DEBUG] PV organisés par cycle: {list(pv_par_cycle.keys())}", flush=True)
+        print(f"[DEBUG] Totaux: {totaux_par_cycle}", flush=True)
 
         # ==================== 3. INVITATIONS PAP ====================
         # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
@@ -3173,25 +3188,32 @@ async def get_entreprise_fiche_complete(
                     })
 
         # ==================== 5. STATISTIQUES AGRÉGÉES ====================
-        stats = {
-            "nb_etablissements": len(etablissements_list),
-            "nb_pv_c4": len(pv_cycle_4),
-            "nb_invitations_pap": len(invitations_list),
-            "effectif_total_siren": info_base.get("effectif_siren"),
-        }
+        # Calculer les stats globales tous cycles confondus
+        nb_pv_total = len(tous_pv)
+        total_inscrits_global = sum(pv.get("inscrits", 0) or 0 for pv in tous_pv)
+        total_votants_global = sum(pv.get("votants", 0) or 0 for pv in tous_pv)
 
-        # Calculer présence CGT dans les PV C4
+        # Calculer présence CGT tous cycles confondus
         nb_pv_avec_cgt = 0
         total_voix_cgt = 0
-        for pv in pv_cycle_4:
+        for pv in tous_pv:
             for org in pv.get("organisations", []):
                 if org.get("nom") == "CGT":
                     nb_pv_avec_cgt += 1
                     total_voix_cgt += org.get("voix", 0)
                     break
 
-        stats["presence_cgt_c4"] = nb_pv_avec_cgt
-        stats["total_voix_cgt_c4"] = total_voix_cgt
+        stats = {
+            "nb_etablissements": len(etablissements_list),
+            "nb_pv_total": nb_pv_total,
+            "nb_invitations_pap": len(invitations_list),
+            "effectif_total_siren": info_base.get("effectif_siren"),
+            "total_inscrits": total_inscrits_global,
+            "total_votants": total_votants_global,
+            "taux_participation_global": round((total_votants_global / total_inscrits_global * 100), 2) if total_inscrits_global > 0 else 0,
+            "presence_cgt": nb_pv_avec_cgt,
+            "total_voix_cgt": total_voix_cgt,
+        }
 
         # ==================== 6. ENRICHISSEMENT PAPPERS ====================
         pappers_data = None
@@ -3220,7 +3242,7 @@ async def get_entreprise_fiche_complete(
             logger.warning(f"⚠️ Erreur Pappers (non-bloquant) : {e}")
 
         # ==================== RÉPONSE FINALE ====================
-        logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_c4']} PV C4, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
+        logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_total']} PV totaux, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
 
         # ==================== ENREGISTREMENT DE L'ACTIVITÉ ====================
         if current_user:
@@ -3232,9 +3254,10 @@ async def get_entreprise_fiche_complete(
                     resource_name=info_base.get("raison_sociale", f"SIREN {siren}"),
                     extra_data={
                         "siret": siret_principal,
-                        "nb_pv_c4": stats["nb_pv_c4"],
+                        "nb_pv_total": stats["nb_pv_total"],
                         "nb_invitations_pap": stats["nb_invitations_pap"],
                         "nb_etablissements": stats["nb_etablissements"],
+                        "cycles": list(pv_par_cycle.keys())
                     }
                 )
                 db.add(activity)
@@ -3250,7 +3273,9 @@ async def get_entreprise_fiche_complete(
             "siren": siren,
             "info_base": info_base,
             "pappers": pappers_data,
-            "pv_cycle_4": pv_cycle_4,
+            "tous_pv": tous_pv,
+            "pv_par_cycle": pv_par_cycle,
+            "totaux_par_cycle": totaux_par_cycle,
             "invitations_pap": invitations_list,
             "etablissements": etablissements_list,
             "stats": stats,
