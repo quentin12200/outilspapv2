@@ -3155,6 +3155,9 @@ async def get_entreprise_fiche_complete(
 
         etablissements_list = []
         for etab in etablissements_summary:
+            # Le siège est généralement le SIRET qui finit par 00001
+            is_siege = etab.siret.endswith("00001")
+
             etablissements_list.append({
                 "siret": etab.siret,
                 "raison_sociale": etab.raison_sociale,
@@ -3163,7 +3166,11 @@ async def get_entreprise_fiche_complete(
                 "effectif_siret": etab.effectif_siret,
                 "has_pv_c3": etab.date_pv_c3 is not None,
                 "has_pv_c4": etab.date_pv_c4 is not None,
+                "siege": is_siege,
             })
+
+        # Trier pour mettre le siège en premier
+        etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
 
         # Si siret_summary est vide, chercher dans Tous_PV
         if not etablissements_list:
@@ -3177,15 +3184,21 @@ async def get_entreprise_fiche_complete(
                 siret_pv = getattr(pv, 'siret', None)
                 if siret_pv and siret_pv not in sirets_vus:
                     sirets_vus.add(siret_pv)
+                    is_siege = siret_pv.endswith("00001")
+
                     etablissements_list.append({
                         "siret": siret_pv,
                         "raison_sociale": getattr(pv, 'raison_sociale', None),
                         "ville": getattr(pv, 'ville', None),
                         "code_postal": getattr(pv, 'cp', None),
                         "effectif_siret": getattr(pv, 'effectif_siret', None),
-                        "has_pv_c3": getattr(pv, 'cycle', None) == "Cycle 3",
-                        "has_pv_c4": getattr(pv, 'cycle', None) == "Cycle 4",
+                        "has_pv_c3": getattr(pv, 'cycle', None) == "Cycle 3" or getattr(pv, 'cycle', None) == "C3",
+                        "has_pv_c4": getattr(pv, 'cycle', None) == "Cycle 4" or getattr(pv, 'cycle', None) == "C4",
+                        "siege": is_siege,
                     })
+
+            # Trier pour mettre le siège en premier
+            etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
 
         # ==================== 5. STATISTIQUES AGRÉGÉES ====================
         # Calculer les stats globales tous cycles confondus
