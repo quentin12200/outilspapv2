@@ -76,6 +76,158 @@
       </div>
     </div>
 
+    <!-- Score Potentiel CGT -->
+    <div x-show="data?.score_potentiel" class="mb-8 bg-white rounded-2xl shadow-2xl overflow-hidden border-2"
+         :class="{
+           'border-green-400': data?.score_potentiel?.couleur === 'green',
+           'border-blue-400': data?.score_potentiel?.couleur === 'blue',
+           'border-yellow-400': data?.score_potentiel?.couleur === 'yellow',
+           'border-orange-400': data?.score_potentiel?.couleur === 'orange',
+           'border-purple-400': data?.score_potentiel?.couleur === 'purple'
+         }">
+      <div class="p-6 flex items-center justify-between"
+           :class="{
+             'bg-gradient-to-r from-green-50 to-green-100': data?.score_potentiel?.couleur === 'green',
+             'bg-gradient-to-r from-blue-50 to-blue-100': data?.score_potentiel?.couleur === 'blue',
+             'bg-gradient-to-r from-yellow-50 to-yellow-100': data?.score_potentiel?.couleur === 'yellow',
+             'bg-gradient-to-r from-orange-50 to-orange-100': data?.score_potentiel?.couleur === 'orange',
+             'bg-gradient-to-r from-purple-50 to-purple-100': data?.score_potentiel?.couleur === 'purple'
+           }">
+        <div class="flex items-center gap-6">
+          <!-- Score circulaire -->
+          <div class="relative w-24 h-24">
+            <svg class="w-full h-full transform -rotate-90">
+              <circle cx="48" cy="48" r="40" stroke="#e5e7eb" stroke-width="8" fill="none"></circle>
+              <circle cx="48" cy="48" r="40" stroke-width="8" fill="none" stroke-linecap="round"
+                      :class="{
+                        'stroke-green-500': data?.score_potentiel?.couleur === 'green',
+                        'stroke-blue-500': data?.score_potentiel?.couleur === 'blue',
+                        'stroke-yellow-500': data?.score_potentiel?.couleur === 'yellow',
+                        'stroke-orange-500': data?.score_potentiel?.couleur === 'orange',
+                        'stroke-purple-500': data?.score_potentiel?.couleur === 'purple'
+                      }"
+                      :stroke-dasharray="'251.2'"
+                      :stroke-dashoffset="251.2 - (251.2 * (data?.score_potentiel?.score || 0) / 100)"></circle>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="text-2xl font-bold"
+                    :class="{
+                      'text-green-700': data?.score_potentiel?.couleur === 'green',
+                      'text-blue-700': data?.score_potentiel?.couleur === 'blue',
+                      'text-yellow-700': data?.score_potentiel?.couleur === 'yellow',
+                      'text-orange-700': data?.score_potentiel?.couleur === 'orange',
+                      'text-purple-700': data?.score_potentiel?.couleur === 'purple'
+                    }"
+                    x-text="data?.score_potentiel?.score || 0"></span>
+            </div>
+          </div>
+
+          <!-- Texte -->
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-3xl" x-text="data?.score_potentiel?.emoji"></span>
+              <h3 class="text-2xl font-bold"
+                  :class="{
+                    'text-green-700': data?.score_potentiel?.couleur === 'green',
+                    'text-blue-700': data?.score_potentiel?.couleur === 'blue',
+                    'text-yellow-700': data?.score_potentiel?.couleur === 'yellow',
+                    'text-orange-700': data?.score_potentiel?.couleur === 'orange',
+                    'text-purple-700': data?.score_potentiel?.couleur === 'purple'
+                  }"
+                  x-text="data?.score_potentiel?.niveau"></h3>
+            </div>
+            <p class="text-gray-700 text-sm" x-text="data?.score_potentiel?.description"></p>
+          </div>
+        </div>
+
+        <!-- Bouton détails -->
+        <button @click="showScoreDetails = !showScoreDetails"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition"
+                :class="{
+                  'bg-green-200 text-green-800 hover:bg-green-300': data?.score_potentiel?.couleur === 'green',
+                  'bg-blue-200 text-blue-800 hover:bg-blue-300': data?.score_potentiel?.couleur === 'blue',
+                  'bg-yellow-200 text-yellow-800 hover:bg-yellow-300': data?.score_potentiel?.couleur === 'yellow',
+                  'bg-orange-200 text-orange-800 hover:bg-orange-300': data?.score_potentiel?.couleur === 'orange',
+                  'bg-purple-200 text-purple-800 hover:bg-purple-300': data?.score_potentiel?.couleur === 'purple'
+                }">
+          <i :class="showScoreDetails ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-2"></i>
+          <span x-text="showScoreDetails ? 'Masquer détails' : 'Voir détails du calcul'"></span>
+        </button>
+      </div>
+
+      <!-- Détails du score (dépliable) -->
+      <div x-show="showScoreDetails" x-collapse class="border-t border-gray-200 p-6 bg-white">
+        <h4 class="font-bold text-lg mb-4 text-gray-900">📊 Détail du calcul du score</h4>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Présence CGT -->
+          <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-900">🎯 Présence CGT actuelle</span>
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                    x-text="data?.score_potentiel?.details?.presence_cgt?.score + '/30'"></span>
+            </div>
+            <div class="text-sm text-gray-600">
+              <span x-text="data?.score_potentiel?.details?.presence_cgt?.etablissements_cgt"></span> sur
+              <span x-text="data?.score_potentiel?.details?.presence_cgt?.total_etablissements"></span> établissements
+              (<span x-text="data?.score_potentiel?.details?.presence_cgt?.pourcentage"></span>%)
+            </div>
+          </div>
+
+          <!-- Évolution -->
+          <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-900">📈 Évolution C3 → C4</span>
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                    x-text="data?.score_potentiel?.details?.evolution?.score + '/25'"></span>
+            </div>
+            <div class="text-sm text-gray-600" x-show="data?.score_potentiel?.details?.evolution?.evolution !== undefined">
+              <span x-text="data?.score_potentiel?.details?.evolution?.c3"></span>% (C3) →
+              <span x-text="data?.score_potentiel?.details?.evolution?.c4"></span>% (C4) =
+              <span :class="data?.score_potentiel?.details?.evolution?.evolution >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold'"
+                    x-text="(data?.score_potentiel?.details?.evolution?.evolution >= 0 ? '+' : '') + data?.score_potentiel?.details?.evolution?.evolution + '%'"></span>
+            </div>
+            <div class="text-sm text-gray-600" x-show="data?.score_potentiel?.details?.evolution?.raison" x-text="data?.score_potentiel?.details?.evolution?.raison"></div>
+          </div>
+
+          <!-- Taille -->
+          <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-900">🏢 Taille entreprise</span>
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                    x-text="data?.score_potentiel?.details?.taille?.score + '/20'"></span>
+            </div>
+            <div class="text-sm text-gray-600">
+              <span x-text="data?.score_potentiel?.details?.taille?.effectif || 'Inconnu'"></span> salariés -
+              <span x-text="data?.score_potentiel?.details?.taille?.nb_etablissements"></span> établissement(s)
+            </div>
+          </div>
+
+          <!-- Secteur -->
+          <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-900">🏭 Secteur d'activité</span>
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                    x-text="data?.score_potentiel?.details?.secteur?.score + '/15'"></span>
+            </div>
+            <div class="text-sm text-gray-600" x-text="data?.score_potentiel?.details?.secteur?.activite"></div>
+          </div>
+
+          <!-- Concurrence -->
+          <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 md:col-span-2">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-900">⚔️ Concurrence syndicale</span>
+              <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                    x-text="data?.score_potentiel?.details?.concurrence?.score + '/10'"></span>
+            </div>
+            <div class="text-sm text-gray-600">
+              <span x-text="data?.score_potentiel?.details?.concurrence?.nb_organisations || 0"></span> organisation(s) syndicale(s) présente(s)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Stats Overview -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-xl shadow-lg p-6">
@@ -605,6 +757,7 @@ function ficheEntreprise() {
     activeTab: 'pv',
     map: null,
     markersLayer: null,
+    showScoreDetails: false,
 
     async init() {
       // Récupérer le SIRET depuis l'URL
