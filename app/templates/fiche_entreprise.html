@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}Fiche Entreprise — A.N.D.RE{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto" x-data="ficheEntreprise()">
+  <!-- Loading State -->
+  <div x-show="loading" x-cloak class="text-center py-12">
+    <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
+    <p class="text-xl text-gray-600">Chargement de la fiche entreprise...</p>
+  </div>
+
+  <!-- Error State -->
+  <div x-show="error" x-cloak class="bg-red-50 border-l-4 border-red-600 p-6 rounded-lg">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-exclamation-circle text-red-600 text-2xl"></i>
+      <div>
+        <h3 class="font-bold text-red-900">Erreur</h3>
+        <p class="text-red-700" x-text="error"></p>
+      </div>
+    </div>
+    <a href="/" class="mt-4 inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+      <i class="fas fa-arrow-left mr-2"></i>
+      Retour à l'accueil
+    </a>
+  </div>
+
+  <!-- Content -->
+  <div x-show="!loading && !error && data" x-cloak>
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-cgt-red to-red-700 rounded-2xl shadow-2xl p-8 mb-8 text-white">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <div class="flex items-center gap-3 mb-2">
+            <a href="/" class="text-white/80 hover:text-white transition">
+              <i class="fas fa-arrow-left text-xl"></i>
+            </a>
+            <h1 class="text-3xl font-bold" x-text="data?.info_base?.raison_sociale || 'Entreprise'"></h1>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+            <div>
+              <div class="text-white/70 mb-1">SIREN</div>
+              <div class="font-mono text-lg font-bold" x-text="data?.siren"></div>
+            </div>
+            <div x-show="data?.siret">
+              <div class="text-white/70 mb-1">SIRET</div>
+              <div class="font-mono text-lg font-bold" x-text="data?.siret"></div>
+            </div>
+            <div>
+              <div class="text-white/70 mb-1">Localisation</div>
+              <div class="font-bold">
+                <span x-text="data?.info_base?.ville"></span>
+                (<span x-text="data?.info_base?.code_postal"></span>)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-right">
+          <div class="text-white/70 mb-1 text-sm">Effectif SIREN</div>
+          <div class="text-4xl font-bold" x-text="data?.info_base?.effectif_siren || 'N/A'"></div>
+          <div class="text-white/80 text-xs mt-1">salariés</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">PV Cycle 4</div>
+            <div class="text-3xl font-bold text-blue-600" x-text="data?.stats?.nb_pv_c4 || 0"></div>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-file-alt text-blue-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">Invitations PAP</div>
+            <div class="text-3xl font-bold text-orange-600" x-text="data?.stats?.nb_invitations_pap || 0"></div>
+          </div>
+          <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-envelope text-orange-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">Établissements</div>
+            <div class="text-3xl font-bold text-green-600" x-text="data?.stats?.nb_etablissements || 0"></div>
+          </div>
+          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-building text-green-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">Présence CGT</div>
+            <div class="text-3xl font-bold text-cgt-red" x-text="data?.stats?.presence_cgt_c4 || 0"></div>
+            <div class="text-xs text-gray-500 mt-1">PV avec CGT</div>
+          </div>
+          <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-users text-cgt-red text-2xl"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden" x-data="{ activeTab: 'pv' }">
+      <!-- Tab Headers -->
+      <div class="border-b border-gray-200 bg-gray-50">
+        <nav class="flex -mb-px">
+          <button @click="activeTab = 'pv'"
+                  :class="activeTab === 'pv' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-chart-bar mr-2"></i>
+            PV Électoraux C4 (<span x-text="data?.pv_cycle_4?.length || 0"></span>)
+          </button>
+          <button @click="activeTab = 'invitations'"
+                  :class="activeTab === 'invitations' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-envelope-open-text mr-2"></i>
+            Invitations PAP (<span x-text="data?.invitations_pap?.length || 0"></span>)
+          </button>
+          <button @click="activeTab = 'etablissements'"
+                  :class="activeTab === 'etablissements' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-map-marker-alt mr-2"></i>
+            Établissements (<span x-text="data?.etablissements?.length || 0"></span>)
+          </button>
+        </nav>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="p-6">
+        <!-- PV Tab -->
+        <div x-show="activeTab === 'pv'" x-transition>
+          <template x-if="!data?.pv_cycle_4 || data.pv_cycle_4.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucun PV Cycle 4 trouvé</p>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <template x-for="pv in data?.pv_cycle_4 || []" :key="pv.siret + pv.date_scrutin">
+              <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+                <div class="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 class="text-xl font-bold text-gray-900" x-text="pv.raison_sociale"></h3>
+                    <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="pv.siret"></span></span>
+                      <span><i class="fas fa-calendar mr-1"></i><span x-text="pv.date_scrutin"></span></span>
+                      <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="pv.ville"></span></span>
+                    </div>
+                  </div>
+                  <div x-show="pv.carence" class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
+                    CARENCE
+                  </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <div class="text-xs text-gray-600 mb-1">Inscrits</div>
+                    <div class="text-lg font-bold" x-text="pv.inscrits"></div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-600 mb-1">Votants</div>
+                    <div class="text-lg font-bold" x-text="pv.votants"></div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-600 mb-1">Participation</div>
+                    <div class="text-lg font-bold" x-text="pv.taux_participation ? pv.taux_participation + '%' : 'N/A'"></div>
+                  </div>
+                </div>
+
+                <!-- Organisations -->
+                <template x-if="pv.organisations && pv.organisations.length > 0">
+                  <div>
+                    <h4 class="font-semibold text-gray-900 mb-3">Résultats par organisation</h4>
+                    <div class="space-y-2">
+                      <template x-for="org in pv.organisations" :key="org.nom">
+                        <div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
+                          <div class="flex items-center gap-3 flex-1">
+                            <div :class="org.nom === 'CGT' ? 'bg-cgt-red text-white' : 'bg-gray-200 text-gray-700'"
+                                 class="w-16 h-16 rounded-lg flex items-center justify-center font-bold text-sm">
+                              <span x-text="org.nom"></span>
+                            </div>
+                            <div class="flex-1">
+                              <div class="flex items-center gap-4">
+                                <div>
+                                  <div class="text-xs text-gray-600">Voix</div>
+                                  <div class="text-lg font-bold" x-text="org.voix"></div>
+                                </div>
+                                <div>
+                                  <div class="text-xs text-gray-600">Sièges</div>
+                                  <div class="text-lg font-bold" x-text="org.sieges"></div>
+                                </div>
+                                <div>
+                                  <div class="text-xs text-gray-600">Score</div>
+                                  <div class="text-lg font-bold" x-text="org.pourcentage + '%'"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Invitations Tab -->
+        <div x-show="activeTab === 'invitations'" x-transition>
+          <template x-if="!data?.invitations_pap || data.invitations_pap.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucune invitation PAP trouvée</p>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <template x-for="inv in data?.invitations_pap || []" :key="inv.id">
+              <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+                <div class="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 class="text-lg font-bold text-gray-900" x-text="inv.raison_sociale"></h3>
+                    <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="inv.siret"></span></span>
+                      <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="inv.ville + ' (' + inv.code_postal + ')'"></span></span>
+                    </div>
+                  </div>
+                  <div x-show="inv.source" class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold" x-text="inv.source">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div class="text-gray-600 mb-1">Date invitation</div>
+                    <div class="font-semibold" x-text="inv.date_invit || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Date réception</div>
+                    <div class="font-semibold" x-text="inv.date_reception || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Date élection</div>
+                    <div class="font-semibold" x-text="inv.date_election || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Effectif</div>
+                    <div class="font-semibold" x-text="inv.effectif_connu || 'N/A'"></div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex gap-4 text-xs">
+                  <span x-show="inv.ud" class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                    UD: <span x-text="inv.ud"></span>
+                  </span>
+                  <span x-show="inv.fd" class="px-2 py-1 bg-green-100 text-green-800 rounded">
+                    FD: <span x-text="inv.fd"></span>
+                  </span>
+                  <span x-show="inv.idcc" class="px-2 py-1 bg-orange-100 text-orange-800 rounded">
+                    IDCC: <span x-text="inv.idcc"></span>
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Établissements Tab -->
+        <div x-show="activeTab === 'etablissements'" x-transition>
+          <template x-if="!data?.etablissements || data.etablissements.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucun établissement trouvé</p>
+            </div>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <template x-for="etab in data?.etablissements || []" :key="etab.siret">
+              <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                <h3 class="font-bold text-gray-900 mb-2" x-text="etab.raison_sociale"></h3>
+                <div class="text-sm text-gray-600 space-y-1">
+                  <div><i class="fas fa-hashtag mr-2 w-4"></i><span class="font-mono" x-text="etab.siret"></span></div>
+                  <div><i class="fas fa-map-marker-alt mr-2 w-4"></i><span x-text="etab.ville + ' (' + etab.code_postal + ')'"></span></div>
+                  <div x-show="etab.effectif_siret"><i class="fas fa-users mr-2 w-4"></i><span x-text="etab.effectif_siret + ' salariés'"></span></div>
+                </div>
+                <div class="mt-3 flex gap-2">
+                  <span x-show="etab.has_pv_c4" class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
+                    <i class="fas fa-check mr-1"></i>PV C4
+                  </span>
+                  <span x-show="!etab.has_pv_c4" class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                    Pas de PV C4
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function ficheEntreprise() {
+  return {
+    data: null,
+    loading: true,
+    error: null,
+
+    async init() {
+      // Récupérer le SIRET depuis l'URL
+      const pathParts = window.location.pathname.split('/');
+      const siret = pathParts[pathParts.length - 1];
+
+      if (!siret) {
+        this.error = "Aucun SIRET fourni";
+        this.loading = false;
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/entreprise/${siret}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.detail || 'Erreur lors de la récupération des données');
+        }
+
+        if (!result.success) {
+          throw new Error('Aucune donnée trouvée pour cette entreprise');
+        }
+
+        this.data = result;
+      } catch (err) {
+        console.error('Erreur:', err);
+        this.error = err.message || 'Erreur lors du chargement de la fiche';
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
+{% endblock %}

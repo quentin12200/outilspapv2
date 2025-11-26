@@ -8,7 +8,7 @@ import logging
 
 from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
-from ..models import SiretSummary, PVEvent, Invitation, User
+from ..models import SiretSummary, PVEvent, Invitation, User, UserActivity
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 from ..services.idcc_enrichment import get_idcc_enrichment_service
@@ -2919,4 +2919,260 @@ async def get_pv_by_siren(
         raise
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des résultats électoraux pour SIREN {siren}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.get("/entreprise/{siret}")
+async def get_entreprise_fiche_complete(
+    siret: str,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère la fiche complète d'une entreprise avec toutes les données disponibles.
+
+    Données agrégées :
+    - Informations de base (raison sociale, adresse, SIREN/SIRET)
+    - PV électoraux (Cycle 4 uniquement)
+    - Invitations PAP (historique complet)
+    - Liste des établissements (tous les SIRET du SIREN)
+    - Statistiques agrégées
+
+    Args:
+        siret: Numéro SIRET (14 chiffres) ou SIREN (9 chiffres)
+
+    Returns:
+        Fiche entreprise complète avec toutes les données disponibles
+    """
+    try:
+        # Nettoyer l'input
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        # Déterminer si c'est un SIRET ou SIREN
+        if len(siret_clean) == 14:
+            siren = siret_clean[:9]
+            is_siret = True
+        elif len(siret_clean) == 9:
+            siren = siret_clean
+            siret_clean = None
+            is_siret = False
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Numéro invalide (doit contenir 9 chiffres pour SIREN ou 14 pour SIRET)"
+            )
+
+        logger.info(f"📋 Récupération fiche entreprise pour {'SIRET' if is_siret else 'SIREN'}: {siret_clean or siren}")
+
+        # ==================== 1. INFORMATIONS DE BASE ====================
+        # Récupérer les infos de base depuis siret_summary ou Tous_PV
+        info_base = None
+        siret_principal = siret_clean or None
+
+        if is_siret:
+            # Chercher dans siret_summary
+            siret_data = db.query(SiretSummary).filter(SiretSummary.siret == siret_clean).first()
+            if siret_data:
+                info_base = {
+                    "siret": siret_data.siret,
+                    "siren": siren,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "code_postal": siret_data.cp,
+                    "region": siret_data.region,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                }
+            else:
+                # Fallback vers Tous_PV
+                pv_data = db.query(PVEvent).filter(PVEvent.siret == siret_clean).first()
+                if pv_data:
+                    info_base = {
+                        "siret": pv_data.siret,
+                        "siren": siren,
+                        "raison_sociale": getattr(pv_data, 'raison_sociale', None),
+                        "ville": getattr(pv_data, 'ville', None),
+                        "code_postal": getattr(pv_data, 'cp', None),
+                        "region": getattr(pv_data, 'region', None),
+                        "effectif_siret": getattr(pv_data, 'effectif_siret', None),
+                        "effectif_siren": getattr(pv_data, 'effectif_siren', None),
+                        "idcc": getattr(pv_data, 'idcc', None),
+                    }
+
+        # Si pas trouvé ou si SIREN, chercher le premier établissement du SIREN
+        if not info_base:
+            siret_data = db.query(SiretSummary).filter(SiretSummary.siren == siren).first()
+            if siret_data:
+                siret_principal = siret_data.siret
+                info_base = {
+                    "siret": siret_data.siret,
+                    "siren": siren,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "code_postal": siret_data.cp,
+                    "region": siret_data.region,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                }
+            else:
+                # Dernier fallback : Tous_PV
+                pv_data = db.query(PVEvent).filter(PVEvent.siren == siren).first()
+                if pv_data:
+                    siret_principal = getattr(pv_data, 'siret', None)
+                    info_base = {
+                        "siret": siret_principal,
+                        "siren": siren,
+                        "raison_sociale": getattr(pv_data, 'raison_sociale', None),
+                        "ville": getattr(pv_data, 'ville', None),
+                        "code_postal": getattr(pv_data, 'cp', None),
+                        "region": getattr(pv_data, 'region', None),
+                        "effectif_siret": getattr(pv_data, 'effectif_siret', None),
+                        "effectif_siren": getattr(pv_data, 'effectif_siren', None),
+                        "idcc": getattr(pv_data, 'idcc', None),
+                    }
+
+        if not info_base:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucune donnée trouvée pour {'SIRET' if is_siret else 'SIREN'} {siret_clean or siren}"
+            )
+
+        # ==================== 2. PV ÉLECTORAUX (CYCLE 4 UNIQUEMENT) ====================
+        pv_data = await get_pv_by_siren(siren, db)
+
+        # Filtrer pour ne garder que Cycle 4
+        pv_cycle_4 = []
+        if pv_data.get("success") and pv_data.get("pv"):
+            pv_cycle_4 = [pv for pv in pv_data["pv"] if pv.get("cycle") == "Cycle 4"]
+
+        # ==================== 3. INVITATIONS PAP ====================
+        invitations = db.query(Invitation).filter(
+            or_(
+                Invitation.siret == siret_clean if siret_clean else False,
+                Invitation.siren == siren
+            ),
+            Invitation.est_actif == True
+        ).order_by(Invitation.date_invit.desc()).all()
+
+        invitations_list = []
+        for inv in invitations:
+            invitations_list.append({
+                "id": inv.id,
+                "siret": inv.siret,
+                "raison_sociale": inv.raison_sociale,
+                "ville": inv.ville,
+                "code_postal": inv.code_postal,
+                "date_invit": inv.date_invit.strftime("%Y-%m-%d") if inv.date_invit else None,
+                "date_reception": inv.date_reception.strftime("%Y-%m-%d") if inv.date_reception else None,
+                "date_election": inv.date_election.strftime("%Y-%m-%d") if inv.date_election else None,
+                "effectif_connu": inv.effectif_connu,
+                "ud": inv.ud,
+                "fd": inv.fd,
+                "idcc": inv.idcc,
+                "structure_saisie": inv.structure_saisie,
+                "source": inv.source,
+            })
+
+        # ==================== 4. LISTE DES ÉTABLISSEMENTS ====================
+        etablissements_summary = db.query(SiretSummary).filter(
+            SiretSummary.siren == siren
+        ).all()
+
+        etablissements_list = []
+        for etab in etablissements_summary:
+            etablissements_list.append({
+                "siret": etab.siret,
+                "raison_sociale": etab.raison_sociale,
+                "ville": etab.ville,
+                "code_postal": etab.cp,
+                "effectif_siret": etab.effectif_siret,
+                "has_pv_c3": etab.date_pv_c3 is not None,
+                "has_pv_c4": etab.date_pv_c4 is not None,
+            })
+
+        # Si siret_summary est vide, chercher dans Tous_PV
+        if not etablissements_list:
+            etablissements_pv = db.query(PVEvent).filter(
+                PVEvent.siren == siren
+            ).all()
+
+            # Dédupliquer par SIRET
+            sirets_vus = set()
+            for pv in etablissements_pv:
+                siret_pv = getattr(pv, 'siret', None)
+                if siret_pv and siret_pv not in sirets_vus:
+                    sirets_vus.add(siret_pv)
+                    etablissements_list.append({
+                        "siret": siret_pv,
+                        "raison_sociale": getattr(pv, 'raison_sociale', None),
+                        "ville": getattr(pv, 'ville', None),
+                        "code_postal": getattr(pv, 'cp', None),
+                        "effectif_siret": getattr(pv, 'effectif_siret', None),
+                        "has_pv_c3": getattr(pv, 'cycle', None) == "Cycle 3",
+                        "has_pv_c4": getattr(pv, 'cycle', None) == "Cycle 4",
+                    })
+
+        # ==================== 5. STATISTIQUES AGRÉGÉES ====================
+        stats = {
+            "nb_etablissements": len(etablissements_list),
+            "nb_pv_c4": len(pv_cycle_4),
+            "nb_invitations_pap": len(invitations_list),
+            "effectif_total_siren": info_base.get("effectif_siren"),
+        }
+
+        # Calculer présence CGT dans les PV C4
+        nb_pv_avec_cgt = 0
+        total_voix_cgt = 0
+        for pv in pv_cycle_4:
+            for org in pv.get("organisations", []):
+                if org.get("nom") == "CGT":
+                    nb_pv_avec_cgt += 1
+                    total_voix_cgt += org.get("voix", 0)
+                    break
+
+        stats["presence_cgt_c4"] = nb_pv_avec_cgt
+        stats["total_voix_cgt_c4"] = total_voix_cgt
+
+        # ==================== RÉPONSE FINALE ====================
+        logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_c4']} PV C4, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
+
+        # ==================== ENREGISTREMENT DE L'ACTIVITÉ ====================
+        if current_user:
+            try:
+                activity = UserActivity(
+                    user_id=current_user.id,
+                    activity_type="entreprise_fiche_view",
+                    resource_id=siren,
+                    resource_name=info_base.get("raison_sociale", f"SIREN {siren}"),
+                    extra_data={
+                        "siret": siret_principal,
+                        "nb_pv_c4": stats["nb_pv_c4"],
+                        "nb_invitations_pap": stats["nb_invitations_pap"],
+                        "nb_etablissements": stats["nb_etablissements"],
+                    }
+                )
+                db.add(activity)
+                db.commit()
+                logger.info(f"📝 Activité enregistrée pour user {current_user.id} : fiche {siren}")
+            except Exception as e:
+                logger.warning(f"Erreur lors de l'enregistrement de l'activité : {e}")
+                db.rollback()
+
+        return {
+            "success": True,
+            "siret": siret_principal,
+            "siren": siren,
+            "info_base": info_base,
+            "pv_cycle_4": pv_cycle_4,
+            "invitations_pap": invitations_list,
+            "etablissements": etablissements_list,
+            "stats": stats,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la fiche entreprise: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")

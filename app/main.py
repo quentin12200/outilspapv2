@@ -5087,6 +5087,20 @@ def recherche_siret_page(request: Request):
     })
 
 
+@app.get("/entreprise/{siret}", response_class=HTMLResponse)
+def fiche_entreprise_page(request: Request, siret: str, db: Session = Depends(get_session)):
+    """
+    Page de fiche entreprise complète avec toutes les données disponibles.
+    Affiche : PV électoraux C4, invitations PAP, établissements, statistiques.
+    """
+    current_user = get_current_user(request, db)
+    return templates.TemplateResponse("fiche_entreprise.html", {
+        "request": request,
+        "current_user": current_user,
+        "siret": siret,
+    })
+
+
 @app.get("/etablissements-carte", response_class=HTMLResponse)
 def etablissements_carte_page(request: Request):
     """
