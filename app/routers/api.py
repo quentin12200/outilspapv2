@@ -3243,6 +3243,8 @@ async def get_entreprise_fiche_complete(
 
         # ==================== 6. ENRICHISSEMENT PAPPERS ====================
         pappers_data = None
+        pappers_etablissements = {}
+
         try:
             logger.info(f"📡 Enrichissement Pappers pour SIREN {siren}")
             pappers_result = await pappers_api.get_etablissements_by_siren(siren)
@@ -3261,11 +3263,36 @@ async def get_entreprise_fiche_complete(
                     "libelle_activite": entreprise_data.get("libelle_activite"),
                     "siege_adresse": entreprise_data.get("siege_adresse"),
                 }
-                logger.info(f"✅ Données Pappers récupérées : {entreprise_data.get('nom')}")
+
+                # Créer un dictionnaire des établissements Pappers par SIRET
+                for etab_pappers in pappers_result.get("etablissements", []):
+                    siret_pap = str(etab_pappers.get("siret", ""))
+                    pappers_etablissements[siret_pap] = etab_pappers
+
+                logger.info(f"✅ Données Pappers récupérées : {entreprise_data.get('nom')} avec {len(pappers_etablissements)} établissements")
             else:
                 logger.warning(f"⚠️ Pappers: {pappers_result.get('error', 'Aucune donnée')}")
         except Exception as e:
             logger.warning(f"⚠️ Erreur Pappers (non-bloquant) : {e}")
+
+        # Enrichir les établissements avec les données Pappers
+        for etab in etablissements_list:
+            siret_str = str(etab["siret"])
+            if siret_str in pappers_etablissements:
+                pappers_etab = pappers_etablissements[siret_str]
+                etab["pappers"] = {
+                    "nom_complet": pappers_etab.get("nom_complet"),
+                    "enseigne": pappers_etab.get("enseigne"),
+                    "adresse_complete": pappers_etab.get("adresse_complete"),
+                    "code_naf": pappers_etab.get("code_naf"),
+                    "libelle_code_naf": pappers_etab.get("libelle_code_naf"),
+                    "effectif": pappers_etab.get("effectif"),
+                    "tranche_effectif": pappers_etab.get("tranche_effectif"),
+                    "date_creation": pappers_etab.get("date_creation"),
+                    "est_siege": pappers_etab.get("est_siege"),
+                }
+            else:
+                etab["pappers"] = None
 
         # ==================== RÉPONSE FINALE ====================
         logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_total']} PV totaux, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")

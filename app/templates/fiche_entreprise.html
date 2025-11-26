@@ -378,8 +378,13 @@
             <template x-for="etab in data?.etablissements || []" :key="etab.siret">
               <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
                 <div class="flex items-start justify-between mb-3">
-                  <h3 class="font-bold text-gray-900 text-lg" x-text="etab.raison_sociale"></h3>
-                  <span x-show="etab.siege" class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
+                  <div class="flex-1">
+                    <h3 class="font-bold text-gray-900 text-lg" x-text="etab.raison_sociale || etab.pappers?.nom_complet"></h3>
+                    <div x-show="etab.pappers?.enseigne" class="text-sm text-gray-500 italic mt-1">
+                      Enseigne : <span x-text="etab.pappers.enseigne"></span>
+                    </div>
+                  </div>
+                  <span x-show="etab.siege || etab.pappers?.est_siege" class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
                     <i class="fas fa-star mr-1"></i>Siège
                   </span>
                 </div>
@@ -391,21 +396,34 @@
                   </div>
                   <div class="flex items-center gap-2">
                     <i class="fas fa-map-marker-alt text-gray-400 w-4"></i>
-                    <span x-text="etab.ville + ' (' + etab.code_postal + ')'"></span>
+                    <span x-text="etab.pappers?.adresse_complete || (etab.ville + ' (' + etab.code_postal + ')')"></span>
                   </div>
-                  <div x-show="etab.effectif_siret" class="flex items-center gap-2">
+                  <div x-show="etab.pappers?.effectif || etab.effectif_siret" class="flex items-center gap-2">
                     <i class="fas fa-users text-gray-400 w-4"></i>
-                    <span x-text="etab.effectif_siret + ' salariés'"></span>
+                    <span x-text="(etab.pappers?.effectif || etab.effectif_siret) + ' salariés'"></span>
+                    <span x-show="etab.pappers?.tranche_effectif" class="text-xs text-gray-500" x-text="'(' + etab.pappers.tranche_effectif + ')'"></span>
+                  </div>
+                  <div x-show="etab.pappers?.libelle_code_naf" class="flex items-center gap-2">
+                    <i class="fas fa-industry text-gray-400 w-4"></i>
+                    <span class="text-xs" x-text="etab.pappers.libelle_code_naf"></span>
+                    <span x-show="etab.pappers?.code_naf" class="text-xs text-gray-500" x-text="'(' + etab.pappers.code_naf + ')'"></span>
+                  </div>
+                  <div x-show="etab.pappers?.date_creation" class="flex items-center gap-2">
+                    <i class="fas fa-calendar-plus text-gray-400 w-4"></i>
+                    <span class="text-xs">Créé le <span x-text="etab.pappers.date_creation"></span></span>
                   </div>
                 </div>
 
                 <!-- Badges PV -->
-                <div class="flex gap-2 mb-4">
+                <div class="flex gap-2 mb-4 flex-wrap">
                   <span x-show="etab.has_pv_c4" class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
                     <i class="fas fa-check mr-1"></i>PV C4
                   </span>
                   <span x-show="etab.has_pv_c3" class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
                     <i class="fas fa-check mr-1"></i>PV C3
+                  </span>
+                  <span x-show="etab.pappers" class="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-semibold">
+                    <i class="fas fa-database mr-1"></i>Pappers
                   </span>
                 </div>
 
