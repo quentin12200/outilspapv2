@@ -3504,36 +3504,54 @@ Base tes recommandations sur:
 2. **La situation concrète de l'entreprise** (présence CGT, résultats électoraux, taille, secteur)
 3. **Les opportunités identifiées** (invitations PAP en cours, établissements sans CGT, etc.)
 
+IMPORTANT: Formate ta réponse en HTML (pas markdown). Utilise ces balises:
+- <h2> pour les titres principaux
+- <h3> pour les sous-titres
+- <p> pour les paragraphes
+- <ul> et <li> pour les listes
+- <strong> pour le gras
+- <div class="bg-blue-50 border-l-4 border-blue-500 p-4 my-4"> pour les encadrés importants
+
 Structure ta réponse avec:
 
-## 🎯 Diagnostic de la situation
+<h2>🎯 Diagnostic de la situation</h2>
+<p>[Analyse de la présence CGT actuelle, points forts et points faibles]</p>
 
-[Analyse de la présence CGT actuelle, points forts et points faibles]
+<h2>🚧 Freins identifiés</h2>
+<ul>
+  <li>[Liste des freins à la syndicalisation dans ce contexte spécifique]</li>
+</ul>
 
-## 🚧 Freins identifiés
+<h2>💡 Recommandations stratégiques</h2>
 
-[Liste des freins à la syndicalisation dans ce contexte spécifique, en référence au kit CGT]
+<h3>1. Actions prioritaires</h3>
+<ul>
+  <li>[Actions à mener en priorité]</li>
+</ul>
 
-## 💡 Recommandations stratégiques
+<h3>2. Renforcement de l'organisation</h3>
+<ul>
+  <li>[Actions pour structurer et renforcer]</li>
+</ul>
 
-[Recommandations concrètes et actionnables, organisées par priorité]
+<h3>3. Communication et visibilité</h3>
+<ul>
+  <li>[Actions de communication interne/externe]</li>
+</ul>
 
-### 1. Actions prioritaires
-- [Actions à mener en priorité]
+<h2>📋 Plan d'action suggéré</h2>
+<div class="bg-green-50 border-l-4 border-green-500 p-4 my-4">
+  <ul>
+    <li>[Timeline suggérée avec étapes clés]</li>
+  </ul>
+</div>
 
-### 2. Renforcement de l'organisation
-- [Actions pour structurer et renforcer]
-
-### 3. Communication et visibilité
-- [Actions de communication interne/externe]
-
-## 📋 Plan d'action suggéré
-
-[Timeline suggérée avec étapes clés]
-
-## ⚠️ Points de vigilance
-
-[Risques et difficultés potentielles à anticiper]
+<h2>⚠️ Points de vigilance</h2>
+<div class="bg-orange-50 border-l-4 border-orange-500 p-4 my-4">
+  <ul>
+    <li>[Risques et difficultés potentielles à anticiper]</li>
+  </ul>
+</div>
 
 Sois **concret, pratique et réaliste**. Utilise des émojis pour rendre le texte plus lisible."""
 
