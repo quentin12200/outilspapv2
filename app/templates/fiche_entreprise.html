@@ -453,9 +453,23 @@ function ficheEntreprise() {
 
         // Convertir pv_par_cycle (objet) en array pour Alpine.js
         if (this.data.pv_par_cycle) {
+          console.log('🔍 Type de pv_par_cycle:', typeof this.data.pv_par_cycle);
+          console.log('🔍 pv_par_cycle brut:', this.data.pv_par_cycle);
+
+          // Pour chaque cycle, vérifier le type de pvs
+          Object.entries(this.data.pv_par_cycle).forEach(([cycle, pvs]) => {
+            console.log(`🔍 Cycle ${cycle}:`, {
+              type: typeof pvs,
+              isArray: Array.isArray(pvs),
+              length: pvs?.length,
+              keys: Object.keys(pvs || {}),
+              firstItem: pvs?.[0]
+            });
+          });
+
           this.cyclesArray = Object.entries(this.data.pv_par_cycle).map(([cycle, pvs]) => ({
             cycle: cycle,
-            pvs: pvs,
+            pvs: Array.isArray(pvs) ? pvs : Object.values(pvs),  // Conversion forcée en array si nécessaire
             totaux: this.data.totaux_par_cycle[cycle] || {}
           }));
         }
