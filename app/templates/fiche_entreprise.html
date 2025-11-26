@@ -85,7 +85,9 @@
       <div class="bg-white rounded-xl shadow-lg p-6">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-gray-600 text-sm mb-1">Inscrits</div>
+            <div class="text-gray-600 text-sm mb-1">
+              Inscrits <span x-show="data?.stats?.dernier_cycle" x-text="'(' + data.stats.dernier_cycle + ')'"></span>
+            </div>
             <div class="text-3xl font-bold text-purple-600" x-text="data?.stats?.total_inscrits || 0"></div>
             <div class="text-xs text-gray-500 mt-1">
               <span x-text="data?.stats?.taux_participation_global || 0"></span>% participation
@@ -153,6 +155,14 @@
       <div class="p-6">
         <!-- PV Tab -->
         <div x-show="activeTab === 'pv'" x-transition>
+          <!-- Debug Info -->
+          <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-sm">
+            <strong>🐛 Debug:</strong>
+            cyclesArray length: <span x-text="cyclesArray ? cyclesArray.length : 'null'"></span> |
+            data exists: <span x-text="data ? 'yes' : 'no'"></span> |
+            pv_par_cycle: <span x-text="data?.pv_par_cycle ? Object.keys(data.pv_par_cycle).join(', ') : 'none'"></span>
+          </div>
+
           <template x-if="!cyclesArray || cyclesArray.length === 0">
             <div class="text-center py-12 text-gray-500">
               <i class="fas fa-inbox text-6xl mb-4"></i>

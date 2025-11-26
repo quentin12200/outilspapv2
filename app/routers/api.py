@@ -3201,31 +3201,44 @@ async def get_entreprise_fiche_complete(
             etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
 
         # ==================== 5. STATISTIQUES AGRÉGÉES ====================
-        # Calculer les stats globales tous cycles confondus
-        nb_pv_total = len(tous_pv)
-        total_inscrits_global = sum(pv.get("inscrits", 0) or 0 for pv in tous_pv)
-        total_votants_global = sum(pv.get("votants", 0) or 0 for pv in tous_pv)
+        # Déterminer le dernier cycle (généralement C4, sinon C3, etc.)
+        dernier_cycle = None
+        if "C4" in pv_par_cycle:
+            dernier_cycle = "C4"
+        elif "Cycle 4" in pv_par_cycle:
+            dernier_cycle = "Cycle 4"
+        elif "C3" in pv_par_cycle:
+            dernier_cycle = "C3"
+        elif "Cycle 3" in pv_par_cycle:
+            dernier_cycle = "Cycle 3"
+        else:
+            # Prendre le premier cycle disponible
+            dernier_cycle = list(pv_par_cycle.keys())[0] if pv_par_cycle else None
 
-        # Calculer présence CGT tous cycles confondus
-        nb_pv_avec_cgt = 0
-        total_voix_cgt = 0
-        for pv in tous_pv:
-            for org in pv.get("organisations", []):
-                if org.get("nom") == "CGT":
-                    nb_pv_avec_cgt += 1
-                    total_voix_cgt += org.get("voix", 0)
-                    break
+        # Stats du dernier cycle uniquement (pour l'affichage en haut)
+        if dernier_cycle and dernier_cycle in totaux_par_cycle:
+            stats_dernier_cycle = totaux_par_cycle[dernier_cycle]
+        else:
+            stats_dernier_cycle = {
+                "total_inscrits": 0,
+                "total_votants": 0,
+                "taux_participation": 0,
+                "presence_cgt": 0
+            }
+
+        nb_pv_total = len(tous_pv)
 
         stats = {
             "nb_etablissements": len(etablissements_list),
             "nb_pv_total": nb_pv_total,
             "nb_invitations_pap": len(invitations_list),
             "effectif_total_siren": info_base.get("effectif_siren"),
-            "total_inscrits": total_inscrits_global,
-            "total_votants": total_votants_global,
-            "taux_participation_global": round((total_votants_global / total_inscrits_global * 100), 2) if total_inscrits_global > 0 else 0,
-            "presence_cgt": nb_pv_avec_cgt,
-            "total_voix_cgt": total_voix_cgt,
+            # Stats du dernier cycle uniquement
+            "dernier_cycle": dernier_cycle,
+            "total_inscrits": stats_dernier_cycle["total_inscrits"],
+            "total_votants": stats_dernier_cycle["total_votants"],
+            "taux_participation_global": stats_dernier_cycle["taux_participation"],
+            "presence_cgt": stats_dernier_cycle["presence_cgt"],
         }
 
         # ==================== 6. ENRICHISSEMENT PAPPERS ====================
