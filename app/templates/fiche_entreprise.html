@@ -125,6 +125,50 @@
       </div>
     </div>
 
+    <!-- Bouton ChatGPT Recommandations -->
+    <div class="mb-6">
+      <button
+        @click="genererRecommandations()"
+        :disabled="loadingRecommandations"
+        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition shadow-lg font-semibold text-lg flex items-center justify-center gap-3"
+        :class="loadingRecommandations ? 'opacity-50 cursor-not-allowed' : ''">
+        <i :class="loadingRecommandations ? 'fas fa-spinner fa-spin' : 'fas fa-robot'" class="text-2xl"></i>
+        <span x-text="loadingRecommandations ? 'Analyse en cours...' : 'Générer des recommandations stratégiques (ChatGPT)'"></span>
+      </button>
+    </div>
+
+    <!-- Modale Recommandations -->
+    <div x-show="showRecommandations" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black opacity-50" @click="showRecommandations = false"></div>
+
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6">
+            <div class="flex items-center justify-between">
+              <h2 class="text-2xl font-bold flex items-center gap-3">
+                <i class="fas fa-robot"></i>
+                Recommandations Stratégiques CGT
+              </h2>
+              <button @click="showRecommandations = false" class="text-white/80 hover:text-white">
+                <i class="fas fa-times text-2xl"></i>
+              </button>
+            </div>
+            <p class="text-white/90 text-sm mt-2">Analyse générée par ChatGPT à partir des données de l'entreprise</p>
+          </div>
+
+          <div class="p-6 overflow-y-auto max-h-[70vh]">
+            <div x-show="errorRecommandations" class="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+              <p class="text-red-700" x-text="errorRecommandations"></p>
+            </div>
+
+            <div x-show="!errorRecommandations" class="prose max-w-none">
+              <div x-html="recommandationsHTML || 'Chargement...'"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Tabs -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden" x-data="{ activeTab: 'pv' }">
       <!-- Tab Headers -->
@@ -155,18 +199,6 @@
       <div class="p-6">
         <!-- PV Tab -->
         <div x-show="activeTab === 'pv'" x-transition>
-          <!-- Debug Info -->
-          <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-sm font-mono">
-            <strong class="text-lg">🐛 DEBUG COMPLET:</strong><br>
-            cyclesArray length: <span class="font-bold" x-text="cyclesArray ? cyclesArray.length : 'null'"></span><br>
-            data exists: <span x-text="data ? 'yes' : 'no'"></span><br>
-            pv_par_cycle exists: <span x-text="data?.pv_par_cycle ? 'yes' : 'no'"></span><br>
-            <details class="mt-2">
-              <summary class="cursor-pointer font-bold">📋 Voir cyclesArray complet (cliquez)</summary>
-              <pre class="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-96" x-text="JSON.stringify(cyclesArray, null, 2)"></pre>
-            </details>
-          </div>
-
           <template x-if="!cyclesArray || cyclesArray.length === 0">
             <div class="text-center py-12 text-gray-500">
               <i class="fas fa-inbox text-6xl mb-4"></i>
@@ -218,20 +250,6 @@
 
                 <!-- Liste des PV du cycle -->
                 <div class="p-6 bg-gray-50 space-y-4">
-                  <!-- Debug pour ce cycle -->
-                  <div class="p-2 bg-blue-50 border border-blue-200 rounded text-xs mb-4">
-                    <strong>🐛 Debug cycle <span x-text="cycleData.cycle"></span>:</strong>
-                    pvs existe: <span x-text="cycleData.pvs ? 'oui' : 'non'"></span> |
-                    pvs.length: <span x-text="cycleData.pvs ? cycleData.pvs.length : 0"></span> |
-                    typeof pvs: <span x-text="typeof cycleData.pvs"></span> |
-                    <span class="font-bold text-lg" x-text="Array.isArray(cycleData.pvs) ? '✅ EST UN ARRAY' : '❌ PAS UN ARRAY'"></span>
-                  </div>
-
-                  <!-- Message visible si Array -->
-                  <div x-show="Array.isArray(cycleData.pvs) && cycleData.pvs.length > 0" class="p-3 bg-green-100 border-2 border-green-500 rounded mb-4 font-bold">
-                    ✅ Il devrait y avoir <span x-text="cycleData.pvs.length"></span> carte(s) PV affichées ci-dessous
-                  </div>
-
                   <template x-for="(pv, index) in cycleData.pvs" :key="cycleData.cycle + '-' + index">
                     <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
                       <div class="flex items-start justify-between mb-4">
@@ -453,6 +471,10 @@ function ficheEntreprise() {
     loading: true,
     error: null,
     cyclesArray: [],
+    loadingRecommandations: false,
+    showRecommandations: false,
+    recommandationsHTML: null,
+    errorRecommandations: null,
 
     async init() {
       // Récupérer le SIRET depuis l'URL
@@ -481,29 +503,12 @@ function ficheEntreprise() {
 
         // Convertir pv_par_cycle (objet) en array pour Alpine.js
         if (this.data.pv_par_cycle) {
-          console.log('🔍 Type de pv_par_cycle:', typeof this.data.pv_par_cycle);
-          console.log('🔍 pv_par_cycle brut:', this.data.pv_par_cycle);
-
-          // Pour chaque cycle, vérifier le type de pvs
-          Object.entries(this.data.pv_par_cycle).forEach(([cycle, pvs]) => {
-            console.log(`🔍 Cycle ${cycle}:`, {
-              type: typeof pvs,
-              isArray: Array.isArray(pvs),
-              length: pvs?.length,
-              keys: Object.keys(pvs || {}),
-              firstItem: pvs?.[0]
-            });
-          });
-
           this.cyclesArray = Object.entries(this.data.pv_par_cycle).map(([cycle, pvs]) => ({
             cycle: cycle,
             pvs: Array.isArray(pvs) ? pvs : Object.values(pvs),  // Conversion forcée en array si nécessaire
             totaux: this.data.totaux_par_cycle[cycle] || {}
           }));
         }
-
-        console.log('Données chargées:', this.data);
-        console.log('Cycles array:', this.cyclesArray);
 
       } catch (err) {
         console.error('Erreur:', err);
@@ -516,6 +521,43 @@ function ficheEntreprise() {
     goToCartographie(siret) {
       // Rediriger vers la page de cartographie pour cet établissement
       window.location.href = `/cartographie-entreprise?siret=${siret}`;
+    },
+
+    async genererRecommandations() {
+      this.loadingRecommandations = true;
+      this.errorRecommandations = null;
+
+      try {
+        const pathParts = window.location.pathname.split('/');
+        const siret = pathParts[pathParts.length - 1];
+
+        console.log('Génération des recommandations pour SIRET:', siret);
+
+        const response = await fetch(`/api/entreprise/${siret}/recommandations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.detail || 'Erreur lors de la génération');
+        }
+
+        // Convertir le markdown en HTML si nécessaire
+        // La réponse peut déjà être en HTML ou en markdown
+        this.recommandationsHTML = result.recommandations;
+        this.showRecommandations = true;
+
+        console.log('Recommandations générées avec succès');
+
+      } catch (err) {
+        console.error('Erreur recommandations:', err);
+        this.errorRecommandations = err.message || 'Erreur lors de la génération des recommandations';
+        this.showRecommandations = true; // Afficher la modale avec l'erreur
+      } finally {
+        this.loadingRecommandations = false;
+      }
     }
   }
 }
