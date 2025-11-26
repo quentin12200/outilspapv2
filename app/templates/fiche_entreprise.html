@@ -540,9 +540,18 @@
             <!-- Carte interactive des établissements -->
             <div class="mb-6 bg-white border-2 border-gray-200 rounded-xl overflow-hidden">
               <div class="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-4">
-                <h3 class="font-bold text-lg flex items-center gap-2">
-                  <i class="fas fa-map-marked-alt"></i>
-                  Carte des établissements
+                <h3 class="font-bold text-lg flex items-center gap-2 justify-between">
+                  <span class="flex items-center gap-2">
+                    <i class="fas fa-map-marked-alt"></i>
+                    Carte des établissements
+                  </span>
+                  <span x-show="mapStatus" x-text="mapStatus" class="text-sm font-normal px-3 py-1 rounded-full"
+                        :class="{
+                          'bg-blue-500': mapStatus?.includes('Initialisation'),
+                          'bg-green-500': mapStatus?.includes('✅'),
+                          'bg-yellow-500': mapStatus?.includes('⚠️'),
+                          'bg-red-500': mapStatus?.includes('❌')
+                        }"></span>
                 </h3>
               </div>
               <div id="map-etablissements" style="height: 400px;"></div>
@@ -651,6 +660,7 @@ function ficheEntreprise() {
     activeTab: 'pv',
     map: null,
     markersLayer: null,
+    mapStatus: null,
     showGraphiques: true,
     charts: {},
 
@@ -850,77 +860,66 @@ function ficheEntreprise() {
     },
 
     initMap() {
-      console.log('🗺️ initMap appelée');
-      console.log('📊 Données:', {
-        hasData: !!this.data,
-        hasEtablissements: !!this.data?.etablissements,
-        nbEtablissements: this.data?.etablissements?.length || 0
-      });
+      this.mapStatus = '🔄 Initialisation...';
 
       const mapEl = document.getElementById('map-etablissements');
       if (!mapEl) {
-        console.error('❌ Element map-etablissements introuvable');
+        this.mapStatus = '❌ Conteneur introuvable';
         return;
       }
 
-      console.log('📐 Dimensions:', { width: mapEl.offsetWidth, height: mapEl.offsetHeight });
-
       // Vérifier que le conteneur est visible
       if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
-        console.warn('⚠️ Conteneur pas visible, réessai dans 300ms...');
+        this.mapStatus = '⚠️ Conteneur caché, réessai...';
         setTimeout(() => this.initMap(), 300);
         return;
       }
 
       // Éviter de réinitialiser si déjà créée
       if (this.map) {
-        console.log('🔄 Carte existe, invalidateSize()');
         setTimeout(() => this.map.invalidateSize(), 100);
+        this.mapStatus = '✅ Carte rechargée';
         return;
       }
 
       // Vérifier que les données sont chargées
       if (!this.data || !this.data.etablissements) {
-        console.error('❌ Données établissements manquantes');
+        this.mapStatus = '❌ Données manquantes';
         return;
       }
-
-      // Debug: afficher exemples
-      console.log('🔍 Exemples établissements:',
-        this.data.etablissements.slice(0, 2).map(e => ({
-          siret: e.siret,
-          pappers: !!e.pappers,
-          lat: e.pappers?.latitude,
-          lon: e.pappers?.longitude
-        }))
-      );
 
       // Filtrer les établissements avec coordonnées GPS
       const etablissementsAvecCoord = this.data.etablissements.filter(etab =>
         etab.pappers?.latitude && etab.pappers?.longitude
       );
 
-      console.log(`📍 ${etablissementsAvecCoord.length}/${this.data.etablissements.length} établissements avec GPS`);
+      this.mapStatus = `📍 ${etablissementsAvecCoord.length}/${this.data.etablissements.length} avec GPS`;
 
       if (etablissementsAvecCoord.length === 0) {
-        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-yellow-50 text-gray-700 p-4"><p><i class="fas fa-map-marker-alt-slash mr-2"></i>Aucune coordonnée GPS disponible pour afficher la carte</p></div>';
+        this.mapStatus = '⚠️ Aucune coordonnée GPS';
+        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-yellow-50 text-gray-700 p-4"><p><i class="fas fa-map-marker-alt-slash mr-2"></i>Aucune coordonnée GPS disponible. Les établissements n\'ont pas de géolocalisation Pappers.</p></div>';
+        return;
+      }
+
+      // Vérifier que Leaflet est chargé
+      if (typeof L === 'undefined') {
+        this.mapStatus = '❌ Leaflet non chargé';
+        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur: Bibliothèque Leaflet non chargée</p></div>';
         return;
       }
 
       // Créer la carte centrée sur le premier établissement
       const firstEtab = etablissementsAvecCoord[0];
-      console.log(`🎯 Centre: ${firstEtab.pappers.latitude}, ${firstEtab.pappers.longitude}`);
-      console.log('🌍 Leaflet:', typeof L !== 'undefined');
 
       try {
         this.map = L.map('map-etablissements').setView(
           [firstEtab.pappers.latitude, firstEtab.pappers.longitude],
           10
         );
-        console.log('✅ Carte créée!');
+        this.mapStatus = '✅ Carte créée!';
       } catch (err) {
-        console.error('❌ Erreur Leaflet:', err);
-        mapEl.innerHTML = `<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur: ${err.message}</p></div>`;
+        this.mapStatus = '❌ Erreur: ' + err.message;
+        mapEl.innerHTML = `<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur Leaflet: ${err.message}</p></div>`;
         return;
       }
 
