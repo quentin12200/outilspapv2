@@ -3170,7 +3170,7 @@ async def get_entreprise_fiche_complete(
             })
 
         # Trier pour mettre le siège en premier
-        etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
+        etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
 
         # Si siret_summary est vide, chercher dans Tous_PV
         if not etablissements_list:
@@ -3198,7 +3198,7 @@ async def get_entreprise_fiche_complete(
                     })
 
             # Trier pour mettre le siège en premier
-            etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
+            etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
 
         # ==================== 5. STATISTIQUES AGRÉGÉES ====================
         # Déterminer le dernier cycle (généralement C4, sinon C3, etc.)
@@ -3331,7 +3331,8 @@ async def get_entreprise_fiche_complete(
                 })
 
         # Re-trier pour mettre le siège en premier après ajout des établissements Pappers
-        etablissements_list.sort(key=lambda x: (not x["siege"], x["siret"]))
+        # Convertir SIRET en str pour le tri (car peut être int ou str)
+        etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
 
         # ==================== RÉPONSE FINALE ====================
         logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_total']} PV totaux, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
