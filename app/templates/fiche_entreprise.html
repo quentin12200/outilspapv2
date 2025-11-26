@@ -71,7 +71,7 @@
           <div class="text-white/70 mb-1 text-sm">Effectif SIREN</div>
           <div class="text-4xl font-bold" x-text="data?.info_base?.effectif_siren || data?.pappers?.effectif || 'N/A'"></div>
           <div class="text-white/80 text-xs mt-1">
-            <span x-show="data?.pappers?.tranche_effectif" x-text="'(' + data.pappers.tranche_effectif + ')'"></span>
+            <span x-show="data?.pappers?.tranche_effectif" x-text="'(' + data?.pappers?.tranche_effectif + ')'"></span>
             <span x-show="!data?.pappers?.tranche_effectif">salariés</span>
           </div>
         </div>
@@ -97,7 +97,7 @@
         <div class="flex items-center justify-between">
           <div>
             <div class="text-gray-600 text-sm mb-1">
-              Inscrits <span x-show="data?.stats?.dernier_cycle" x-text="'(' + data.stats.dernier_cycle + ')'"></span>
+              Inscrits <span x-show="data?.stats?.dernier_cycle" x-text="'(' + data?.stats?.dernier_cycle + ')'"></span>
             </div>
             <div class="text-3xl font-bold text-purple-600" x-text="data?.stats?.total_inscrits || 0"></div>
             <div class="text-xs text-gray-500 mt-1">
@@ -545,13 +545,13 @@
                   Carte des établissements
                 </h3>
               </div>
-              <div id="map-etablissements" style="height: 400px;" x-init="$nextTick(() => { if (activeTab === 'etablissements') setTimeout(() => initMap(), 100) })"></div>
+              <div id="map-etablissements" style="height: 400px;"></div>
             </div>
 
             <!-- Liste des établissements -->
             <div class="mb-4 flex items-center justify-between">
               <h3 class="font-bold text-lg text-gray-900">
-                Liste des établissements (<span x-text="data.etablissements.length"></span>)
+                Liste des établissements (<span x-text="data?.etablissements?.length || 0"></span>)
               </h3>
             </div>
 

@@ -2096,18 +2096,6 @@ def calendrier_elections(
 ):
     today = date.today()
 
-    # Récupérer l'utilisateur connecté pour appliquer les restrictions de profil
-    current_user = getattr(request.state, "current_user", None)
-
-    # Si l'utilisateur n'est pas admin, appliquer automatiquement les filtres de son profil
-    if current_user and current_user.role != "admin":
-        # Si l'utilisateur a un UD assigné, forcer le filtre sur cet UD
-        if current_user.ud and not ud:
-            ud = current_user.ud
-        # Si l'utilisateur a une région assignée et pas de filtre UD, forcer la région
-        elif current_user.region and not region and not ud:
-            region = current_user.region
-
     stmt = (
         db.query(
             PVEvent.siret,
