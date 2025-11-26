@@ -99,8 +99,8 @@ def get_notification_details(db: Session) -> dict:
         "invitations_retard": [
             {
                 "id": inv.id,
-                "raison_sociale": inv.raison_sociale,
-                "ville": inv.ville,
+                "raison_sociale": inv.denomination,  # denomination dans le modèle Invitation
+                "ville": inv.commune,  # commune dans le modèle Invitation
                 "date_invitation": inv.date_invit,
                 "jours_retard": (now.date() - inv.date_invit).days if inv.date_invit else 0
             }
@@ -110,8 +110,8 @@ def get_notification_details(db: Session) -> dict:
         "nouvelles_invitations": [
             {
                 "id": inv.id,
-                "raison_sociale": inv.raison_sociale,
-                "ville": inv.ville,
+                "raison_sociale": inv.denomination,  # denomination dans le modèle Invitation
+                "ville": inv.commune,  # commune dans le modèle Invitation
                 "date_invit": inv.date_invit,
                 "jours_depuis": (now.date() - inv.date_invit).days if inv.date_invit else 0
             }

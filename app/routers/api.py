@@ -3050,21 +3050,27 @@ async def get_entreprise_fiche_complete(
             pv_cycle_4 = [pv for pv in pv_data["pv"] if pv.get("cycle") == "Cycle 4"]
 
         # ==================== 3. INVITATIONS PAP ====================
-        invitations = db.query(Invitation).filter(
-            or_(
-                Invitation.siret == siret_clean if siret_clean else False,
-                Invitation.siren == siren
-            ),
-            Invitation.est_actif == True
-        ).order_by(Invitation.date_invit.desc()).all()
+        # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
+        if siret_clean:
+            # Si on a un SIRET exact, chercher ce SIRET
+            invitations = db.query(Invitation).filter(
+                Invitation.siret == siret_clean,
+                Invitation.est_actif == True
+            ).order_by(Invitation.date_invit.desc()).all()
+        else:
+            # Si on a juste un SIREN, chercher tous les SIRET qui commencent par ce SIREN
+            invitations = db.query(Invitation).filter(
+                Invitation.siret.like(f"{siren}%"),
+                Invitation.est_actif == True
+            ).order_by(Invitation.date_invit.desc()).all()
 
         invitations_list = []
         for inv in invitations:
             invitations_list.append({
                 "id": inv.id,
                 "siret": inv.siret,
-                "raison_sociale": inv.raison_sociale,
-                "ville": inv.ville,
+                "raison_sociale": inv.denomination,  # denomination dans le modèle Invitation
+                "ville": inv.commune,  # commune dans le modèle Invitation
                 "code_postal": inv.code_postal,
                 "date_invit": inv.date_invit.strftime("%Y-%m-%d") if inv.date_invit else None,
                 "date_reception": inv.date_reception.strftime("%Y-%m-%d") if inv.date_reception else None,
