@@ -701,21 +701,29 @@ function ficheEntreprise() {
         // Initialiser les graphiques après un court délai
         setTimeout(() => this.initCharts(), 300);
 
-        // Initialiser la carte immédiatement (même si l'onglet n'est pas actif)
-        // On appelle invalidateSize() quand on switch vers l'onglet
-        setTimeout(() => this.initMap(), 100);
-
-        // Watcher pour redimensionner la carte quand on active l'onglet Établissements
+        // Watcher pour initialiser/redimensionner la carte quand on active l'onglet Établissements
         this.$watch('activeTab', (newTab) => {
-          if (newTab === 'etablissements' && this.map) {
-            console.log('📑 Onglet Établissements activé, redimensionnement carte...');
-            // Redimensionner la carte existante
-            setTimeout(() => {
-              if (this.map) {
-                this.map.invalidateSize();
-                this.mapStatus = '✅ Carte affichée';
-              }
-            }, 100);
+          if (newTab === 'etablissements') {
+            console.log('📑 Onglet Établissements activé, initialisation/redimensionnement carte...');
+            // Attendre que le DOM soit visible
+            this.$nextTick(() => {
+              setTimeout(() => {
+                if (!this.map) {
+                  // Créer la carte si elle n'existe pas encore
+                  this.initMap();
+                } else {
+                  // Redimensionner la carte existante de manière agressive
+                  this.map.invalidateSize(true); // true = force reset
+                  this.mapStatus = '✅ Carte affichée';
+                }
+                // Appeler invalidateSize() une deuxième fois après un délai
+                setTimeout(() => {
+                  if (this.map) {
+                    this.map.invalidateSize(true);
+                  }
+                }, 200);
+              }, 100);
+            });
           }
         });
 
