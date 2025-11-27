@@ -701,14 +701,21 @@ function ficheEntreprise() {
         // Initialiser les graphiques après un court délai
         setTimeout(() => this.initCharts(), 300);
 
-        // Watcher pour initialiser la carte quand on va sur l'onglet Établissements
+        // Initialiser la carte immédiatement (même si l'onglet n'est pas actif)
+        // On appelle invalidateSize() quand on switch vers l'onglet
+        setTimeout(() => this.initMap(), 100);
+
+        // Watcher pour redimensionner la carte quand on active l'onglet Établissements
         this.$watch('activeTab', (newTab) => {
-          if (newTab === 'etablissements') {
-            console.log('📑 Onglet Établissements activé, initialisation carte...');
-            // Attendre que le DOM soit complètement mis à jour
-            this.$nextTick(() => {
-              setTimeout(() => this.initMap(), 250);
-            });
+          if (newTab === 'etablissements' && this.map) {
+            console.log('📑 Onglet Établissements activé, redimensionnement carte...');
+            // Redimensionner la carte existante
+            setTimeout(() => {
+              if (this.map) {
+                this.map.invalidateSize();
+                this.mapStatus = '✅ Carte affichée';
+              }
+            }, 100);
           }
         });
 
@@ -868,13 +875,6 @@ function ficheEntreprise() {
         return;
       }
 
-      // Vérifier que le conteneur est visible
-      if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
-        this.mapStatus = '⚠️ Conteneur caché, réessai...';
-        setTimeout(() => this.initMap(), 300);
-        return;
-      }
-
       // Éviter de réinitialiser si déjà créée
       if (this.map) {
         setTimeout(() => this.map.invalidateSize(), 100);
@@ -908,26 +908,35 @@ function ficheEntreprise() {
         return;
       }
 
-      // Créer la carte centrée sur le premier établissement
-      const firstEtab = etablissementsAvecCoord[0];
-
+      // Créer la carte avec un centre par défaut (centre géographique de la France)
       try {
-        this.map = L.map('map-etablissements').setView(
-          [firstEtab.pappers.latitude, firstEtab.pappers.longitude],
-          10
-        );
+        this.map = L.map('map-etablissements', {
+          center: [46.7111, 1.7191],
+          zoom: 6,
+          minZoom: 5,
+          maxZoom: 19
+        });
+
+        // Ajouter le fond de carte OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19
+        }).addTo(this.map);
+
+        // Forcer un recalcul des dimensions après l'initialisation
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+          }
+        }, 100);
+
         this.mapStatus = '✅ Carte créée!';
       } catch (err) {
         this.mapStatus = '❌ Erreur: ' + err.message;
+        console.error('Erreur Leaflet:', err);
         mapEl.innerHTML = `<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur Leaflet: ${err.message}</p></div>`;
         return;
       }
-
-      // Ajouter le fond de carte OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19
-      }).addTo(this.map);
 
       // Créer un groupe de marqueurs
       this.markersLayer = L.layerGroup().addTo(this.map);
