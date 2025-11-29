@@ -3609,22 +3609,296 @@ async def import_pap_avec_scan(
             os.remove(tmp_path)
 
 
+@app.post("/api/invitations/import-pap-pdf")
+async def import_pap_pdf(
+    file: UploadFile = File(...),
+    auto_scan: str = Form("on"),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Import de fichier PAP en PDF avec extraction automatique et scan multi-sources.
+
+    Workflow:
+    1. Extraction du texte du PDF (via pypdf)
+    2. Extraction structurée des données via ChatGPT (SIRET, dates, entreprises)
+    3. Enrichissement automatique via SIRENE/Pappers
+    4. Retour des résultats avec indicateur de complétion
+    """
+    import tempfile
+    import json
+    from pypdf import PdfReader
+    from openai import OpenAI
+    from .config import OPENAI_API_KEY, OPENAI_MODEL
+    from .services.sirene_api import enrichir_siret
+    from datetime import datetime
+
+    if not OPENAI_API_KEY:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Clé API OpenAI non configurée"}
+        )
+
+    # Sauvegarder temporairement le fichier PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # 1. Extraire le texte du PDF
+        logger.info("Extraction du texte depuis le PDF...")
+        pdf_text = ""
+        try:
+            reader = PdfReader(tmp_path)
+            for page in reader.pages:
+                pdf_text += page.extract_text() + "\n"
+            logger.info(f"Texte extrait: {len(pdf_text)} caractères")
+        except Exception as e:
+            logger.error(f"Erreur extraction PDF: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Erreur lors de l'extraction du PDF: {str(e)}"}
+            )
+
+        if not pdf_text.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Le PDF ne contient pas de texte extractible"}
+            )
+
+        # 2. Utiliser ChatGPT pour extraire les données structurées
+        logger.info("Extraction des données structurées via ChatGPT...")
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        prompt = f"""Tu es un expert en extraction de données depuis des documents PAP (Protocole d'Accord Pré-électoral).
+
+Analyse le texte suivant extrait d'un document PAP et extrais TOUTES les informations structurées.
+
+Texte du document:
+{pdf_text[:8000]}
+
+INSTRUCTIONS:
+- Extrais TOUS les numéros SIRET mentionnés dans le document (14 chiffres)
+- Pour chaque SIRET, extrais les informations associées : nom de l'entreprise, adresse, code postal, ville
+- Extrais toutes les dates mentionnées (dates d'invitation, dates d'élection, dates de signature)
+- Identifie la ou les unions départementales (UD) mentionnées (format: "UD XX" où XX est le numéro de département)
+- Identifie les fédérations (FD) mentionnées
+
+Retourne UNIQUEMENT un objet JSON avec cette structure:
+{{
+    "invitations": [
+        {{
+            "siret": "12345678901234",
+            "denomination": "NOM DE L'ENTREPRISE",
+            "adresse": "adresse complète si disponible",
+            "code_postal": "75001",
+            "commune": "Paris",
+            "date_invit": "2024-01-15",
+            "date_election": "2024-03-20",
+            "ud": "UD 75",
+            "fd": "Métallurgie",
+            "source": "Import PDF PAP",
+            "effectif_connu": 150
+        }}
+    ]
+}}
+
+IMPORTANT:
+- Les SIRET doivent avoir exactement 14 chiffres
+- Les dates au format YYYY-MM-DD ou null si non trouvée
+- Si plusieurs entreprises/SIRET sont mentionnées, crée une entrée pour chacune
+- Si une information n'est pas disponible, utilise null
+- Assure-toi que chaque SIRET est unique dans la liste
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL or "gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert en extraction de données structurées depuis des documents administratifs français."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+
+            extracted_data = json.loads(response.choices[0].message.content)
+            logger.info(f"Données extraites: {extracted_data}")
+
+        except Exception as e:
+            logger.error(f"Erreur ChatGPT: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Erreur lors de l'extraction par ChatGPT: {str(e)}"}
+            )
+
+        # 3. Créer les invitations à partir des données extraites
+        invitations_data = extracted_data.get("invitations", [])
+
+        if not invitations_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Aucune invitation trouvée dans le PDF"}
+            )
+
+        inserted = 0
+        enrichies = 0
+        erreurs = 0
+
+        for inv_data in invitations_data:
+            # Normaliser SIRET
+            siret_raw = inv_data.get("siret", "")
+            siret = "".join(ch for ch in str(siret_raw) if ch.isdigit())
+
+            if len(siret) != 14:
+                logger.warning(f"SIRET invalide ignoré: {siret_raw}")
+                erreurs += 1
+                continue
+
+            # Vérifier si l'invitation existe déjà
+            existing = db.query(Invitation).filter(Invitation.siret == siret).first()
+            if existing:
+                logger.info(f"SIRET {siret} déjà existant, ignoré")
+                continue
+
+            # Créer l'invitation
+            new_inv = Invitation(
+                siret=siret,
+                denomination=inv_data.get("denomination"),
+                adresse=inv_data.get("adresse"),
+                code_postal=inv_data.get("code_postal"),
+                commune=inv_data.get("commune"),
+                date_invit=inv_data.get("date_invit"),
+                date_election=inv_data.get("date_election"),
+                ud=inv_data.get("ud"),
+                fd=inv_data.get("fd"),
+                source=inv_data.get("source", "Import PDF PAP"),
+                effectif_connu=inv_data.get("effectif_connu"),
+                created_at=datetime.now()
+            )
+
+            db.add(new_inv)
+            inserted += 1
+
+        db.commit()
+        logger.info(f"Import PDF: {inserted} invitations créées")
+
+        # 4. Si scan automatique activé, enrichir via SIRENE/Pappers
+        if auto_scan == "on" and inserted > 0:
+            logger.info("Début du scan automatique multi-sources...")
+
+            # Récupérer les invitations juste créées
+            invitations = db.query(Invitation).order_by(Invitation.id.desc()).limit(inserted).all()
+
+            for inv in invitations:
+                try:
+                    # Enrichir via SIRENE/Pappers
+                    data = await enrichir_siret(inv.siret)
+
+                    if data:
+                        if not inv.denomination and data.get("denomination"):
+                            inv.denomination = data["denomination"]
+                        if not inv.enseigne and data.get("enseigne"):
+                            inv.enseigne = data["enseigne"]
+                        if not inv.adresse and data.get("adresse"):
+                            inv.adresse = data["adresse"]
+                        if not inv.code_postal and data.get("code_postal"):
+                            inv.code_postal = data["code_postal"]
+                        if not inv.commune and data.get("commune"):
+                            inv.commune = data["commune"]
+                        if not inv.activite_principale and data.get("activite_principale"):
+                            inv.activite_principale = data["activite_principale"]
+                        if not inv.libelle_activite and data.get("libelle_activite"):
+                            inv.libelle_activite = data["libelle_activite"]
+                        if not inv.idcc and data.get("idcc"):
+                            inv.idcc = data["idcc"]
+                            # Enrichir FD depuis IDCC
+                            if inv.idcc and not inv.fd:
+                                from .services.idcc_enrichment import get_idcc_enrichment_service
+                                enrichment_service = get_idcc_enrichment_service()
+                                inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                        inv.date_enrichissement = datetime.now()
+                        enrichies += 1
+                    else:
+                        erreurs += 1
+
+                except Exception as e:
+                    logger.error(f"Erreur enrichissement SIRET {inv.siret}: {e}")
+                    erreurs += 1
+
+            db.commit()
+            logger.info(f"Scan terminé: {enrichies} enrichies, {erreurs} erreurs")
+
+        # 5. Compter les invitations incomplètes
+        incomplets = db.query(Invitation).filter(
+            or_(
+                Invitation.denomination.is_(None),
+                Invitation.denomination == '',
+                Invitation.code_postal.is_(None),
+                Invitation.commune.is_(None)
+            )
+        ).count()
+
+        return JSONResponse(content={
+            "success": True,
+            "inserted": inserted,
+            "enrichies": enrichies,
+            "erreurs": erreurs,
+            "incomplets": incomplets,
+            "message": f"{inserted} invitations importées depuis le PDF, {enrichies} enrichies automatiquement. {incomplets} nécessitent une complétion manuelle."
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import PDF PAP: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 @app.post("/api/invitations/generer-emails")
 async def generer_emails_pap(
     request: Request,
+    only_recent: bool = Form(True),  # Par défaut, uniquement les nouvelles
     db: Session = Depends(get_session),
     current_user = Depends(get_current_user)
 ):
     """
     Génère les emails de relance pour les invitations PAP.
     Crée des emails avec lien PAP scanner + infos entreprise.
+
+    Args:
+        only_recent: Si True, génère les emails uniquement pour les invitations créées dans la dernière heure
     """
+    from datetime import timedelta
+
     # Récupérer les invitations complètes
-    invitations = db.query(Invitation).filter(
+    query = db.query(Invitation).filter(
         Invitation.denomination.isnot(None),
         Invitation.denomination != '',
         Invitation.siret.isnot(None)
-    ).all()
+    )
+
+    # Si only_recent=True, filtrer les invitations créées dans la dernière heure
+    if only_recent:
+        one_hour_ago = datetime.now() - timedelta(hours=1)
+        query = query.filter(Invitation.created_at >= one_hour_ago)
+        logger.info(f"Filtrage des invitations créées après {one_hour_ago}")
+
+    invitations = query.all()
 
     if not invitations:
         return JSONResponse(content={

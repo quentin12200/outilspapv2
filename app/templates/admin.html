@@ -502,16 +502,17 @@
       </form>
     </section>
 
-    <!-- Import Invitations -->
+    <!-- Import Invitations PAP -->
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-envelope text-green-500 mr-2"></i>
-        Importer Invitations électorales (Cycle 5)
+        <i class="fas fa-file-pdf text-red-500 mr-2"></i>
+        Importer PAP (Protocole d'Accord Pré-électoral)
       </h3>
-      <form method="post" action="/api/invitations/import-pap" enctype="multipart/form-data" id="form-import-pap" class="space-y-4">
+      <form method="post" action="/api/invitations/import-pap-pdf" enctype="multipart/form-data" id="form-import-pap" class="space-y-4">
         <div>
-          <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel des invitations</label>
-          <input type="file" name="file" id="invitfile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border border-gray-300 rounded-lg cursor-pointer" />
+          <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier PDF du PAP</label>
+          <input type="file" name="file" id="invitfile" required accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 border border-gray-300 rounded-lg cursor-pointer" />
+          <p class="text-xs text-gray-500 mt-1">Le système extraira automatiquement les informations (SIRET, dates, entreprises) du PDF</p>
         </div>
 
         <!-- Options de scan -->
@@ -524,17 +525,17 @@
                 Scan automatique multi-sources
               </label>
               <p class="text-xs text-gray-600 mt-1">
-                Enrichir automatiquement via SIRENE, Pappers et ChatGPT. Les données manquantes pourront être complétées manuellement ensuite.
+                Extraction PDF (OCR + ChatGPT) puis enrichissement via SIRENE, Pappers et ChatGPT. Les données manquantes pourront être complétées manuellement ensuite.
               </p>
             </div>
           </div>
         </div>
 
-        <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-upload"></i>
-          <span>Importer et scanner</span>
+        <button type="submit" class="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-file-upload"></i>
+          <span>Importer PDF et scanner</span>
         </button>
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Après l'import, vous pourrez compléter manuellement les données manquantes et générer les emails de relance.</p>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Après l'import, vous pourrez compléter manuellement les données manquantes et générer les emails uniquement pour les nouveaux PAP scannés.</p>
       </form>
 
       <!-- Résultat import -->
@@ -2415,9 +2416,9 @@ document.getElementById('form-import-pap')?.addEventListener('submit', async fun
 
   try {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Extraction et scan en cours...';
 
-    const response = await fetch('/api/invitations/import-pap', {
+    const response = await fetch('/api/invitations/import-pap-pdf', {
       method: 'POST',
       body: formData
     });
@@ -2534,7 +2535,7 @@ async function genererEmailsPAP() {
   const btn = document.getElementById('btn-emails-pap');
   const originalText = btn.innerHTML;
 
-  if (!confirm('📧 Générer les emails de relance ?\n\nCette fonction va créer des emails avec:\n- Lien PAP scanner pour chaque entreprise\n- Informations complètes sur l\'entreprise\n- Raison sociale, IDCC, FD, effectifs...\n\nContinuer ?')) {
+  if (!confirm('📧 Générer les emails de relance ?\n\n⚠️ IMPORTANT : Seules les invitations importées dans la dernière heure seront incluses.\n\nCette fonction va créer des emails avec:\n- Lien PAP scanner pour chaque entreprise\n- Informations complètes sur l\'entreprise\n- Raison sociale, IDCC, FD, effectifs...\n\nContinuer ?')) {
     return;
   }
 
@@ -2542,9 +2543,12 @@ async function genererEmailsPAP() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Génération...';
 
+    const formData = new FormData();
+    formData.append('only_recent', 'true');  // Seulement les invitations récentes
+
     const response = await fetch('/api/invitations/generer-emails', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      body: formData
     });
 
     const data = await response.json();

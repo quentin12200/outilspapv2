@@ -218,6 +218,10 @@ class Invitation(Base):
     date_election = Column(Date)                                 # Date de l'élection si connue
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
 
+    # Métadonnées
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)  # Date de création
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)       # Date de modification
+
 
 class SiretSummary(Base):
     __tablename__ = "siret_summary"
