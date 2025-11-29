@@ -256,7 +256,8 @@
       async loadData() {
         try {
           // Charger les données de l'entreprise via l'API
-          const response = await fetch(`/api/entreprise/${this.siren}`);
+          // L'API existante attend un SIRET, on utilise le SIREN avec des zéros
+          const response = await fetch(`/api/entreprise/${this.siren}00000`);
           const data = await response.json();
 
           this.entreprise = data.entreprise || {};

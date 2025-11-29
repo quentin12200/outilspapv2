@@ -6860,18 +6860,17 @@ def entreprise_detail(siren: str, request: Request, db: Session = Depends(get_se
     - Établissements (avec carte Leaflet)
     """
     from .models import PVEvent, Invitation
-    from .services.sirene_api import get_sirene_api
-    
+    from .services.sirene_api import sirene_api
+
     # Normaliser le SIREN
     normalized_siren = "".join(ch for ch in (siren or "").strip() if ch.isdigit())
-    
+
     if not normalized_siren or len(normalized_siren) != 9:
         raise HTTPException(status_code=400, detail="SIREN invalide")
-    
+
     # Récupérer le nom de l'entreprise depuis Sirene
     entreprise_nom = None
     try:
-        sirene_api = get_sirene_api()
         entreprise_info = sirene_api.get_etablissement_by_siret(normalized_siren + "00000")
         if entreprise_info and "uniteLegale" in entreprise_info:
             ul = entreprise_info["uniteLegale"]
@@ -6879,7 +6878,7 @@ def entreprise_detail(siren: str, request: Request, db: Session = Depends(get_se
                 entreprise_nom = ul["denominationUniteLegale"]
     except Exception as e:
         logger.warning(f"Impossible de récupérer le nom de l'entreprise pour SIREN {normalized_siren}: {e}")
-    
+
     return templates.TemplateResponse(
         "entreprise.html",
         {
