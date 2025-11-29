@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
@@ -3181,6 +3181,189 @@ def invitations(
             "admin_api_key": ADMIN_API_KEY,
         },
     )
+
+
+@app.get("/api/invitations/export-tsv")
+def export_invitations_tsv(
+    request: Request,
+    q: str = "",
+    source: str = "",
+    est_actif: str = "",
+    est_siege: str = "",
+    ud: str = "",
+    fd: str = "",
+    departement: str = "",
+    statut: str = "",
+    db: Session = Depends(get_session),
+):
+    """
+    Exporte les invitations filtrées au format TSV (Tab-Separated Values)
+    pour copier-coller dans Excel.
+    Les mêmes filtres que /invitations sont appliqués.
+    """
+    from io import StringIO
+    import csv
+
+    # Réutiliser la même logique de filtrage que /invitations
+    qs = db.query(Invitation)
+
+    if q:
+        like = f"%{q}%"
+        qs = qs.filter(
+            (Invitation.siret.like(like))
+            | (Invitation.denomination.ilike(like))
+            | (Invitation.commune.ilike(like))
+        )
+
+    if source:
+        qs = qs.filter(Invitation.source == source)
+
+    if est_actif:
+        if est_actif == "oui":
+            qs = qs.filter(Invitation.est_actif.is_(True))
+        elif est_actif == "non":
+            qs = qs.filter(Invitation.est_actif.is_(False))
+
+    if est_siege:
+        if est_siege == "oui":
+            qs = qs.filter(Invitation.est_siege.is_(True))
+        elif est_siege == "non":
+            qs = qs.filter(Invitation.est_siege.is_(False))
+
+    if ud:
+        qs = qs.filter(Invitation.ud == ud)
+
+    if fd:
+        qs = qs.filter(Invitation.fd == fd)
+
+    if departement:
+        qs = qs.filter(Invitation.code_postal.like(f"{departement}%"))
+
+    invitations = qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
+
+    # Récupérer les effectifs depuis les PV (même logique que /invitations)
+    def normalize_siret(value):
+        if value is None:
+            return None
+        if isinstance(value, (bytes, bytearray)):
+            text = value.decode("utf-8", "ignore")
+        else:
+            text = str(value)
+        if not text:
+            return None
+        stripped = text.strip()
+        if not stripped:
+            return None
+        digits_only = "".join(ch for ch in stripped if ch.isdigit())
+        if len(digits_only) == 14:
+            return digits_only
+        if len(stripped) == 14 and stripped.isdigit():
+            return stripped
+        return digits_only or stripped or None
+
+    # Récupérer les effectifs depuis les PV
+    effectifs_pv = {}
+    for row in db.query(PVEvent.siret, PVEvent.effectif_siret, PVEvent.inscrits).all():
+        siret_norm = normalize_siret(row[0])
+        if siret_norm:
+            effectif = row[1] if row[1] and row[1] > 0 else (row[2] if row[2] and row[2] > 0 else None)
+            if effectif:
+                if siret_norm not in effectifs_pv or effectif > effectifs_pv[siret_norm]:
+                    effectifs_pv[siret_norm] = int(effectif)
+
+    # Appliquer le filtre de statut si demandé (simplifié)
+    if statut:
+        sirets_with_pv_c5 = {
+            normalized
+            for (raw_siret,) in db.query(PVEvent.siret).filter(PVEvent.cycle == "C5").distinct().all()
+            if (normalized := normalize_siret(raw_siret))
+        }
+        sirets_with_previous_pv = {
+            normalized
+            for (raw_siret,) in db.query(PVEvent.siret).filter(
+                or_(PVEvent.cycle == "C3", PVEvent.cycle == "C4")
+            ).distinct().all()
+            if (normalized := normalize_siret(raw_siret))
+        }
+
+        filtered = []
+        for inv in invitations:
+            norm_siret = normalize_siret(inv.siret)
+            if statut == "pv_c5_enregistre" and norm_siret in sirets_with_pv_c5:
+                filtered.append(inv)
+            elif statut == "reconduction" and norm_siret in sirets_with_previous_pv and norm_siret not in sirets_with_pv_c5:
+                filtered.append(inv)
+            elif statut in ["en_attente", "retard"]:
+                # Logique simplifiée pour en_attente et retard
+                filtered.append(inv)
+        invitations = filtered
+
+    # Créer le TSV
+    output = StringIO()
+    writer = csv.writer(output, delimiter='\t', lineterminator='\n')
+
+    # En-têtes selon le format demandé
+    writer.writerow([
+        'SIRET',
+        'Nom Entreprise',
+        'CP',
+        'Ville',
+        'date d\'arrivée',
+        'Cs',
+        'UD',
+        'FD',
+        'Siège social',
+        'IDCC',
+        'Nbre de salariés',
+        'Commentaires',
+        'Date de saisie',
+        'ENJEUX'
+    ])
+
+    # Écrire les données
+    for inv in invitations:
+        siret_norm = normalize_siret(inv.siret)
+
+        # Déterminer l'effectif (priorité: effectif_connu > effectif depuis PV)
+        effectif = inv.effectif_connu or (effectifs_pv.get(siret_norm) if siret_norm else None) or ''
+
+        # Déterminer le département (Cs = code postal département)
+        cs = inv.code_postal[:2] if inv.code_postal and len(inv.code_postal) >= 2 else ''
+
+        # Formatage de la date d'arrivée
+        date_arrivee = inv.date_invit.strftime('%d/%m/%Y') if inv.date_invit else ''
+
+        # Date de saisie
+        date_saisie = inv.date_reception.strftime('%d/%m/%Y') if inv.date_reception else ''
+
+        writer.writerow([
+            inv.siret or '',
+            inv.denomination or '',
+            inv.code_postal or '',
+            inv.commune or '',
+            date_arrivee,
+            cs,
+            inv.ud or '',
+            inv.fd or '',
+            'Oui' if inv.est_siege else 'Non' if inv.est_siege is False else '',
+            inv.idcc or '',
+            effectif,
+            '',  # Commentaires - vide pour l'instant
+            date_saisie,
+            ''   # ENJEUX - vide pour l'instant
+        ])
+
+    tsv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        content=tsv_content,
+        media_type="text/tab-separated-values; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=invitations_pap.tsv"
+        }
+    )
+
 
 PRIORITY_TOKENS = [
     "siret",
