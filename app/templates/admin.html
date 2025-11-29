@@ -219,6 +219,14 @@
       <i class="fas fa-users text-indigo-500 text-xl"></i>
     </a>
 
+    <a href="/recherche-siret" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-violet-100">
+      <div>
+        <p class="text-sm font-semibold text-gray-700">Recherche SIRET</p>
+        <p class="text-xs text-gray-500">Rechercher et ajouter une entreprise par SIRET</p>
+      </div>
+      <i class="fas fa-search text-violet-500 text-xl"></i>
+    </a>
+
     {% if current_user and current_user.role == "admin" %}
     <a href="#imports" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-blue-100">
       <div>
