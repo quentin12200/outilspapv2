@@ -220,6 +220,12 @@ USER_SESSION_TRACKING_COLUMNS = [
     ("total_session_duration", "INTEGER DEFAULT 0 NOT NULL"),
 ]
 
+# Colonnes de métadonnées pour invitations (created_at, updated_at)
+INVITATION_METADATA_COLUMNS = [
+    ("created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+    ("updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"),
+]
+
 
 def column_exists(table_name: str, column_name: str) -> bool:
     """Vérifie si une colonne existe dans une table."""
@@ -303,6 +309,11 @@ def add_siret_summary_columns_if_needed():
 def add_user_session_tracking_columns_if_needed():
     """Ajoute les colonnes de suivi de session à la table users."""
     add_columns_to_table("users", USER_SESSION_TRACKING_COLUMNS)
+
+
+def add_invitation_metadata_columns_if_needed():
+    """Ajoute les colonnes de métadonnées (created_at, updated_at) à la table invitations."""
+    add_columns_to_table("invitations", INVITATION_METADATA_COLUMNS)
 
 
 def _normalize_raw_key(key: str) -> str:
@@ -553,6 +564,9 @@ def run_migrations():
 
         # Migration colonnes de géolocalisation pour invitations
         add_geolocation_columns_if_needed()
+
+        # Migration colonnes de métadonnées (created_at, updated_at) pour invitations
+        add_invitation_metadata_columns_if_needed()
 
         # Migration données invitations
         fill_invitation_columns_from_raw()
