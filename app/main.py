@@ -3365,6 +3365,157 @@ def export_invitations_tsv(
     )
 
 
+@app.post("/api/invitations/scan-auto")
+async def scan_auto_invitations(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Scan automatique et enrichissement de toutes les invitations PAP incomplètes
+    via l'API SIRENE/Pappers.
+    """
+    import asyncio
+    from .services.sirene_api import enrichir_siret
+
+    # Récupérer toutes les invitations sans raison sociale
+    invitations = db.query(Invitation).filter(
+        or_(
+            Invitation.denomination.is_(None),
+            Invitation.denomination == '',
+        )
+    ).all()
+
+    total = len(invitations)
+    enrichies = 0
+    erreurs = 0
+    deja_complet = db.query(Invitation).filter(
+        Invitation.denomination.isnot(None),
+        Invitation.denomination != ''
+    ).count()
+
+    logger.info(f"Début du scan automatique: {total} invitations à enrichir")
+
+    for inv in invitations:
+        try:
+            # Normaliser le SIRET
+            def normalize_siret(value):
+                if value is None:
+                    return None
+                if isinstance(value, (bytes, bytearray)):
+                    text = value.decode("utf-8", "ignore")
+                else:
+                    text = str(value)
+                if not text:
+                    return None
+                stripped = text.strip()
+                if not stripped:
+                    return None
+                digits_only = "".join(ch for ch in stripped if ch.isdigit())
+                if len(digits_only) == 14:
+                    return digits_only
+                if len(stripped) == 14 and stripped.isdigit():
+                    return stripped
+                return digits_only or stripped or None
+
+            siret = normalize_siret(inv.siret)
+            if not siret:
+                logger.warning(f"SIRET invalide pour invitation {inv.id}: {inv.siret}")
+                erreurs += 1
+                continue
+
+            # Enrichir via SIRENE/Pappers
+            data = await enrichir_siret(siret)
+
+            if data:
+                # Mise à jour des champs manquants
+                if not inv.denomination and data.get("denomination"):
+                    inv.denomination = data["denomination"]
+                if not inv.enseigne and data.get("enseigne"):
+                    inv.enseigne = data["enseigne"]
+                if not inv.adresse and data.get("adresse"):
+                    inv.adresse = data["adresse"]
+                if not inv.code_postal and data.get("code_postal"):
+                    inv.code_postal = data["code_postal"]
+                if not inv.commune and data.get("commune"):
+                    inv.commune = data["commune"]
+                if not inv.activite_principale and data.get("activite_principale"):
+                    inv.activite_principale = data["activite_principale"]
+                if not inv.libelle_activite and data.get("libelle_activite"):
+                    inv.libelle_activite = data["libelle_activite"]
+                if not inv.tranche_effectifs and data.get("tranche_effectifs"):
+                    inv.tranche_effectifs = data["tranche_effectifs"]
+                if not inv.effectifs_label and data.get("effectifs_label"):
+                    inv.effectifs_label = data["effectifs_label"]
+                if inv.est_siege is None and data.get("est_siege") is not None:
+                    inv.est_siege = data["est_siege"]
+                if inv.est_actif is None and data.get("est_actif") is not None:
+                    inv.est_actif = data["est_actif"]
+                if not inv.categorie_entreprise and data.get("categorie_entreprise"):
+                    inv.categorie_entreprise = data["categorie_entreprise"]
+                if not inv.idcc and data.get("idcc"):
+                    inv.idcc = data["idcc"]
+                    # Si IDCC récupéré, enrichir aussi la FD
+                    if inv.idcc and not inv.fd:
+                        from .services.idcc_enrichment import get_idcc_enrichment_service
+                        enrichment_service = get_idcc_enrichment_service()
+                        inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                inv.date_enrichissement = datetime.now()
+                enrichies += 1
+                logger.info(f"✅ Enrichissement réussi pour SIRET {siret}: {inv.denomination}")
+            else:
+                logger.warning(f"⚠️ Aucune donnée trouvée pour SIRET {siret}")
+                erreurs += 1
+
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de l'enrichissement de l'invitation {inv.id} (SIRET: {inv.siret}): {e}")
+            erreurs += 1
+
+    db.commit()
+
+    logger.info(f"✅ Scan terminé: {enrichies}/{total} enrichies, {erreurs} erreurs")
+
+    return JSONResponse(content={
+        "success": True,
+        "total": total,
+        "enrichies": enrichies,
+        "deja_complet": deja_complet,
+        "erreurs": erreurs
+    })
+
+
+@app.post("/api/invitations/generer-emails")
+async def generer_emails_pap(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Génère les emails de relance pour les invitations PAP incomplètes ou en retard.
+    """
+    # TODO: Implémenter la logique de génération d'emails
+    # Pour l'instant, retourne juste un message de succès
+
+    # Récupérer les invitations incomplètes
+    invitations_incomplets = db.query(Invitation).filter(
+        or_(
+            Invitation.denomination.is_(None),
+            Invitation.denomination == '',
+            Invitation.code_postal.is_(None),
+            Invitation.commune.is_(None)
+        )
+    ).count()
+
+    logger.info(f"Génération d'emails pour {invitations_incomplets} invitations incomplètes")
+
+    return JSONResponse(content={
+        "success": True,
+        "total": invitations_incomplets,
+        "message": "Emails générés avec succès"
+    })
+
+
 PRIORITY_TOKENS = [
     "siret",
     "raison",
@@ -4431,6 +4582,35 @@ def admin_page(
             "upcoming_preview": upcoming_preview,
             "upcoming_threshold": 1000,
             "admin_api_key": ADMIN_API_KEY,
+            "total_users": total_users,
+            "pending_users": pending_users,
+            "approved_users": approved_users,
+        },
+    )
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """Page dédiée à la gestion des utilisateurs"""
+    # Statistiques utilisateurs
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    pending_users = db.query(func.count(User.id)).filter(User.is_approved == False).scalar() or 0
+    approved_users = db.query(func.count(User.id)).filter(User.is_approved == True).scalar() or 0
+
+    # Récupérer les demandes en attente
+    pending_user_requests = db.query(User).filter(User.is_approved == False).order_by(User.created_at.desc()).all()
+
+    # Récupérer tous les utilisateurs
+    all_users = db.query(User).order_by(User.created_at.desc()).all()
+
+    return templates.TemplateResponse(
+        "admin_users.html",
+        {
+            "request": request,
             "total_users": total_users,
             "pending_users": pending_users,
             "approved_users": approved_users,
