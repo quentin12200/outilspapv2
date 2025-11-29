@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entreprise_nom or "Entreprise" }} - SIREN {{ siren }}{% endblock %}
+
+{% block head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<!-- Chart.js for graphs -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  #map {
+    height: 500px;
+    width: 100%;
+    border-radius: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="entrepriseApp()" x-init="init()" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">
+      <i class="fas fa-building text-cgt-red mr-2"></i>
+      <span x-text="entreprise.nom || 'Chargement...'"></span>
+    </h1>
+    <p class="text-gray-600">
+      SIREN: <span class="font-mono font-semibold">{{ siren }}</span>
+    </p>
+  </div>
+
+  <!-- Onglets -->
+  <div class="mb-6">
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+        <button @click="activeTab = 'pv'"
+          :class="activeTab === 'pv' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+          class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+          <i class="fas fa-vote-yea mr-2"></i>
+          PV Élections
+          <span x-show="stats.nb_pv > 0" class="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs font-medium" x-text="stats.nb_pv"></span>
+        </button>
+        <button @click="activeTab = 'invitations'"
+          :class="activeTab === 'invitations' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+          class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+          <i class="fas fa-envelope-open-text mr-2"></i>
+          Invitations PAP
+          <span x-show="stats.nb_invitations > 0" class="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs font-medium" x-text="stats.nb_invitations"></span>
+        </button>
+        <button @click="activeTab = 'etablissements'"
+          :class="activeTab === 'etablissements' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+          class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+          <i class="fas fa-map-marked-alt mr-2"></i>
+          Établissements
+          <span x-show="stats.nb_etablissements > 0" class="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs font-medium" x-text="stats.nb_etablissements"></span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div x-show="loading" class="flex items-center justify-center py-20">
+    <div class="text-center">
+      <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
+      <p class="text-gray-600 text-lg">Chargement des données...</p>
+    </div>
+  </div>
+
+  <!-- Onglet PV Élections -->
+  <div x-show="activeTab === 'pv' && !loading" x-cloak>
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        <i class="fas fa-vote-yea text-cgt-red mr-2"></i>
+        Procès-verbaux d'élections
+      </h2>
+      <template x-if="pvEvents.length === 0">
+        <p class="text-gray-500 text-center py-8">Aucun PV d'élection enregistré</p>
+      </template>
+      <div x-show="pvEvents.length > 0" class="space-y-4">
+        <template x-for="pv in pvEvents" :key="pv.id">
+          <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <h3 class="font-bold text-gray-900" x-text="pv.raison_sociale || pv.siret"></h3>
+                <p class="text-sm text-gray-600 mt-1">
+                  <i class="fas fa-calendar text-gray-400 mr-1"></i>
+                  Date: <span x-text="pv.date_pv"></span>
+                </p>
+                <p class="text-sm text-gray-600">
+                  <i class="fas fa-users text-gray-400 mr-1"></i>
+                  Inscrits C4: <span class="font-semibold" x-text="pv.c4_inscrits || 'N/C'"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglet Invitations PAP -->
+  <div x-show="activeTab === 'invitations' && !loading" x-cloak>
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        <i class="fas fa-envelope-open-text text-cgt-red mr-2"></i>
+        Invitations électorales (PAP)
+      </h2>
+      <template x-if="invitations.length === 0">
+        <p class="text-gray-500 text-center py-8">Aucune invitation électorale enregistrée</p>
+      </template>
+      <div x-show="invitations.length > 0" class="space-y-4">
+        <template x-for="inv in invitations" :key="inv.id">
+          <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <h3 class="font-bold text-gray-900" x-text="inv.denomination || inv.siret"></h3>
+                <p class="text-sm text-gray-600 mt-1">
+                  <i class="fas fa-calendar text-gray-400 mr-1"></i>
+                  Date invitation: <span x-text="inv.date_invit || 'N/C'"></span>
+                </p>
+                <p class="text-sm text-gray-600">
+                  <i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>
+                  <span x-text="inv.commune || 'N/C'"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglet Établissements -->
+  <div x-show="activeTab === 'etablissements' && !loading" x-cloak>
+    <!-- Graphique Répartition organisations syndicales -->
+    <div x-show="chartData.labels.length > 0" class="bg-white rounded-xl shadow-md p-6 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        <i class="fas fa-chart-bar text-cgt-red mr-2"></i>
+        Répartition organisations syndicales (C4)
+      </h2>
+      <canvas id="orgChart" width="400" height="150"></canvas>
+    </div>
+
+    <!-- Carte des établissements -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
+        Carte des établissements
+      </h2>
+      <div id="map"></div>
+    </div>
+
+    <!-- Liste des établissements -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        <i class="fas fa-list text-cgt-red mr-2"></i>
+        Liste des établissements (<span x-text="etablissements.length"></span>)
+      </h2>
+      <template x-if="etablissements.length === 0">
+        <p class="text-gray-500 text-center py-8">Aucun établissement trouvé</p>
+      </template>
+      <div x-show="etablissements.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <template x-for="etab in etablissements" :key="etab.siret">
+          <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+            <h3 class="font-bold text-gray-900 mb-2" x-text="etab.raison_sociale || etab.denomination"></h3>
+            <p class="text-sm text-gray-600">
+              <i class="fas fa-id-card text-gray-400 mr-1"></i>
+              SIRET: <span class="font-mono text-xs" x-text="etab.siret"></span>
+            </p>
+            <p class="text-sm text-gray-600">
+              <i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>
+              <span x-text="etab.adresse || 'N/C'"></span>
+            </p>
+            <p x-show="etab.ville" class="text-sm text-gray-600">
+              <i class="fas fa-city text-gray-400 mr-1"></i>
+              <span x-text="etab.code_postal + ' ' + etab.ville"></span>
+            </p>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+  function entrepriseApp() {
+    return {
+      siren: '{{ siren }}',
+      activeTab: 'etablissements',
+      loading: true,
+      entreprise: {},
+      stats: {
+        nb_pv: 0,
+        nb_invitations: 0,
+        nb_etablissements: 0
+      },
+      pvEvents: [],
+      invitations: [],
+      etablissements: [],
+      map: null,
+      markers: [],
+      chart: null,
+      chartData: {
+        labels: [],
+        data: []
+      },
+
+      async init() {
+        // Initialiser la carte Leaflet
+        // IMPORTANT: On initialise la carte même si elle est cachée
+        // On utilisera invalidateSize() quand l'onglet devient visible
+        this.map = L.map('map', {
+          center: [46.7111, 1.7191],
+          zoom: 6,
+          minZoom: 5,
+          maxZoom: 19
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(this.map);
+
+        // Charger les données
+        await this.loadData();
+        this.loading = false;
+
+        // Observer le changement d'onglet pour corriger l'affichage de la carte
+        this.$watch('activeTab', (newTab) => {
+          if (newTab === 'etablissements') {
+            // Utiliser $nextTick pour s'assurer que le DOM est mis à jour
+            this.$nextTick(() => {
+              setTimeout(() => {
+                if (this.map) {
+                  // Forcer le recalcul des dimensions de la carte
+                  this.map.invalidateSize();
+
+                  // Recentrer sur les marqueurs si disponibles
+                  if (this.markers.length > 0) {
+                    const group = L.featureGroup(this.markers);
+                    this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
+                  }
+                }
+              }, 200);
+            });
+          }
+        });
+      },
+
+      async loadData() {
+        try {
+          // Charger les données de l'entreprise via l'API
+          const response = await fetch(`/api/entreprise/${this.siren}`);
+          const data = await response.json();
+
+          this.entreprise = data.entreprise || {};
+          this.pvEvents = data.pv_events || [];
+          this.invitations = data.invitations || [];
+          this.etablissements = data.etablissements || [];
+
+          this.stats.nb_pv = this.pvEvents.length;
+          this.stats.nb_invitations = this.invitations.length;
+          this.stats.nb_etablissements = this.etablissements.length;
+
+          // Préparer les données du graphique
+          this.prepareChartData();
+
+          // Ajouter les marqueurs sur la carte
+          this.addMapMarkers();
+        } catch (error) {
+          console.error('Erreur lors du chargement des données:', error);
+        }
+      },
+
+      prepareChartData() {
+        // Agréger les données des organisations syndicales depuis les PV
+        const orgData = {};
+        this.pvEvents.forEach(pv => {
+          ['cgt', 'cfdt', 'cftc', 'fo', 'cfe_cgc', 'unsa', 'fsu', 'sud'].forEach(org => {
+            const key = `c4_${org}`;
+            if (pv[key]) {
+              if (!orgData[org]) orgData[org] = 0;
+              orgData[org] += parseInt(pv[key]) || 0;
+            }
+          });
+        });
+
+        const labels = [];
+        const data = [];
+        const colors = {
+          'cgt': 'rgb(213, 0, 28)',
+          'cfdt': 'rgb(0, 153, 217)',
+          'fo': 'rgb(255, 127, 0)',
+          'cfe_cgc': 'rgb(0, 158, 96)',
+          'unsa': 'rgb(0, 87, 167)',
+          'sud': 'rgb(255, 0, 0)',
+          'fsu': 'rgb(199, 0, 102)',
+          'cftc': 'rgb(102, 153, 0)'
+        };
+
+        Object.entries(orgData).forEach(([org, value]) => {
+          if (value > 0) {
+            labels.push(org.toUpperCase());
+            data.push(value);
+          }
+        });
+
+        this.chartData.labels = labels;
+        this.chartData.data = data;
+
+        // Créer le graphique si on a des données
+        if (labels.length > 0) {
+          this.$nextTick(() => {
+            const ctx = document.getElementById('orgChart');
+            if (ctx && !this.chart) {
+              this.chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                  labels: labels,
+                  datasets: [{
+                    label: 'Inscrits C4',
+                    data: data,
+                    backgroundColor: labels.map(l => colors[l.toLowerCase()] || 'rgb(156, 163, 175)'),
+                    borderWidth: 0
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: true,
+                  plugins: {
+                    legend: {
+                      display: false
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        stepSize: 50
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          });
+        }
+      },
+
+      addMapMarkers() {
+        // Supprimer les anciens marqueurs
+        this.markers.forEach(marker => this.map.removeLayer(marker));
+        this.markers = [];
+
+        // Ajouter les nouveaux marqueurs
+        this.etablissements.forEach(etab => {
+          if (etab.latitude && etab.longitude) {
+            const marker = L.marker([etab.latitude, etab.longitude])
+              .bindPopup(`
+                <div class="p-2">
+                  <h3 class="font-bold text-sm">${etab.raison_sociale || etab.denomination || 'Établissement'}</h3>
+                  <p class="text-xs text-gray-600 mt-1">SIRET: ${etab.siret}</p>
+                  <p class="text-xs text-gray-600">${etab.adresse || ''}</p>
+                  <p class="text-xs text-gray-600">${etab.code_postal || ''} ${etab.ville || ''}</p>
+                </div>
+              `)
+              .addTo(this.map);
+
+            this.markers.push(marker);
+          }
+        });
+
+        // Centrer la carte sur les marqueurs
+        if (this.markers.length > 0) {
+          const group = L.featureGroup(this.markers);
+          this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        }
+
+        // Forcer un recalcul après l'ajout des marqueurs
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+          }
+        }, 300);
+      }
+    };
+  }
+</script>
+{% endblock %}
