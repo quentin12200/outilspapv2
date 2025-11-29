@@ -390,7 +390,18 @@ def _sum_int(vals):
     return s if has else None
 
 # -------- Ingestion Invitations --------
-def ingest_invit_excel(session: Session, file_like) -> int:
+def ingest_invit_excel(session: Session, file_like, auto_enrich: bool = True) -> int:
+    """
+    Importe des invitations depuis un fichier Excel.
+
+    Args:
+        session: Session SQLAlchemy
+        file_like: Fichier Excel à importer
+        auto_enrich: Si True, enrichit automatiquement les invitations sans raison sociale via l'API SIRENE
+
+    Returns:
+        Nombre de lignes insérées
+    """
     xls = pd.ExcelFile(file_like)
     sheet = xls.sheet_names[0]
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
@@ -401,6 +412,7 @@ def ingest_invit_excel(session: Session, file_like) -> int:
     inserted = 0
     skipped_no_siret = 0
     skipped_no_date = 0
+    enriched = 0
     # Use to_dict('records') instead of iterrows() for better performance
     for r in df.to_dict('records'):
         siret = _to14(r.get(c_siret))
@@ -505,6 +517,59 @@ def ingest_invit_excel(session: Session, file_like) -> int:
             from app.services.idcc_enrichment import get_idcc_enrichment_service
             enrichment_service = get_idcc_enrichment_service()
             inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, session)
+
+        # Enrichissement automatique via SIRENE si raison sociale manquante
+        if auto_enrich and not inv.denomination:
+            try:
+                import asyncio
+                from app.services.sirene_api import enrichir_siret
+
+                # Enrichir via SIRENE/Pappers
+                logger.info(f"Enrichissement automatique pour SIRET {siret} (raison sociale manquante)")
+                data = asyncio.run(enrichir_siret(siret))
+
+                if data:
+                    # Mise à jour des champs manquants uniquement
+                    if not inv.denomination and data.get("denomination"):
+                        inv.denomination = data["denomination"]
+                    if not inv.enseigne and data.get("enseigne"):
+                        inv.enseigne = data["enseigne"]
+                    if not inv.adresse and data.get("adresse"):
+                        inv.adresse = data["adresse"]
+                    if not inv.code_postal and data.get("code_postal"):
+                        inv.code_postal = data["code_postal"]
+                    if not inv.commune and data.get("commune"):
+                        inv.commune = data["commune"]
+                    if not inv.activite_principale and data.get("activite_principale"):
+                        inv.activite_principale = data["activite_principale"]
+                    if not inv.libelle_activite and data.get("libelle_activite"):
+                        inv.libelle_activite = data["libelle_activite"]
+                    if not inv.tranche_effectifs and data.get("tranche_effectifs"):
+                        inv.tranche_effectifs = data["tranche_effectifs"]
+                    if not inv.effectifs_label and data.get("effectifs_label"):
+                        inv.effectifs_label = data["effectifs_label"]
+                    if inv.est_siege is None and data.get("est_siege") is not None:
+                        inv.est_siege = data["est_siege"]
+                    if inv.est_actif is None and data.get("est_actif") is not None:
+                        inv.est_actif = data["est_actif"]
+                    if not inv.categorie_entreprise and data.get("categorie_entreprise"):
+                        inv.categorie_entreprise = data["categorie_entreprise"]
+                    if not inv.idcc and data.get("idcc"):
+                        inv.idcc = data["idcc"]
+                        # Si IDCC récupéré, enrichir aussi la FD
+                        if inv.idcc and not inv.fd:
+                            from app.services.idcc_enrichment import get_idcc_enrichment_service
+                            enrichment_service = get_idcc_enrichment_service()
+                            inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, session)
+
+                    inv.date_enrichissement = datetime.now()
+                    enriched += 1
+                    logger.info(f"✅ Enrichissement réussi pour SIRET {siret}: {inv.denomination}")
+                else:
+                    logger.warning(f"⚠️ Aucune donnée trouvée pour SIRET {siret}")
+            except Exception as e:
+                logger.error(f"❌ Erreur lors de l'enrichissement automatique pour SIRET {siret}: {e}")
+
         session.add(inv)
         inserted += 1
 
@@ -512,6 +577,8 @@ def ingest_invit_excel(session: Session, file_like) -> int:
         logger.warning(f"Ingestion invitations : {skipped_no_siret} lignes ignorées (SIRET manquant ou invalide)")
     if skipped_no_date > 0:
         logger.warning(f"Ingestion invitations : {skipped_no_date} lignes ignorées (date manquante ou invalide)")
+    if enriched > 0:
+        logger.info(f"✅ Enrichissement automatique : {enriched} invitations enrichies via SIRENE/Pappers")
     session.commit()
     logger.info(f"Ingestion invitations : {inserted} lignes insérées")
     return inserted

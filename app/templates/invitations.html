@@ -189,6 +189,10 @@
         <i class="fas fa-expand mr-2"></i>
         Plein écran
       </button>
+      <button onclick="exportToExcel()" id="btn-export-excel" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+        <i class="fas fa-file-excel mr-2"></i>
+        Copier pour Excel
+      </button>
       <button onclick="updateFdFromIdcc()" id="btn-update-fd" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
         <i class="fas fa-sync-alt mr-2"></i>
         Mettre à jour FD par IDCC
@@ -386,6 +390,62 @@ function changePerPage(perPage) {
   url.searchParams.set('per_page', perPage);
   url.searchParams.set('page', '1'); // Reset to first page
   window.location.href = url.toString();
+}
+
+async function exportToExcel() {
+  const btn = document.getElementById('btn-export-excel');
+  const originalText = btn.innerHTML;
+
+  try {
+    // Désactiver le bouton et afficher un spinner
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Exportation en cours...';
+
+    // Construire l'URL avec les paramètres de filtre actuels
+    const url = new URL('/api/invitations/export-tsv', window.location.origin);
+    const currentParams = new URLSearchParams(window.location.search);
+
+    // Copier tous les paramètres de filtre
+    ['q', 'source', 'est_actif', 'est_siege', 'ud', 'fd', 'departement', 'statut'].forEach(param => {
+      if (currentParams.has(param)) {
+        url.searchParams.set(param, currentParams.get(param));
+      }
+    });
+
+    // Récupérer les données
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error('Erreur lors de l\'export');
+    }
+
+    const tsvData = await response.text();
+
+    // Copier dans le presse-papiers
+    await navigator.clipboard.writeText(tsvData);
+
+    // Message de succès
+    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Copié !';
+    btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+    btn.classList.add('bg-green-700');
+
+    // Afficher un message à l'utilisateur
+    alert('✅ Données copiées dans le presse-papiers !\n\nVous pouvez maintenant les coller dans Excel (Ctrl+V ou Cmd+V).');
+
+    // Restaurer le bouton après 2 secondes
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      btn.classList.remove('bg-green-700');
+      btn.classList.add('bg-green-600', 'hover:bg-green-700');
+    }, 2000);
+
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('❌ Erreur lors de l\'export: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
 }
 
 async function updateFdFromIdcc() {

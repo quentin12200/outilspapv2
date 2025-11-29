@@ -153,7 +153,7 @@
         </p>
       </div>
 
-      <form method="get" class="w-full lg:w-auto">
+      <form method="get" action="/calendrier" class="w-full lg:w-auto">
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <label class="block text-sm font-semibold text-gray-700">
             Recherche (SIRET ou raison sociale)
@@ -259,30 +259,33 @@
             <i class="fas fa-file-excel"></i>
             Exporter Excel
           </a>
-          {% else %}
-          <form action="/calendrier/export/request" method="post" class="inline-flex"
-            onsubmit="return confirm('Voulez-vous demander l\'export de ces données ? Une validation administrateur sera nécessaire.');">
-            <!-- Hidden inputs for filters -->
-            <input type="hidden" name="min_effectif" value="{{ filters.min_effectif }}">
-            <input type="hidden" name="q" value="{{ filters.q }}">
-            <input type="hidden" name="cycle" value="{{ filters.cycle }}">
-            <input type="hidden" name="institution" value="{{ filters.institution }}">
-            <input type="hidden" name="fd" value="{{ filters.fd }}">
-            <input type="hidden" name="idcc" value="{{ filters.idcc }}">
-            <input type="hidden" name="ud" value="{{ filters.ud }}">
-            <input type="hidden" name="region" value="{{ filters.region }}">
-            <input type="hidden" name="year" value="{{ filters.year }}">
-
-            <button type="submit"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
-              title="Demander l'export (validation requise)">
-              <i class="fas fa-file-export"></i>
-              Demander l'export
-            </button>
-          </form>
           {% endif %}
         </div>
       </form>
+
+      {% if current_user and current_user.role != 'admin' %}
+      <!-- Export request form (outside filter form to avoid nesting) -->
+      <form action="/calendrier/export/request" method="post" class="mt-4"
+        onsubmit="return confirm('Voulez-vous demander l\'export de ces données ? Une validation administrateur sera nécessaire.');">
+        <!-- Hidden inputs for filters -->
+        <input type="hidden" name="min_effectif" value="{{ filters.min_effectif }}">
+        <input type="hidden" name="q" value="{{ filters.q }}">
+        <input type="hidden" name="cycle" value="{{ filters.cycle }}">
+        <input type="hidden" name="institution" value="{{ filters.institution }}">
+        <input type="hidden" name="fd" value="{{ filters.fd }}">
+        <input type="hidden" name="idcc" value="{{ filters.idcc }}">
+        <input type="hidden" name="ud" value="{{ filters.ud }}">
+        <input type="hidden" name="region" value="{{ filters.region }}">
+        <input type="hidden" name="year" value="{{ filters.year }}">
+
+        <button type="submit"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+          title="Demander l'export (validation requise)">
+          <i class="fas fa-file-export"></i>
+          Demander l'export
+        </button>
+      </form>
+      {% endif %}
     </div>
   </div>
 
@@ -794,7 +797,7 @@
       <nav class="flex items-center gap-2">
         <!-- Première page -->
         {% if page > 1 %}
-        <a href="?page=1&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page=1&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
           <i class="fas fa-angles-left"></i>
         </a>
@@ -806,7 +809,7 @@
 
         <!-- Page précédente -->
         {% if page > 1 %}
-        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
           <i class="fas fa-angle-left"></i>
         </a>
@@ -828,7 +831,7 @@
         {% if p == page %}
         <span class="px-4 py-2 rounded-lg bg-cgt-red text-white font-semibold text-sm">{{ p }}</span>
         {% else %}
-        <a href="?page={{ p }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+        <a href="?page={{ p }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
           class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">{{ p
           }}</a>
         {% endif %}
@@ -839,7 +842,7 @@
 
           <!-- Page suivante -->
           {% if page < total_pages %} <a
-            href="?page={{ page + 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+            href="?page={{ page + 1 }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
             class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
             <i class="fas fa-angle-right"></i>
             </a>
@@ -851,7 +854,7 @@
 
             <!-- Dernière page -->
             {% if page < total_pages %} <a
-              href="?page={{ total_pages }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}"
+              href="?page={{ total_pages }}&per_page={{ per_page }}&min_effectif={{ filters.min_effectif }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.cycle %}&cycle={{ filters.cycle }}{% endif %}{% if filters.institution %}&institution={{ filters.institution }}{% endif %}{% if filters.fd %}&fd={{ filters.fd }}{% endif %}{% if filters.idcc %}&idcc={{ filters.idcc }}{% endif %}{% if filters.ud %}&ud={{ filters.ud }}{% endif %}{% if filters.region %}&region={{ filters.region }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}"
               class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition text-sm">
               <i class="fas fa-angles-right"></i>
               </a>

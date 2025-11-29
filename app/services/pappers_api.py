@@ -303,3 +303,66 @@ class PappersAPI:
 
 # Instance par défaut
 pappers_api = PappersAPI()
+
+
+async def get_entreprise_etablissements(siren: str) -> List[Dict[str, Any]]:
+    """
+    Récupère tous les établissements d'une entreprise via son SIREN
+    avec leurs coordonnées GPS (latitude/longitude).
+
+    Args:
+        siren: Numéro SIREN de l'entreprise (9 chiffres)
+
+    Returns:
+        Liste des établissements avec leurs données Pappers (incluant coordonnées GPS)
+    """
+    try:
+        # Récupérer l'entreprise complète avec tous ses établissements
+        entreprise_data = await pappers_api.get_siren(siren)
+
+        if not entreprise_data:
+            logger.warning(f"Entreprise {siren} non trouvée via Pappers")
+            return []
+
+        # Extraire les établissements
+        etablissements = []
+
+        # L'API Pappers retourne les établissements dans "etablissements"
+        etabs_list = entreprise_data.get("etablissements", [])
+
+        for etab in etabs_list:
+            etablissements.append({
+                "siret": etab.get("siret"),
+                "siren": siren,
+                "nom_complet": etab.get("nom_entreprise") or entreprise_data.get("nom_entreprise"),
+                "enseigne": etab.get("enseigne"),
+                "adresse_complete": (
+                    f"{etab.get('adresse_ligne_1', '')} "
+                    f"{etab.get('adresse_ligne_2', '')} "
+                    f"{etab.get('code_postal', '')} "
+                    f"{etab.get('ville', '')}"
+                ).strip(),
+                "adresse_ligne_1": etab.get("adresse_ligne_1"),
+                "adresse_ligne_2": etab.get("adresse_ligne_2"),
+                "code_postal": etab.get("code_postal"),
+                "commune": etab.get("ville"),
+                "code_naf": etab.get("code_naf"),
+                "libelle_code_naf": etab.get("libelle_code_naf"),
+                "est_siege": etab.get("est_siege", False),
+                "est_actif": not etab.get("etablissement_cesse", False),
+                "date_creation": etab.get("date_creation"),
+                "date_cessation": etab.get("date_cessation"),
+                "effectif": etab.get("effectif"),
+                "tranche_effectif": etab.get("tranche_effectif"),
+                "latitude": etab.get("latitude"),
+                "longitude": etab.get("longitude"),
+                "forme_juridique": entreprise_data.get("forme_juridique"),
+                "categorie_entreprise": entreprise_data.get("categorie_entreprise"),
+            })
+
+        logger.info(f"✅ {len(etablissements)} établissements trouvés pour SIREN {siren} via Pappers")
+        return etablissements
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des établissements pour SIREN {siren}: {e}")
+        return []

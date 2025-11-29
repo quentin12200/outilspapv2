@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, urlencode
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session
@@ -686,6 +686,7 @@ from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
+from .routers import api_campaign  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -755,6 +756,7 @@ app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
+app.include_router(api_campaign.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -2149,21 +2151,6 @@ def calendrier_elections(
         if not parsed_date or parsed_date < today:
             continue
 
-        if row.cycle:
-            options["cycles"].add(row.cycle)
-        if row.institution:
-            options["institutions"].add(row.institution)
-        if row.fd:
-            options["fds"].add(row.fd)
-        if row.idcc:
-            options["idccs"].add(str(row.idcc))
-        if row.ud:
-            options["uds"].add(row.ud)
-        if row.region:
-            options["regions"].add(row.region)
-        if parsed_date:
-            options["years"].add(str(parsed_date.year))
-
         # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
@@ -2195,6 +2182,22 @@ def calendrier_elections(
             raison = (row.raison_sociale or "").lower()
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
+
+        # Ajouter aux options APRÈS avoir appliqué les filtres
+        if row.cycle:
+            options["cycles"].add(row.cycle)
+        if row.institution:
+            options["institutions"].add(row.institution)
+        if row.fd:
+            options["fds"].add(row.fd)
+        if row.idcc:
+            options["idccs"].add(str(row.idcc))
+        if row.ud:
+            options["uds"].add(row.ud)
+        if row.region:
+            options["regions"].add(row.region)
+        if parsed_date:
+            options["years"].add(str(parsed_date.year))
 
         # ÉTAPE 1 : Calculer pour CHAQUE collège/PV (ne pas dédupliquer encore)
         # On va créer une entrée par collège, puis agréger par SIRET après
@@ -3182,6 +3185,774 @@ def invitations(
         },
     )
 
+
+@app.get("/api/invitations/export-tsv")
+def export_invitations_tsv(
+    request: Request,
+    q: str = "",
+    source: str = "",
+    est_actif: str = "",
+    est_siege: str = "",
+    ud: str = "",
+    fd: str = "",
+    departement: str = "",
+    statut: str = "",
+    db: Session = Depends(get_session),
+):
+    """
+    Exporte les invitations filtrées au format TSV (Tab-Separated Values)
+    pour copier-coller dans Excel.
+    Les mêmes filtres que /invitations sont appliqués.
+    """
+    from io import StringIO
+    import csv
+
+    # Réutiliser la même logique de filtrage que /invitations
+    qs = db.query(Invitation)
+
+    if q:
+        like = f"%{q}%"
+        qs = qs.filter(
+            (Invitation.siret.like(like))
+            | (Invitation.denomination.ilike(like))
+            | (Invitation.commune.ilike(like))
+        )
+
+    if source:
+        qs = qs.filter(Invitation.source == source)
+
+    if est_actif:
+        if est_actif == "oui":
+            qs = qs.filter(Invitation.est_actif.is_(True))
+        elif est_actif == "non":
+            qs = qs.filter(Invitation.est_actif.is_(False))
+
+    if est_siege:
+        if est_siege == "oui":
+            qs = qs.filter(Invitation.est_siege.is_(True))
+        elif est_siege == "non":
+            qs = qs.filter(Invitation.est_siege.is_(False))
+
+    if ud:
+        qs = qs.filter(Invitation.ud == ud)
+
+    if fd:
+        qs = qs.filter(Invitation.fd == fd)
+
+    if departement:
+        qs = qs.filter(Invitation.code_postal.like(f"{departement}%"))
+
+    invitations = qs.order_by(Invitation.date_invit.desc().nullslast(), Invitation.id.desc()).all()
+
+    # Récupérer les effectifs depuis les PV (même logique que /invitations)
+    def normalize_siret(value):
+        if value is None:
+            return None
+        if isinstance(value, (bytes, bytearray)):
+            text = value.decode("utf-8", "ignore")
+        else:
+            text = str(value)
+        if not text:
+            return None
+        stripped = text.strip()
+        if not stripped:
+            return None
+        digits_only = "".join(ch for ch in stripped if ch.isdigit())
+        if len(digits_only) == 14:
+            return digits_only
+        if len(stripped) == 14 and stripped.isdigit():
+            return stripped
+        return digits_only or stripped or None
+
+    # Récupérer les effectifs depuis les PV
+    effectifs_pv = {}
+    for row in db.query(PVEvent.siret, PVEvent.effectif_siret, PVEvent.inscrits).all():
+        siret_norm = normalize_siret(row[0])
+        if siret_norm:
+            effectif = row[1] if row[1] and row[1] > 0 else (row[2] if row[2] and row[2] > 0 else None)
+            if effectif:
+                if siret_norm not in effectifs_pv or effectif > effectifs_pv[siret_norm]:
+                    effectifs_pv[siret_norm] = int(effectif)
+
+    # Appliquer le filtre de statut si demandé (simplifié)
+    if statut:
+        sirets_with_pv_c5 = {
+            normalized
+            for (raw_siret,) in db.query(PVEvent.siret).filter(PVEvent.cycle == "C5").distinct().all()
+            if (normalized := normalize_siret(raw_siret))
+        }
+        sirets_with_previous_pv = {
+            normalized
+            for (raw_siret,) in db.query(PVEvent.siret).filter(
+                or_(PVEvent.cycle == "C3", PVEvent.cycle == "C4")
+            ).distinct().all()
+            if (normalized := normalize_siret(raw_siret))
+        }
+
+        filtered = []
+        for inv in invitations:
+            norm_siret = normalize_siret(inv.siret)
+            if statut == "pv_c5_enregistre" and norm_siret in sirets_with_pv_c5:
+                filtered.append(inv)
+            elif statut == "reconduction" and norm_siret in sirets_with_previous_pv and norm_siret not in sirets_with_pv_c5:
+                filtered.append(inv)
+            elif statut in ["en_attente", "retard"]:
+                # Logique simplifiée pour en_attente et retard
+                filtered.append(inv)
+        invitations = filtered
+
+    # Créer le TSV
+    output = StringIO()
+    writer = csv.writer(output, delimiter='\t', lineterminator='\n')
+
+    # En-têtes selon le format demandé
+    writer.writerow([
+        'SIRET',
+        'Nom Entreprise',
+        'CP',
+        'Ville',
+        'date d\'arrivée',
+        'Cs',
+        'UD',
+        'FD',
+        'Siège social',
+        'IDCC',
+        'Nbre de salariés',
+        'Commentaires',
+        'Date de saisie',
+        'ENJEUX'
+    ])
+
+    # Écrire les données
+    for inv in invitations:
+        siret_norm = normalize_siret(inv.siret)
+
+        # Déterminer l'effectif (priorité: effectif_connu > effectif depuis PV)
+        effectif = inv.effectif_connu or (effectifs_pv.get(siret_norm) if siret_norm else None) or ''
+
+        # Déterminer le département (Cs = code postal département)
+        cs = inv.code_postal[:2] if inv.code_postal and len(inv.code_postal) >= 2 else ''
+
+        # Formatage de la date d'arrivée
+        date_arrivee = inv.date_invit.strftime('%d/%m/%Y') if inv.date_invit else ''
+
+        # Date de saisie
+        date_saisie = inv.date_reception.strftime('%d/%m/%Y') if inv.date_reception else ''
+
+        writer.writerow([
+            inv.siret or '',
+            inv.denomination or '',
+            inv.code_postal or '',
+            inv.commune or '',
+            date_arrivee,
+            cs,
+            inv.ud or '',
+            inv.fd or '',
+            'Oui' if inv.est_siege else 'Non' if inv.est_siege is False else '',
+            inv.idcc or '',
+            effectif,
+            '',  # Commentaires - vide pour l'instant
+            date_saisie,
+            ''   # ENJEUX - vide pour l'instant
+        ])
+
+    tsv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        content=tsv_content,
+        media_type="text/tab-separated-values; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=invitations_pap.tsv"
+        }
+    )
+
+
+@app.post("/api/invitations/scan-auto")
+async def scan_auto_invitations(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Scan automatique et enrichissement de toutes les invitations PAP incomplètes
+    via l'API SIRENE/Pappers.
+    """
+    import asyncio
+    from .services.sirene_api import enrichir_siret
+
+    # Récupérer toutes les invitations sans raison sociale
+    invitations = db.query(Invitation).filter(
+        or_(
+            Invitation.denomination.is_(None),
+            Invitation.denomination == '',
+        )
+    ).all()
+
+    total = len(invitations)
+    enrichies = 0
+    erreurs = 0
+    deja_complet = db.query(Invitation).filter(
+        Invitation.denomination.isnot(None),
+        Invitation.denomination != ''
+    ).count()
+
+    logger.info(f"Début du scan automatique: {total} invitations à enrichir")
+
+    for inv in invitations:
+        try:
+            # Normaliser le SIRET
+            def normalize_siret(value):
+                if value is None:
+                    return None
+                if isinstance(value, (bytes, bytearray)):
+                    text = value.decode("utf-8", "ignore")
+                else:
+                    text = str(value)
+                if not text:
+                    return None
+                stripped = text.strip()
+                if not stripped:
+                    return None
+                digits_only = "".join(ch for ch in stripped if ch.isdigit())
+                if len(digits_only) == 14:
+                    return digits_only
+                if len(stripped) == 14 and stripped.isdigit():
+                    return stripped
+                return digits_only or stripped or None
+
+            siret = normalize_siret(inv.siret)
+            if not siret:
+                logger.warning(f"SIRET invalide pour invitation {inv.id}: {inv.siret}")
+                erreurs += 1
+                continue
+
+            # Enrichir via SIRENE/Pappers
+            data = await enrichir_siret(siret)
+
+            if data:
+                # Mise à jour des champs manquants
+                if not inv.denomination and data.get("denomination"):
+                    inv.denomination = data["denomination"]
+                if not inv.enseigne and data.get("enseigne"):
+                    inv.enseigne = data["enseigne"]
+                if not inv.adresse and data.get("adresse"):
+                    inv.adresse = data["adresse"]
+                if not inv.code_postal and data.get("code_postal"):
+                    inv.code_postal = data["code_postal"]
+                if not inv.commune and data.get("commune"):
+                    inv.commune = data["commune"]
+                if not inv.activite_principale and data.get("activite_principale"):
+                    inv.activite_principale = data["activite_principale"]
+                if not inv.libelle_activite and data.get("libelle_activite"):
+                    inv.libelle_activite = data["libelle_activite"]
+                if not inv.tranche_effectifs and data.get("tranche_effectifs"):
+                    inv.tranche_effectifs = data["tranche_effectifs"]
+                if not inv.effectifs_label and data.get("effectifs_label"):
+                    inv.effectifs_label = data["effectifs_label"]
+                if inv.est_siege is None and data.get("est_siege") is not None:
+                    inv.est_siege = data["est_siege"]
+                if inv.est_actif is None and data.get("est_actif") is not None:
+                    inv.est_actif = data["est_actif"]
+                if not inv.categorie_entreprise and data.get("categorie_entreprise"):
+                    inv.categorie_entreprise = data["categorie_entreprise"]
+                if not inv.idcc and data.get("idcc"):
+                    inv.idcc = data["idcc"]
+                    # Si IDCC récupéré, enrichir aussi la FD
+                    if inv.idcc and not inv.fd:
+                        from .services.idcc_enrichment import get_idcc_enrichment_service
+                        enrichment_service = get_idcc_enrichment_service()
+                        inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                inv.date_enrichissement = datetime.now()
+                enrichies += 1
+                logger.info(f"✅ Enrichissement réussi pour SIRET {siret}: {inv.denomination}")
+            else:
+                logger.warning(f"⚠️ Aucune donnée trouvée pour SIRET {siret}")
+                erreurs += 1
+
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de l'enrichissement de l'invitation {inv.id} (SIRET: {inv.siret}): {e}")
+            erreurs += 1
+
+    db.commit()
+
+    logger.info(f"✅ Scan terminé: {enrichies}/{total} enrichies, {erreurs} erreurs")
+
+    return JSONResponse(content={
+        "success": True,
+        "total": total,
+        "enrichies": enrichies,
+        "deja_complet": deja_complet,
+        "erreurs": erreurs
+    })
+
+
+@app.post("/api/invitations/import-pap")
+async def import_pap_avec_scan(
+    file: UploadFile = File(...),
+    auto_scan: str = Form("on"),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Import de fichier PAP avec scan automatique multi-sources (SIRENE, Pappers).
+    """
+    import tempfile
+    from . import etl
+    from .services.sirene_api import enrichir_siret
+
+    # Sauvegarder temporairement le fichier
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # Import basique
+        inserted = etl.ingest_invit_excel(db, tmp_path, auto_enrich=False)
+        logger.info(f"Import PAP: {inserted} invitations insérées")
+
+        # Si scan automatique activé
+        enrichies = 0
+        erreurs = 0
+        if auto_scan == "on":
+            logger.info("Début du scan automatique multi-sources...")
+
+            # Récupérer les invitations juste importées sans raison sociale
+            invitations = db.query(Invitation).filter(
+                or_(
+                    Invitation.denomination.is_(None),
+                    Invitation.denomination == ''
+                )
+            ).order_by(Invitation.id.desc()).limit(inserted).all()
+
+            for inv in invitations:
+                try:
+                    # Normaliser SIRET
+                    def normalize_siret(value):
+                        if value is None:
+                            return None
+                        text = str(value).strip() if value else None
+                        if not text:
+                            return None
+                        digits_only = "".join(ch for ch in text if ch.isdigit())
+                        return digits_only if len(digits_only) == 14 else None
+
+                    siret = normalize_siret(inv.siret)
+                    if not siret:
+                        erreurs += 1
+                        continue
+
+                    # Enrichir via SIRENE/Pappers
+                    data = await enrichir_siret(siret)
+
+                    if data:
+                        if not inv.denomination and data.get("denomination"):
+                            inv.denomination = data["denomination"]
+                        if not inv.enseigne and data.get("enseigne"):
+                            inv.enseigne = data["enseigne"]
+                        if not inv.adresse and data.get("adresse"):
+                            inv.adresse = data["adresse"]
+                        if not inv.code_postal and data.get("code_postal"):
+                            inv.code_postal = data["code_postal"]
+                        if not inv.commune and data.get("commune"):
+                            inv.commune = data["commune"]
+                        if not inv.activite_principale and data.get("activite_principale"):
+                            inv.activite_principale = data["activite_principale"]
+                        if not inv.libelle_activite and data.get("libelle_activite"):
+                            inv.libelle_activite = data["libelle_activite"]
+                        if not inv.idcc and data.get("idcc"):
+                            inv.idcc = data["idcc"]
+                            # Enrichir FD depuis IDCC
+                            if inv.idcc and not inv.fd:
+                                from .services.idcc_enrichment import get_idcc_enrichment_service
+                                enrichment_service = get_idcc_enrichment_service()
+                                inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                        inv.date_enrichissement = datetime.now()
+                        enrichies += 1
+                    else:
+                        erreurs += 1
+
+                except Exception as e:
+                    logger.error(f"Erreur enrichissement SIRET {inv.siret}: {e}")
+                    erreurs += 1
+
+            db.commit()
+            logger.info(f"Scan terminé: {enrichies} enrichies, {erreurs} erreurs")
+
+        # Compter les invitations incomplètes
+        incomplets = db.query(Invitation).filter(
+            or_(
+                Invitation.denomination.is_(None),
+                Invitation.denomination == '',
+                Invitation.code_postal.is_(None),
+                Invitation.commune.is_(None)
+            )
+        ).count()
+
+        return JSONResponse(content={
+            "success": True,
+            "inserted": inserted,
+            "enrichies": enrichies,
+            "erreurs": erreurs,
+            "incomplets": incomplets,
+            "message": f"{inserted} invitations importées, {enrichies} enrichies. {incomplets} nécessitent une complétion manuelle."
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import PAP: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.post("/api/invitations/import-pap-pdf")
+async def import_pap_pdf(
+    file: UploadFile = File(...),
+    auto_scan: str = Form("on"),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Import de fichier PAP en PDF avec extraction automatique et scan multi-sources.
+
+    Workflow:
+    1. Extraction du texte du PDF (via pypdf)
+    2. Extraction structurée des données via ChatGPT (SIRET, dates, entreprises)
+    3. Enrichissement automatique via SIRENE/Pappers
+    4. Retour des résultats avec indicateur de complétion
+    """
+    import tempfile
+    import json
+    from pypdf import PdfReader
+    from openai import OpenAI
+    from .config import OPENAI_API_KEY, OPENAI_MODEL
+    from .services.sirene_api import enrichir_siret
+    from datetime import datetime
+
+    if not OPENAI_API_KEY:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Clé API OpenAI non configurée"}
+        )
+
+    # Sauvegarder temporairement le fichier PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # 1. Extraire le texte du PDF
+        logger.info("Extraction du texte depuis le PDF...")
+        pdf_text = ""
+        try:
+            reader = PdfReader(tmp_path)
+            for page in reader.pages:
+                pdf_text += page.extract_text() + "\n"
+            logger.info(f"Texte extrait: {len(pdf_text)} caractères")
+        except Exception as e:
+            logger.error(f"Erreur extraction PDF: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Erreur lors de l'extraction du PDF: {str(e)}"}
+            )
+
+        if not pdf_text.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Le PDF ne contient pas de texte extractible"}
+            )
+
+        # 2. Utiliser ChatGPT pour extraire les données structurées
+        logger.info("Extraction des données structurées via ChatGPT...")
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        prompt = f"""Tu es un expert en extraction de données depuis des documents PAP (Protocole d'Accord Pré-électoral).
+
+Analyse le texte suivant extrait d'un document PAP et extrais TOUTES les informations structurées.
+
+Texte du document:
+{pdf_text[:8000]}
+
+INSTRUCTIONS:
+- Extrais TOUS les numéros SIRET mentionnés dans le document (14 chiffres)
+- Pour chaque SIRET, extrais les informations associées : nom de l'entreprise, adresse, code postal, ville
+- Extrais toutes les dates mentionnées (dates d'invitation, dates d'élection, dates de signature)
+- Identifie la ou les unions départementales (UD) mentionnées (format: "UD XX" où XX est le numéro de département)
+- Identifie les fédérations (FD) mentionnées
+
+Retourne UNIQUEMENT un objet JSON avec cette structure:
+{{
+    "invitations": [
+        {{
+            "siret": "12345678901234",
+            "denomination": "NOM DE L'ENTREPRISE",
+            "adresse": "adresse complète si disponible",
+            "code_postal": "75001",
+            "commune": "Paris",
+            "date_invit": "2024-01-15",
+            "date_election": "2024-03-20",
+            "ud": "UD 75",
+            "fd": "Métallurgie",
+            "source": "Import PDF PAP",
+            "effectif_connu": 150
+        }}
+    ]
+}}
+
+IMPORTANT:
+- Les SIRET doivent avoir exactement 14 chiffres
+- Les dates au format YYYY-MM-DD ou null si non trouvée
+- Si plusieurs entreprises/SIRET sont mentionnées, crée une entrée pour chacune
+- Si une information n'est pas disponible, utilise null
+- Assure-toi que chaque SIRET est unique dans la liste
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL or "gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert en extraction de données structurées depuis des documents administratifs français."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+
+            extracted_data = json.loads(response.choices[0].message.content)
+            logger.info(f"Données extraites: {extracted_data}")
+
+        except Exception as e:
+            logger.error(f"Erreur ChatGPT: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Erreur lors de l'extraction par ChatGPT: {str(e)}"}
+            )
+
+        # 3. Créer les invitations à partir des données extraites
+        invitations_data = extracted_data.get("invitations", [])
+
+        if not invitations_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Aucune invitation trouvée dans le PDF"}
+            )
+
+        inserted = 0
+        enrichies = 0
+        erreurs = 0
+
+        for inv_data in invitations_data:
+            # Normaliser SIRET
+            siret_raw = inv_data.get("siret", "")
+            siret = "".join(ch for ch in str(siret_raw) if ch.isdigit())
+
+            if len(siret) != 14:
+                logger.warning(f"SIRET invalide ignoré: {siret_raw}")
+                erreurs += 1
+                continue
+
+            # Vérifier si l'invitation existe déjà
+            existing = db.query(Invitation).filter(Invitation.siret == siret).first()
+            if existing:
+                logger.info(f"SIRET {siret} déjà existant, ignoré")
+                continue
+
+            # Créer l'invitation
+            new_inv = Invitation(
+                siret=siret,
+                denomination=inv_data.get("denomination"),
+                adresse=inv_data.get("adresse"),
+                code_postal=inv_data.get("code_postal"),
+                commune=inv_data.get("commune"),
+                date_invit=inv_data.get("date_invit"),
+                date_election=inv_data.get("date_election"),
+                ud=inv_data.get("ud"),
+                fd=inv_data.get("fd"),
+                source=inv_data.get("source", "Import PDF PAP"),
+                effectif_connu=inv_data.get("effectif_connu")
+                # created_at=datetime.now()  # Temporairement commenté
+            )
+
+            db.add(new_inv)
+            inserted += 1
+
+        db.commit()
+        logger.info(f"Import PDF: {inserted} invitations créées")
+
+        # 4. Si scan automatique activé, enrichir via SIRENE/Pappers
+        if auto_scan == "on" and inserted > 0:
+            logger.info("Début du scan automatique multi-sources...")
+
+            # Récupérer les invitations juste créées
+            invitations = db.query(Invitation).order_by(Invitation.id.desc()).limit(inserted).all()
+
+            for inv in invitations:
+                try:
+                    # Enrichir via SIRENE/Pappers
+                    data = await enrichir_siret(inv.siret)
+
+                    if data:
+                        if not inv.denomination and data.get("denomination"):
+                            inv.denomination = data["denomination"]
+                        if not inv.enseigne and data.get("enseigne"):
+                            inv.enseigne = data["enseigne"]
+                        if not inv.adresse and data.get("adresse"):
+                            inv.adresse = data["adresse"]
+                        if not inv.code_postal and data.get("code_postal"):
+                            inv.code_postal = data["code_postal"]
+                        if not inv.commune and data.get("commune"):
+                            inv.commune = data["commune"]
+                        if not inv.activite_principale and data.get("activite_principale"):
+                            inv.activite_principale = data["activite_principale"]
+                        if not inv.libelle_activite and data.get("libelle_activite"):
+                            inv.libelle_activite = data["libelle_activite"]
+                        if not inv.idcc and data.get("idcc"):
+                            inv.idcc = data["idcc"]
+                            # Enrichir FD depuis IDCC
+                            if inv.idcc and not inv.fd:
+                                from .services.idcc_enrichment import get_idcc_enrichment_service
+                                enrichment_service = get_idcc_enrichment_service()
+                                inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                        inv.date_enrichissement = datetime.now()
+                        enrichies += 1
+                    else:
+                        erreurs += 1
+
+                except Exception as e:
+                    logger.error(f"Erreur enrichissement SIRET {inv.siret}: {e}")
+                    erreurs += 1
+
+            db.commit()
+            logger.info(f"Scan terminé: {enrichies} enrichies, {erreurs} erreurs")
+
+        # 5. Compter les invitations incomplètes
+        incomplets = db.query(Invitation).filter(
+            or_(
+                Invitation.denomination.is_(None),
+                Invitation.denomination == '',
+                Invitation.code_postal.is_(None),
+                Invitation.commune.is_(None)
+            )
+        ).count()
+
+        return JSONResponse(content={
+            "success": True,
+            "inserted": inserted,
+            "enrichies": enrichies,
+            "erreurs": erreurs,
+            "incomplets": incomplets,
+            "message": f"{inserted} invitations importées depuis le PDF, {enrichies} enrichies automatiquement. {incomplets} nécessitent une complétion manuelle."
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import PDF PAP: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.post("/api/invitations/generer-emails")
+async def generer_emails_pap(
+    request: Request,
+    only_recent: bool = Form(True),  # Par défaut, uniquement les nouvelles
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Génère les emails de relance pour les invitations PAP.
+    Crée des emails avec lien PAP scanner + infos entreprise.
+
+    Args:
+        only_recent: Si True, génère les emails uniquement pour les invitations créées dans la dernière heure
+    """
+    from datetime import timedelta
+
+    # Récupérer les invitations complètes
+    query = db.query(Invitation).filter(
+        Invitation.denomination.isnot(None),
+        Invitation.denomination != '',
+        Invitation.siret.isnot(None)
+    )
+
+    # Si only_recent=True, filtrer les invitations créées dans la dernière heure
+    # TEMPORAIREMENT DÉSACTIVÉ: created_at n'existe pas encore dans la DB
+    # Sera réactivé après migration
+    if only_recent:
+        logger.warning("⚠️ Filtrage only_recent désactivé: colonne created_at manquante. Toutes les invitations seront traitées.")
+        # one_hour_ago = datetime.now() - timedelta(hours=1)
+        # query = query.filter(Invitation.created_at >= one_hour_ago)
+        # logger.info(f"Filtrage des invitations créées après {one_hour_ago}")
+
+    invitations = query.all()
+
+    if not invitations:
+        return JSONResponse(content={
+            "success": False,
+            "error": "Aucune invitation complète trouvée"
+        })
+
+    emails_generes = []
+
+    for inv in invitations:
+        try:
+            # Préparer les données pour l'email
+            email_data = {
+                "siret": inv.siret,
+                "denomination": inv.denomination or "Entreprise",
+                "adresse": inv.adresse or "",
+                "code_postal": inv.code_postal or "",
+                "commune": inv.commune or "",
+                "idcc": inv.idcc or "Non renseigné",
+                "fd": inv.fd or "Non renseignée",
+                "ud": inv.ud or "Non renseignée",
+                "effectif": inv.effectif_connu or "Non renseigné",
+                "naf": inv.activite_principale or "",
+                "libelle_naf": inv.libelle_activite or "",
+                "date_invit": inv.date_invit.strftime("%d/%m/%Y") if inv.date_invit else "",
+                # Lien PAP scanner
+                "lien_pap": f"https://app.pap-cse.org/siret/{inv.siret}",
+                # Informations supplémentaires
+                "enseigne": inv.enseigne or "",
+                "est_siege": "Oui" if inv.est_siege else "Non",
+            }
+
+            emails_generes.append(email_data)
+
+        except Exception as e:
+            logger.error(f"Erreur génération email pour {inv.siret}: {e}")
+
+    logger.info(f"✅ {len(emails_generes)} emails générés")
+
+    # Retourner les données pour affichage/téléchargement
+    return JSONResponse(content={
+        "success": True,
+        "total": len(emails_generes),
+        "emails": emails_generes[:10],  # Premiers 10 pour prévisualisation
+        "message": f"{len(emails_generes)} emails préparés avec succès"
+    })
+
+
 PRIORITY_TOKENS = [
     "siret",
     "raison",
@@ -3277,6 +4048,20 @@ def extraction_page(request: Request):
     les informations (SIRET, dates, adresses, etc.) via l'API OpenAI.
     """
     return templates.TemplateResponse("extraction.html", {"request": request})
+
+
+@app.get("/admin/campagne-pap", response_class=HTMLResponse)
+async def campagne_pap_page(
+    request: Request,
+    current_user: User = Depends(require_admin_user)
+):
+    """
+    Page de gestion de campagne PAP (admin uniquement).
+
+    Permet d'analyser des PAP en masse, d'identifier les cibles prioritaires
+    et de générer des emails pour les UD.
+    """
+    return templates.TemplateResponse("campagne_pap.html", {"request": request})
 
 
 @app.get("/ciblage", response_class=HTMLResponse)
@@ -4251,6 +5036,35 @@ def admin_page(
             "total_users": total_users,
             "pending_users": pending_users,
             "approved_users": approved_users,
+        },
+    )
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """Page dédiée à la gestion des utilisateurs"""
+    # Statistiques utilisateurs
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    pending_users = db.query(func.count(User.id)).filter(User.is_approved == False).scalar() or 0
+    approved_users = db.query(func.count(User.id)).filter(User.is_approved == True).scalar() or 0
+
+    # Récupérer les demandes en attente
+    pending_user_requests = db.query(User).filter(User.is_approved == False).order_by(User.created_at.desc()).all()
+
+    # Récupérer tous les utilisateurs
+    all_users = db.query(User).order_by(User.created_at.desc()).all()
+
+    return templates.TemplateResponse(
+        "admin_users.html",
+        {
+            "request": request,
+            "total_users": total_users,
+            "pending_users": pending_users,
+            "approved_users": approved_users,
             "pending_user_requests": pending_user_requests,
             "all_users": all_users,
         },
@@ -5071,6 +5885,200 @@ def recherche_siret_page(request: Request):
     })
 
 
+@app.get("/api/entreprise/{siret}")
+async def get_entreprise_data(siret: str, db: Session = Depends(get_session)):
+    """
+    Retourne toutes les données d'une entreprise pour la fiche entreprise:
+    - Informations de base
+    - PV électoraux par cycle
+    - Établissements (avec coordonnées GPS via Pappers)
+    - Invitations PAP
+    - Statistiques agrégées
+    """
+    from .models import PVEvent, Invitation, SiretSummary
+    from .services.pappers_api import get_entreprise_etablissements
+    from collections import defaultdict
+
+    try:
+        # Normaliser le SIRET
+        normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+        if len(normalized_siret) not in [9, 14]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "SIRET/SIREN invalide (9 ou 14 chiffres requis)"}
+            )
+
+        # Extraire le SIREN (9 premiers chiffres)
+        siren = normalized_siret[:9]
+
+        # 1. Informations de base depuis siret_summary
+        info_base = db.query(SiretSummary).filter(SiretSummary.siret == normalized_siret).first()
+
+        # Si pas trouvé avec le SIRET exact, chercher avec le SIREN dans les PV ou invitations
+        if not info_base:
+            # Essayer de récupérer depuis les PV
+            pv_representative = db.query(PVEvent).filter(
+                PVEvent.siret.like(f"{siren}%")
+            ).first()
+
+            if pv_representative:
+                info_base = {
+                    "raison_sociale": pv_representative.raison_sociale,
+                    "siret": pv_representative.siret,
+                    "ville": pv_representative.ville,
+                    "cp": pv_representative.cp
+                }
+
+        # 2. Récupérer les PV électoraux groupés par cycle
+        pv_events = db.query(PVEvent).filter(
+            PVEvent.siret.like(f"{siren}%")
+        ).order_by(PVEvent.cycle.desc(), PVEvent.date_pv.desc()).all()
+
+        # Grouper les PV par cycle
+        pv_par_cycle = defaultdict(list)
+        totaux_par_cycle = defaultdict(lambda: {
+            "total_suffrages": 0,
+            "total_sieges_c4": 0,
+            "total_sieges_c3": 0,
+            "cgt_suffrages": 0,
+            "cgt_sieges_c4": 0,
+            "cgt_sieges_c3": 0
+        })
+
+        for pv in pv_events:
+            pv_dict = {
+                "id": pv.id,
+                "siret": pv.siret,
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "cp": pv.cp,
+                "cycle": pv.cycle,
+                "date_pv": pv.date_pv.isoformat() if pv.date_pv else None,
+                "date_election": pv.date_election.isoformat() if pv.date_election else None,
+                "ud": pv.ud,
+                "fd": pv.fd,
+                "idcc": pv.idcc,
+                "effectif": pv.effectif,
+                "suffrages_c4": pv.suffrages_c4,
+                "sieges_c4": pv.sieges_c4,
+                "suffrages_c3": pv.suffrages_c3,
+                "sieges_c3": pv.sieges_c3,
+                "total_suffrages_c4": pv.total_suffrages_c4,
+                "total_sieges_c4": pv.total_sieges_c4,
+                "total_suffrages_c3": pv.total_suffrages_c3,
+                "total_sieges_c3": pv.total_sieges_c3
+            }
+            pv_par_cycle[pv.cycle].append(pv_dict)
+
+            # Calculer les totaux
+            totaux = totaux_par_cycle[pv.cycle]
+            totaux["total_sieges_c4"] += pv.total_sieges_c4 or 0
+            totaux["total_sieges_c3"] += pv.total_sieges_c3 or 0
+            totaux["cgt_sieges_c4"] += pv.sieges_c4 or 0
+            totaux["cgt_sieges_c3"] += pv.sieges_c3 or 0
+
+        # 3. Récupérer les établissements via API Pappers
+        etablissements_pappers = await get_entreprise_etablissements(siren)
+
+        # Format pour le frontend
+        etablissements = []
+        for etab_pappers in etablissements_pappers:
+            # Vérifier si on a des données locales pour cet établissement
+            siret_etab = etab_pappers.get("siret")
+            has_pv_c4 = db.query(PVEvent).filter(
+                PVEvent.siret == siret_etab,
+                PVEvent.cycle == "C4"
+            ).first() is not None
+
+            has_pv_c3 = db.query(PVEvent).filter(
+                PVEvent.siret == siret_etab,
+                PVEvent.cycle == "C3"
+            ).first() is not None
+
+            etablissements.append({
+                "siret": siret_etab,
+                "raison_sociale": etab_pappers.get("nom_complet"),
+                "ville": etab_pappers.get("commune"),
+                "code_postal": etab_pappers.get("code_postal"),
+                "has_pv_c4": has_pv_c4,
+                "has_pv_c3": has_pv_c3,
+                "source": "base_et_pappers" if (has_pv_c4 or has_pv_c3) else "pappers_seulement",
+                "pappers": etab_pappers  # Inclut latitude, longitude, etc.
+            })
+
+        # 4. Récupérer les invitations PAP
+        invitations = db.query(Invitation).filter(
+            Invitation.siret.like(f"{siren}%")
+        ).order_by(Invitation.date_invit.desc()).all()
+
+        invitations_list = []
+        for inv in invitations:
+            invitations_list.append({
+                "id": inv.id,
+                "siret": inv.siret,
+                "denomination": inv.denomination,
+                "commune": inv.commune,
+                "code_postal": inv.code_postal,
+                "date_invit": inv.date_invit.isoformat() if inv.date_invit else None,
+                "date_election": inv.date_election.isoformat() if inv.date_election else None,
+                "ud": inv.ud,
+                "fd": inv.fd,
+                "idcc": inv.idcc,
+                "source": inv.source
+            })
+
+        # Construire la réponse
+        response_data = {
+            "success": True,
+            "info_base": {
+                "raison_sociale": info_base.raison_sociale if hasattr(info_base, 'raison_sociale') else info_base.get("raison_sociale") if isinstance(info_base, dict) else None,
+                "siret": normalized_siret,
+                "siren": siren,
+                "ville": info_base.ville if hasattr(info_base, 'ville') else info_base.get("ville") if isinstance(info_base, dict) else None,
+                "cp": info_base.cp if hasattr(info_base, 'cp') else info_base.get("cp") if isinstance(info_base, dict) else None
+            } if info_base else {"siren": siren, "siret": normalized_siret},
+            "pv_par_cycle": dict(pv_par_cycle),
+            "totaux_par_cycle": dict(totaux_par_cycle),
+            "etablissements": etablissements,
+            "invitations": invitations_list,
+            "stats": {
+                "nb_pv": len(pv_events),
+                "nb_etablissements": len(etablissements),
+                "nb_invitations": len(invitations_list),
+                "nb_cycles": len(pv_par_cycle)
+            }
+        }
+
+        return JSONResponse(content=response_data)
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des données entreprise: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur serveur: {str(e)}"
+            }
+        )
+
+
+@app.get("/entreprise/{siret}", response_class=HTMLResponse)
+def fiche_entreprise_page(request: Request, siret: str, db: Session = Depends(get_session)):
+    """
+    Page de fiche entreprise complète avec toutes les données disponibles.
+    Affiche : PV électoraux C4, invitations PAP, établissements, statistiques.
+    """
+    current_user = get_current_user(request, db)
+    return templates.TemplateResponse("fiche_entreprise.html", {
+        "request": request,
+        "current_user": current_user,
+        "siret": siret,
+    })
+
+
 @app.get("/etablissements-carte", response_class=HTMLResponse)
 def etablissements_carte_page(request: Request):
     """
@@ -5080,6 +6088,277 @@ def etablissements_carte_page(request: Request):
     return templates.TemplateResponse("etablissements-carte.html", {
         "request": request,
     })
+
+
+@app.get("/api/siret/{siret}/check")
+async def check_siret_exists(siret: str, db: Session = Depends(get_session)):
+    """
+    Vérifie si un SIRET existe dans la base de données et retourne ses informations.
+    Utilisé par le formulaire de création d'invitation manuelle.
+    """
+    from .models import Invitation, PVEvent, SiretSummary
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(content={
+            "exists": False,
+            "error": "SIRET invalide (doit contenir 14 chiffres)"
+        })
+
+    # Chercher dans siret_summary d'abord
+    summary = db.query(SiretSummary).filter(SiretSummary.siret == normalized_siret).first()
+
+    if summary:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": summary.raison_sociale,
+                "ville": summary.ville,
+                "code_postal": summary.cp,
+                "ud": summary.ud_c4 or summary.ud_c3,
+                "fd": summary.fd_c4 or summary.fd_c3,
+                "idcc": summary.idcc,
+                "effectif": None
+            }
+        })
+
+    # Sinon chercher dans les invitations
+    invitation = db.query(Invitation).filter(Invitation.siret == normalized_siret).first()
+
+    if invitation:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": invitation.denomination,
+                "ville": invitation.commune,
+                "code_postal": invitation.code_postal,
+                "ud": invitation.ud,
+                "fd": invitation.fd,
+                "idcc": invitation.idcc,
+                "effectif": invitation.effectif_connu
+            }
+        })
+
+    # Sinon chercher dans les PV
+    pv = db.query(PVEvent).filter(PVEvent.siret == normalized_siret).first()
+
+    if pv:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "code_postal": pv.cp,
+                "ud": pv.ud,
+                "fd": pv.fd,
+                "idcc": pv.idcc,
+                "effectif": pv.effectif
+            }
+        })
+
+    return JSONResponse(content={"exists": False})
+
+
+@app.get("/api/siret/{siret}/enrichir-sirene")
+async def enrichir_siret_sirene(siret: str):
+    """
+    Enrichit un SIRET via l'API SIRENE/Pappers.
+    Retourne les données de l'établissement pour pré-remplir le formulaire.
+    """
+    from .services.sirene_api import enrichir_siret
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "SIRET invalide (doit contenir 14 chiffres)"
+            }
+        )
+
+    try:
+        # Appeler l'enrichissement via SIRENE/Pappers
+        data = await enrichir_siret(normalized_siret)
+
+        if not data:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "error": "SIRET non trouvé dans l'API SIRENE/Pappers"
+                }
+            )
+
+        return JSONResponse(content={
+            "success": True,
+            "data": {
+                "raison_sociale": data.get("denomination"),
+                "ville": data.get("commune"),
+                "code_postal": data.get("code_postal"),
+                "adresse": data.get("adresse"),
+                "naf": data.get("activite_principale"),
+                "effectif": data.get("tranche_effectifs")
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur enrichissement SIRET {normalized_siret}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de l'enrichissement: {str(e)}"
+            }
+        )
+
+
+@app.post("/api/invitation/add")
+async def add_invitation_manually(
+    request: Request,
+    siret: str = Form(...),
+    raison_sociale: str = Form(None),
+    ville: str = Form(None),
+    code_postal: str = Form(None),
+    ud: str = Form(None),
+    fd: str = Form(None),
+    idcc: str = Form(None),
+    effectif_connu: int = Form(None),
+    date_invit: str = Form(None),
+    date_reception: str = Form(None),
+    date_election: str = Form(None),
+    commentaire: str = Form(None),
+    db: Session = Depends(get_session)
+):
+    """
+    Ajoute une invitation manuellement via le formulaire de recherche SIRET.
+    """
+    from .models import Invitation
+    from datetime import datetime
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "SIRET invalide (doit contenir 14 chiffres)"
+            }
+        )
+
+    try:
+        # Convertir les dates si fournies
+        date_invit_obj = None
+        date_reception_obj = None
+        date_election_obj = None
+
+        if date_invit:
+            try:
+                date_invit_obj = datetime.strptime(date_invit, "%Y-%m-%d").date()
+            except:
+                pass
+
+        if date_reception:
+            try:
+                date_reception_obj = datetime.strptime(date_reception, "%Y-%m-%d").date()
+            except:
+                pass
+
+        if date_election:
+            try:
+                date_election_obj = datetime.strptime(date_election, "%Y-%m-%d").date()
+            except:
+                pass
+
+        # Vérifier si l'invitation existe déjà
+        existing = db.query(Invitation).filter(
+            Invitation.siret == normalized_siret,
+            Invitation.date_invit == (date_invit_obj or datetime.now().date())
+        ).first()
+
+        if existing:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "Une invitation existe déjà pour ce SIRET et cette date"
+                }
+            )
+
+        # Créer la nouvelle invitation
+        new_invitation = Invitation(
+            siret=normalized_siret,
+            denomination=raison_sociale,
+            commune=ville,
+            code_postal=code_postal,
+            ud=ud,
+            fd=fd,
+            idcc=idcc,
+            effectif_connu=effectif_connu,
+            date_invit=date_invit_obj or datetime.now().date(),
+            date_reception=date_reception_obj,
+            date_election=date_election_obj,
+            source="Ajout manuel"
+            # created_at=datetime.now()  # Temporairement commenté, sera géré par DEFAULT CURRENT_TIMESTAMP
+        )
+
+        db.add(new_invitation)
+        db.commit()
+        db.refresh(new_invitation)
+
+        logger.info(f"Invitation ajoutée manuellement: SIRET {normalized_siret}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Invitation ajoutée avec succès",
+            "invitation_id": new_invitation.id
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur ajout invitation: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de l'ajout: {str(e)}"
+            }
+        )
+
+
+@app.post("/api/admin/force-migration")
+async def force_migration(request: Request):
+    """
+    Endpoint temporaire pour forcer l'exécution des migrations manuellement.
+    Utile quand Railway n'a pas encore redéployé avec les nouvelles migrations.
+    """
+    try:
+        from .migrations import add_invitation_metadata_columns_if_needed
+
+        logger.info("🔧 Forçage manuel de la migration created_at/updated_at...")
+        add_invitation_metadata_columns_if_needed()
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Migration exécutée avec succès. Les colonnes created_at et updated_at ont été ajoutées à la table invitations."
+        })
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la migration forcée: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de la migration: {str(e)}"
+            }
+        )
 
 
 @app.get("/mentions-legales", response_class=HTMLResponse)
