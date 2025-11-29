@@ -303,16 +303,17 @@
       },
 
       prepareChartData() {
-        // Agréger les données des organisations syndicales depuis les PV
+        // Agréger les données des organisations syndicales depuis les PV C4
+        // L'API existante utilise suffrages_c4 pour la CGT et total_suffrages_c4 pour le total
         const orgData = {};
+
         this.pvEvents.forEach(pv => {
-          ['cgt', 'cfdt', 'cftc', 'fo', 'cfe_cgc', 'unsa', 'fsu', 'sud'].forEach(org => {
-            const key = `c4_${org}`;
-            if (pv[key]) {
-              if (!orgData[org]) orgData[org] = 0;
-              orgData[org] += parseInt(pv[key]) || 0;
-            }
-          });
+          // Pour le moment, on n'affiche que la CGT car l'API existante ne retourne pas
+          // les détails par organisation syndicale (sauf CGT)
+          if (pv.cycle === 'C4' && pv.suffrages_c4) {
+            if (!orgData['cgt']) orgData['cgt'] = 0;
+            orgData['cgt'] += parseInt(pv.suffrages_c4) || 0;
+          }
         });
 
         const labels = [];
