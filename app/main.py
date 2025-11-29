@@ -5907,6 +5907,248 @@ def etablissements_carte_page(request: Request):
     })
 
 
+@app.get("/api/siret/{siret}/check")
+async def check_siret_exists(siret: str, db: Session = Depends(get_session)):
+    """
+    Vérifie si un SIRET existe dans la base de données et retourne ses informations.
+    Utilisé par le formulaire de création d'invitation manuelle.
+    """
+    from .models import Invitation, PVEvent, SiretSummary
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(content={
+            "exists": False,
+            "error": "SIRET invalide (doit contenir 14 chiffres)"
+        })
+
+    # Chercher dans siret_summary d'abord
+    summary = db.query(SiretSummary).filter(SiretSummary.siret == normalized_siret).first()
+
+    if summary:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": summary.raison_sociale,
+                "ville": summary.ville,
+                "code_postal": summary.cp,
+                "ud": summary.ud_c4 or summary.ud_c3,
+                "fd": summary.fd_c4 or summary.fd_c3,
+                "idcc": summary.idcc,
+                "effectif": None
+            }
+        })
+
+    # Sinon chercher dans les invitations
+    invitation = db.query(Invitation).filter(Invitation.siret == normalized_siret).first()
+
+    if invitation:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": invitation.denomination,
+                "ville": invitation.commune,
+                "code_postal": invitation.code_postal,
+                "ud": invitation.ud,
+                "fd": invitation.fd,
+                "idcc": invitation.idcc,
+                "effectif": invitation.effectif_connu
+            }
+        })
+
+    # Sinon chercher dans les PV
+    pv = db.query(PVEvent).filter(PVEvent.siret == normalized_siret).first()
+
+    if pv:
+        return JSONResponse(content={
+            "exists": True,
+            "data": {
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "code_postal": pv.cp,
+                "ud": pv.ud,
+                "fd": pv.fd,
+                "idcc": pv.idcc,
+                "effectif": pv.effectif
+            }
+        })
+
+    return JSONResponse(content={"exists": False})
+
+
+@app.get("/api/siret/{siret}/enrichir-sirene")
+async def enrichir_siret_sirene(siret: str):
+    """
+    Enrichit un SIRET via l'API SIRENE/Pappers.
+    Retourne les données de l'établissement pour pré-remplir le formulaire.
+    """
+    from .services.sirene_api import enrichir_siret
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "SIRET invalide (doit contenir 14 chiffres)"
+            }
+        )
+
+    try:
+        # Appeler l'enrichissement via SIRENE/Pappers
+        data = await enrichir_siret(normalized_siret)
+
+        if not data:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "error": "SIRET non trouvé dans l'API SIRENE/Pappers"
+                }
+            )
+
+        return JSONResponse(content={
+            "success": True,
+            "data": {
+                "raison_sociale": data.get("denomination"),
+                "ville": data.get("commune"),
+                "code_postal": data.get("code_postal"),
+                "adresse": data.get("adresse"),
+                "naf": data.get("activite_principale"),
+                "effectif": data.get("tranche_effectifs")
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur enrichissement SIRET {normalized_siret}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de l'enrichissement: {str(e)}"
+            }
+        )
+
+
+@app.post("/api/invitation/add")
+async def add_invitation_manually(
+    request: Request,
+    siret: str = Form(...),
+    raison_sociale: str = Form(None),
+    ville: str = Form(None),
+    code_postal: str = Form(None),
+    ud: str = Form(None),
+    fd: str = Form(None),
+    idcc: str = Form(None),
+    effectif_connu: int = Form(None),
+    date_invit: str = Form(None),
+    date_reception: str = Form(None),
+    date_election: str = Form(None),
+    commentaire: str = Form(None),
+    db: Session = Depends(get_session)
+):
+    """
+    Ajoute une invitation manuellement via le formulaire de recherche SIRET.
+    """
+    from .models import Invitation
+    from datetime import datetime
+
+    # Normaliser le SIRET
+    normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+    if len(normalized_siret) != 14:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "SIRET invalide (doit contenir 14 chiffres)"
+            }
+        )
+
+    try:
+        # Convertir les dates si fournies
+        date_invit_obj = None
+        date_reception_obj = None
+        date_election_obj = None
+
+        if date_invit:
+            try:
+                date_invit_obj = datetime.strptime(date_invit, "%Y-%m-%d").date()
+            except:
+                pass
+
+        if date_reception:
+            try:
+                date_reception_obj = datetime.strptime(date_reception, "%Y-%m-%d").date()
+            except:
+                pass
+
+        if date_election:
+            try:
+                date_election_obj = datetime.strptime(date_election, "%Y-%m-%d").date()
+            except:
+                pass
+
+        # Vérifier si l'invitation existe déjà
+        existing = db.query(Invitation).filter(
+            Invitation.siret == normalized_siret,
+            Invitation.date_invit == (date_invit_obj or datetime.now().date())
+        ).first()
+
+        if existing:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "Une invitation existe déjà pour ce SIRET et cette date"
+                }
+            )
+
+        # Créer la nouvelle invitation
+        new_invitation = Invitation(
+            siret=normalized_siret,
+            denomination=raison_sociale,
+            commune=ville,
+            code_postal=code_postal,
+            ud=ud,
+            fd=fd,
+            idcc=idcc,
+            effectif_connu=effectif_connu,
+            date_invit=date_invit_obj or datetime.now().date(),
+            date_reception=date_reception_obj,
+            date_election=date_election_obj,
+            source="Ajout manuel",
+            created_at=datetime.now()
+        )
+
+        db.add(new_invitation)
+        db.commit()
+        db.refresh(new_invitation)
+
+        logger.info(f"Invitation ajoutée manuellement: SIRET {normalized_siret}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Invitation ajoutée avec succès",
+            "invitation_id": new_invitation.id
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur ajout invitation: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de l'ajout: {str(e)}"
+            }
+        )
+
+
 @app.get("/mentions-legales", response_class=HTMLResponse)
 def mentions_legales_page(request: Request):
     return templates.TemplateResponse("mentions-legales.html", {"request": request})
