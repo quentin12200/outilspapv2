@@ -175,9 +175,9 @@ class PVEvent(Base):
     # Compatibilité : certains appels hérités utilisent « departement ».
     departement = synonym("ud")
 
-    # Géolocalisation
-    latitude = Column(Float, nullable=True)
-    longitude = Column(Float, nullable=True)
+    # Géolocalisation (deferred pour compatibilité - colonnes absentes dans certaines bases)
+    latitude = deferred(Column(Float, nullable=True))
+    longitude = deferred(Column(Float, nullable=True))
 
 
 class Invitation(Base):

@@ -686,6 +686,7 @@ from .routers import api_idcc_enrichment  # noqa: E402
 from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
+from .routers import api_campaign  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -755,6 +756,7 @@ app.include_router(api_idcc_enrichment.router)
 app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
+app.include_router(api_campaign.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -2149,21 +2151,6 @@ def calendrier_elections(
         if not parsed_date or parsed_date < today:
             continue
 
-        if row.cycle:
-            options["cycles"].add(row.cycle)
-        if row.institution:
-            options["institutions"].add(row.institution)
-        if row.fd:
-            options["fds"].add(row.fd)
-        if row.idcc:
-            options["idccs"].add(str(row.idcc))
-        if row.ud:
-            options["uds"].add(row.ud)
-        if row.region:
-            options["regions"].add(row.region)
-        if parsed_date:
-            options["years"].add(str(parsed_date.year))
-
         # Pour le filtre et l'affichage : utiliser effectif_siret ou inscrits
         effectif_value = _to_number(row.effectif_siret)
         if effectif_value is None:
@@ -2195,6 +2182,22 @@ def calendrier_elections(
             raison = (row.raison_sociale or "").lower()
             if search_term not in siret_value.lower() and search_term not in raison:
                 continue
+
+        # Ajouter aux options APRÈS avoir appliqué les filtres
+        if row.cycle:
+            options["cycles"].add(row.cycle)
+        if row.institution:
+            options["institutions"].add(row.institution)
+        if row.fd:
+            options["fds"].add(row.fd)
+        if row.idcc:
+            options["idccs"].add(str(row.idcc))
+        if row.ud:
+            options["uds"].add(row.ud)
+        if row.region:
+            options["regions"].add(row.region)
+        if parsed_date:
+            options["years"].add(str(parsed_date.year))
 
         # ÉTAPE 1 : Calculer pour CHAQUE collège/PV (ne pas dédupliquer encore)
         # On va créer une entrée par collège, puis agréger par SIRET après
@@ -4044,6 +4047,20 @@ def extraction_page(request: Request):
     return templates.TemplateResponse("extraction.html", {"request": request})
 
 
+@app.get("/admin/campagne-pap", response_class=HTMLResponse)
+async def campagne_pap_page(
+    request: Request,
+    current_user: User = Depends(require_admin_user)
+):
+    """
+    Page de gestion de campagne PAP (admin uniquement).
+
+    Permet d'analyser des PAP en masse, d'identifier les cibles prioritaires
+    et de générer des emails pour les UD.
+    """
+    return templates.TemplateResponse("campagne_pap.html", {"request": request})
+
+
 @app.get("/ciblage", response_class=HTMLResponse)
 def ciblage_get(request: Request, db: Session = Depends(get_session)):
     # Tracker l'activité si l'utilisateur est connecté
@@ -5862,6 +5879,20 @@ def recherche_siret_page(request: Request):
     return templates.TemplateResponse("recherche-siret.html", {
         "request": request,
         "admin_api_key": ADMIN_API_KEY,
+    })
+
+
+@app.get("/entreprise/{siret}", response_class=HTMLResponse)
+def fiche_entreprise_page(request: Request, siret: str, db: Session = Depends(get_session)):
+    """
+    Page de fiche entreprise complète avec toutes les données disponibles.
+    Affiche : PV électoraux C4, invitations PAP, établissements, statistiques.
+    """
+    current_user = get_current_user(request, db)
+    return templates.TemplateResponse("fiche_entreprise.html", {
+        "request": request,
+        "current_user": current_user,
+        "siret": siret,
     })
 
 

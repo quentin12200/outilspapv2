@@ -1,0 +1,1106 @@
+{% extends "base.html" %}
+{% block title %}Fiche Entreprise — A.N.D.RE{% endblock %}
+
+{% block head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto" x-data="ficheEntreprise()">
+  <!-- Loading State -->
+  <div x-show="loading" x-cloak class="text-center py-12">
+    <i class="fas fa-spinner fa-spin text-6xl text-cgt-red mb-4"></i>
+    <p class="text-xl text-gray-600">Chargement de la fiche entreprise...</p>
+  </div>
+
+  <!-- Error State -->
+  <div x-show="error" x-cloak class="bg-red-50 border-l-4 border-red-600 p-6 rounded-lg">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-exclamation-circle text-red-600 text-2xl"></i>
+      <div>
+        <h3 class="font-bold text-red-900">Erreur</h3>
+        <p class="text-red-700" x-text="error"></p>
+      </div>
+    </div>
+    <a href="/" class="mt-4 inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+      <i class="fas fa-arrow-left mr-2"></i>
+      Retour à l'accueil
+    </a>
+  </div>
+
+  <!-- Content -->
+  <div x-show="!loading && !error && data" x-cloak>
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-cgt-red to-red-700 rounded-2xl shadow-2xl p-8 mb-8 text-white">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <div class="flex items-center gap-3 mb-2">
+            <a href="/" class="text-white/80 hover:text-white transition">
+              <i class="fas fa-arrow-left text-xl"></i>
+            </a>
+            <h1 class="text-3xl font-bold" x-text="data?.info_base?.raison_sociale || 'Entreprise'"></h1>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+            <div>
+              <div class="text-white/70 mb-1">SIREN</div>
+              <div class="font-mono text-lg font-bold" x-text="data?.siren"></div>
+            </div>
+            <div x-show="data?.siret">
+              <div class="text-white/70 mb-1">SIRET</div>
+              <div class="font-mono text-lg font-bold" x-text="data?.siret"></div>
+            </div>
+            <div>
+              <div class="text-white/70 mb-1">Localisation</div>
+              <div class="font-bold">
+                <span x-text="data?.info_base?.ville"></span>
+                (<span x-text="data?.info_base?.code_postal"></span>)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-right">
+          <div class="text-white/70 mb-1 text-sm">Effectif SIREN</div>
+          <div class="text-4xl font-bold" x-text="data?.info_base?.effectif_siren || data?.pappers?.effectif || 'N/A'"></div>
+          <div class="text-white/80 text-xs mt-1">
+            <span x-show="data?.pappers?.tranche_effectif" x-text="'(' + data?.pappers?.tranche_effectif + ')'"></span>
+            <span x-show="!data?.pappers?.tranche_effectif">salariés</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">PV Totaux</div>
+            <div class="text-3xl font-bold text-blue-600" x-text="data?.stats?.nb_pv_total || 0"></div>
+            <div class="text-xs text-gray-500 mt-1">Tous cycles</div>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-file-alt text-blue-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">
+              Inscrits <span x-show="data?.stats?.dernier_cycle" x-text="'(' + data?.stats?.dernier_cycle + ')'"></span>
+            </div>
+            <div class="text-3xl font-bold text-purple-600" x-text="data?.stats?.total_inscrits || 0"></div>
+            <div class="text-xs text-gray-500 mt-1">
+              <span x-text="data?.stats?.taux_participation_global || 0"></span>% participation
+            </div>
+          </div>
+          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-users text-purple-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">Invitations PAP</div>
+            <div class="text-3xl font-bold text-orange-600" x-text="data?.stats?.nb_invitations_pap || 0"></div>
+          </div>
+          <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-envelope text-orange-600 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-gray-600 text-sm mb-1">Présence CGT</div>
+            <div class="text-3xl font-bold text-cgt-red" x-text="data?.stats?.presence_cgt || 0"></div>
+            <div class="text-xs text-gray-500 mt-1">PV avec CGT</div>
+          </div>
+          <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-users text-cgt-red text-2xl"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphiques Comparatifs C3 vs C4 -->
+    <div x-show="data?.totaux_par_cycle && (data.totaux_par_cycle['C3'] || data.totaux_par_cycle['C4'])" class="mb-8">
+      <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-center justify-between cursor-pointer"
+             @click="showGraphiques = !showGraphiques">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chart-bar text-3xl"></i>
+            <div>
+              <h2 class="text-2xl font-bold">Graphiques Comparatifs</h2>
+              <p class="text-white/80 text-sm">Analyse évolution C3 → C4</p>
+            </div>
+          </div>
+          <i :class="showGraphiques ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="text-2xl"></i>
+        </div>
+
+        <div x-show="showGraphiques" x-collapse class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Graphique 1: Présence CGT C3 vs C4 -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">📊 Présence CGT par cycle</h3>
+              <div style="height: 250px; position: relative;">
+                <canvas id="chart-presence-cgt"></canvas>
+              </div>
+            </div>
+
+            <!-- Graphique 2: Taux participation C3 vs C4 -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">📈 Taux de participation</h3>
+              <div style="height: 250px; position: relative;">
+                <canvas id="chart-participation"></canvas>
+              </div>
+            </div>
+
+            <!-- Graphique 3: Répartition organisations C4 (camembert) -->
+            <div class="bg-gray-50 rounded-xl p-4 md:col-span-2">
+              <h3 class="font-bold text-lg mb-4 text-gray-900">🥧 Répartition organisations syndicales (C4)</h3>
+              <div class="max-w-md mx-auto" style="height: 300px; position: relative;">
+                <canvas id="chart-organisations"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale Recommandations -->
+    <div x-show="showRecommandations" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+      <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black opacity-50" @click="showRecommandations = false"></div>
+
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6">
+            <div class="flex items-center justify-between">
+              <h2 class="text-2xl font-bold flex items-center gap-3">
+                <i class="fas fa-robot"></i>
+                Recommandations Stratégiques CGT
+              </h2>
+              <button @click="showRecommandations = false" class="text-white/80 hover:text-white">
+                <i class="fas fa-times text-2xl"></i>
+              </button>
+            </div>
+            <p class="text-white/90 text-sm mt-2">Analyse générée par ChatGPT à partir des données de l'entreprise</p>
+          </div>
+
+          <div class="p-6 overflow-y-auto max-h-[70vh]">
+            <div x-show="errorRecommandations" class="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+              <p class="text-red-700" x-text="errorRecommandations"></p>
+            </div>
+
+            <div x-show="!errorRecommandations" class="recommendations-content">
+              <div x-html="recommandationsHTML || 'Chargement...'"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden" x-data="{ activeTab: 'pv' }">
+      <!-- Tab Headers -->
+      <div class="border-b border-gray-200 bg-gray-50">
+        <nav class="flex -mb-px">
+          <button @click="activeTab = 'pv'"
+                  :class="activeTab === 'pv' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-chart-bar mr-2"></i>
+            PV Électoraux (<span x-text="data?.stats?.nb_pv_total || 0"></span>)
+          </button>
+          <button @click="activeTab = 'invitations'"
+                  :class="activeTab === 'invitations' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-envelope-open-text mr-2"></i>
+            Invitations PAP (<span x-text="data?.invitations_pap?.length || 0"></span>)
+          </button>
+          <button @click="activeTab = 'etablissements'"
+                  :class="activeTab === 'etablissements' ? 'border-cgt-red text-cgt-red bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                  class="flex-1 py-4 px-6 border-b-2 font-medium text-sm transition">
+            <i class="fas fa-map-marker-alt mr-2"></i>
+            Établissements (<span x-text="data?.etablissements?.length || 0"></span>)
+          </button>
+        </nav>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="p-6">
+        <!-- PV Tab -->
+        <div x-show="activeTab === 'pv'" x-transition>
+          <!-- Bouton ChatGPT discret -->
+          <div class="mb-4 flex justify-end">
+            <button
+              @click="genererRecommandations()"
+              :disabled="loadingRecommandations"
+              class="px-4 py-2 bg-white border-2 border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition text-sm flex items-center gap-2 shadow-sm"
+              :class="loadingRecommandations ? 'opacity-50 cursor-not-allowed' : ''">
+              <i :class="loadingRecommandations ? 'fas fa-spinner fa-spin' : 'fas fa-magic'" class="text-sm"></i>
+              <span x-text="loadingRecommandations ? 'Analyse...' : 'Recommandations CGT (IA)'"></span>
+            </button>
+          </div>
+
+          <template x-if="!cyclesArray || cyclesArray.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucun PV trouvé</p>
+            </div>
+          </template>
+
+          <!-- PV groupés par cycle -->
+          <div class="space-y-8">
+            <template x-for="cycleData in cyclesArray" :key="cycleData.cycle">
+              <div class="border-2 border-gray-200 rounded-xl overflow-hidden">
+                <!-- En-tête du cycle -->
+                <div class="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-6">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h2 class="text-2xl font-bold mb-2" x-text="cycleData.cycle"></h2>
+                      <div class="text-sm text-white/80">
+                        <span x-text="cycleData.pvs.length"></span> PV électoraux
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-3xl font-bold" x-text="cycleData.totaux.presence_cgt || 0"></div>
+                      <div class="text-xs text-white/80">PV avec CGT</div>
+                    </div>
+                  </div>
+
+                  <!-- Totaux du cycle -->
+                  <div class="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-white/20">
+                    <div>
+                      <div class="text-white/70 text-xs mb-1">Inscrits</div>
+                      <div class="text-xl font-bold" x-text="cycleData.totaux.total_inscrits || 0"></div>
+                    </div>
+                    <div>
+                      <div class="text-white/70 text-xs mb-1">Votants</div>
+                      <div class="text-xl font-bold" x-text="cycleData.totaux.total_votants || 0"></div>
+                    </div>
+                    <div>
+                      <div class="text-white/70 text-xs mb-1">Participation</div>
+                      <div class="text-xl font-bold">
+                        <span x-text="cycleData.totaux.taux_participation || 0"></span>%
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-white/70 text-xs mb-1">Total voix</div>
+                      <div class="text-xl font-bold" x-text="cycleData.totaux.total_voix || 0"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Liste des PV du cycle -->
+                <div class="p-6 bg-gray-50 space-y-4">
+                  <template x-for="(pv, index) in cycleData.pvs" :key="cycleData.cycle + '-' + index">
+                    <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
+                      <div class="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 class="text-xl font-bold text-gray-900" x-text="pv.raison_sociale"></h3>
+                          <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                            <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="pv.siret"></span></span>
+                            <span><i class="fas fa-calendar mr-1"></i><span x-text="pv.date_scrutin"></span></span>
+                            <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="pv.ville"></span></span>
+                          </div>
+                        </div>
+                        <div x-show="pv.carence" class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
+                          CARENCE
+                        </div>
+                      </div>
+
+                      <!-- Stats PV individuel -->
+                      <div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-100 rounded-lg">
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Inscrits</div>
+                          <div class="text-lg font-bold" x-text="pv.inscrits"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Votants</div>
+                          <div class="text-lg font-bold" x-text="pv.votants"></div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-600 mb-1">Participation</div>
+                          <div class="text-lg font-bold" x-text="pv.taux_participation ? pv.taux_participation + '%' : 'N/A'"></div>
+                        </div>
+                      </div>
+
+                      <!-- Organisations -->
+                      <template x-if="pv.organisations && pv.organisations.length > 0">
+                        <div>
+                          <h4 class="font-semibold text-gray-900 mb-3">Résultats par organisation</h4>
+                          <div class="space-y-3">
+                            <template x-for="org in pv.organisations" :key="org.nom">
+                              <div class="flex items-center justify-between p-4 rounded-lg border-2 transition hover:shadow-lg"
+                                   :class="{
+                                     'bg-red-50 border-red-300': org.nom === 'CGT',
+                                     'bg-green-50 border-green-300': org.nom === 'CFDT',
+                                     'bg-orange-50 border-orange-300': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                     'bg-blue-50 border-blue-300': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                     'bg-purple-50 border-purple-300': org.nom === 'UNSA',
+                                     'bg-pink-50 border-pink-300': org.nom === 'SUD',
+                                     'bg-gray-50 border-gray-300': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                   }">
+                                <div class="flex items-center gap-4 flex-1">
+                                  <!-- Logo organisation avec couleur -->
+                                  <div class="w-20 h-20 rounded-xl flex items-center justify-center font-bold text-lg shadow-md"
+                                       :class="{
+                                         'bg-gradient-to-br from-red-600 to-red-800 text-white': org.nom === 'CGT',
+                                         'bg-gradient-to-br from-green-600 to-green-800 text-white': org.nom === 'CFDT',
+                                         'bg-gradient-to-br from-orange-600 to-orange-800 text-white': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                         'bg-gradient-to-br from-blue-600 to-blue-800 text-white': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                         'bg-gradient-to-br from-purple-600 to-purple-800 text-white': org.nom === 'UNSA',
+                                         'bg-gradient-to-br from-pink-600 to-pink-800 text-white': org.nom === 'SUD',
+                                         'bg-gradient-to-br from-gray-600 to-gray-800 text-white': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                       }">
+                                    <span x-text="org.nom"></span>
+                                  </div>
+
+                                  <!-- Statistiques avec couleurs -->
+                                  <div class="flex-1">
+                                    <div class="grid grid-cols-3 gap-4">
+                                      <!-- Voix -->
+                                      <div class="text-center">
+                                        <div class="text-xs font-semibold mb-1"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }">
+                                          <i class="fas fa-vote-yea mr-1"></i>Voix
+                                        </div>
+                                        <div class="text-2xl font-bold"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }"
+                                             x-text="org.voix"></div>
+                                      </div>
+
+                                      <!-- Sièges -->
+                                      <div class="text-center">
+                                        <div class="text-xs font-semibold mb-1"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }">
+                                          <i class="fas fa-chair mr-1"></i>Sièges
+                                        </div>
+                                        <div class="text-2xl font-bold"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }"
+                                             x-text="org.sieges"></div>
+                                      </div>
+
+                                      <!-- Score -->
+                                      <div class="text-center">
+                                        <div class="text-xs font-semibold mb-1"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }">
+                                          <i class="fas fa-percent mr-1"></i>Score
+                                        </div>
+                                        <div class="text-2xl font-bold"
+                                             :class="{
+                                               'text-red-700': org.nom === 'CGT',
+                                               'text-green-700': org.nom === 'CFDT',
+                                               'text-orange-700': org.nom === 'FO' || org.nom === 'CGT-FO',
+                                               'text-blue-700': org.nom === 'CGC' || org.nom === 'CFE-CGC',
+                                               'text-purple-700': org.nom === 'UNSA',
+                                               'text-pink-700': org.nom === 'SUD',
+                                               'text-gray-700': org.nom !== 'CGT' && org.nom !== 'CFDT' && org.nom !== 'FO' && org.nom !== 'CGT-FO' && org.nom !== 'CGC' && org.nom !== 'CFE-CGC' && org.nom !== 'UNSA' && org.nom !== 'SUD'
+                                             }"
+                                             x-text="org.pourcentage + '%'"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Invitations Tab -->
+        <div x-show="activeTab === 'invitations'" x-transition>
+          <template x-if="!data?.invitations_pap || data.invitations_pap.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucune invitation PAP trouvée</p>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <template x-for="inv in data?.invitations_pap || []" :key="inv.id">
+              <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+                <div class="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 class="text-lg font-bold text-gray-900" x-text="inv.raison_sociale"></h3>
+                    <div class="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span><i class="fas fa-hashtag mr-1"></i><span class="font-mono" x-text="inv.siret"></span></span>
+                      <span><i class="fas fa-map-marker-alt mr-1"></i><span x-text="inv.ville + ' (' + inv.code_postal + ')'"></span></span>
+                    </div>
+                  </div>
+                  <div x-show="inv.source" class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold" x-text="inv.source">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div class="text-gray-600 mb-1">Date invitation</div>
+                    <div class="font-semibold" x-text="inv.date_invit || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Date réception</div>
+                    <div class="font-semibold" x-text="inv.date_reception || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Date élection</div>
+                    <div class="font-semibold" x-text="inv.date_election || 'N/A'"></div>
+                  </div>
+                  <div>
+                    <div class="text-gray-600 mb-1">Effectif</div>
+                    <div class="font-semibold" x-text="inv.effectif_connu || 'N/A'"></div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex gap-4 text-xs">
+                  <span x-show="inv.ud" class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                    UD: <span x-text="inv.ud"></span>
+                  </span>
+                  <span x-show="inv.fd" class="px-2 py-1 bg-green-100 text-green-800 rounded">
+                    FD: <span x-text="inv.fd"></span>
+                  </span>
+                  <span x-show="inv.idcc" class="px-2 py-1 bg-orange-100 text-orange-800 rounded">
+                    IDCC: <span x-text="inv.idcc"></span>
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Établissements Tab -->
+        <div x-show="activeTab === 'etablissements'" x-transition>
+          <template x-if="!data?.etablissements || data.etablissements.length === 0">
+            <div class="text-center py-12 text-gray-500">
+              <i class="fas fa-inbox text-6xl mb-4"></i>
+              <p class="text-lg">Aucun établissement trouvé</p>
+            </div>
+          </template>
+
+          <div x-show="data?.etablissements && data.etablissements.length > 0">
+            <!-- Carte interactive des établissements -->
+            <div class="mb-6 bg-white border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div class="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-4">
+                <h3 class="font-bold text-lg flex items-center gap-2 justify-between">
+                  <span class="flex items-center gap-2">
+                    <i class="fas fa-map-marked-alt"></i>
+                    Carte des établissements
+                  </span>
+                  <span x-show="mapStatus" x-text="mapStatus" class="text-sm font-normal px-3 py-1 rounded-full"
+                        :class="{
+                          'bg-blue-500': mapStatus?.includes('Initialisation'),
+                          'bg-green-500': mapStatus?.includes('✅'),
+                          'bg-yellow-500': mapStatus?.includes('⚠️'),
+                          'bg-red-500': mapStatus?.includes('❌')
+                        }"></span>
+                </h3>
+              </div>
+              <div id="map-etablissements" style="height: 400px;"></div>
+            </div>
+
+            <!-- Liste des établissements -->
+            <div class="mb-4 flex items-center justify-between">
+              <h3 class="font-bold text-lg text-gray-900">
+                Liste des établissements (<span x-text="data?.etablissements?.length || 0"></span>)
+              </h3>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <template x-for="etab in data?.etablissements || []" :key="etab.siret">
+                <div class="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition">
+                  <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1">
+                      <h3 class="font-bold text-gray-900 text-lg" x-text="etab.raison_sociale || etab.pappers?.nom_complet"></h3>
+                      <div x-show="etab.pappers?.enseigne" class="text-sm text-gray-500 italic mt-1">
+                        Enseigne : <span x-text="etab.pappers.enseigne"></span>
+                      </div>
+                    </div>
+                    <span x-show="etab.siege || etab.pappers?.est_siege" class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
+                      <i class="fas fa-star mr-1"></i>Siège
+                    </span>
+                  </div>
+
+                  <div class="text-sm text-gray-600 space-y-2 mb-4">
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-hashtag text-gray-400 w-4"></i>
+                      <span class="font-mono font-semibold" x-text="etab.siret"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-map-marker-alt text-gray-400 w-4"></i>
+                      <span x-text="etab.pappers?.adresse_complete || (etab.ville + ' (' + etab.code_postal + ')')"></span>
+                    </div>
+                    <div x-show="etab.pappers?.effectif || etab.effectif_siret" class="flex items-center gap-2">
+                      <i class="fas fa-users text-gray-400 w-4"></i>
+                      <span x-text="(etab.pappers?.effectif || etab.effectif_siret) + ' salariés'"></span>
+                      <span x-show="etab.pappers?.tranche_effectif" class="text-xs text-gray-500" x-text="'(' + etab.pappers.tranche_effectif + ')'"></span>
+                    </div>
+                    <div x-show="etab.pappers?.libelle_code_naf" class="flex items-center gap-2">
+                      <i class="fas fa-industry text-gray-400 w-4"></i>
+                      <span class="text-xs" x-text="etab.pappers.libelle_code_naf"></span>
+                      <span x-show="etab.pappers?.code_naf" class="text-xs text-gray-500" x-text="'(' + etab.pappers.code_naf + ')'"></span>
+                    </div>
+                    <div x-show="etab.pappers?.date_creation" class="flex items-center gap-2">
+                      <i class="fas fa-calendar-plus text-gray-400 w-4"></i>
+                      <span class="text-xs">Créé le <span x-text="etab.pappers.date_creation"></span></span>
+                    </div>
+                  </div>
+
+                  <!-- Badges Source + PV -->
+                  <div class="flex gap-2 mb-4 flex-wrap">
+                    <!-- Badge source de données -->
+                    <span x-show="etab.source === 'base_et_pappers'" class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
+                      <i class="fas fa-database mr-1"></i>Base + Pappers
+                    </span>
+                    <span x-show="etab.source === 'pappers_seulement'" class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                      <i class="fas fa-cloud mr-1"></i>Pappers uniquement
+                    </span>
+                    <span x-show="etab.source === 'base_seulement'" class="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-semibold">
+                      <i class="fas fa-database mr-1"></i>Base uniquement
+                    </span>
+
+                    <!-- Badges PV -->
+                    <span x-show="etab.has_pv_c4" class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
+                      <i class="fas fa-check mr-1"></i>PV C4
+                    </span>
+                    <span x-show="etab.has_pv_c3" class="px-2 py-1 bg-cyan-100 text-cyan-800 rounded text-xs font-semibold">
+                      <i class="fas fa-check mr-1"></i>PV C3
+                    </span>
+                  </div>
+
+                  <!-- Bouton Cartographie -->
+                  <button
+                    @click="goToCartographie(etab.siret)"
+                    class="w-full px-4 py-2 bg-gradient-to-r from-cgt-red to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition font-semibold text-sm flex items-center justify-center gap-2">
+                    <i class="fas fa-project-diagram"></i>
+                    <span>Cartographier l'établissement</span>
+                  </button>
+                  <p class="text-xs text-gray-500 mt-2 text-center italic">
+                    Créer ou consulter la cartographie sociale service par service
+                  </p>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function ficheEntreprise() {
+  return {
+    data: null,
+    loading: true,
+    error: null,
+    cyclesArray: [],
+    loadingRecommandations: false,
+    showRecommandations: false,
+    recommandationsHTML: null,
+    errorRecommandations: null,
+    activeTab: 'pv',
+    map: null,
+    markersLayer: null,
+    mapStatus: null,
+    showGraphiques: true,
+    charts: {},
+
+    async init() {
+      // Récupérer le SIRET depuis l'URL
+      const pathParts = window.location.pathname.split('/');
+      const siret = pathParts[pathParts.length - 1];
+
+      if (!siret) {
+        this.error = "Aucun SIRET fourni";
+        this.loading = false;
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/entreprise/${siret}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.detail || 'Erreur lors de la récupération des données');
+        }
+
+        if (!result.success) {
+          throw new Error('Aucune donnée trouvée pour cette entreprise');
+        }
+
+        this.data = result;
+
+        // Convertir pv_par_cycle (objet) en array pour Alpine.js
+        if (this.data.pv_par_cycle) {
+          this.cyclesArray = Object.entries(this.data.pv_par_cycle).map(([cycle, pvs]) => ({
+            cycle: cycle,
+            pvs: Array.isArray(pvs) ? pvs : Object.values(pvs),  // Conversion forcée en array si nécessaire
+            totaux: this.data.totaux_par_cycle[cycle] || {}
+          }));
+        }
+
+        // Initialiser les graphiques après un court délai
+        setTimeout(() => this.initCharts(), 300);
+
+        // Watcher pour initialiser/redimensionner la carte quand on active l'onglet Établissements
+        this.$watch('activeTab', (newTab) => {
+          if (newTab === 'etablissements') {
+            console.log('📑 Onglet Établissements activé, initialisation/redimensionnement carte...');
+            // Attendre que le DOM soit visible
+            this.$nextTick(() => {
+              setTimeout(() => {
+                if (!this.map) {
+                  // Créer la carte si elle n'existe pas encore
+                  this.initMap();
+                } else {
+                  // Redimensionner la carte existante de manière agressive
+                  this.map.invalidateSize(true); // true = force reset
+                  this.mapStatus = '✅ Carte affichée';
+                }
+                // Appeler invalidateSize() une deuxième fois après un délai
+                setTimeout(() => {
+                  if (this.map) {
+                    this.map.invalidateSize(true);
+                  }
+                }, 200);
+              }, 100);
+            });
+          }
+        });
+
+      } catch (err) {
+        console.error('Erreur:', err);
+        this.error = err.message || 'Erreur lors du chargement de la fiche';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    initCharts() {
+      if (!this.data?.totaux_par_cycle) return;
+
+      const totaux = this.data.totaux_par_cycle;
+      const c3 = totaux['C3'] || totaux['Cycle 3'];
+      const c4 = totaux['C4'] || totaux['Cycle 4'];
+
+      // Graphique 1: Présence CGT C3 vs C4
+      const ctxPresence = document.getElementById('chart-presence-cgt');
+      if (ctxPresence) {
+        if (this.charts.presence) this.charts.presence.destroy();
+        this.charts.presence = new Chart(ctxPresence, {
+          type: 'bar',
+          data: {
+            labels: ['Cycle 3', 'Cycle 4'],
+            datasets: [{
+              label: 'Établissements avec CGT',
+              data: [
+                c3?.presence_cgt || 0,
+                c4?.presence_cgt || 0
+              ],
+              backgroundColor: ['rgba(220, 38, 38, 0.7)', 'rgba(220, 38, 38, 0.9)'],
+              borderColor: ['rgb(220, 38, 38)', 'rgb(220, 38, 38)'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            plugins: {
+              legend: { display: true },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+          }
+        });
+      }
+
+      // Graphique 2: Taux de participation C3 vs C4
+      const ctxParticipation = document.getElementById('chart-participation');
+      if (ctxParticipation) {
+        if (this.charts.participation) this.charts.participation.destroy();
+        this.charts.participation = new Chart(ctxParticipation, {
+          type: 'line',
+          data: {
+            labels: ['Cycle 3', 'Cycle 4'],
+            datasets: [{
+              label: 'Taux de participation (%)',
+              data: [
+                c3?.taux_participation || 0,
+                c4?.taux_participation || 0
+              ],
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            plugins: {
+              legend: { display: true },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } }
+            }
+          }
+        });
+      }
+
+      // Graphique 3: Organisations syndicales C4 (barres)
+      const ctxOrgs = document.getElementById('chart-organisations');
+      if (ctxOrgs && this.data.pv_par_cycle) {
+        const pv_c4 = this.data.pv_par_cycle['C4'] || this.data.pv_par_cycle['Cycle 4'] || [];
+
+        // Agréger les voix par organisation
+        const orgsVoix = {};
+        pv_c4.forEach(pv => {
+          (pv.organisations || []).forEach(org => {
+            if (!orgsVoix[org.nom]) orgsVoix[org.nom] = 0;
+            orgsVoix[org.nom] += parseInt(org.voix) || 0;
+          });
+        });
+
+        const couleurs = {
+          'CGT': 'rgb(220, 38, 38)',
+          'CFDT': 'rgb(34, 197, 94)',
+          'FO': 'rgb(249, 115, 22)',
+          'CGT-FO': 'rgb(249, 115, 22)',
+          'CGC': 'rgb(59, 130, 246)',
+          'CFE-CGC': 'rgb(59, 130, 246)',
+          'UNSA': 'rgb(168, 85, 247)',
+          'SUD': 'rgb(236, 72, 153)'
+        };
+
+        if (this.charts.organisations) this.charts.organisations.destroy();
+        this.charts.organisations = new Chart(ctxOrgs, {
+          type: 'bar',
+          data: {
+            labels: Object.keys(orgsVoix),
+            datasets: [{
+              label: 'Nombre de voix',
+              data: Object.values(orgsVoix),
+              backgroundColor: Object.keys(orgsVoix).map(nom => couleurs[nom] || 'rgb(107, 114, 128)'),
+              borderColor: Object.keys(orgsVoix).map(nom => couleurs[nom] || 'rgb(107, 114, 128)'),
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const pourcentage = ((context.parsed.y / total) * 100).toFixed(1);
+                    return `${context.label}: ${context.parsed.y} voix (${pourcentage}%)`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+          }
+        });
+      }
+    },
+
+    initMap() {
+      this.mapStatus = '🔄 Initialisation...';
+
+      const mapEl = document.getElementById('map-etablissements');
+      if (!mapEl) {
+        this.mapStatus = '❌ Conteneur introuvable';
+        return;
+      }
+
+      // Éviter de réinitialiser si déjà créée
+      if (this.map) {
+        setTimeout(() => this.map.invalidateSize(), 100);
+        this.mapStatus = '✅ Carte rechargée';
+        return;
+      }
+
+      // Vérifier que les données sont chargées
+      if (!this.data || !this.data.etablissements) {
+        this.mapStatus = '❌ Données manquantes';
+        return;
+      }
+
+      // Filtrer les établissements avec coordonnées GPS
+      const etablissementsAvecCoord = this.data.etablissements.filter(etab =>
+        etab.pappers?.latitude && etab.pappers?.longitude
+      );
+
+      this.mapStatus = `📍 ${etablissementsAvecCoord.length}/${this.data.etablissements.length} avec GPS`;
+
+      if (etablissementsAvecCoord.length === 0) {
+        this.mapStatus = '⚠️ Aucune coordonnée GPS';
+        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-yellow-50 text-gray-700 p-4"><p><i class="fas fa-map-marker-alt-slash mr-2"></i>Aucune coordonnée GPS disponible. Les établissements n\'ont pas de géolocalisation Pappers.</p></div>';
+        return;
+      }
+
+      // Vérifier que Leaflet est chargé
+      if (typeof L === 'undefined') {
+        this.mapStatus = '❌ Leaflet non chargé';
+        mapEl.innerHTML = '<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur: Bibliothèque Leaflet non chargée</p></div>';
+        return;
+      }
+
+      // Créer la carte avec un centre par défaut (centre géographique de la France)
+      try {
+        this.map = L.map('map-etablissements', {
+          center: [46.7111, 1.7191],
+          zoom: 6,
+          minZoom: 5,
+          maxZoom: 19
+        });
+
+        // Ajouter le fond de carte OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19
+        }).addTo(this.map);
+
+        // Forcer un recalcul des dimensions après l'initialisation
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+          }
+        }, 100);
+
+        this.mapStatus = '✅ Carte créée!';
+      } catch (err) {
+        this.mapStatus = '❌ Erreur: ' + err.message;
+        console.error('Erreur Leaflet:', err);
+        mapEl.innerHTML = `<div class="flex items-center justify-center h-full bg-red-50 text-red-700 p-4"><p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur Leaflet: ${err.message}</p></div>`;
+        return;
+      }
+
+      // Créer un groupe de marqueurs
+      this.markersLayer = L.layerGroup().addTo(this.map);
+
+      // Ajouter un marqueur pour chaque établissement
+      const bounds = [];
+      etablissementsAvecCoord.forEach(etab => {
+        const lat = etab.pappers.latitude;
+        const lon = etab.pappers.longitude;
+        bounds.push([lat, lon]);
+
+        // Icône différente pour le siège
+        const icon = etab.siege || etab.pappers?.est_siege ?
+          L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+          }) :
+          L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+          });
+
+        const marker = L.marker([lat, lon], { icon }).addTo(this.markersLayer);
+
+        // Popup avec informations
+        const popupContent = `
+          <div class="p-2">
+            <h4 class="font-bold text-sm mb-1">${etab.raison_sociale || etab.pappers?.nom_complet || 'Établissement'}</h4>
+            ${etab.siege || etab.pappers?.est_siege ? '<span class="text-xs text-red-600 font-semibold"><i class="fas fa-star"></i> Siège</span>' : ''}
+            <p class="text-xs text-gray-600 mt-1">
+              <i class="fas fa-hashtag"></i> ${etab.siret}<br>
+              <i class="fas fa-map-marker-alt"></i> ${etab.pappers?.adresse_complete || etab.ville}
+              ${etab.pappers?.effectif ? `<br><i class="fas fa-users"></i> ${etab.pappers.effectif} salariés` : ''}
+            </p>
+            <button onclick="window.location.href='/cartographie-entreprise?siret=${etab.siret}'" class="mt-2 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+              <i class="fas fa-project-diagram"></i> Cartographier
+            </button>
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+      });
+
+      // Ajuster la vue pour montrer tous les marqueurs
+      if (bounds.length > 1) {
+        this.map.fitBounds(bounds, { padding: [50, 50] });
+      }
+
+      // Force la mise à jour de la taille de la carte après initialisation
+      setTimeout(() => {
+        if (this.map) {
+          this.map.invalidateSize();
+          console.log('✅ Carte redimensionnée après initialisation');
+        }
+      }, 100);
+    },
+
+    goToCartographie(siret) {
+      // Rediriger vers la page de cartographie pour cet établissement
+      window.location.href = `/cartographie-entreprise?siret=${siret}`;
+    },
+
+    async genererRecommandations() {
+      this.loadingRecommandations = true;
+      this.errorRecommandations = null;
+
+      try {
+        const pathParts = window.location.pathname.split('/');
+        const siret = pathParts[pathParts.length - 1];
+
+        console.log('Génération des recommandations pour SIRET:', siret);
+
+        const response = await fetch(`/api/entreprise/${siret}/recommandations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.detail || 'Erreur lors de la génération');
+        }
+
+        // Convertir le markdown en HTML si nécessaire
+        // La réponse peut déjà être en HTML ou en markdown
+        this.recommandationsHTML = result.recommandations;
+        this.showRecommandations = true;
+
+        console.log('Recommandations générées avec succès');
+
+      } catch (err) {
+        console.error('Erreur recommandations:', err);
+        this.errorRecommandations = err.message || 'Erreur lors de la génération des recommandations';
+        this.showRecommandations = true; // Afficher la modale avec l'erreur
+      } finally {
+        this.loadingRecommandations = false;
+      }
+    }
+  }
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+
+/* Styles pour les recommandations ChatGPT */
+.recommendations-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.recommendations-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.recommendations-content p {
+  margin-bottom: 1rem;
+  line-height: 1.625;
+  color: #4b5563;
+}
+
+.recommendations-content ul {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.recommendations-content li {
+  margin-bottom: 0.5rem;
+  line-height: 1.625;
+  color: #4b5563;
+}
+
+.recommendations-content strong {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.recommendations-content div[class*="border-l-4"] {
+  border-radius: 0.375rem;
+}
+</style>
+{% endblock %}
