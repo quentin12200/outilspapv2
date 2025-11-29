@@ -3783,8 +3783,8 @@ IMPORTANT:
                 ud=inv_data.get("ud"),
                 fd=inv_data.get("fd"),
                 source=inv_data.get("source", "Import PDF PAP"),
-                effectif_connu=inv_data.get("effectif_connu"),
-                created_at=datetime.now()
+                effectif_connu=inv_data.get("effectif_connu")
+                # created_at=datetime.now()  # Temporairement commenté
             )
 
             db.add(new_inv)
@@ -3896,10 +3896,13 @@ async def generer_emails_pap(
     )
 
     # Si only_recent=True, filtrer les invitations créées dans la dernière heure
+    # TEMPORAIREMENT DÉSACTIVÉ: created_at n'existe pas encore dans la DB
+    # Sera réactivé après migration
     if only_recent:
-        one_hour_ago = datetime.now() - timedelta(hours=1)
-        query = query.filter(Invitation.created_at >= one_hour_ago)
-        logger.info(f"Filtrage des invitations créées après {one_hour_ago}")
+        logger.warning("⚠️ Filtrage only_recent désactivé: colonne created_at manquante. Toutes les invitations seront traitées.")
+        # one_hour_ago = datetime.now() - timedelta(hours=1)
+        # query = query.filter(Invitation.created_at >= one_hour_ago)
+        # logger.info(f"Filtrage des invitations créées après {one_hour_ago}")
 
     invitations = query.all()
 
@@ -6121,8 +6124,8 @@ async def add_invitation_manually(
             date_invit=date_invit_obj or datetime.now().date(),
             date_reception=date_reception_obj,
             date_election=date_election_obj,
-            source="Ajout manuel",
-            created_at=datetime.now()
+            source="Ajout manuel"
+            # created_at=datetime.now()  # Temporairement commenté, sera géré par DEFAULT CURRENT_TIMESTAMP
         )
 
         db.add(new_invitation)

@@ -218,9 +218,11 @@ class Invitation(Base):
     date_election = Column(Date)                                 # Date de l'élection si connue
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
 
-    # Métadonnées (nullable=True pour compatibilité avec bases existantes avant migration)
-    created_at = Column(DateTime, default=datetime.now, nullable=True, index=True)  # Date de création
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=True)  # Date de modification
+    # Métadonnées - TEMPORAIREMENT COMMENTÉES jusqu'à ce que la migration soit exécutée
+    # Une fois que POST /api/admin/force-migration aura été appelé et les colonnes créées,
+    # décommenter ces lignes et redéployer
+    # created_at = Column(DateTime, default=datetime.now, nullable=True, index=True)  # Date de création
+    # updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=True)  # Date de modification
 
 
 class SiretSummary(Base):
