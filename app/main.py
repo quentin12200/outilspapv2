@@ -3485,6 +3485,130 @@ async def scan_auto_invitations(
     })
 
 
+@app.post("/api/invitations/import-pap")
+async def import_pap_avec_scan(
+    file: UploadFile = File(...),
+    auto_scan: str = Form("on"),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Import de fichier PAP avec scan automatique multi-sources (SIRENE, Pappers).
+    """
+    import tempfile
+    from . import etl
+    from .services.sirene_api import enrichir_siret
+
+    # Sauvegarder temporairement le fichier
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # Import basique
+        inserted = etl.ingest_invit_excel(db, tmp_path, auto_enrich=False)
+        logger.info(f"Import PAP: {inserted} invitations insérées")
+
+        # Si scan automatique activé
+        enrichies = 0
+        erreurs = 0
+        if auto_scan == "on":
+            logger.info("Début du scan automatique multi-sources...")
+
+            # Récupérer les invitations juste importées sans raison sociale
+            invitations = db.query(Invitation).filter(
+                or_(
+                    Invitation.denomination.is_(None),
+                    Invitation.denomination == ''
+                )
+            ).order_by(Invitation.id.desc()).limit(inserted).all()
+
+            for inv in invitations:
+                try:
+                    # Normaliser SIRET
+                    def normalize_siret(value):
+                        if value is None:
+                            return None
+                        text = str(value).strip() if value else None
+                        if not text:
+                            return None
+                        digits_only = "".join(ch for ch in text if ch.isdigit())
+                        return digits_only if len(digits_only) == 14 else None
+
+                    siret = normalize_siret(inv.siret)
+                    if not siret:
+                        erreurs += 1
+                        continue
+
+                    # Enrichir via SIRENE/Pappers
+                    data = await enrichir_siret(siret)
+
+                    if data:
+                        if not inv.denomination and data.get("denomination"):
+                            inv.denomination = data["denomination"]
+                        if not inv.enseigne and data.get("enseigne"):
+                            inv.enseigne = data["enseigne"]
+                        if not inv.adresse and data.get("adresse"):
+                            inv.adresse = data["adresse"]
+                        if not inv.code_postal and data.get("code_postal"):
+                            inv.code_postal = data["code_postal"]
+                        if not inv.commune and data.get("commune"):
+                            inv.commune = data["commune"]
+                        if not inv.activite_principale and data.get("activite_principale"):
+                            inv.activite_principale = data["activite_principale"]
+                        if not inv.libelle_activite and data.get("libelle_activite"):
+                            inv.libelle_activite = data["libelle_activite"]
+                        if not inv.idcc and data.get("idcc"):
+                            inv.idcc = data["idcc"]
+                            # Enrichir FD depuis IDCC
+                            if inv.idcc and not inv.fd:
+                                from .services.idcc_enrichment import get_idcc_enrichment_service
+                                enrichment_service = get_idcc_enrichment_service()
+                                inv.fd = enrichment_service.enrich_fd(inv.idcc, inv.fd, db)
+
+                        inv.date_enrichissement = datetime.now()
+                        enrichies += 1
+                    else:
+                        erreurs += 1
+
+                except Exception as e:
+                    logger.error(f"Erreur enrichissement SIRET {inv.siret}: {e}")
+                    erreurs += 1
+
+            db.commit()
+            logger.info(f"Scan terminé: {enrichies} enrichies, {erreurs} erreurs")
+
+        # Compter les invitations incomplètes
+        incomplets = db.query(Invitation).filter(
+            or_(
+                Invitation.denomination.is_(None),
+                Invitation.denomination == '',
+                Invitation.code_postal.is_(None),
+                Invitation.commune.is_(None)
+            )
+        ).count()
+
+        return JSONResponse(content={
+            "success": True,
+            "inserted": inserted,
+            "enrichies": enrichies,
+            "erreurs": erreurs,
+            "incomplets": incomplets,
+            "message": f"{inserted} invitations importées, {enrichies} enrichies. {incomplets} nécessitent une complétion manuelle."
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import PAP: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 @app.post("/api/invitations/generer-emails")
 async def generer_emails_pap(
     request: Request,
@@ -3492,27 +3616,60 @@ async def generer_emails_pap(
     current_user = Depends(get_current_user)
 ):
     """
-    Génère les emails de relance pour les invitations PAP incomplètes ou en retard.
+    Génère les emails de relance pour les invitations PAP.
+    Crée des emails avec lien PAP scanner + infos entreprise.
     """
-    # TODO: Implémenter la logique de génération d'emails
-    # Pour l'instant, retourne juste un message de succès
+    # Récupérer les invitations complètes
+    invitations = db.query(Invitation).filter(
+        Invitation.denomination.isnot(None),
+        Invitation.denomination != '',
+        Invitation.siret.isnot(None)
+    ).all()
 
-    # Récupérer les invitations incomplètes
-    invitations_incomplets = db.query(Invitation).filter(
-        or_(
-            Invitation.denomination.is_(None),
-            Invitation.denomination == '',
-            Invitation.code_postal.is_(None),
-            Invitation.commune.is_(None)
-        )
-    ).count()
+    if not invitations:
+        return JSONResponse(content={
+            "success": False,
+            "error": "Aucune invitation complète trouvée"
+        })
 
-    logger.info(f"Génération d'emails pour {invitations_incomplets} invitations incomplètes")
+    emails_generes = []
 
+    for inv in invitations:
+        try:
+            # Préparer les données pour l'email
+            email_data = {
+                "siret": inv.siret,
+                "denomination": inv.denomination or "Entreprise",
+                "adresse": inv.adresse or "",
+                "code_postal": inv.code_postal or "",
+                "commune": inv.commune or "",
+                "idcc": inv.idcc or "Non renseigné",
+                "fd": inv.fd or "Non renseignée",
+                "ud": inv.ud or "Non renseignée",
+                "effectif": inv.effectif_connu or "Non renseigné",
+                "naf": inv.activite_principale or "",
+                "libelle_naf": inv.libelle_activite or "",
+                "date_invit": inv.date_invit.strftime("%d/%m/%Y") if inv.date_invit else "",
+                # Lien PAP scanner
+                "lien_pap": f"https://app.pap-cse.org/siret/{inv.siret}",
+                # Informations supplémentaires
+                "enseigne": inv.enseigne or "",
+                "est_siege": "Oui" if inv.est_siege else "Non",
+            }
+
+            emails_generes.append(email_data)
+
+        except Exception as e:
+            logger.error(f"Erreur génération email pour {inv.siret}: {e}")
+
+    logger.info(f"✅ {len(emails_generes)} emails générés")
+
+    # Retourner les données pour affichage/téléchargement
     return JSONResponse(content={
         "success": True,
-        "total": invitations_incomplets,
-        "message": "Emails générés avec succès"
+        "total": len(emails_generes),
+        "emails": emails_generes[:10],  # Premiers 10 pour prévisualisation
+        "message": f"{len(emails_generes)} emails préparés avec succès"
     })
 
 

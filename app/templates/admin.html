@@ -508,17 +508,39 @@
         <i class="fas fa-envelope text-green-500 mr-2"></i>
         Importer Invitations électorales (Cycle 5)
       </h3>
-      <form method="post" action="/api/ingest/invit" enctype="multipart/form-data" class="space-y-4">
+      <form method="post" action="/api/invitations/import-pap" enctype="multipart/form-data" id="form-import-pap" class="space-y-4">
         <div>
           <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel des invitations</label>
           <input type="file" name="file" id="invitfile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border border-gray-300 rounded-lg cursor-pointer" />
         </div>
+
+        <!-- Options de scan -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-start space-x-3">
+            <input type="checkbox" id="auto-scan" name="auto_scan" checked class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <div class="flex-1">
+              <label for="auto-scan" class="block text-sm font-semibold text-gray-800 cursor-pointer">
+                <i class="fas fa-robot text-blue-600 mr-1"></i>
+                Scan automatique multi-sources
+              </label>
+              <p class="text-xs text-gray-600 mt-1">
+                Enrichir automatiquement via SIRENE, Pappers et ChatGPT. Les données manquantes pourront être complétées manuellement ensuite.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
           <i class="fas fa-upload"></i>
-          <span>Importer les invitations</span>
+          <span>Importer et scanner</span>
         </button>
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Ajoutez ici les invitations complémentaires ou mises à jour du cycle 5.</p>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Après l'import, vous pourrez compléter manuellement les données manquantes et générer les emails de relance.</p>
       </form>
+
+      <!-- Résultat import -->
+      <div id="import-result" class="mt-4 hidden">
+        <div class="p-4 rounded-lg border" id="import-result-content"></div>
+      </div>
     </section>
 
     <!-- Import Ciblage -->
@@ -2380,6 +2402,91 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// ========== Formulaire Import PAP ==========
+
+document.getElementById('form-import-pap')?.addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const formData = new FormData(this);
+  const submitBtn = this.querySelector('button[type="submit"]');
+  const originalText = submitBtn.innerHTML;
+  const resultDiv = document.getElementById('import-result');
+  const resultContent = document.getElementById('import-result-content');
+
+  try {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
+
+    const response = await fetch('/api/invitations/import-pap', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      resultDiv.classList.remove('hidden');
+      resultContent.className = 'p-4 rounded-lg border bg-green-50 border-green-200 text-green-800';
+      resultContent.innerHTML = `
+        <div class="flex items-start space-x-3">
+          <i class="fas fa-check-circle text-lg"></i>
+          <div class="flex-1">
+            <div class="font-semibold">✅ Import réussi !</div>
+            <div class="text-sm mt-2 space-y-1">
+              <p>• ${data.inserted} invitations importées</p>
+              <p>• ${data.enrichies} enrichies automatiquement</p>
+              ${data.erreurs > 0 ? `<p>• ${data.erreurs} erreurs lors de l'enrichissement</p>` : ''}
+              ${data.incomplets > 0 ? `<p class="text-amber-700">⚠️ ${data.incomplets} invitations nécessitent une complétion manuelle</p>` : ''}
+            </div>
+            <div class="mt-3 flex gap-2">
+              <a href="/invitations" class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                Voir les invitations
+              </a>
+              ${data.incomplets > 0 ? '<button onclick="completerManuellement()" class="px-3 py-1 bg-amber-600 text-white text-sm rounded hover:bg-amber-700">Compléter manuellement</button>' : ''}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Reset form
+      this.reset();
+    } else {
+      resultDiv.classList.remove('hidden');
+      resultContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+      resultContent.innerHTML = `
+        <div class="flex items-start space-x-3">
+          <i class="fas fa-exclamation-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">❌ Erreur</div>
+            <div class="text-sm mt-1">${data.error || data.message}</div>
+          </div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    resultDiv.classList.remove('hidden');
+    resultContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+    resultContent.innerHTML = `
+      <div class="flex items-start space-x-3">
+        <i class="fas fa-exclamation-circle text-lg"></i>
+        <div>
+          <div class="font-semibold">❌ Erreur</div>
+          <div class="text-sm mt-1">${error.message}</div>
+        </div>
+      </div>
+    `;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalText;
+  }
+});
+
+function completerManuellement() {
+  alert('📝 Complétion manuelle\n\nOuvrez la page /invitations et utilisez le bouton "Scanner automatique" ou complétez les données manquantes manuellement via la fiche SIRET de chaque entreprise.');
+  window.location.href = '/invitations';
+}
+
 // ========== Fonctions Campagne PAP ==========
 
 async function scannerInvitations() {
@@ -2427,7 +2534,7 @@ async function genererEmailsPAP() {
   const btn = document.getElementById('btn-emails-pap');
   const originalText = btn.innerHTML;
 
-  if (!confirm('📧 Générer les emails de relance ?\n\nCette fonction va préparer les emails pour :\n- Invitations incomplètes (données manquantes)\n- Invitations en retard\n\nContinuer ?')) {
+  if (!confirm('📧 Générer les emails de relance ?\n\nCette fonction va créer des emails avec:\n- Lien PAP scanner pour chaque entreprise\n- Informations complètes sur l\'entreprise\n- Raison sociale, IDCC, FD, effectifs...\n\nContinuer ?')) {
     return;
   }
 
@@ -2442,13 +2549,69 @@ async function genererEmailsPAP() {
 
     const data = await response.json();
 
-    if (response.ok) {
-      const message = `✅ Emails générés !\n\n📊 ${data.total} emails préparés\n\nLes emails ont été enregistrés et sont prêts à être envoyés.`;
-      alert(message);
+    if (response.ok && data.success) {
+      // Créer un modal pour afficher les emails
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800">
+              <i class="fas fa-paper-plane text-purple-600 mr-2"></i>
+              Emails générés (${data.total})
+            </h3>
+            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+              <i class="fas fa-times text-xl"></i>
+            </button>
+          </div>
+          <div class="p-6 overflow-y-auto flex-1">
+            <p class="text-sm text-gray-600 mb-4">
+              ${data.total} emails ont été générés. Voici un aperçu des 10 premiers :
+            </p>
+            <div class="space-y-4">
+              ${data.emails.map(email => `
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div class="flex items-start justify-between mb-2">
+                    <div class="font-semibold text-gray-800">${email.denomination}</div>
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${email.siret}</span>
+                  </div>
+                  <div class="text-sm text-gray-600 space-y-1">
+                    <p><strong>Adresse:</strong> ${email.adresse} ${email.code_postal} ${email.commune}</p>
+                    <p><strong>IDCC:</strong> ${email.idcc} | <strong>FD:</strong> ${email.fd} | <strong>UD:</strong> ${email.ud}</p>
+                    <p><strong>Effectif:</strong> ${email.effectif} | <strong>Siège:</strong> ${email.est_siege}</p>
+                    <p><strong>Date invitation:</strong> ${email.date_invit}</p>
+                    <p class="mt-2">
+                      <a href="${email.lien_pap}" target="_blank" class="text-purple-600 hover:underline">
+                        <i class="fas fa-external-link-alt mr-1"></i>
+                        Lien PAP Scanner →
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="p-6 border-t border-gray-200 flex gap-3">
+            <button onclick="telechargerEmails(${JSON.stringify(data.emails).replace(/"/g, '&quot;')})" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+              <i class="fas fa-download mr-2"></i>
+              Télécharger les emails (JSON)
+            </button>
+            <button onclick="copierEmailsTexte(${JSON.stringify(data.emails).replace(/"/g, '&quot;')})" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <i class="fas fa-copy mr-2"></i>
+              Copier format texte
+            </button>
+            <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+              Fermer
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
       btn.disabled = false;
       btn.innerHTML = originalText;
     } else {
-      alert(`❌ Erreur: ${data.detail || 'Une erreur est survenue'}`);
+      alert(`❌ Erreur: ${data.error || 'Une erreur est survenue'}`);
       btn.disabled = false;
       btn.innerHTML = originalText;
     }
@@ -2458,6 +2621,37 @@ async function genererEmailsPAP() {
     btn.disabled = false;
     btn.innerHTML = originalText;
   }
+}
+
+function telechargerEmails(emails) {
+  const dataStr = JSON.stringify(emails, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `emails_pap_${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function copierEmailsTexte(emails) {
+  let texte = '=== EMAILS CAMPAGNE PAP ===\n\n';
+  emails.forEach((email, index) => {
+    texte += `${index + 1}. ${email.denomination}\n`;
+    texte += `   SIRET: ${email.siret}\n`;
+    texte += `   Adresse: ${email.adresse} ${email.code_postal} ${email.commune}\n`;
+    texte += `   IDCC: ${email.idcc} | FD: ${email.fd} | UD: ${email.ud}\n`;
+    texte += `   Effectif: ${email.effectif} | Siège: ${email.est_siege}\n`;
+    texte += `   Lien PAP Scanner: ${email.lien_pap}\n`;
+    texte += `   Date invitation: ${email.date_invit}\n\n`;
+  });
+
+  navigator.clipboard.writeText(texte).then(() => {
+    alert('✅ Emails copiés dans le presse-papiers !');
+  }).catch(err => {
+    console.error('Erreur:', err);
+    alert('❌ Erreur lors de la copie');
+  });
 }
 </script>
 
