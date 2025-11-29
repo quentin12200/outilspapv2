@@ -5885,6 +5885,186 @@ def recherche_siret_page(request: Request):
     })
 
 
+@app.get("/api/entreprise/{siret}")
+async def get_entreprise_data(siret: str, db: Session = Depends(get_session)):
+    """
+    Retourne toutes les données d'une entreprise pour la fiche entreprise:
+    - Informations de base
+    - PV électoraux par cycle
+    - Établissements (avec coordonnées GPS via Pappers)
+    - Invitations PAP
+    - Statistiques agrégées
+    """
+    from .models import PVEvent, Invitation, SiretSummary
+    from .services.pappers_api import get_entreprise_etablissements
+    from collections import defaultdict
+
+    try:
+        # Normaliser le SIRET
+        normalized_siret = "".join(ch for ch in siret if ch.isdigit())
+
+        if len(normalized_siret) not in [9, 14]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "SIRET/SIREN invalide (9 ou 14 chiffres requis)"}
+            )
+
+        # Extraire le SIREN (9 premiers chiffres)
+        siren = normalized_siret[:9]
+
+        # 1. Informations de base depuis siret_summary
+        info_base = db.query(SiretSummary).filter(SiretSummary.siret == normalized_siret).first()
+
+        # Si pas trouvé avec le SIRET exact, chercher avec le SIREN dans les PV ou invitations
+        if not info_base:
+            # Essayer de récupérer depuis les PV
+            pv_representative = db.query(PVEvent).filter(
+                PVEvent.siret.like(f"{siren}%")
+            ).first()
+
+            if pv_representative:
+                info_base = {
+                    "raison_sociale": pv_representative.raison_sociale,
+                    "siret": pv_representative.siret,
+                    "ville": pv_representative.ville,
+                    "cp": pv_representative.cp
+                }
+
+        # 2. Récupérer les PV électoraux groupés par cycle
+        pv_events = db.query(PVEvent).filter(
+            PVEvent.siret.like(f"{siren}%")
+        ).order_by(PVEvent.cycle.desc(), PVEvent.date_pv.desc()).all()
+
+        # Grouper les PV par cycle
+        pv_par_cycle = defaultdict(list)
+        totaux_par_cycle = defaultdict(lambda: {
+            "total_suffrages": 0,
+            "total_sieges_c4": 0,
+            "total_sieges_c3": 0,
+            "cgt_suffrages": 0,
+            "cgt_sieges_c4": 0,
+            "cgt_sieges_c3": 0
+        })
+
+        for pv in pv_events:
+            pv_dict = {
+                "id": pv.id,
+                "siret": pv.siret,
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "cp": pv.cp,
+                "cycle": pv.cycle,
+                "date_pv": pv.date_pv.isoformat() if pv.date_pv else None,
+                "date_election": pv.date_election.isoformat() if pv.date_election else None,
+                "ud": pv.ud,
+                "fd": pv.fd,
+                "idcc": pv.idcc,
+                "effectif": pv.effectif,
+                "suffrages_c4": pv.suffrages_c4,
+                "sieges_c4": pv.sieges_c4,
+                "suffrages_c3": pv.suffrages_c3,
+                "sieges_c3": pv.sieges_c3,
+                "total_suffrages_c4": pv.total_suffrages_c4,
+                "total_sieges_c4": pv.total_sieges_c4,
+                "total_suffrages_c3": pv.total_suffrages_c3,
+                "total_sieges_c3": pv.total_sieges_c3
+            }
+            pv_par_cycle[pv.cycle].append(pv_dict)
+
+            # Calculer les totaux
+            totaux = totaux_par_cycle[pv.cycle]
+            totaux["total_sieges_c4"] += pv.total_sieges_c4 or 0
+            totaux["total_sieges_c3"] += pv.total_sieges_c3 or 0
+            totaux["cgt_sieges_c4"] += pv.sieges_c4 or 0
+            totaux["cgt_sieges_c3"] += pv.sieges_c3 or 0
+
+        # 3. Récupérer les établissements via API Pappers
+        etablissements_pappers = await get_entreprise_etablissements(siren)
+
+        # Format pour le frontend
+        etablissements = []
+        for etab_pappers in etablissements_pappers:
+            # Vérifier si on a des données locales pour cet établissement
+            siret_etab = etab_pappers.get("siret")
+            has_pv_c4 = db.query(PVEvent).filter(
+                PVEvent.siret == siret_etab,
+                PVEvent.cycle == "C4"
+            ).first() is not None
+
+            has_pv_c3 = db.query(PVEvent).filter(
+                PVEvent.siret == siret_etab,
+                PVEvent.cycle == "C3"
+            ).first() is not None
+
+            etablissements.append({
+                "siret": siret_etab,
+                "raison_sociale": etab_pappers.get("nom_complet"),
+                "ville": etab_pappers.get("commune"),
+                "code_postal": etab_pappers.get("code_postal"),
+                "has_pv_c4": has_pv_c4,
+                "has_pv_c3": has_pv_c3,
+                "source": "base_et_pappers" if (has_pv_c4 or has_pv_c3) else "pappers_seulement",
+                "pappers": etab_pappers  # Inclut latitude, longitude, etc.
+            })
+
+        # 4. Récupérer les invitations PAP
+        invitations = db.query(Invitation).filter(
+            Invitation.siret.like(f"{siren}%")
+        ).order_by(Invitation.date_invit.desc()).all()
+
+        invitations_list = []
+        for inv in invitations:
+            invitations_list.append({
+                "id": inv.id,
+                "siret": inv.siret,
+                "denomination": inv.denomination,
+                "commune": inv.commune,
+                "code_postal": inv.code_postal,
+                "date_invit": inv.date_invit.isoformat() if inv.date_invit else None,
+                "date_election": inv.date_election.isoformat() if inv.date_election else None,
+                "ud": inv.ud,
+                "fd": inv.fd,
+                "idcc": inv.idcc,
+                "source": inv.source
+            })
+
+        # Construire la réponse
+        response_data = {
+            "success": True,
+            "info_base": {
+                "raison_sociale": info_base.raison_sociale if hasattr(info_base, 'raison_sociale') else info_base.get("raison_sociale") if isinstance(info_base, dict) else None,
+                "siret": normalized_siret,
+                "siren": siren,
+                "ville": info_base.ville if hasattr(info_base, 'ville') else info_base.get("ville") if isinstance(info_base, dict) else None,
+                "cp": info_base.cp if hasattr(info_base, 'cp') else info_base.get("cp") if isinstance(info_base, dict) else None
+            } if info_base else {"siren": siren, "siret": normalized_siret},
+            "pv_par_cycle": dict(pv_par_cycle),
+            "totaux_par_cycle": dict(totaux_par_cycle),
+            "etablissements": etablissements,
+            "invitations": invitations_list,
+            "stats": {
+                "nb_pv": len(pv_events),
+                "nb_etablissements": len(etablissements),
+                "nb_invitations": len(invitations_list),
+                "nb_cycles": len(pv_par_cycle)
+            }
+        }
+
+        return JSONResponse(content=response_data)
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des données entreprise: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur serveur: {str(e)}"
+            }
+        )
+
+
 @app.get("/entreprise/{siret}", response_class=HTMLResponse)
 def fiche_entreprise_page(request: Request, siret: str, db: Session = Depends(get_session)):
     """
