@@ -260,10 +260,33 @@
           const response = await fetch(`/api/entreprise/${this.siren}00000`);
           const data = await response.json();
 
-          this.entreprise = data.entreprise || {};
-          this.pvEvents = data.pv_events || [];
+          // Adapter le format de l'API existante
+          this.entreprise = {
+            siren: this.siren,
+            nom: data.info_base?.raison_sociale || ''
+          };
+
+          // Aplatir les PV groupés par cycle
+          this.pvEvents = [];
+          if (data.pv_par_cycle) {
+            for (const [cycle, pvs] of Object.entries(data.pv_par_cycle)) {
+              this.pvEvents.push(...pvs);
+            }
+          }
+
           this.invitations = data.invitations || [];
-          this.etablissements = data.etablissements || [];
+
+          // Adapter le format des établissements
+          this.etablissements = (data.etablissements || []).map(etab => ({
+            siret: etab.siret,
+            raison_sociale: etab.raison_sociale,
+            denomination: etab.raison_sociale,
+            ville: etab.ville,
+            code_postal: etab.code_postal,
+            adresse: etab.pappers?.adresse_ligne_1 || '',
+            latitude: etab.pappers?.latitude || null,
+            longitude: etab.pappers?.longitude || null
+          }));
 
           this.stats.nb_pv = this.pvEvents.length;
           this.stats.nb_invitations = this.invitations.length;
