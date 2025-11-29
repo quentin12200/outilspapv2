@@ -221,8 +221,10 @@ USER_SESSION_TRACKING_COLUMNS = [
 ]
 
 # Colonnes de métadonnées pour invitations (created_at, updated_at)
+# Note: On utilise NULL pour la migration (tables existantes avec données)
+# Le modèle Python enforce NOT NULL pour les nouvelles insertions
 INVITATION_METADATA_COLUMNS = [
-    ("created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+    ("created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"),
     ("updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"),
 ]
 

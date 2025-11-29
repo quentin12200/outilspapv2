@@ -6149,6 +6149,35 @@ async def add_invitation_manually(
         )
 
 
+@app.post("/api/admin/force-migration")
+async def force_migration(request: Request):
+    """
+    Endpoint temporaire pour forcer l'exécution des migrations manuellement.
+    Utile quand Railway n'a pas encore redéployé avec les nouvelles migrations.
+    """
+    try:
+        from .migrations import add_invitation_metadata_columns_if_needed
+
+        logger.info("🔧 Forçage manuel de la migration created_at/updated_at...")
+        add_invitation_metadata_columns_if_needed()
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Migration exécutée avec succès. Les colonnes created_at et updated_at ont été ajoutées à la table invitations."
+        })
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la migration forcée: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur lors de la migration: {str(e)}"
+            }
+        )
+
+
 @app.get("/mentions-legales", response_class=HTMLResponse)
 def mentions_legales_page(request: Request):
     return templates.TemplateResponse("mentions-legales.html", {"request": request})

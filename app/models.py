@@ -218,9 +218,9 @@ class Invitation(Base):
     date_election = Column(Date)                                 # Date de l'élection si connue
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
 
-    # Métadonnées
-    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)  # Date de création
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)       # Date de modification
+    # Métadonnées (nullable=True pour compatibilité avec bases existantes avant migration)
+    created_at = Column(DateTime, default=datetime.now, nullable=True, index=True)  # Date de création
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=True)  # Date de modification
 
 
 class SiretSummary(Base):
