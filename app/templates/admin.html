@@ -2980,35 +2980,32 @@ function openInOutlook(index) {
 
   const email = window.modalEmails[index].email;
 
-  // Construire le lien mailto
-  const recipient = encodeURIComponent(email.recipient);
-  const subject = encodeURIComponent(email.subject);
-  const body = encodeURIComponent(email.body);
+  // Copier d'abord le CORPS de l'email dans le presse-papiers
+  // (Outlook ouvrira avec destinataire + objet, l'utilisateur devra coller le corps)
+  navigator.clipboard.writeText(email.body).then(() => {
+    // Construire le lien mailto SIMPLE (destinataire + sujet uniquement)
+    const recipient = email.recipient;
+    const subject = encodeURIComponent(email.subject);
 
-  // Créer le lien mailto
-  const mailtoLink = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    // Créer un lien temporaire pour ouvrir Outlook
+    const mailtoLink = `mailto:${recipient}?subject=${subject}`;
 
-  // Vérifier si le lien est trop long (limite ~2000 caractères pour mailto)
-  if (mailtoLink.length > 2000) {
-    // Si trop long, copier dans le presse-papiers et ouvrir un mailto simple
-    const fullContent = `Destinataire: ${email.recipient}
+    // Créer un élément <a> temporaire et le cliquer
+    const link = document.createElement('a');
+    link.href = mailtoLink;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-Objet: ${email.subject}
-
-${email.body}`;
-
-    navigator.clipboard.writeText(fullContent).then(() => {
-      const simpleMailto = `mailto:${recipient}?subject=${subject}`;
-      window.location.href = simpleMailto;
-      alert('⚠️ Email trop long pour mailto.\n\n✅ Contenu copié dans le presse-papiers.\n📧 Outlook ouvert - collez le contenu (Ctrl+V)');
-    }).catch(err => {
-      console.error('Erreur lors de la copie:', err);
-      alert('❌ Erreur lors de la copie');
-    });
-  } else {
-    // Ouvrir directement dans le client email
-    window.location.href = mailtoLink;
-  }
+    // Afficher un message CLAIR
+    setTimeout(() => {
+      alert('📧 Outlook ouvert avec destinataire et objet pré-remplis.\n\n✅ Le CORPS de l\'email est copié dans le presse-papiers.\n\n👉 Cliquez dans le corps du message Outlook et faites Ctrl+V pour coller le contenu.');
+    }, 500);
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie dans le presse-papiers.\n\nVeuillez utiliser le bouton "Copier l\'email" à la place.');
+  });
 }
 </script>
 
