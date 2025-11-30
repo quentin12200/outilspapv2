@@ -136,6 +136,32 @@
       </div>
     </div>
 
+    <!-- Carte des établissements - BOUTON -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <i class="fas fa-map-marked-alt text-4xl text-cgt-red"></i>
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">
+              Carte interactive des établissements
+            </h2>
+            <p class="text-gray-600 text-sm">
+              <span class="font-bold" x-text="data?.stats?.nb_etablissements || 0"></span> établissements disponibles
+            </p>
+          </div>
+        </div>
+        <form action="/etablissements-carte" method="get" target="_blank">
+          <input type="hidden" name="auto_search" x-bind:value="data?.siren">
+          <button type="submit"
+                  class="inline-flex items-center gap-2 px-6 py-3 bg-cgt-red text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Ouvrir la carte</span>
+            <i class="fas fa-external-link-alt text-sm"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+
     <!-- Graphiques Comparatifs C3 vs C4 -->
     <div x-show="data?.totaux_par_cycle && (data.totaux_par_cycle['C3'] || data.totaux_par_cycle['C4'])" class="mb-8">
       <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
