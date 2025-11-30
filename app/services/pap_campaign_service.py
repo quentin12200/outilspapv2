@@ -508,23 +508,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
                 body += f"""Le document PAP complet est joint à cet email.
 """
 
-            # Ajouter les coordonnées du référent régional si disponible
-            if referent:
-                body += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 VOTRE RÉFÉRENT RÉGIONAL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{referent['nom']}
-📧 {referent['email']}
-📍 {referent['regions']}
-
-Pour toute question ou accompagnement, n'hésitez pas à contacter votre référent régional.
-
-Cordialement,
-Confédération CGT"""
-            else:
-                body += """
+            # PAS de référent régional pour les emails standard
+            body += """
 Cordialement,
 Confédération CGT"""
 
