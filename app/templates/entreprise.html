@@ -212,9 +212,14 @@
       },
 
       async init() {
-        // Initialiser la carte Leaflet
-        // IMPORTANT: On initialise la carte même si elle est cachée
-        // On utilisera invalidateSize() quand l'onglet devient visible
+        // Charger les données d'abord
+        await this.loadData();
+        this.loading = false;
+
+        // Attendre que le DOM soit mis à jour (loading = false révèle la carte)
+        await this.$nextTick();
+
+        // MAINTENANT initialiser la carte Leaflet dans un conteneur visible
         this.map = L.map('map', {
           center: [46.7111, 1.7191],
           zoom: 6,
@@ -227,9 +232,15 @@
           maxZoom: 19
         }).addTo(this.map);
 
-        // Charger les données
-        await this.loadData();
-        this.loading = false;
+        // Ajouter les marqueurs maintenant que la carte est initialisée
+        this.addMapMarkers();
+
+        // Forcer un recalcul des dimensions après l'initialisation
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+          }
+        }, 250);
 
         // Observer le changement d'onglet pour corriger l'affichage de la carte
         this.$watch('activeTab', (newTab) => {
@@ -305,8 +316,7 @@
           // Préparer les données du graphique
           this.prepareChartData();
 
-          // Ajouter les marqueurs sur la carte
-          this.addMapMarkers();
+          // Note: les marqueurs seront ajoutés après l'initialisation de la carte dans init()
         } catch (error) {
           console.error('Erreur lors du chargement des données:', error);
         }
