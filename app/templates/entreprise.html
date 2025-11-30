@@ -212,14 +212,8 @@
       },
 
       async init() {
-        // Charger les données d'abord
-        await this.loadData();
-        this.loading = false;
-
-        // Attendre que le DOM soit mis à jour (loading = false révèle la carte)
-        await this.$nextTick();
-
-        // MAINTENANT initialiser la carte Leaflet dans un conteneur visible
+        // Initialiser la carte Leaflet IMMÉDIATEMENT (même si le conteneur est masqué)
+        // C'est le pattern qui fonctionne dans etablissements-carte.html
         this.map = L.map('map', {
           center: [46.7111, 1.7191],
           zoom: 6,
@@ -232,15 +226,36 @@
           maxZoom: 19
         }).addTo(this.map);
 
-        // Ajouter les marqueurs maintenant que la carte est initialisée
-        this.addMapMarkers();
-
-        // Forcer un recalcul des dimensions après l'initialisation
+        // Forcer un recalcul initial des dimensions
         setTimeout(() => {
           if (this.map) {
             this.map.invalidateSize();
           }
         }, 250);
+
+        // Charger les données
+        await this.loadData();
+        this.loading = false;
+
+        // Attendre que le DOM soit mis à jour (x-show révèle la carte)
+        // et forcer le recalcul des dimensions de la carte
+        this.$nextTick(() => {
+          setTimeout(() => {
+            if (this.map) {
+              this.map.invalidateSize();
+            }
+
+            // Ajouter les marqueurs sur la carte
+            this.addMapMarkers();
+
+            // Re-forcer le recalcul après le fitBounds
+            setTimeout(() => {
+              if (this.map) {
+                this.map.invalidateSize();
+              }
+            }, 300);
+          }, 200);
+        });
 
         // Observer le changement d'onglet pour corriger l'affichage de la carte
         this.$watch('activeTab', (newTab) => {
