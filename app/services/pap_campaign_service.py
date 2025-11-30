@@ -26,6 +26,7 @@ class PAPCampaignService:
 
     # Charger les contacts UD au démarrage de la classe
     _ud_contacts = None
+    _referents_regionaux = None
 
     def __init__(self, db: Session):
         """
@@ -36,6 +37,7 @@ class PAPCampaignService:
         """
         self.db = db
         self._load_ud_contacts()
+        self._load_referents_regionaux()
 
     def _load_ud_contacts(self):
         """Charge les contacts des UD depuis le fichier JSON."""
@@ -49,6 +51,22 @@ class PAPCampaignService:
             except Exception as e:
                 logger.error(f"❌ Erreur chargement contacts UD: {str(e)}")
                 PAPCampaignService._ud_contacts = {}
+
+    def _load_referents_regionaux(self):
+        """Charge les référents régionaux depuis le fichier JSON."""
+        if PAPCampaignService._referents_regionaux is None:
+            try:
+                referents_path = Path(__file__).parent.parent / 'data' / 'referents_regionaux.json'
+                with open(referents_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    PAPCampaignService._referents_regionaux = {
+                        'referents': data.get('referents', {}),
+                        'departement_to_referent': data.get('departement_to_referent', {})
+                    }
+                    logger.info(f"✅ Référents régionaux chargés: {len(data.get('referents', {}))} référents")
+            except Exception as e:
+                logger.error(f"❌ Erreur chargement référents régionaux: {str(e)}")
+                PAPCampaignService._referents_regionaux = {'referents': {}, 'departement_to_referent': {}}
 
     @staticmethod
     def get_ud_contact(departement: str) -> Dict[str, str]:
@@ -83,6 +101,49 @@ class PAPCampaignService:
             'email': f'ud{departement.lower()}@cgt.fr',
             'responsable': None
         }
+
+    @staticmethod
+    def get_referent_regional(departement: str) -> Optional[Dict[str, str]]:
+        """
+        Récupère les informations du référent régional pour un département.
+
+        Args:
+            departement: Code département (ex: "75", "13", "20A")
+
+        Returns:
+            Dictionnaire avec nom et email du référent, ou None si non trouvé
+        """
+        if PAPCampaignService._referents_regionaux is None:
+            return None
+
+        # Normaliser le code département
+        dept_key = departement.upper().lstrip('0') if departement.isdigit() else departement.upper()
+
+        # Chercher dans le mapping département -> référent
+        dept_to_ref = PAPCampaignService._referents_regionaux.get('departement_to_referent', {})
+
+        # Essayer avec le département tel quel
+        referent_key = dept_to_ref.get(departement)
+        if not referent_key:
+            # Essayer avec zéro devant si numérique
+            if departement.isdigit() and len(departement) == 1:
+                referent_key = dept_to_ref.get(f'0{departement}')
+
+        if not referent_key:
+            return None
+
+        # Récupérer les infos du référent
+        referents = PAPCampaignService._referents_regionaux.get('referents', {})
+        referent_data = referents.get(referent_key)
+
+        if referent_data:
+            return {
+                'nom': referent_data.get('nom'),
+                'email': referent_data.get('email'),
+                'regions': ', '.join(referent_data.get('regions', []))
+            }
+
+        return None
 
     def analyze_pap(self, pap_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -272,6 +333,9 @@ class PAPCampaignService:
         recipient_email = ud_contact.get('email', f'ud{departement.lower()}@cgt.fr')
         responsable_nom = ud_contact.get('responsable')
 
+        # Récupérer le référent régional
+        referent = PAPCampaignService.get_referent_regional(departement)
+
         # Vérifier l'historique CGT
         historique_pv = pap_data.get('historique_pv', {})
         has_cgt_history = historique_pv.get('found', False)
@@ -347,9 +411,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 {full_pdf_url}
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
-
-Cordialement,
-Confédération CGT"""
+"""
             else:
                 body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -357,7 +419,25 @@ Confédération CGT"""
 Le document PAP complet est joint à cet email.
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
+"""
 
+            # Ajouter les coordonnées du référent régional si disponible
+            if referent:
+                body += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 VOTRE RÉFÉRENT RÉGIONAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{referent['nom']}
+📧 {referent['email']}
+📍 {referent['regions']}
+
+Pour toute question ou accompagnement, n'hésitez pas à contacter votre référent régional.
+
+Cordialement,
+Confédération CGT"""
+            else:
+                body += """
 Cordialement,
 Confédération CGT"""
 
@@ -412,12 +492,28 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
                 full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
                 body += f"""📎 Document PAP disponible en ligne :
 {full_pdf_url}
+"""
+            else:
+                body += f"""Le document PAP complet est joint à cet email.
+"""
+
+            # Ajouter les coordonnées du référent régional si disponible
+            if referent:
+                body += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 VOTRE RÉFÉRENT RÉGIONAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{referent['nom']}
+📧 {referent['email']}
+📍 {referent['regions']}
+
+Pour toute question ou accompagnement, n'hésitez pas à contacter votre référent régional.
 
 Cordialement,
 Confédération CGT"""
             else:
-                body += f"""Le document PAP complet est joint à cet email.
-
+                body += """
 Cordialement,
 Confédération CGT"""
 
@@ -426,5 +522,6 @@ Confédération CGT"""
             'subject': subject,
             'body': body,
             'recipient': recipient_email,
-            'responsable': responsable_nom
+            'responsable': responsable_nom,
+            'referent': referent
         }
