@@ -277,16 +277,26 @@
           this.invitations = data.invitations || [];
 
           // Adapter le format des établissements
-          this.etablissements = (data.etablissements || []).map(etab => ({
-            siret: etab.siret,
-            raison_sociale: etab.raison_sociale,
-            denomination: etab.raison_sociale,
-            ville: etab.ville,
-            code_postal: etab.code_postal,
-            adresse: etab.pappers?.adresse_ligne_1 || '',
-            latitude: etab.pappers?.latitude || null,
-            longitude: etab.pappers?.longitude || null
-          }));
+          this.etablissements = (data.etablissements || []).map(etab => {
+            // Debug: afficher la structure des données
+            console.log('Établissement:', etab);
+            console.log('Pappers data:', etab.pappers);
+
+            return {
+              siret: etab.siret,
+              raison_sociale: etab.raison_sociale,
+              denomination: etab.raison_sociale,
+              ville: etab.ville,
+              code_postal: etab.code_postal,
+              adresse: etab.pappers?.adresse_ligne_1 || '',
+              // Essayer différentes possibilités pour les coordonnées GPS
+              latitude: etab.pappers?.latitude || etab.pappers?.lat || null,
+              longitude: etab.pappers?.longitude || etab.pappers?.lng || etab.pappers?.lon || null
+            };
+          });
+
+          console.log('Établissements avec GPS:', this.etablissements.filter(e => e.latitude && e.longitude).length);
+          console.log('Total établissements:', this.etablissements.length);
 
           this.stats.nb_pv = this.pvEvents.length;
           this.stats.nb_invitations = this.invitations.length;
