@@ -8,10 +8,12 @@ import logging
 
 from ..db import get_session, Base, engine, SessionLocal
 from .. import etl
-from ..models import SiretSummary, PVEvent, Invitation, User
+from ..models import SiretSummary, PVEvent, Invitation, User, UserActivity
 from ..schemas import SiretSummaryOut
 from ..services.sirene_api import enrichir_siret, SireneAPIError, rechercher_siret
 from ..services.idcc_enrichment import get_idcc_enrichment_service
+from ..services.pappers_api import pappers_api
+from ..services.chatbot_ia import ChatbotIA
 from ..background_tasks import task_tracker, run_build_siret_summary, run_enrichir_invitations_idcc
 from ..validators import validate_siret, validate_date, validate_excel_file, ValidationError
 from ..user_auth import require_admin_user, get_current_user
@@ -2507,3 +2509,1145 @@ def generer_rapport_ia_pap(db: Session = Depends(get_session)):
             "entreprises": priorite_2
         }
     }
+
+
+@router.get("/pv/siret/{siret}")
+async def get_pv_by_siret(
+    siret: str,
+    db: Session = Depends(get_session)
+):
+    """
+    Récupère tous les PV (procès-verbaux) associés à un SIRET.
+    Retourne les résultats électoraux : inscrits, voix par organisation, etc.
+
+    Args:
+        siret: Numéro SIRET (14 chiffres)
+
+    Returns:
+        Liste des PV avec résultats électoraux détaillés
+    """
+    try:
+        # Nettoyer le SIRET
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        if len(siret_clean) != 14:
+            raise HTTPException(status_code=400, detail="SIRET invalide (doit contenir 14 chiffres)")
+
+        # Récupérer tous les PV pour ce SIRET
+        pv_list = db.query(PVEvent).filter(PVEvent.siret == siret_clean).all()
+
+        if not pv_list:
+            return {
+                "success": True,
+                "siret": siret_clean,
+                "count": 0,
+                "pv": []
+            }
+
+        # Formatter les résultats
+        formatted_pv = []
+        for pv in pv_list:
+            # Calculer les organisations présentes avec leurs voix
+            organisations = []
+
+            org_map = [
+                ("CGT", pv.cgt_voix, pv.pres_pv_cgt),
+                ("CFDT", pv.cfdt_voix, pv.pres_pv_cfdt),
+                ("FO", pv.fo_voix, pv.pres_pv_fo),
+                ("CFTC", pv.cftc_voix, pv.pres_pv_cftc),
+                ("CGC", pv.cgc_voix, pv.pres_pv_cgc),
+                ("UNSA", pv.unsa_voix, pv.pres_pv_unsa),
+                ("SUD/Solidaires", pv.sud_voix, pv.pres_pv_sud),
+                ("Autre", pv.autre_voix, pv.pres_pv_autre),
+            ]
+
+            total_voix = 0
+            for nom, voix, presence in org_map:
+                if voix and voix > 0:
+                    total_voix += voix
+                    organisations.append({
+                        "nom": nom,
+                        "voix": voix,
+                        "presence": presence or "OUI"
+                    })
+
+            # Calculer les pourcentages
+            for org in organisations:
+                if total_voix > 0:
+                    org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
+                else:
+                    org["pourcentage"] = 0
+
+            # Trier par nombre de voix décroissant
+            organisations.sort(key=lambda x: x["voix"], reverse=True)
+
+            formatted_pv.append({
+                "id_pv": pv.id_pv,
+                "date_scrutin": pv.date_pv,
+                "cycle": pv.cycle,
+                "institution": pv.institution,
+                "raison_sociale": pv.raison_sociale,
+                "ville": pv.ville,
+                "cp": pv.cp,
+                "ud": pv.ud,
+                "region": pv.region,
+                "inscrits": pv.inscrits,
+                "votants": pv.votants,
+                "sve": pv.sve,
+                "taux_participation": pv.tx_participation_pv,
+                "organisations": organisations,
+                "total_voix": total_voix,
+                "effectif_siret": pv.effectif_siret,
+                "idcc": pv.idcc
+            })
+
+        # Trier par date décroissante (plus récent en premier)
+        formatted_pv.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+        logger.info(f"✅ {len(formatted_pv)} PV trouvés pour SIRET {siret_clean}")
+
+        return {
+            "success": True,
+            "siret": siret_clean,
+            "count": len(formatted_pv),
+            "pv": formatted_pv
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des PV pour SIRET {siret}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+async def _get_pv_from_tous_pv(siren: str, db: Session):
+    """
+    Fonction fallback qui interroge directement la table Tous_PV quand siret_summary est vide.
+    Retourne le même format que get_pv_by_siren.
+    """
+    # Récupérer tous les PV de ce SIREN
+    # Chercher par siren ET par siret qui commence par siren (fallback si siren pas rempli)
+    pv_list = db.query(PVEvent).filter(
+        or_(
+            PVEvent.siren == siren,
+            PVEvent.siret.like(f"{siren}%")
+        )
+    ).all()
+
+    logger.info(f"🔍 Fallback Tous_PV pour SIREN {siren}: {len(pv_list)} PV trouvés")
+    print(f"[DEBUG FALLBACK] 🔍 Fallback Tous_PV pour SIREN {siren}: {len(pv_list)} PV trouvés", flush=True)
+
+    if not pv_list:
+        return {
+            "success": True,
+            "siren": siren,
+            "count": 0,
+            "pv": [],
+            "source": "Tous_PV"
+        }
+
+    formatted_results = []
+
+    for pv in pv_list:
+        # Calculer les organisations et leurs voix
+        organisations = []
+
+        # Utiliser getattr pour éviter les AttributeError
+        sud_voix_value = getattr(pv, 'sud_voix', None) or getattr(pv, 'solidaire_voix', None)
+
+        # NOTE: Les colonnes siege_* n'existent pas dans toutes les bases de données
+        # On les met à None pour éviter les erreurs SQL lors du fallback
+        org_map = [
+            ("CGT", getattr(pv, 'cgt_voix', None), None),
+            ("CFDT", getattr(pv, 'cfdt_voix', None), None),
+            ("FO", getattr(pv, 'fo_voix', None), None),
+            ("CFTC", getattr(pv, 'cftc_voix', None), None),
+            ("CGC", getattr(pv, 'cgc_voix', None), None),
+            ("UNSA", getattr(pv, 'unsa_voix', None), None),
+            ("SUD/Solidaires", sud_voix_value, None),
+            ("Autre", getattr(pv, 'autre_voix', None), None),
+        ]
+
+        total_voix = 0
+        for nom, voix, sieges in org_map:
+            if voix and voix > 0:
+                total_voix += voix
+                organisations.append({
+                    "nom": nom,
+                    "voix": int(voix),
+                    "sieges": int(sieges) if sieges else 0
+                })
+
+        # Calculer les pourcentages
+        for org in organisations:
+            if total_voix > 0:
+                org["pourcentage"] = round((org["voix"] / total_voix) * 100, 2)
+            else:
+                org["pourcentage"] = 0
+
+        # Trier par nombre de voix décroissant
+        organisations.sort(key=lambda x: x["voix"], reverse=True)
+
+        # Calculer taux de participation
+        taux_participation = None
+        inscrits = getattr(pv, 'inscrits', None)
+        votants = getattr(pv, 'votants', None)
+        if inscrits and inscrits > 0 and votants:
+            taux_participation = round((votants / inscrits) * 100, 2)
+
+        # Déterminer si c'est une carence
+        carence = False
+        institution = getattr(pv, 'institution', None)
+        votants = getattr(pv, 'votants', None)
+        if institution and "car" in str(institution).lower():
+            carence = True
+        elif not votants or votants <= 0:
+            carence = True
+
+        # Parser la date
+        date_scrutin = None
+        date_pv = getattr(pv, 'date_pv', None)
+        if date_pv:
+            try:
+                if isinstance(date_pv, str):
+                    # Essayer plusieurs formats de date
+                    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"]:
+                        try:
+                            date_scrutin = datetime.strptime(date_pv, fmt).strftime("%Y-%m-%d")
+                            break
+                        except ValueError:
+                            continue
+                    if not date_scrutin:
+                        # Si aucun format ne fonctionne, extraire juste la partie date
+                        date_scrutin = date_pv.split()[0] if ' ' in date_pv else date_pv
+                else:
+                    date_scrutin = date_pv.strftime("%Y-%m-%d") if hasattr(date_pv, 'strftime') else str(date_pv)
+            except Exception as e:
+                logger.warning(f"Erreur parsing date {date_pv}: {e}")
+                date_scrutin = str(date_pv).split()[0] if date_pv and ' ' in str(date_pv) else str(date_pv) if date_pv else None
+
+        formatted_results.append({
+            "siret": getattr(pv, 'siret', None),
+            "cycle": getattr(pv, 'cycle', None) or "N/A",
+            "date_scrutin": date_scrutin,
+            "raison_sociale": getattr(pv, 'raison_sociale', None),
+            "ville": getattr(pv, 'ville', None),
+            "cp": getattr(pv, 'cp', None),
+            "ud": getattr(pv, 'ud', None),
+            "fd": getattr(pv, 'fd', None),
+            "region": getattr(pv, 'region', None),
+            "inscrits": int(getattr(pv, 'inscrits', 0)) if getattr(pv, 'inscrits', None) else 0,
+            "votants": int(getattr(pv, 'votants', 0)) if getattr(pv, 'votants', None) else 0,
+            "taux_participation": taux_participation,
+            "carence": carence,
+            "organisations": organisations,
+            "total_voix": total_voix,
+            "effectif_siret": int(getattr(pv, 'effectif_siret', 0)) if getattr(pv, 'effectif_siret', None) else None,
+            "effectif_siren": int(getattr(pv, 'effectif_siren', 0)) if getattr(pv, 'effectif_siren', None) else None,
+            "idcc": getattr(pv, 'idcc', None),
+            "nb_colleges": int(getattr(pv, 'nb_college_siret', 0)) if getattr(pv, 'nb_college_siret', None) else None
+        })
+
+    # Trier par date décroissante
+    formatted_results.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+    # Log détaillé des cycles trouvés
+    cycles_count = {}
+    for pv in formatted_results:
+        cycle = pv.get("cycle", "N/A")
+        cycles_count[cycle] = cycles_count.get(cycle, 0) + 1
+
+    logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren} depuis Tous_PV (fallback)")
+    logger.info(f"📊 Répartition par cycle: {cycles_count}")
+    print(f"[DEBUG FALLBACK] ✅ {len(formatted_results)} PV trouvés depuis Tous_PV", flush=True)
+    print(f"[DEBUG FALLBACK] 📊 Répartition par cycle: {cycles_count}", flush=True)
+
+    return {
+        "success": True,
+        "siren": siren,
+        "count": len(formatted_results),
+        "pv": formatted_results,
+        "source": "Tous_PV"
+    }
+
+
+@router.get("/pv/siren/{siren}")
+async def get_pv_by_siren(
+    siren: str,
+    db: Session = Depends(get_session)
+):
+    """
+    Récupère tous les résultats électoraux associés à un SIREN (entreprise).
+    Utilise la table siret_summary (calendrier) qui contient les données agrégées.
+    Si siret_summary est vide, fallback vers la table Tous_PV directement.
+    Retourne les résultats électoraux : inscrits, voix par organisation, sièges, etc.
+
+    Args:
+        siren: Numéro SIREN (9 chiffres)
+
+    Returns:
+        Liste des résultats électoraux avec données agrégées (Cycle 3 et Cycle 4)
+    """
+    try:
+        # Nettoyer le SIREN
+        siren_clean = ''.join(c for c in siren if c.isdigit())
+
+        if len(siren_clean) != 9:
+            raise HTTPException(status_code=400, detail="SIREN invalide (doit contenir 9 chiffres)")
+
+        # Récupérer tous les SIRETs de cette entreprise depuis siret_summary
+        sirets_list = db.query(SiretSummary).filter(SiretSummary.siren == siren_clean).all()
+
+        # FALLBACK: Si siret_summary est vide, chercher dans Tous_PV directement
+        if not sirets_list:
+            logger.info(f"⚠️  SIREN {siren_clean} non trouvé dans siret_summary, fallback vers Tous_PV")
+            return await _get_pv_from_tous_pv(siren_clean, db)
+
+        # Formatter les résultats
+        formatted_results = []
+
+        for siret_data in sirets_list:
+            # Traiter Cycle 3 si présent
+            if siret_data.date_pv_c3:
+                organisations_c3 = []
+
+                org_map_c3 = [
+                    ("CGT", siret_data.cgt_voix_c3, siret_data.cgt_siege_c3),
+                    ("CFDT", siret_data.cfdt_voix_c3, siret_data.cfdt_siege_c3),
+                    ("FO", siret_data.fo_voix_c3, siret_data.fo_siege_c3),
+                    ("CFTC", siret_data.cftc_voix_c3, siret_data.cftc_siege_c3),
+                    ("CGC", siret_data.cgc_voix_c3, siret_data.cgc_siege_c3),
+                    ("UNSA", siret_data.unsa_voix_c3, siret_data.unsa_siege_c3),
+                    ("SUD/Solidaires", siret_data.sud_voix_c3 or siret_data.solidaire_voix_c3, siret_data.sud_siege_c3),
+                    ("Autre", siret_data.autre_voix_c3, siret_data.autre_siege_c3),
+                ]
+
+                total_voix_c3 = 0
+                for nom, voix, sieges in org_map_c3:
+                    if voix and voix > 0:
+                        total_voix_c3 += voix
+                        organisations_c3.append({
+                            "nom": nom,
+                            "voix": voix,
+                            "sieges": sieges or 0
+                        })
+
+                # Calculer les pourcentages
+                for org in organisations_c3:
+                    if total_voix_c3 > 0:
+                        org["pourcentage"] = round((org["voix"] / total_voix_c3) * 100, 2)
+                    else:
+                        org["pourcentage"] = 0
+
+                # Trier par nombre de voix décroissant
+                organisations_c3.sort(key=lambda x: x["voix"], reverse=True)
+
+                # Calculer taux de participation
+                taux_participation_c3 = None
+                if siret_data.inscrits_c3 and siret_data.inscrits_c3 > 0 and siret_data.votants_c3:
+                    taux_participation_c3 = round((siret_data.votants_c3 / siret_data.inscrits_c3) * 100, 2)
+
+                formatted_results.append({
+                    "siret": siret_data.siret,
+                    "cycle": "Cycle 3",
+                    "date_scrutin": siret_data.date_pv_c3.strftime("%Y-%m-%d") if siret_data.date_pv_c3 else None,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "cp": siret_data.cp,
+                    "ud": siret_data.ud_c3,
+                    "fd": siret_data.fd_c3,
+                    "region": siret_data.region,
+                    "inscrits": siret_data.inscrits_c3,
+                    "votants": siret_data.votants_c3,
+                    "taux_participation": taux_participation_c3,
+                    "carence": siret_data.carence_c3,
+                    "organisations": organisations_c3,
+                    "total_voix": total_voix_c3,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                    "nb_colleges": siret_data.nb_college_siret
+                })
+
+            # Traiter Cycle 4 si présent
+            if siret_data.date_pv_c4:
+                organisations_c4 = []
+
+                org_map_c4 = [
+                    ("CGT", siret_data.cgt_voix_c4, siret_data.cgt_siege_c4),
+                    ("CFDT", siret_data.cfdt_voix_c4, siret_data.cfdt_siege_c4),
+                    ("FO", siret_data.fo_voix_c4, siret_data.fo_siege_c4),
+                    ("CFTC", siret_data.cftc_voix_c4, siret_data.cftc_siege_c4),
+                    ("CGC", siret_data.cgc_voix_c4, siret_data.cgc_siege_c4),
+                    ("UNSA", siret_data.unsa_voix_c4, siret_data.unsa_siege_c4),
+                    ("SUD/Solidaires", siret_data.sud_voix_c4 or siret_data.solidaire_voix_c4, siret_data.sud_siege_c4),
+                    ("Autre", siret_data.autre_voix_c4, siret_data.autre_siege_c4),
+                ]
+
+                total_voix_c4 = 0
+                for nom, voix, sieges in org_map_c4:
+                    if voix and voix > 0:
+                        total_voix_c4 += voix
+                        organisations_c4.append({
+                            "nom": nom,
+                            "voix": voix,
+                            "sieges": sieges or 0
+                        })
+
+                # Calculer les pourcentages
+                for org in organisations_c4:
+                    if total_voix_c4 > 0:
+                        org["pourcentage"] = round((org["voix"] / total_voix_c4) * 100, 2)
+                    else:
+                        org["pourcentage"] = 0
+
+                # Trier par nombre de voix décroissant
+                organisations_c4.sort(key=lambda x: x["voix"], reverse=True)
+
+                # Calculer taux de participation
+                taux_participation_c4 = None
+                if siret_data.inscrits_c4 and siret_data.inscrits_c4 > 0 and siret_data.votants_c4:
+                    taux_participation_c4 = round((siret_data.votants_c4 / siret_data.inscrits_c4) * 100, 2)
+
+                formatted_results.append({
+                    "siret": siret_data.siret,
+                    "cycle": "Cycle 4",
+                    "date_scrutin": siret_data.date_pv_c4.strftime("%Y-%m-%d") if siret_data.date_pv_c4 else None,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "cp": siret_data.cp,
+                    "ud": siret_data.ud_c4,
+                    "fd": siret_data.fd_c4,
+                    "region": siret_data.region,
+                    "inscrits": siret_data.inscrits_c4,
+                    "votants": siret_data.votants_c4,
+                    "taux_participation": taux_participation_c4,
+                    "carence": siret_data.carence_c4,
+                    "organisations": organisations_c4,
+                    "total_voix": total_voix_c4,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                    "nb_colleges": siret_data.nb_college_siret
+                })
+
+        # Trier par date décroissante (plus récent en premier)
+        formatted_results.sort(key=lambda x: x["date_scrutin"] or "", reverse=True)
+
+        logger.info(f"✅ {len(formatted_results)} résultats électoraux trouvés pour SIREN {siren_clean} depuis siret_summary")
+
+        return {
+            "success": True,
+            "siren": siren_clean,
+            "count": len(formatted_results),
+            "pv": formatted_results,
+            "source": "siret_summary"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des résultats électoraux pour SIREN {siren}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.get("/entreprise/{siret}")
+async def get_entreprise_fiche_complete(
+    siret: str,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère la fiche complète d'une entreprise avec toutes les données disponibles.
+
+    Données agrégées :
+    - Informations de base (raison sociale, adresse, SIREN/SIRET)
+    - PV électoraux (Cycle 4 uniquement)
+    - Invitations PAP (historique complet)
+    - Liste des établissements (tous les SIRET du SIREN)
+    - Statistiques agrégées
+
+    Args:
+        siret: Numéro SIRET (14 chiffres) ou SIREN (9 chiffres)
+
+    Returns:
+        Fiche entreprise complète avec toutes les données disponibles
+    """
+    try:
+        # Nettoyer l'input
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        # Déterminer si c'est un SIRET ou SIREN
+        if len(siret_clean) == 14:
+            siren = siret_clean[:9]
+            is_siret = True
+        elif len(siret_clean) == 9:
+            siren = siret_clean
+            siret_clean = None
+            is_siret = False
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Numéro invalide (doit contenir 9 chiffres pour SIREN ou 14 pour SIRET)"
+            )
+
+        logger.info(f"📋 Récupération fiche entreprise pour {'SIRET' if is_siret else 'SIREN'}: {siret_clean or siren}")
+
+        # ==================== 1. INFORMATIONS DE BASE ====================
+        # Récupérer les infos de base depuis siret_summary ou Tous_PV
+        info_base = None
+        siret_principal = siret_clean or None
+
+        if is_siret:
+            # Chercher dans siret_summary
+            siret_data = db.query(SiretSummary).filter(SiretSummary.siret == siret_clean).first()
+            if siret_data:
+                info_base = {
+                    "siret": siret_data.siret,
+                    "siren": siren,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "code_postal": siret_data.cp,
+                    "region": siret_data.region,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                }
+            else:
+                # Fallback vers Tous_PV
+                pv_data = db.query(PVEvent).filter(PVEvent.siret == siret_clean).first()
+                if pv_data:
+                    info_base = {
+                        "siret": pv_data.siret,
+                        "siren": siren,
+                        "raison_sociale": getattr(pv_data, 'raison_sociale', None),
+                        "ville": getattr(pv_data, 'ville', None),
+                        "code_postal": getattr(pv_data, 'cp', None),
+                        "region": getattr(pv_data, 'region', None),
+                        "effectif_siret": getattr(pv_data, 'effectif_siret', None),
+                        "effectif_siren": getattr(pv_data, 'effectif_siren', None),
+                        "idcc": getattr(pv_data, 'idcc', None),
+                    }
+
+        # Si pas trouvé ou si SIREN, chercher le premier établissement du SIREN
+        if not info_base:
+            siret_data = db.query(SiretSummary).filter(SiretSummary.siren == siren).first()
+            if siret_data:
+                siret_principal = siret_data.siret
+                info_base = {
+                    "siret": siret_data.siret,
+                    "siren": siren,
+                    "raison_sociale": siret_data.raison_sociale,
+                    "ville": siret_data.ville,
+                    "code_postal": siret_data.cp,
+                    "region": siret_data.region,
+                    "effectif_siret": siret_data.effectif_siret,
+                    "effectif_siren": siret_data.effectif_siren,
+                    "idcc": siret_data.idcc,
+                }
+            else:
+                # Dernier fallback : Tous_PV
+                pv_data = db.query(PVEvent).filter(PVEvent.siren == siren).first()
+                if pv_data:
+                    siret_principal = getattr(pv_data, 'siret', None)
+                    info_base = {
+                        "siret": siret_principal,
+                        "siren": siren,
+                        "raison_sociale": getattr(pv_data, 'raison_sociale', None),
+                        "ville": getattr(pv_data, 'ville', None),
+                        "code_postal": getattr(pv_data, 'cp', None),
+                        "region": getattr(pv_data, 'region', None),
+                        "effectif_siret": getattr(pv_data, 'effectif_siret', None),
+                        "effectif_siren": getattr(pv_data, 'effectif_siren', None),
+                        "idcc": getattr(pv_data, 'idcc', None),
+                    }
+
+        if not info_base:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucune donnée trouvée pour {'SIRET' if is_siret else 'SIREN'} {siret_clean or siren}"
+            )
+
+        # ==================== 2. PV ÉLECTORAUX (TOUS CYCLES) ====================
+        pv_data = await get_pv_by_siren(siren, db)
+
+        # Organiser les PV par cycle
+        pv_par_cycle = {}
+        tous_pv = []
+
+        if pv_data.get("success") and pv_data.get("pv"):
+            for pv in pv_data["pv"]:
+                cycle_raw = pv.get("cycle", "N/A")
+                cycle = str(cycle_raw).strip() if cycle_raw else "N/A"
+
+                # Normaliser le nom du cycle pour le regroupement
+                if not cycle or cycle == "N/A":
+                    cycle_key = "Autre"
+                else:
+                    cycle_key = cycle
+
+                if cycle_key not in pv_par_cycle:
+                    pv_par_cycle[cycle_key] = []
+
+                pv_par_cycle[cycle_key].append(pv)
+                tous_pv.append(pv)
+
+        # Calculer les totaux par cycle
+        totaux_par_cycle = {}
+        for cycle, pvs in pv_par_cycle.items():
+            total_inscrits = sum(pv.get("inscrits", 0) or 0 for pv in pvs)
+            total_votants = sum(pv.get("votants", 0) or 0 for pv in pvs)
+            total_voix = sum(pv.get("total_voix", 0) or 0 for pv in pvs)
+
+            # Compter la présence CGT
+            presence_cgt = sum(1 for pv in pvs if any(org.get("nom") == "CGT" and org.get("voix", 0) > 0 for org in pv.get("organisations", [])))
+
+            totaux_par_cycle[cycle] = {
+                "nb_pv": len(pvs),
+                "total_inscrits": total_inscrits,
+                "total_votants": total_votants,
+                "total_voix": total_voix,
+                "taux_participation": round((total_votants / total_inscrits * 100), 2) if total_inscrits > 0 else 0,
+                "presence_cgt": presence_cgt
+            }
+
+        print(f"[DEBUG] PV organisés par cycle: {list(pv_par_cycle.keys())}", flush=True)
+        print(f"[DEBUG] Totaux: {totaux_par_cycle}", flush=True)
+
+        # ==================== 3. INVITATIONS PAP ====================
+        # Note: Le modèle Invitation n'a pas de champ siren, on filtre par SIRET qui commence par SIREN
+        if siret_clean:
+            # Si on a un SIRET exact, chercher ce SIRET
+            invitations = db.query(Invitation).filter(
+                Invitation.siret == siret_clean,
+                Invitation.est_actif == True
+            ).order_by(Invitation.date_invit.desc()).all()
+        else:
+            # Si on a juste un SIREN, chercher tous les SIRET qui commencent par ce SIREN
+            invitations = db.query(Invitation).filter(
+                Invitation.siret.like(f"{siren}%"),
+                Invitation.est_actif == True
+            ).order_by(Invitation.date_invit.desc()).all()
+
+        invitations_list = []
+        for inv in invitations:
+            invitations_list.append({
+                "id": inv.id,
+                "siret": inv.siret,
+                "raison_sociale": inv.denomination,  # denomination dans le modèle Invitation
+                "ville": inv.commune,  # commune dans le modèle Invitation
+                "code_postal": inv.code_postal,
+                "date_invit": inv.date_invit.strftime("%Y-%m-%d") if inv.date_invit else None,
+                "date_reception": inv.date_reception.strftime("%Y-%m-%d") if inv.date_reception else None,
+                "date_election": inv.date_election.strftime("%Y-%m-%d") if inv.date_election else None,
+                "effectif_connu": inv.effectif_connu,
+                "ud": inv.ud,
+                "fd": inv.fd,
+                "idcc": inv.idcc,
+                "structure_saisie": inv.structure_saisie,
+                "source": inv.source,
+            })
+
+        # ==================== 4. LISTE DES ÉTABLISSEMENTS ====================
+        etablissements_summary = db.query(SiretSummary).filter(
+            SiretSummary.siren == siren
+        ).all()
+
+        etablissements_list = []
+        for etab in etablissements_summary:
+            # Le siège est généralement le SIRET qui finit par 00001
+            is_siege = str(etab.siret).endswith("00001")
+
+            etablissements_list.append({
+                "siret": etab.siret,
+                "raison_sociale": etab.raison_sociale,
+                "ville": etab.ville,
+                "code_postal": etab.cp,
+                "effectif_siret": etab.effectif_siret,
+                "has_pv_c3": etab.date_pv_c3 is not None,
+                "has_pv_c4": etab.date_pv_c4 is not None,
+                "siege": is_siege,
+            })
+
+        # Trier pour mettre le siège en premier
+        etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
+
+        # Si siret_summary est vide, chercher dans Tous_PV
+        if not etablissements_list:
+            etablissements_pv = db.query(PVEvent).filter(
+                PVEvent.siren == siren
+            ).all()
+
+            # Dédupliquer par SIRET
+            sirets_vus = set()
+            for pv in etablissements_pv:
+                siret_pv = getattr(pv, 'siret', None)
+                if siret_pv and siret_pv not in sirets_vus:
+                    sirets_vus.add(siret_pv)
+                    is_siege = str(siret_pv).endswith("00001")
+
+                    etablissements_list.append({
+                        "siret": siret_pv,
+                        "raison_sociale": getattr(pv, 'raison_sociale', None),
+                        "ville": getattr(pv, 'ville', None),
+                        "code_postal": getattr(pv, 'cp', None),
+                        "effectif_siret": getattr(pv, 'effectif_siret', None),
+                        "has_pv_c3": getattr(pv, 'cycle', None) == "Cycle 3" or getattr(pv, 'cycle', None) == "C3",
+                        "has_pv_c4": getattr(pv, 'cycle', None) == "Cycle 4" or getattr(pv, 'cycle', None) == "C4",
+                        "siege": is_siege,
+                    })
+
+            # Trier pour mettre le siège en premier
+            etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
+
+        # ==================== 5. STATISTIQUES AGRÉGÉES ====================
+        # Déterminer le dernier cycle (généralement C4, sinon C3, etc.)
+        dernier_cycle = None
+        if "C4" in pv_par_cycle:
+            dernier_cycle = "C4"
+        elif "Cycle 4" in pv_par_cycle:
+            dernier_cycle = "Cycle 4"
+        elif "C3" in pv_par_cycle:
+            dernier_cycle = "C3"
+        elif "Cycle 3" in pv_par_cycle:
+            dernier_cycle = "Cycle 3"
+        else:
+            # Prendre le premier cycle disponible
+            dernier_cycle = list(pv_par_cycle.keys())[0] if pv_par_cycle else None
+
+        # Stats du dernier cycle uniquement (pour l'affichage en haut)
+        if dernier_cycle and dernier_cycle in totaux_par_cycle:
+            stats_dernier_cycle = totaux_par_cycle[dernier_cycle]
+        else:
+            stats_dernier_cycle = {
+                "total_inscrits": 0,
+                "total_votants": 0,
+                "taux_participation": 0,
+                "presence_cgt": 0
+            }
+
+        nb_pv_total = len(tous_pv)
+
+        stats = {
+            "nb_etablissements": len(etablissements_list),
+            "nb_pv_total": nb_pv_total,
+            "nb_invitations_pap": len(invitations_list),
+            "effectif_total_siren": info_base.get("effectif_siren"),
+            # Stats du dernier cycle uniquement
+            "dernier_cycle": dernier_cycle,
+            "total_inscrits": stats_dernier_cycle["total_inscrits"],
+            "total_votants": stats_dernier_cycle["total_votants"],
+            "taux_participation_global": stats_dernier_cycle["taux_participation"],
+            "presence_cgt": stats_dernier_cycle["presence_cgt"],
+        }
+
+        # ==================== 6. ENRICHISSEMENT PAPPERS ====================
+        pappers_data = None
+        pappers_etablissements = {}
+
+        try:
+            logger.info(f"📡 Enrichissement Pappers pour SIREN {siren}")
+            pappers_result = await pappers_api.get_etablissements_by_siren(siren)
+
+            if pappers_result.get("success"):
+                entreprise_data = pappers_result.get("entreprise", {})
+                pappers_data = {
+                    "nom": entreprise_data.get("nom"),
+                    "forme_juridique": entreprise_data.get("forme_juridique"),
+                    "capital": entreprise_data.get("capital"),
+                    "date_creation": entreprise_data.get("date_creation"),
+                    "categorie_entreprise": entreprise_data.get("categorie_entreprise"),
+                    "tranche_effectif": entreprise_data.get("tranche_effectif"),
+                    "effectif": entreprise_data.get("effectif"),
+                    "activite_principale": entreprise_data.get("activite_principale"),
+                    "libelle_activite": entreprise_data.get("libelle_activite"),
+                    "siege_adresse": entreprise_data.get("siege_adresse"),
+                }
+
+                # Créer un dictionnaire des établissements Pappers par SIRET
+                for etab_pappers in pappers_result.get("etablissements", []):
+                    siret_pap = str(etab_pappers.get("siret", ""))
+                    pappers_etablissements[siret_pap] = etab_pappers
+
+                logger.info(f"✅ Données Pappers récupérées : {entreprise_data.get('nom')} avec {len(pappers_etablissements)} établissements")
+            else:
+                logger.warning(f"⚠️ Pappers: {pappers_result.get('error', 'Aucune donnée')}")
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur Pappers (non-bloquant) : {e}")
+
+        # Enrichir les établissements avec les données Pappers
+        sirets_en_base = set()
+        for etab in etablissements_list:
+            siret_str = str(etab["siret"])
+            sirets_en_base.add(siret_str)
+            if siret_str in pappers_etablissements:
+                pappers_etab = pappers_etablissements[siret_str]
+                etab["pappers"] = {
+                    "nom_complet": pappers_etab.get("nom_complet"),
+                    "enseigne": pappers_etab.get("enseigne"),
+                    "adresse_complete": pappers_etab.get("adresse_complete"),
+                    "code_naf": pappers_etab.get("code_naf"),
+                    "libelle_code_naf": pappers_etab.get("libelle_code_naf"),
+                    "effectif": pappers_etab.get("effectif"),
+                    "tranche_effectif": pappers_etab.get("tranche_effectif"),
+                    "date_creation": pappers_etab.get("date_creation"),
+                    "est_siege": pappers_etab.get("est_siege"),
+                    "latitude": pappers_etab.get("latitude"),
+                    "longitude": pappers_etab.get("longitude"),
+                }
+                etab["source"] = "base_et_pappers"
+            else:
+                etab["pappers"] = None
+                etab["source"] = "base_seulement"
+
+        # Ajouter les établissements Pappers qui ne sont PAS en base
+        for siret_pap, pappers_etab in pappers_etablissements.items():
+            if siret_pap not in sirets_en_base:
+                is_siege = str(siret_pap).endswith("00001") or pappers_etab.get("est_siege", False)
+
+                etablissements_list.append({
+                    "siret": siret_pap,
+                    "raison_sociale": pappers_etab.get("nom_complet") or pappers_etab.get("denomination"),
+                    "ville": pappers_etab.get("commune"),
+                    "code_postal": pappers_etab.get("code_postal"),
+                    "effectif_siret": None,
+                    "has_pv_c3": False,
+                    "has_pv_c4": False,
+                    "siege": is_siege,
+                    "source": "pappers_seulement",
+                    "pappers": {
+                        "nom_complet": pappers_etab.get("nom_complet"),
+                        "enseigne": pappers_etab.get("enseigne"),
+                        "adresse_complete": pappers_etab.get("adresse_complete") or pappers_etab.get("adresse"),
+                        "code_naf": pappers_etab.get("code_naf") or pappers_etab.get("activite_principale"),
+                        "libelle_code_naf": pappers_etab.get("libelle_code_naf") or pappers_etab.get("libelle_activite"),
+                        "effectif": pappers_etab.get("effectif"),
+                        "tranche_effectif": pappers_etab.get("tranche_effectif"),
+                        "date_creation": pappers_etab.get("date_creation"),
+                        "est_siege": is_siege,
+                        "latitude": pappers_etab.get("latitude"),
+                        "longitude": pappers_etab.get("longitude"),
+                    }
+                })
+
+        # Re-trier pour mettre le siège en premier après ajout des établissements Pappers
+        # Convertir SIRET en str pour le tri (car peut être int ou str)
+        etablissements_list.sort(key=lambda x: (not x["siege"], str(x["siret"])))
+
+        # ==================== RÉPONSE FINALE ====================
+        logger.info(f"✅ Fiche entreprise récupérée : {stats['nb_pv_total']} PV totaux, {stats['nb_invitations_pap']} invitations PAP, {stats['nb_etablissements']} établissements")
+
+        # ==================== ENREGISTREMENT DE L'ACTIVITÉ ====================
+        if current_user:
+            try:
+                activity = UserActivity(
+                    user_id=current_user.id,
+                    activity_type="entreprise_fiche_view",
+                    resource_id=siren,
+                    resource_name=info_base.get("raison_sociale", f"SIREN {siren}"),
+                    extra_data={
+                        "siret": siret_principal,
+                        "nb_pv_total": stats["nb_pv_total"],
+                        "nb_invitations_pap": stats["nb_invitations_pap"],
+                        "nb_etablissements": stats["nb_etablissements"],
+                        "cycles": list(pv_par_cycle.keys())
+                    }
+                )
+                db.add(activity)
+                db.commit()
+                logger.info(f"📝 Activité enregistrée pour user {current_user.id} : fiche {siren}")
+            except Exception as e:
+                logger.warning(f"Erreur lors de l'enregistrement de l'activité : {e}")
+                db.rollback()
+
+        return {
+            "success": True,
+            "siret": siret_principal,
+            "siren": siren,
+            "info_base": info_base,
+            "pappers": pappers_data,
+            "tous_pv": tous_pv,
+            "pv_par_cycle": pv_par_cycle,
+            "totaux_par_cycle": totaux_par_cycle,
+            "invitations_pap": invitations_list,
+            "etablissements": etablissements_list,
+            "stats": stats,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la fiche entreprise: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.post("/entreprise/{siret}/recommandations")
+async def get_recommandations_strategiques(
+    siret: str,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Génère des recommandations stratégiques personnalisées pour une entreprise
+    en utilisant ChatGPT et le kit de renforcement syndical.
+
+    Analyse:
+    - Présence CGT actuelle dans l'entreprise
+    - Historique des élections et résultats
+    - Invitations PAP en cours
+    - Caractéristiques de l'entreprise (effectif, secteur, etc.)
+
+    Recommandations basées sur:
+    - Kit de renforcement syndical CGT
+    - Freins à la syndicalisation identifiés
+    - Moyens pour lever ces freins
+    - Stratégies adaptées au contexte
+
+    Args:
+        siret: Numéro SIRET (14 chiffres) ou SIREN (9 chiffres)
+
+    Returns:
+        Recommandations stratégiques personnalisées
+    """
+    try:
+        # Nettoyer l'input
+        siret_clean = ''.join(c for c in siret if c.isdigit())
+
+        # Déterminer si c'est un SIRET ou SIREN
+        if len(siret_clean) == 14:
+            siren = siret_clean[:9]
+        elif len(siret_clean) == 9:
+            siren = siret_clean
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Numéro invalide (doit contenir 9 chiffres pour SIREN ou 14 pour SIRET)"
+            )
+
+        logger.info(f"🤖 Génération recommandations stratégiques pour SIREN {siren}")
+
+        # Récupérer les données de l'entreprise
+        fiche = await get_entreprise_fiche_complete(siret, db, current_user)
+
+        if not fiche.get("success"):
+            raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+
+        # Préparer le contexte pour ChatGPT
+        info_base = fiche.get("info_base", {})
+        pappers = fiche.get("pappers", {})
+        stats = fiche.get("stats", {})
+        pv_cycle_4 = fiche.get("pv_cycle_4", [])
+        invitations_pap = fiche.get("invitations_pap", [])
+
+        # Analyser la présence CGT
+        presence_cgt = stats.get("presence_cgt_c4", 0)
+        total_pv = stats.get("nb_pv_c4", 0)
+        pourcentage_cgt = (presence_cgt / total_pv * 100) if total_pv > 0 else 0
+
+        # Calculer score moyen CGT
+        total_voix_cgt = stats.get("total_voix_cgt_c4", 0)
+        score_moyen_cgt = 0
+        if presence_cgt > 0:
+            # Score moyen par établissement où CGT est présente
+            for pv in pv_cycle_4:
+                for org in pv.get("organisations", []):
+                    if org.get("nom") == "CGT":
+                        score_moyen_cgt += org.get("pourcentage", 0)
+                        break
+            score_moyen_cgt = score_moyen_cgt / presence_cgt if presence_cgt > 0 else 0
+
+        # Construire le prompt pour ChatGPT
+        contexte = f"""# DONNÉES DE L'ENTREPRISE
+
+## Informations générales
+- Raison sociale: {info_base.get('raison_sociale', 'N/A')}
+- SIREN: {siren}
+- Secteur d'activité: {pappers.get('libelle_activite', 'N/A')} ({pappers.get('activite_principale', 'N/A')})
+- Forme juridique: {pappers.get('forme_juridique', 'N/A')}
+- Effectif total SIREN: {info_base.get('effectif_siren', 'N/A')} salariés
+- Nombre d'établissements: {stats.get('nb_etablissements', 0)}
+- Localisation: {info_base.get('ville', 'N/A')} ({info_base.get('code_postal', 'N/A')})
+- Date de création: {pappers.get('date_creation', 'N/A')}
+
+## Situation syndicale (Cycle 4)
+- Nombre de PV Cycle 4: {total_pv}
+- Présence CGT: {presence_cgt} établissements ({pourcentage_cgt:.1f}%)
+- Score moyen CGT (quand présente): {score_moyen_cgt:.1f}%
+- Total voix CGT: {total_voix_cgt}
+
+## Invitations PAP en cours
+- Nombre d'invitations: {stats.get('nb_invitations_pap', 0)}
+
+## Résultats électoraux détaillés
+{_format_pv_for_prompt(pv_cycle_4[:5])}
+
+## Historique invitations PAP
+{_format_invitations_for_prompt(invitations_pap[:3])}
+"""
+
+        instructions = """Tu es un expert CGT en stratégie syndicale et renforcement organisationnel.
+
+Analyse les données de l'entreprise ci-dessus et génère des **recommandations stratégiques personnalisées** pour renforcer la présence CGT.
+
+Base tes recommandations sur:
+1. **Le kit de renforcement syndical CGT** (freins à la syndicalisation et moyens pour les lever)
+2. **La situation concrète de l'entreprise** (présence CGT, résultats électoraux, taille, secteur)
+3. **Les opportunités identifiées** (invitations PAP en cours, établissements sans CGT, etc.)
+
+IMPORTANT: Formate ta réponse en HTML (pas markdown). Utilise ces balises:
+- <h2> pour les titres principaux
+- <h3> pour les sous-titres
+- <p> pour les paragraphes
+- <ul> et <li> pour les listes
+- <strong> pour le gras
+- <div class="bg-blue-50 border-l-4 border-blue-500 p-4 my-4"> pour les encadrés importants
+
+Structure ta réponse avec:
+
+<h2>🎯 Diagnostic de la situation</h2>
+<p>[Analyse de la présence CGT actuelle, points forts et points faibles]</p>
+
+<h2>🚧 Freins identifiés</h2>
+<ul>
+  <li>[Liste des freins à la syndicalisation dans ce contexte spécifique]</li>
+</ul>
+
+<h2>💡 Recommandations stratégiques</h2>
+
+<h3>1. Actions prioritaires</h3>
+<ul>
+  <li>[Actions à mener en priorité]</li>
+</ul>
+
+<h3>2. Renforcement de l'organisation</h3>
+<ul>
+  <li>[Actions pour structurer et renforcer]</li>
+</ul>
+
+<h3>3. Communication et visibilité</h3>
+<ul>
+  <li>[Actions de communication interne/externe]</li>
+</ul>
+
+<h2>📋 Plan d'action suggéré</h2>
+<div class="bg-green-50 border-l-4 border-green-500 p-4 my-4">
+  <ul>
+    <li>[Timeline suggérée avec étapes clés]</li>
+  </ul>
+</div>
+
+<h2>⚠️ Points de vigilance</h2>
+<div class="bg-orange-50 border-l-4 border-orange-500 p-4 my-4">
+  <ul>
+    <li>[Risques et difficultés potentielles à anticiper]</li>
+  </ul>
+</div>
+
+Sois **concret, pratique et réaliste**. Utilise des émojis pour rendre le texte plus lisible."""
+
+        # Appeler ChatGPT
+        try:
+            chatbot = ChatbotIA()
+            from pathlib import Path
+            import json
+
+            # Charger le kit de renforcement
+            kit_path = Path(__file__).parent.parent / "data" / "argumentaires" / "syndicalisation_freins_leviers.json"
+            kit_renforcement = {}
+            if kit_path.exists():
+                with open(kit_path, 'r', encoding='utf-8') as f:
+                    kit_renforcement = json.load(f)
+
+            # Construire le prompt complet
+            kit_context = json.dumps(kit_renforcement, indent=2, ensure_ascii=False)
+
+            full_prompt = f"""{contexte}
+
+# KIT DE RENFORCEMENT SYNDICAL CGT
+
+{kit_context}
+
+---
+
+{instructions}
+"""
+
+            # Appeler l'API OpenAI
+            content = chatbot._call_openai_with_fallback(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert CGT en stratégie syndicale et renforcement organisationnel. Tu analyses les données d'entreprises et proposes des recommandations concrètes basées sur le kit de renforcement CGT."
+                    },
+                    {
+                        "role": "user",
+                        "content": full_prompt
+                    }
+                ],
+                temperature=0.4
+            )
+
+            logger.info(f"✅ Recommandations générées pour {info_base.get('raison_sociale', siren)}")
+
+            return {
+                "success": True,
+                "siren": siren,
+                "raison_sociale": info_base.get("raison_sociale"),
+                "recommandations": content,
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "presence_cgt": f"{presence_cgt}/{total_pv}",
+                    "score_moyen_cgt": f"{score_moyen_cgt:.1f}%",
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération des recommandations: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur lors de la génération des recommandations: {str(e)}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur dans recommandations stratégiques: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+def _format_pv_for_prompt(pv_list):
+    """Formate les PV pour le prompt ChatGPT"""
+    if not pv_list:
+        return "Aucun résultat électoral disponible."
+
+    result = []
+    for pv in pv_list:
+        result.append(f"- {pv.get('raison_sociale', 'N/A')} ({pv.get('ville', 'N/A')})")
+        result.append(f"  Date: {pv.get('date_scrutin', 'N/A')}")
+        result.append(f"  Inscrits: {pv.get('inscrits', 0)}, Taux participation: {pv.get('taux_participation', 0)}%")
+
+        orgs = pv.get('organisations', [])
+        if orgs:
+            result.append("  Résultats:")
+            for org in orgs[:5]:  # Top 5 organisations
+                result.append(f"    • {org.get('nom')}: {org.get('pourcentage', 0):.1f}% ({org.get('voix', 0)} voix, {org.get('sieges', 0)} sièges)")
+        result.append("")
+
+    return "\n".join(result)
+
+
+def _format_invitations_for_prompt(inv_list):
+    """Formate les invitations pour le prompt ChatGPT"""
+    if not inv_list:
+        return "Aucune invitation PAP récente."
+
+    result = []
+    for inv in inv_list:
+        result.append(f"- {inv.get('raison_sociale', 'N/A')} ({inv.get('ville', 'N/A')})")
+        result.append(f"  SIRET: {inv.get('siret', 'N/A')}")
+        result.append(f"  Date invitation: {inv.get('date_invit', 'N/A')}")
+        result.append(f"  Date élection: {inv.get('date_election', 'N/A') or 'Non définie'}")
+        result.append(f"  Effectif: {inv.get('effectif_connu', 'N/A')}")
+        result.append("")
+
+    return "\n".join(result)

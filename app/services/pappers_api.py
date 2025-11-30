@@ -147,12 +147,23 @@ class PappersAPI:
                         "forme_juridique": data.get("forme_juridique"),
                         "activite_principale": data.get("code_naf"),
                         "libelle_activite": data.get("libelle_code_naf"),
+                        "code_naf": data.get("code_naf"),
+                        "libelle_code_naf": data.get("libelle_code_naf"),
                         "tranche_effectif": data.get("tranche_effectif"),
                         "effectif": data.get("effectif"),
                         "effectif_libelle": data.get("effectif_libelle") or data.get("effectif"),
+                        "effectif_annee": data.get("effectif_annee"),
                         "date_creation": data.get("date_creation"),
                         "capital": data.get("capital"),
                         "idcc": self._extract_idcc(data),
+                        "numero_tva_intracommunautaire": data.get("numero_tva_intracommunautaire"),
+                        "convention_collective_renseignee": self._extract_idcc(data),
+                        "libelle_convention_collective": self._extract_convention_libelle(data),
+                        "representants": data.get("representants", []),
+                        "entreprise_cessee": data.get("entreprise_cessee", False),
+                        "date_cessation": data.get("date_cessation"),
+                        "procedure_collective": data.get("procedure_collective", False),
+                        "derniere_mise_a_jour": data.get("date_derniere_mise_a_jour")
                     }
 
                     return {
@@ -279,6 +290,25 @@ class PappersAPI:
 
         return None
 
+    @staticmethod
+    def _extract_convention_libelle(entreprise: Dict[str, Any]) -> Optional[str]:
+        """Extrait le libellé de la convention collective depuis la réponse Pappers."""
+
+        cc_list = entreprise.get("convention_collective_principale", {})
+        if cc_list and isinstance(cc_list, dict):
+            libelle = cc_list.get("nom", "") or cc_list.get("libelle", "")
+            if libelle:
+                return libelle.strip()
+
+        conventions = entreprise.get("conventions_collectives") or []
+        if isinstance(conventions, list) and conventions:
+            first_cc = conventions[0] or {}
+            libelle = first_cc.get("nom", "") or first_cc.get("libelle", "")
+            if libelle:
+                return libelle.strip()
+
+        return None
+
     def _parse_search_result(self, res: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse un résultat de recherche Pappers
@@ -303,3 +333,66 @@ class PappersAPI:
 
 # Instance par défaut
 pappers_api = PappersAPI()
+
+
+async def get_entreprise_etablissements(siren: str) -> List[Dict[str, Any]]:
+    """
+    Récupère tous les établissements d'une entreprise via son SIREN
+    avec leurs coordonnées GPS (latitude/longitude).
+
+    Args:
+        siren: Numéro SIREN de l'entreprise (9 chiffres)
+
+    Returns:
+        Liste des établissements avec leurs données Pappers (incluant coordonnées GPS)
+    """
+    try:
+        # Récupérer l'entreprise complète avec tous ses établissements
+        entreprise_data = await pappers_api.get_siren(siren)
+
+        if not entreprise_data:
+            logger.warning(f"Entreprise {siren} non trouvée via Pappers")
+            return []
+
+        # Extraire les établissements
+        etablissements = []
+
+        # L'API Pappers retourne les établissements dans "etablissements"
+        etabs_list = entreprise_data.get("etablissements", [])
+
+        for etab in etabs_list:
+            etablissements.append({
+                "siret": etab.get("siret"),
+                "siren": siren,
+                "nom_complet": etab.get("nom_entreprise") or entreprise_data.get("nom_entreprise"),
+                "enseigne": etab.get("enseigne"),
+                "adresse_complete": (
+                    f"{etab.get('adresse_ligne_1', '')} "
+                    f"{etab.get('adresse_ligne_2', '')} "
+                    f"{etab.get('code_postal', '')} "
+                    f"{etab.get('ville', '')}"
+                ).strip(),
+                "adresse_ligne_1": etab.get("adresse_ligne_1"),
+                "adresse_ligne_2": etab.get("adresse_ligne_2"),
+                "code_postal": etab.get("code_postal"),
+                "commune": etab.get("ville"),
+                "code_naf": etab.get("code_naf"),
+                "libelle_code_naf": etab.get("libelle_code_naf"),
+                "est_siege": etab.get("est_siege", False),
+                "est_actif": not etab.get("etablissement_cesse", False),
+                "date_creation": etab.get("date_creation"),
+                "date_cessation": etab.get("date_cessation"),
+                "effectif": etab.get("effectif"),
+                "tranche_effectif": etab.get("tranche_effectif"),
+                "latitude": etab.get("latitude"),
+                "longitude": etab.get("longitude"),
+                "forme_juridique": entreprise_data.get("forme_juridique"),
+                "categorie_entreprise": entreprise_data.get("categorie_entreprise"),
+            })
+
+        logger.info(f"✅ {len(etablissements)} établissements trouvés pour SIREN {siren} via Pappers")
+        return etablissements
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des établissements pour SIREN {siren}: {e}")
+        return []
