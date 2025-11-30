@@ -151,7 +151,7 @@
   </div>
 
   <!-- Onglet Établissements -->
-  <div x-show="activeTab === 'etablissements'" x-cloak>
+  <div x-show="activeTab === 'etablissements'">
     <!-- Graphique Répartition organisations syndicales -->
     <div x-show="chartData.labels.length > 0 && !loading" class="bg-white rounded-xl shadow-md p-6 mb-6">
       <h2 class="text-xl font-bold text-gray-900 mb-4">
@@ -226,39 +226,21 @@
       },
 
       async init() {
-        // Attendre que Alpine.js rende complètement le DOM
-        await this.$nextTick();
+        // COPIE EXACTE de etablissements-carte.html qui fonctionne
+        // Initialiser la carte Leaflet - Centre géographique de la France
+        this.map = L.map('map', {
+          center: [46.7111, 1.7191],
+          zoom: 6,
+          minZoom: 5,
+          maxZoom: 19
+        });
 
-        // Vérifier que le conteneur existe
-        const mapContainer = document.getElementById('map');
-        if (!mapContainer) {
-          console.error('Le conteneur #map n\'existe pas dans le DOM');
-          return;
-        }
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(this.map);
 
-        console.log('Initialisation de la carte Leaflet...');
-
-        // Initialiser la carte Leaflet
-        try {
-          this.map = L.map('map', {
-            center: [46.7111, 1.7191],
-            zoom: 6,
-            minZoom: 5,
-            maxZoom: 19
-          });
-
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-          }).addTo(this.map);
-
-          console.log('Carte Leaflet initialisée avec succès');
-        } catch (error) {
-          console.error('Erreur lors de l\'initialisation de la carte:', error);
-          return;
-        }
-
-        // Forcer un recalcul initial des dimensions
+        // Forcer un recalcul des dimensions après l'initialisation
         setTimeout(() => {
           if (this.map) {
             this.map.invalidateSize();
@@ -269,15 +251,14 @@
         await this.loadData();
         this.loading = false;
 
-        // Attendre que le DOM soit mis à jour (x-show révèle la carte)
-        // et forcer le recalcul des dimensions de la carte
+        // Attendre que le DOM soit mis à jour et forcer le recalcul
         this.$nextTick(() => {
           setTimeout(() => {
             if (this.map) {
               this.map.invalidateSize();
             }
 
-            // Ajouter les marqueurs sur la carte
+            // Ajouter les marqueurs
             this.addMapMarkers();
 
             // Re-forcer le recalcul après le fitBounds
@@ -289,17 +270,13 @@
           }, 200);
         });
 
-        // Observer le changement d'onglet pour corriger l'affichage de la carte
+        // Observer le changement d'onglet
         this.$watch('activeTab', (newTab) => {
           if (newTab === 'etablissements') {
-            // Utiliser $nextTick pour s'assurer que le DOM est mis à jour
             this.$nextTick(() => {
               setTimeout(() => {
                 if (this.map) {
-                  // Forcer le recalcul des dimensions de la carte
                   this.map.invalidateSize();
-
-                  // Recentrer sur les marqueurs si disponibles
                   if (this.markers.length > 0) {
                     const group = L.featureGroup(this.markers);
                     this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
