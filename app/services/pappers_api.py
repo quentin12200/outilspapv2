@@ -147,12 +147,23 @@ class PappersAPI:
                         "forme_juridique": data.get("forme_juridique"),
                         "activite_principale": data.get("code_naf"),
                         "libelle_activite": data.get("libelle_code_naf"),
+                        "code_naf": data.get("code_naf"),
+                        "libelle_code_naf": data.get("libelle_code_naf"),
                         "tranche_effectif": data.get("tranche_effectif"),
                         "effectif": data.get("effectif"),
                         "effectif_libelle": data.get("effectif_libelle") or data.get("effectif"),
+                        "effectif_annee": data.get("effectif_annee"),
                         "date_creation": data.get("date_creation"),
                         "capital": data.get("capital"),
                         "idcc": self._extract_idcc(data),
+                        "numero_tva_intracommunautaire": data.get("numero_tva_intracommunautaire"),
+                        "convention_collective_renseignee": self._extract_idcc(data),
+                        "libelle_convention_collective": self._extract_convention_libelle(data),
+                        "representants": data.get("representants", []),
+                        "entreprise_cessee": data.get("entreprise_cessee", False),
+                        "date_cessation": data.get("date_cessation"),
+                        "procedure_collective": data.get("procedure_collective", False),
+                        "derniere_mise_a_jour": data.get("date_derniere_mise_a_jour")
                     }
 
                     return {
@@ -276,6 +287,25 @@ class PappersAPI:
             idcc = str(first_cc.get("idcc", "")).strip()
             if idcc:
                 return idcc
+
+        return None
+
+    @staticmethod
+    def _extract_convention_libelle(entreprise: Dict[str, Any]) -> Optional[str]:
+        """Extrait le libellé de la convention collective depuis la réponse Pappers."""
+
+        cc_list = entreprise.get("convention_collective_principale", {})
+        if cc_list and isinstance(cc_list, dict):
+            libelle = cc_list.get("nom", "") or cc_list.get("libelle", "")
+            if libelle:
+                return libelle.strip()
+
+        conventions = entreprise.get("conventions_collectives") or []
+        if isinstance(conventions, list) and conventions:
+            first_cc = conventions[0] or {}
+            libelle = first_cc.get("nom", "") or first_cc.get("libelle", "")
+            if libelle:
+                return libelle.strip()
 
         return None
 

@@ -5978,8 +5978,21 @@ async def get_entreprise_data(siret: str, db: Session = Depends(get_session)):
             totaux["cgt_sieges_c4"] += pv.sieges_c4 or 0
             totaux["cgt_sieges_c3"] += pv.sieges_c3 or 0
 
-        # 3. Récupérer les établissements via API Pappers
-        etablissements_pappers = await get_entreprise_etablissements(siren)
+        # 3. Récupérer les données Pappers (entreprise + établissements)
+        from .services.pappers_api import pappers_api
+
+        entreprise_pappers = None
+        etablissements_pappers = []
+
+        try:
+            pappers_result = await pappers_api.get_etablissements_by_siren(siren)
+            if pappers_result.get("success"):
+                entreprise_pappers = pappers_result.get("entreprise")
+                etablissements_pappers = pappers_result.get("etablissements", [])
+        except Exception as e:
+            logger.warning(f"Erreur Pappers pour SIREN {siren}: {e}")
+            # Fallback sur ancienne méthode
+            etablissements_pappers = await get_entreprise_etablissements(siren)
 
         # Format pour le frontend
         etablissements = []
@@ -6036,16 +6049,19 @@ async def get_entreprise_data(siret: str, db: Session = Depends(get_session)):
                 "siret": normalized_siret,
                 "siren": siren,
                 "ville": info_base.ville if hasattr(info_base, 'ville') else info_base.get("ville") if isinstance(info_base, dict) else None,
-                "cp": info_base.cp if hasattr(info_base, 'cp') else info_base.get("cp") if isinstance(info_base, dict) else None
+                "cp": info_base.cp if hasattr(info_base, 'cp') else info_base.get("cp") if isinstance(info_base, dict) else None,
+                "code_postal": info_base.cp if hasattr(info_base, 'cp') else info_base.get("cp") if isinstance(info_base, dict) else None,
+                "effectif_siren": info_base.effectif_siren if hasattr(info_base, 'effectif_siren') else info_base.get("effectif_siren") if isinstance(info_base, dict) else None
             } if info_base else {"siren": siren, "siret": normalized_siret},
+            "pappers": entreprise_pappers,  # Données Pappers de l'entreprise
             "pv_par_cycle": dict(pv_par_cycle),
             "totaux_par_cycle": dict(totaux_par_cycle),
             "etablissements": etablissements,
-            "invitations": invitations_list,
+            "invitations_pap": invitations_list,  # Renommé pour cohérence
             "stats": {
-                "nb_pv": len(pv_events),
+                "nb_pv_total": len(pv_events),
                 "nb_etablissements": len(etablissements),
-                "nb_invitations": len(invitations_list),
+                "nb_invitations_pap": len(invitations_list),
                 "nb_cycles": len(pv_par_cycle)
             }
         }
