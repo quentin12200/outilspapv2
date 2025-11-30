@@ -2826,6 +2826,9 @@ async function handleExcelImportAdmin(event) {
 }
 
 function openEmailsModal(result) {
+  // Stocker les emails globalement pour les fonctions de copie
+  window.modalEmails = result.emails;
+
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
   modal.innerHTML = `
@@ -2887,17 +2890,21 @@ function openEmailsModal(result) {
                   </div>
                 </details>
 
-                <div class="flex gap-2">
-                  <button onclick='copyEmailContentModal(${JSON.stringify(email)})' class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition">
-                    <i class="fas fa-copy mr-1"></i>
-                    Copier l'email complet
+                <div class="flex flex-wrap gap-2">
+                  <button onclick="openInOutlook(${index})" class="flex-1 min-w-[200px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition">
+                    <i class="fab fa-microsoft mr-1"></i>
+                    Ouvrir dans Outlook
                   </button>
-                  <button onclick='copyRecipientModal("${email.recipient}")' class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition">
+                  <button onclick="copyEmailContentModal(${index})" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
+                    <i class="fas fa-copy mr-1"></i>
+                    Copier l'email
+                  </button>
+                  <button onclick="copyRecipientModal(${index})" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition">
                     <i class="fas fa-envelope mr-1"></i>
                     Copier destinataire
                   </button>
                   ${pap.pdf_url ? `
-                    <a href="${pap.pdf_url}" target="_blank" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition inline-flex items-center">
+                    <a href="${pap.pdf_url}" target="_blank" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition inline-flex items-center">
                       <i class="fas fa-file-pdf mr-1"></i>
                       PDF
                     </a>
@@ -2921,7 +2928,13 @@ function openEmailsModal(result) {
   document.body.appendChild(modal);
 }
 
-function copyEmailContentModal(email) {
+function copyEmailContentModal(index) {
+  if (!window.modalEmails || !window.modalEmails[index]) {
+    alert('❌ Erreur: email introuvable');
+    return;
+  }
+
+  const email = window.modalEmails[index].email;
   const fullContent = `Destinataire: ${email.recipient}
 
 Objet: ${email.subject}
@@ -2936,13 +2949,58 @@ ${email.body}`;
   });
 }
 
-function copyRecipientModal(recipient) {
+function copyRecipientModal(index) {
+  if (!window.modalEmails || !window.modalEmails[index]) {
+    alert('❌ Erreur: email introuvable');
+    return;
+  }
+
+  const recipient = window.modalEmails[index].email.recipient;
   navigator.clipboard.writeText(recipient).then(() => {
     alert(`✅ Destinataire copié: ${recipient}`);
   }).catch(err => {
     console.error('Erreur lors de la copie:', err);
     alert('❌ Erreur lors de la copie');
   });
+}
+
+function openInOutlook(index) {
+  if (!window.modalEmails || !window.modalEmails[index]) {
+    alert('❌ Erreur: email introuvable');
+    return;
+  }
+
+  const email = window.modalEmails[index].email;
+
+  // Construire le lien mailto
+  const recipient = encodeURIComponent(email.recipient);
+  const subject = encodeURIComponent(email.subject);
+  const body = encodeURIComponent(email.body);
+
+  // Créer le lien mailto
+  const mailtoLink = `mailto:${recipient}?subject=${subject}&body=${body}`;
+
+  // Vérifier si le lien est trop long (limite ~2000 caractères pour mailto)
+  if (mailtoLink.length > 2000) {
+    // Si trop long, copier dans le presse-papiers et ouvrir un mailto simple
+    const fullContent = `Destinataire: ${email.recipient}
+
+Objet: ${email.subject}
+
+${email.body}`;
+
+    navigator.clipboard.writeText(fullContent).then(() => {
+      const simpleMailto = `mailto:${recipient}?subject=${subject}`;
+      window.location.href = simpleMailto;
+      alert('⚠️ Email trop long pour mailto.\n\n✅ Contenu copié dans le presse-papiers.\n📧 Outlook ouvert - collez le contenu (Ctrl+V)');
+    }).catch(err => {
+      console.error('Erreur lors de la copie:', err);
+      alert('❌ Erreur lors de la copie');
+    });
+  } else {
+    // Ouvrir directement dans le client email
+    window.location.href = mailtoLink;
+  }
 }
 </script>
 
