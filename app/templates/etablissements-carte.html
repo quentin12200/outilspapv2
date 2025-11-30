@@ -591,6 +591,14 @@
             this.map.invalidateSize();
           }
         }, 250);
+
+        // Auto-recherche si paramètre auto_search dans l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoSearch = urlParams.get('auto_search');
+        if (autoSearch) {
+          this.siretOrSiren = autoSearch;
+          setTimeout(() => this.searchEtablissements(), 500);
+        }
       },
 
       resetMapToFrance() {
