@@ -7,6 +7,7 @@ et de générer des emails différenciés pour les UD.
 
 import logging
 import json
+import os
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -404,8 +405,9 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète
-                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
+                # Construire l'URL complète avec la variable d'environnement APP_URL
+                app_url = os.getenv('APP_URL', 'http://localhost:8000')
+                full_pdf_url = f"{app_url}{pdf_url}"
                 body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -491,8 +493,9 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 """
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète
-                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
+                # Construire l'URL complète avec la variable d'environnement APP_URL
+                app_url = os.getenv('APP_URL', 'http://localhost:8000')
+                full_pdf_url = f"{app_url}{pdf_url}"
                 body += f"""📎 Document PAP disponible en ligne :
 {full_pdf_url}
 """
