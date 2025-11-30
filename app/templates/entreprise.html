@@ -3,33 +3,10 @@
 {% block title %}{{ entreprise_nom or "Entreprise" }} - SIREN {{ siren }}{% endblock %}
 
 {% block head %}
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <!-- Chart.js for graphs -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-  #map {
-    height: 500px;
-    width: 100%;
-    border-radius: 0.5rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Force le chargement correct des tuiles Leaflet */
-  .leaflet-container {
-    background: #fff;
-  }
-
-  .leaflet-tile-container {
-    opacity: 1 !important;
-  }
-
   [x-cloak] {
     display: none !important;
   }
@@ -166,8 +143,16 @@
       <h2 class="text-xl font-bold text-gray-900 mb-4">
         <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
         Carte des établissements
+        <a :href="`/etablissements-carte?siren=${siren}`" target="_blank"
+           class="ml-4 text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+          <i class="fas fa-external-link-alt"></i>
+          Ouvrir en plein écran
+        </a>
       </h2>
-      <div id="map"></div>
+      <iframe :src="`/etablissements-carte?siren=${siren}`"
+              class="w-full border-0 rounded-lg"
+              style="height: 800px;"
+              loading="lazy"></iframe>
     </div>
 
     <!-- Liste des établissements -->
@@ -217,8 +202,6 @@
       pvEvents: [],
       invitations: [],
       etablissements: [],
-      map: null,
-      markers: [],
       chart: null,
       chartData: {
         labels: [],
@@ -226,27 +209,6 @@
       },
 
       init() {
-        // EXACTEMENT comme etablissements-carte.html
-        // Initialiser la carte AVANT de charger les données
-        this.map = L.map('map', {
-          center: [46.7111, 1.7191],
-          zoom: 6,
-          minZoom: 5,
-          maxZoom: 19
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
-          maxZoom: 19
-        }).addTo(this.map);
-
-        // Forcer recalcul
-        setTimeout(() => {
-          if (this.map) {
-            this.map.invalidateSize();
-          }
-        }, 250);
-
         // Charger les données
         this.loadData();
       },
@@ -304,21 +266,6 @@
           this.prepareChartData();
 
           this.loading = false;
-
-          // Ajouter les marqueurs sur la carte
-          this.$nextTick(() => {
-            setTimeout(() => {
-              if (this.map) {
-                this.map.invalidateSize();
-              }
-              this.addMapMarkers();
-              setTimeout(() => {
-                if (this.map) {
-                  this.map.invalidateSize();
-                }
-              }, 300);
-            }, 200);
-          });
         } catch (error) {
           console.error('Erreur lors du chargement des données:', error);
           this.loading = false;
@@ -401,42 +348,6 @@
         }
       },
 
-      addMapMarkers() {
-        // Supprimer les anciens marqueurs
-        this.markers.forEach(marker => this.map.removeLayer(marker));
-        this.markers = [];
-
-        // Ajouter les nouveaux marqueurs
-        this.etablissements.forEach(etab => {
-          if (etab.latitude && etab.longitude) {
-            const marker = L.marker([etab.latitude, etab.longitude])
-              .bindPopup(`
-                <div class="p-2">
-                  <h3 class="font-bold text-sm">${etab.raison_sociale || etab.denomination || 'Établissement'}</h3>
-                  <p class="text-xs text-gray-600 mt-1">SIRET: ${etab.siret}</p>
-                  <p class="text-xs text-gray-600">${etab.adresse || ''}</p>
-                  <p class="text-xs text-gray-600">${etab.code_postal || ''} ${etab.ville || ''}</p>
-                </div>
-              `)
-              .addTo(this.map);
-
-            this.markers.push(marker);
-          }
-        });
-
-        // Centrer la carte sur les marqueurs
-        if (this.markers.length > 0) {
-          const group = L.featureGroup(this.markers);
-          this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
-        }
-
-        // Forcer un recalcul après l'ajout des marqueurs
-        setTimeout(() => {
-          if (this.map) {
-            this.map.invalidateSize();
-          }
-        }, 300);
-      }
     };
   }
 </script>
