@@ -226,8 +226,14 @@
       },
 
       async init() {
-        // COPIE EXACTE de etablissements-carte.html qui fonctionne
-        // Initialiser la carte Leaflet - Centre géographique de la France
+        // Charger les données d'abord
+        await this.loadData();
+        this.loading = false;
+
+        // Attendre un peu que le DOM se mette à jour
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // MAINTENANT initialiser la carte Leaflet
         this.map = L.map('map', {
           center: [46.7111, 1.7191],
           zoom: 6,
@@ -246,10 +252,6 @@
             this.map.invalidateSize();
           }
         }, 250);
-
-        // Charger les données
-        await this.loadData();
-        this.loading = false;
 
         // Attendre que le DOM soit mis à jour et forcer le recalcul
         this.$nextTick(() => {
