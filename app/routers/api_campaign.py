@@ -21,6 +21,7 @@ from ..services.document_extractor import DocumentExtractor, DocumentExtractorEr
 from ..services.pap_campaign_service import PAPCampaignService
 from ..services.pap_enrichment_service import PAPEnrichmentService
 from ..services.pappers_api import PappersAPI
+from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..audit import log_admin_action
 from ..user_auth import require_admin_user
 from ..models import User
@@ -548,6 +549,8 @@ async def import_excel_and_generate_emails(
         paps_with_emails = []
         enrichment_service = PAPEnrichmentService(db)
         campaign_service = PAPCampaignService(db)
+        idcc_service = get_idcc_enrichment_service()
+        fd_enriched_count = 0  # Compteur pour les FD enrichies automatiquement
 
         logger.info(f"📥 Import Excel - Traitement de {ws.max_row - 1} lignes")
 
@@ -567,6 +570,14 @@ async def import_excel_and_generate_emails(
             effectif_str = str(row[idx_effectif].value or '').strip()
             commentaires = str(row[idx_commentaires].value or '').strip()
             enjeux_str = str(row[idx_enjeux].value or '').strip()
+
+            # Enrichissement automatique de la FD à partir de l'IDCC si FD manquante
+            if idcc and not fd:
+                fd_enriched = idcc_service.enrich_fd(idcc, fd, db)
+                if fd_enriched and fd_enriched != fd:
+                    fd = fd_enriched
+                    fd_enriched_count += 1
+                    logger.info(f"  ✨ Ligne {row_num}: FD enrichie automatiquement '{fd}' depuis IDCC {idcc}")
 
             # Colonnes optionnelles
             inscrits_str = str(row[idx_inscrits].value or '').strip() if idx_inscrits else ''
@@ -671,6 +682,8 @@ async def import_excel_and_generate_emails(
         )
 
         logger.info(f"✅ Import Excel terminé - {len(paps_with_emails)} emails générés")
+        if fd_enriched_count > 0:
+            logger.info(f"   ✨ {fd_enriched_count} FD enrichies automatiquement depuis IDCC")
 
         return {
             'success': True,
@@ -680,7 +693,8 @@ async def import_excel_and_generate_emails(
                 'enjeux': sum(1 for p in paps_with_emails if p['pap']['category'] == 'enjeux'),
                 'standard': sum(1 for p in paps_with_emails if p['pap']['category'] == 'standard'),
                 'with_cgt_history': sum(1 for p in paps_with_emails if p['pap']['historique_pv'].get('found')),
-                'new_implantations': sum(1 for p in paps_with_emails if not p['pap']['historique_pv'].get('found'))
+                'new_implantations': sum(1 for p in paps_with_emails if not p['pap']['historique_pv'].get('found')),
+                'fd_auto_enriched': fd_enriched_count
             }
         }
 

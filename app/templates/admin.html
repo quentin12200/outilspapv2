@@ -2785,6 +2785,13 @@ async function handleExcelImportAdmin(event) {
     progressBar.style.width = '100%';
 
     // Afficher les stats
+    const fdEnrichedHtml = result.stats.fd_auto_enriched > 0 ? `
+      <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
+        <p class="text-xs text-gray-600 mb-1">FD enrichies auto (IDCC)</p>
+        <p class="text-2xl font-bold text-orange-700">${result.stats.fd_auto_enriched}</p>
+      </div>
+    ` : '';
+
     statsZone.innerHTML = `
       <div class="bg-red-50 border border-red-200 rounded-lg p-3">
         <p class="text-xs text-gray-600 mb-1">PAP à Enjeux</p>
@@ -2802,6 +2809,7 @@ async function handleExcelImportAdmin(event) {
         <p class="text-xs text-gray-600 mb-1">Nouvelles implantations</p>
         <p class="text-2xl font-bold text-purple-700">${result.stats.new_implantations}</p>
       </div>
+      ${fdEnrichedHtml}
     `;
     statsZone.classList.remove('hidden');
 
