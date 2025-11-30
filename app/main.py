@@ -6864,48 +6864,6 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
     )
 
 # =========================================================
-# Route page entreprise (par SIREN)
-# =========================================================
-
-@app.get("/entreprise/{siren}", response_class=HTMLResponse)
-def entreprise_detail(siren: str, request: Request, db: Session = Depends(get_session)):
-    """
-    Page de détail d'une entreprise avec onglets:
-    - PV Élections
-    - Invitations PAP
-    - Établissements (avec carte Leaflet)
-    """
-    from .models import PVEvent, Invitation
-    from .services.sirene_api import sirene_api
-
-    # Normaliser le SIREN
-    normalized_siren = "".join(ch for ch in (siren or "").strip() if ch.isdigit())
-
-    if not normalized_siren or len(normalized_siren) != 9:
-        raise HTTPException(status_code=400, detail="SIREN invalide")
-
-    # Récupérer le nom de l'entreprise depuis Sirene
-    entreprise_nom = None
-    try:
-        entreprise_info = sirene_api.get_etablissement_by_siret(normalized_siren + "00000")
-        if entreprise_info and "uniteLegale" in entreprise_info:
-            ul = entreprise_info["uniteLegale"]
-            if "denominationUniteLegale" in ul:
-                entreprise_nom = ul["denominationUniteLegale"]
-    except Exception as e:
-        logger.warning(f"Impossible de récupérer le nom de l'entreprise pour SIREN {normalized_siren}: {e}")
-
-    return templates.TemplateResponse(
-        "entreprise.html",
-        {
-            "request": request,
-            "siren": normalized_siren,
-            "entreprise_nom": entreprise_nom,
-        },
-    )
-
-
-# =========================================================
 # API entreprise (par SIREN)
 # =========================================================
 
