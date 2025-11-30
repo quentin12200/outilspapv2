@@ -536,6 +536,7 @@ async def import_excel_and_generate_emails(
             idx_effectif = headers.index("Nombre de salariés")
             idx_commentaires = headers.index("Commentaires")
             idx_enjeux = headers.index("ENJEUX")
+            idx_date_invitation = headers.index("Date d'invitation") if "Date d'invitation" in headers else None
             idx_inscrits = headers.index("Inscrits") if "Inscrits" in headers else None
             idx_date_election = headers.index("Date Élection") if "Date Élection" in headers else None
             idx_pdf_url = headers.index("Lien PDF") if "Lien PDF" in headers else None
@@ -580,6 +581,7 @@ async def import_excel_and_generate_emails(
                     logger.info(f"  ✨ Ligne {row_num}: FD enrichie automatiquement '{fd}' depuis IDCC {idcc}")
 
             # Colonnes optionnelles
+            date_invitation = str(row[idx_date_invitation].value or '').strip() if idx_date_invitation else ''
             inscrits_str = str(row[idx_inscrits].value or '').strip() if idx_inscrits else ''
             date_election = str(row[idx_date_election].value or '').strip() if idx_date_election else ''
             pdf_url = str(row[idx_pdf_url].value or '').strip() if idx_pdf_url else ''
@@ -633,7 +635,8 @@ async def import_excel_and_generate_emails(
                 'raison_sociale': nom_entreprise,
                 'code_postal': code_postal,
                 'ville': ville,
-                'date_invitation': date_arrivee,
+                'date_invitation': date_invitation if date_invitation else date_arrivee,  # Nouvelle colonne ou fallback
+                'date_arrivee': date_arrivee,
                 'ud': ud,
                 'fd': fd,
                 'est_siege': est_siege.upper() in ['OUI', 'TRUE', '1'],

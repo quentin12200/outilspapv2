@@ -323,6 +323,7 @@ class PAPCampaignService:
         effectif = pap_data.get('effectif', 'N/A')
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
+        date_invitation = pap_data.get('date_invitation', 'N/A')
         idcc = pap_data.get('idcc', 'N/A')
         fd = pap_data.get('fd', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
@@ -394,6 +395,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 • IDCC : {idcc}
 • Fédération : {fd}
 • Union Départementale : {ud}
+
+📅 La réunion de négociation est fixée au : {date_invitation}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 POURQUOI C'EST UN PAP À ENJEUX ?
@@ -487,6 +490,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 • IDCC : {idcc}
 • Fédération : {fd}
 • Union Départementale : {ud}
+
+📅 La réunion de négociation est fixée au : {date_invitation}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
