@@ -323,6 +323,7 @@ class PAPCampaignService:
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
         idcc = pap_data.get('idcc', 'N/A')
+        fd = pap_data.get('fd', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
         priority_reasons = pap_data.get('priority_reason', [])
         pdf_url = pap_data.get('pdf_url')
@@ -390,6 +391,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
 • IDCC : {idcc}
+• Fédération : {fd}
 • Union Départementale : {ud}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -481,6 +483,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
 • IDCC : {idcc}
+• Fédération : {fd}
 • Union Départementale : {ud}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
