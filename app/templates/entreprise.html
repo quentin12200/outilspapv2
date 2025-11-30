@@ -162,7 +162,8 @@
     </div>
 
     <!-- Carte des établissements -->
-    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6"
+         x-init="setTimeout(() => { if (!map && !loading) { initMap(); } }, 500)">
       <h2 class="text-xl font-bold text-gray-900 mb-4">
         <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
         Carte des établissements
@@ -226,14 +227,17 @@
       },
 
       async init() {
-        // Charger les données d'abord
+        // Charger les données
         await this.loadData();
         this.loading = false;
+      },
 
-        // Attendre un peu que le DOM se mette à jour
-        await new Promise(resolve => setTimeout(resolve, 100));
+      initMap() {
+        if (this.map) return; // Déjà initialisée
 
-        // MAINTENANT initialiser la carte Leaflet
+        console.log('Initialisation Leaflet...');
+
+        // Initialiser la carte Leaflet
         this.map = L.map('map', {
           center: [46.7111, 1.7191],
           zoom: 6,
@@ -246,48 +250,21 @@
           maxZoom: 19
         }).addTo(this.map);
 
-        // Forcer un recalcul des dimensions après l'initialisation
+        console.log('Carte initialisée');
+
+        // Forcer recalcul et ajouter marqueurs
         setTimeout(() => {
           if (this.map) {
             this.map.invalidateSize();
-          }
-        }, 250);
-
-        // Attendre que le DOM soit mis à jour et forcer le recalcul
-        this.$nextTick(() => {
-          setTimeout(() => {
-            if (this.map) {
-              this.map.invalidateSize();
-            }
-
-            // Ajouter les marqueurs
             this.addMapMarkers();
 
-            // Re-forcer le recalcul après le fitBounds
             setTimeout(() => {
               if (this.map) {
                 this.map.invalidateSize();
               }
             }, 300);
-          }, 200);
-        });
-
-        // Observer le changement d'onglet
-        this.$watch('activeTab', (newTab) => {
-          if (newTab === 'etablissements') {
-            this.$nextTick(() => {
-              setTimeout(() => {
-                if (this.map) {
-                  this.map.invalidateSize();
-                  if (this.markers.length > 0) {
-                    const group = L.featureGroup(this.markers);
-                    this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
-                  }
-                }
-              }, 200);
-            });
           }
-        });
+        }, 250);
       },
 
       async loadData() {
