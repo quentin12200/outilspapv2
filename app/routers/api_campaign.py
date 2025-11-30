@@ -10,6 +10,7 @@ import os
 import uuid
 from typing import List, Dict, Any
 from pathlib import Path
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..services.document_extractor import DocumentExtractor, DocumentExtractorError
 from ..services.pap_campaign_service import PAPCampaignService
+from ..services.pap_enrichment_service import PAPEnrichmentService
 from ..services.pappers_api import PappersAPI
 from ..audit import log_admin_action
 from ..user_auth import require_admin_user
@@ -80,12 +82,11 @@ async def analyze_pap_batch(
     extracted_paps = []
     extraction_errors = []
 
-    extractor = DocumentExtractor()
-    campaign_service = PAPCampaignService(db)
+    enrichment_service = PAPEnrichmentService(db)
 
     logger.info(f"🚀 Début d'analyse de campagne PAP - {len(files)} fichier(s)")
 
-    # Étape 1 : Extraction des données de chaque PAP
+    # Étape 1 : Extraction et enrichissement complet de chaque PAP
     for i, file in enumerate(files, 1):
         logger.info(f"📄 Traitement du fichier {i}/{len(files)}: {file.filename}")
 
@@ -105,34 +106,47 @@ async def analyze_pap_batch(
             file_data = await file.read()
             is_pdf = file.content_type == "application/pdf"
 
-            # Extraire les informations
-            extracted_data = await extractor.extract_from_document(file_data, is_pdf=is_pdf)
+            # Extraire et enrichir les informations (GPT-4 + Pappers + Base PV)
+            extracted_data = await enrichment_service.enrich_pap_from_pdf(
+                file_data,
+                file.filename,
+                is_pdf=is_pdf
+            )
 
-            # Stocker le PDF et générer l'URL publique
+            # Stocker le PDF avec nom basé sur SIRET
             pdf_url = None
+            pdf_filename = None
             if is_pdf:
                 try:
-                    # Générer un nom de fichier unique
-                    unique_filename = f"{uuid.uuid4()}.pdf"
-                    pdf_path = PAP_UPLOADS_DIR / unique_filename
+                    # Utiliser le SIRET pour nommer le fichier si disponible
+                    siret = extracted_data.get('siret')
+                    if siret and siret.replace(' ', '').isdigit():
+                        # Format: SIRET_DATE.pdf (ex: 12345678901234_20250130.pdf)
+                        date_str = datetime.now().strftime("%Y%m%d")
+                        pdf_filename = f"{siret.replace(' ', '')}_{date_str}.pdf"
+                    else:
+                        # Fallback sur UUID si pas de SIRET valide
+                        pdf_filename = f"{uuid.uuid4()}.pdf"
+
+                    pdf_path = PAP_UPLOADS_DIR / pdf_filename
 
                     # Sauvegarder le PDF
                     with open(pdf_path, 'wb') as f:
                         f.write(file_data)
 
                     # Générer l'URL publique
-                    pdf_url = f"/static/pap_uploads/{unique_filename}"
-                    logger.info(f"✅ PDF stocké : {pdf_url}")
+                    pdf_url = f"/static/pap_uploads/{pdf_filename}"
+                    logger.info(f"✅ PDF stocké : {pdf_filename}")
                 except Exception as e:
                     logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")
 
-            # Ajouter le nom de fichier et l'URL pour référence
-            extracted_data['filename'] = file.filename
+            # Ajouter les métadonnées du PDF
             extracted_data['pdf_url'] = pdf_url
-            # Note: on ne stocke PAS file_data ici car bytes ne sont pas JSON-sérialisables
+            extracted_data['pdf_filename'] = pdf_filename
+            extracted_data['original_filename'] = file.filename
 
             extracted_paps.append(extracted_data)
-            logger.info(f"✅ Extraction réussie - SIRET: {extracted_data.get('siret', 'N/A')}")
+            logger.info(f"✅ Enrichissement complet - SIRET: {extracted_data.get('siret', 'N/A')}")
 
         except DocumentExtractorError as e:
             logger.error(f"❌ Erreur extraction {file.filename}: {str(e)}")
@@ -153,8 +167,9 @@ async def analyze_pap_batch(
             detail=f"Aucun PAP n'a pu être extrait. Erreurs: {extraction_errors}"
         )
 
-    # Étape 2 : Analyse et classification des PAP
-    logger.info(f"🔍 Analyse et classification de {len(extracted_paps)} PAP(s)")
+    # Étape 2 : Analyse et classification des PAP (déjà fait dans enrichment_service)
+    logger.info(f"🔍 Classification finale de {len(extracted_paps)} PAP(s)")
+    campaign_service = PAPCampaignService(db)
     analysis_result = campaign_service.analyze_batch(extracted_paps)
 
     # Ajouter les erreurs d'extraction dans les stats
@@ -295,6 +310,128 @@ async def get_pappers_data(
     except Exception as e:
         logger.error(f"Erreur lors de l'interrogation Pappers: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+
+@router.post("/export-excel")
+async def export_paps_to_excel(
+    request: Request,
+    paps_data: Dict[str, Any]
+):
+    """
+    Exporte les données PAP extraites vers un fichier Excel.
+
+    Args:
+        paps_data: Dictionnaire contenant la liste des PAP à exporter
+
+    Returns:
+        Fichier Excel téléchargeable
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+
+    try:
+        paps = paps_data.get('paps', [])
+        if not paps:
+            raise HTTPException(status_code=400, detail="Aucune donnée PAP à exporter")
+
+        # Créer le workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "PAP Extraits"
+
+        # Définir les styles
+        header_fill = PatternFill(start_color="E31F26", end_color="E31F26", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        enjeux_fill = PatternFill(start_color="FFE5E5", end_color="FFE5E5", fill_type="solid")
+
+        # En-têtes
+        headers = [
+            "SIRET", "Raison Sociale", "Adresse", "Code Postal", "Ville",
+            "UD", "FD", "Département", "Effectif", "Inscrits",
+            "Date Invitation", "Date Élection", "IDCC",
+            "Convention Collective", "Type Scrutin", "Catégorie",
+            "Historique PV", "Lien PDF", "Fichier Original",
+            "Sources Enrichissement", "Notes"
+        ]
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Remplir les données
+        for row_num, pap in enumerate(paps, 2):
+            historique_pv = pap.get('historique_pv', {})
+            has_pv = 'Oui' if historique_pv.get('found') else 'Non'
+
+            enrichment_sources = ', '.join(pap.get('enrichment_sources', []))
+
+            row_data = [
+                pap.get('siret', ''),
+                pap.get('raison_sociale', ''),
+                pap.get('adresse', ''),
+                pap.get('code_postal', ''),
+                pap.get('ville', ''),
+                pap.get('ud', ''),
+                pap.get('fd', ''),
+                pap.get('departement', ''),
+                pap.get('effectif', ''),
+                pap.get('inscrits', ''),
+                pap.get('date_invitation', ''),
+                pap.get('date_election', ''),
+                pap.get('idcc', ''),
+                pap.get('convention_collective', ''),
+                pap.get('type_scrutin', ''),
+                pap.get('category', ''),
+                has_pv,
+                pap.get('pdf_url', ''),
+                pap.get('original_filename', ''),
+                enrichment_sources,
+                pap.get('notes', '')
+            ]
+
+            for col_num, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_num, column=col_num, value=value)
+                # Colorer les PAP à enjeux
+                if pap.get('category') == 'enjeux':
+                    cell.fill = enjeux_fill
+
+        # Ajuster les largeurs de colonnes
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column].width = adjusted_width
+
+        # Sauvegarder dans un buffer
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+
+        # Générer le nom de fichier avec timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"PAP_extraits_{timestamp}.xlsx"
+
+        logger.info(f"✅ Export Excel généré: {len(paps)} PAP - {filename}")
+
+        return StreamingResponse(
+            buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'export Excel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'export: {str(e)}")
 
 
 @router.get("/health")
