@@ -6,7 +6,9 @@ et de générer des emails différenciés pour les UD.
 """
 
 import logging
+import json
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -22,6 +24,9 @@ class PAPCampaignService:
     SEUIL_EFFECTIF_ENJEUX = 1000
     SEUIL_RATIO_INSCRITS_DEPT = 1.5  # 150% de la moyenne du département
 
+    # Charger les contacts UD au démarrage de la classe
+    _ud_contacts = None
+
     def __init__(self, db: Session):
         """
         Initialise le service de campagne PAP.
@@ -30,6 +35,54 @@ class PAPCampaignService:
             db: Session de base de données
         """
         self.db = db
+        self._load_ud_contacts()
+
+    def _load_ud_contacts(self):
+        """Charge les contacts des UD depuis le fichier JSON."""
+        if PAPCampaignService._ud_contacts is None:
+            try:
+                contacts_path = Path(__file__).parent.parent / 'data' / 'ud_contacts.json'
+                with open(contacts_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    PAPCampaignService._ud_contacts = data.get('unions_departementales', {})
+                    logger.info(f"✅ Contacts UD chargés: {len(PAPCampaignService._ud_contacts)} départements")
+            except Exception as e:
+                logger.error(f"❌ Erreur chargement contacts UD: {str(e)}")
+                PAPCampaignService._ud_contacts = {}
+
+    @staticmethod
+    def get_ud_contact(departement: str) -> Dict[str, str]:
+        """
+        Récupère les informations de contact d'une UD.
+
+        Args:
+            departement: Code département (ex: "75", "13", "20A")
+
+        Returns:
+            Dictionnaire avec email et responsable
+        """
+        if PAPCampaignService._ud_contacts is None:
+            return {
+                'email': f'ud{departement.lower()}@cgt.fr',
+                'responsable': None
+            }
+
+        # Essayer avec le code département tel quel
+        contact = PAPCampaignService._ud_contacts.get(departement.upper())
+        if contact:
+            return contact
+
+        # Essayer sans le zéro initial (ex: "01" -> "1")
+        if departement.startswith('0') and len(departement) == 2:
+            contact = PAPCampaignService._ud_contacts.get(departement[1])
+            if contact:
+                return contact
+
+        # Fallback
+        return {
+            'email': f'ud{departement.lower()}@cgt.fr',
+            'responsable': None
+        }
 
     def analyze_pap(self, pap_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -212,6 +265,12 @@ class PAPCampaignService:
         ud = pap_data.get('ud', 'UD XX')
         priority_reasons = pap_data.get('priority_reason', [])
         pdf_url = pap_data.get('pdf_url')
+        departement = pap_data.get('departement', 'XX')
+
+        # Récupérer les vraies informations de contact UD
+        ud_contact = PAPCampaignService.get_ud_contact(departement)
+        recipient_email = ud_contact.get('email', f'ud{departement.lower()}@cgt.fr')
+        responsable_nom = ud_contact.get('responsable')
 
         # Vérifier l'historique CGT
         historique_pv = pap_data.get('historique_pv', {})
@@ -220,13 +279,16 @@ class PAPCampaignService:
         cgt_c4 = historique_pv.get('presence_cgt_c4', False)
         has_cgt_presence = cgt_c3 or cgt_c4
 
+        # Salutation personnalisée si le responsable est connu
+        salutation = f"Bonjour {responsable_nom}," if responsable_nom else "Bonjour,"
+
         if is_priority:
             # Email pour PAP à enjeux
             subject = f"🔥 PAP À ENJEUX - {raison_sociale} ({ville})"
 
             # Adapter le message selon la présence CGT
             if has_cgt_presence:
-                intro = f"""Bonjour,
+                intro = f"""{salutation}
 
 ⚠️ ATTENTION - PAP À ENJEUX - RENOUVELLEMENT ⚠️
 
@@ -243,7 +305,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
                 intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE\n"
             else:
-                intro = f"""Bonjour,
+                intro = f"""{salutation}
 
 ⚠️ ATTENTION - PAP À ENJEUX - NOUVELLE IMPLANTATION ⚠️
 
@@ -305,7 +367,7 @@ Confédération CGT"""
 
             # Adapter le message selon la présence CGT
             if has_cgt_presence:
-                intro = f"""Bonjour,
+                intro = f"""{salutation}
 
 Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une entreprise où la CGT est déjà présente.
 
@@ -320,7 +382,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
                 intro += "\n"
             else:
-                intro = f"""Bonjour,
+                intro = f"""{salutation}
 
 Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 
@@ -359,11 +421,10 @@ Confédération CGT"""
 Cordialement,
 Confédération CGT"""
 
-        # Déterminer le destinataire (email UD - pour l'instant un placeholder)
-        recipient = f"ud{pap_data.get('departement', 'XX')}@cgt.fr"
-
+        # Utiliser le vrai email de l'UD
         return {
             'subject': subject,
             'body': body,
-            'recipient': recipient
+            'recipient': recipient_email,
+            'responsable': responsable_nom
         }
