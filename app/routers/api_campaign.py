@@ -346,14 +346,34 @@ async def export_paps_to_excel(
         header_font = Font(bold=True, color="FFFFFF")
         enjeux_fill = PatternFill(start_color="FFE5E5", end_color="FFE5E5", fill_type="solid")
 
-        # En-têtes
+        # En-têtes dans l'ordre spécifié par l'utilisateur
         headers = [
-            "SIRET", "Raison Sociale", "Adresse", "Code Postal", "Ville",
-            "UD", "FD", "Département", "Effectif", "Inscrits",
-            "Date Invitation", "Date Élection", "IDCC",
-            "Convention Collective", "Type Scrutin", "Catégorie",
-            "Historique PV", "Lien PDF", "Fichier Original",
-            "Sources Enrichissement", "Notes"
+            # Colonnes principales (ordre imposé)
+            "SIRET",
+            "Nom Entreprise",
+            "CP",
+            "Ville",
+            "date d'arrivée",
+            "UD",
+            "FD",
+            "Siège social",
+            "IDCC",
+            "Nombre de salariés",
+            "Commentaires",
+            "Date de saisie",
+            "ENJEUX",
+            # Colonnes supplémentaires utiles
+            "Adresse",
+            "Inscrits",
+            "Date Élection",
+            "Convention Collective",
+            "Type Scrutin",
+            "Département",
+            "Historique PV",
+            "Présence CGT",
+            "Lien PDF",
+            "Fichier Original",
+            "Sources Enrichissement"
         ]
 
         for col_num, header in enumerate(headers, 1):
@@ -367,30 +387,58 @@ async def export_paps_to_excel(
             historique_pv = pap.get('historique_pv', {})
             has_pv = 'Oui' if historique_pv.get('found') else 'Non'
 
+            # Vérifier présence CGT
+            presence_cgt = ''
+            if historique_pv.get('found'):
+                cgt_c3 = historique_pv.get('presence_cgt_c3', False)
+                cgt_c4 = historique_pv.get('presence_cgt_c4', False)
+                if cgt_c3 and cgt_c4:
+                    presence_cgt = 'C3 + C4'
+                elif cgt_c3:
+                    presence_cgt = 'C3'
+                elif cgt_c4:
+                    presence_cgt = 'C4'
+                else:
+                    presence_cgt = 'Non'
+
             enrichment_sources = ', '.join(pap.get('enrichment_sources', []))
 
+            # Siège social
+            est_siege = 'Oui' if pap.get('est_siege') else 'Non'
+
+            # Date de saisie (timestamp actuel)
+            date_saisie = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+            # Catégorie
+            categorie = 'ENJEUX' if pap.get('category') == 'enjeux' else 'Standard'
+
             row_data = [
+                # Colonnes principales
                 pap.get('siret', ''),
                 pap.get('raison_sociale', ''),
-                pap.get('adresse', ''),
                 pap.get('code_postal', ''),
                 pap.get('ville', ''),
+                pap.get('date_invitation', ''),
                 pap.get('ud', ''),
                 pap.get('fd', ''),
-                pap.get('departement', ''),
-                pap.get('effectif', ''),
-                pap.get('inscrits', ''),
-                pap.get('date_invitation', ''),
-                pap.get('date_election', ''),
+                est_siege,
                 pap.get('idcc', ''),
+                pap.get('effectif', ''),
+                pap.get('notes', ''),
+                date_saisie,
+                categorie,
+                # Colonnes supplémentaires
+                pap.get('adresse', ''),
+                pap.get('inscrits', ''),
+                pap.get('date_election', ''),
                 pap.get('convention_collective', ''),
                 pap.get('type_scrutin', ''),
-                pap.get('category', ''),
+                pap.get('departement', ''),
                 has_pv,
+                presence_cgt,
                 pap.get('pdf_url', ''),
                 pap.get('original_filename', ''),
-                enrichment_sources,
-                pap.get('notes', '')
+                enrichment_sources
             ]
 
             for col_num, value in enumerate(row_data, 1):
@@ -432,6 +480,215 @@ async def export_paps_to_excel(
     except Exception as e:
         logger.error(f"Erreur lors de l'export Excel: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'export: {str(e)}")
+
+
+@router.post("/import-excel")
+async def import_excel_and_generate_emails(
+    request: Request,
+    file: UploadFile = File(..., description="Fichier Excel complété à importer"),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_admin_user)
+):
+    """
+    Importe un fichier Excel complété et génère tous les emails pour envoi manuel.
+
+    Args:
+        file: Fichier Excel avec données PAP complétées
+
+    Returns:
+        Liste de tous les emails générés avec leur contenu complet
+    """
+    from openpyxl import load_workbook
+    from io import BytesIO
+
+    try:
+        # Vérifier le type de fichier
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="Le fichier doit être au format Excel (.xlsx ou .xls)")
+
+        # Lire le fichier Excel
+        file_data = await file.read()
+        excel_buffer = BytesIO(file_data)
+
+        try:
+            wb = load_workbook(excel_buffer, data_only=True)
+            ws = wb.active
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Impossible de lire le fichier Excel: {str(e)}")
+
+        # Lire les en-têtes (ligne 1)
+        headers = []
+        for cell in ws[1]:
+            headers.append(cell.value)
+
+        # Trouver les indices des colonnes importantes
+        try:
+            idx_siret = headers.index("SIRET")
+            idx_nom = headers.index("Nom Entreprise")
+            idx_cp = headers.index("CP")
+            idx_ville = headers.index("Ville")
+            idx_date_arrivee = headers.index("date d'arrivée")
+            idx_ud = headers.index("UD")
+            idx_fd = headers.index("FD")
+            idx_siege = headers.index("Siège social")
+            idx_idcc = headers.index("IDCC")
+            idx_effectif = headers.index("Nombre de salariés")
+            idx_commentaires = headers.index("Commentaires")
+            idx_enjeux = headers.index("ENJEUX")
+            idx_inscrits = headers.index("Inscrits") if "Inscrits" in headers else None
+            idx_date_election = headers.index("Date Élection") if "Date Élection" in headers else None
+            idx_pdf_url = headers.index("Lien PDF") if "Lien PDF" in headers else None
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Colonne manquante dans le fichier Excel: {str(e)}"
+            )
+
+        # Parser les lignes et générer les emails
+        paps_with_emails = []
+        enrichment_service = PAPEnrichmentService(db)
+        campaign_service = PAPCampaignService(db)
+
+        logger.info(f"📥 Import Excel - Traitement de {ws.max_row - 1} lignes")
+
+        for row_num in range(2, ws.max_row + 1):  # Skip header
+            row = ws[row_num]
+
+            # Extraire les données de la ligne
+            siret = str(row[idx_siret].value or '').strip()
+            nom_entreprise = str(row[idx_nom].value or '').strip()
+            code_postal = str(row[idx_cp].value or '').strip()
+            ville = str(row[idx_ville].value or '').strip()
+            date_arrivee = str(row[idx_date_arrivee].value or '').strip()
+            ud = str(row[idx_ud].value or '').strip()
+            fd = str(row[idx_fd].value or '').strip()
+            est_siege = str(row[idx_siege].value or '').strip()
+            idcc = str(row[idx_idcc].value or '').strip()
+            effectif_str = str(row[idx_effectif].value or '').strip()
+            commentaires = str(row[idx_commentaires].value or '').strip()
+            enjeux_str = str(row[idx_enjeux].value or '').strip()
+
+            # Colonnes optionnelles
+            inscrits_str = str(row[idx_inscrits].value or '').strip() if idx_inscrits else ''
+            date_election = str(row[idx_date_election].value or '').strip() if idx_date_election else ''
+            pdf_url = str(row[idx_pdf_url].value or '').strip() if idx_pdf_url else ''
+
+            # Skip les lignes vides
+            if not siret or not nom_entreprise:
+                continue
+
+            # Nettoyer et valider le SIRET
+            siret_clean = ''.join(c for c in siret if c.isdigit())
+            if len(siret_clean) != 14:
+                logger.warning(f"⚠️ Ligne {row_num}: SIRET invalide '{siret}' - ignorée")
+                continue
+
+            # Convertir effectif et inscrits en nombres
+            try:
+                effectif = int(effectif_str) if effectif_str and effectif_str.isdigit() else None
+            except:
+                effectif = None
+
+            try:
+                inscrits = int(inscrits_str) if inscrits_str and inscrits_str.isdigit() else None
+            except:
+                inscrits = None
+
+            # Déterminer si c'est un PAP à enjeux
+            is_enjeux = enjeux_str.upper() in ['ENJEUX', 'OUI', 'TRUE', '1']
+
+            # Récupérer l'historique PV pour ce SIRET
+            siret_summary = enrichment_service._get_siret_summary(siret_clean)
+            historique_pv = {}
+
+            if siret_summary:
+                historique_pv = enrichment_service._format_siret_summary(siret_summary)
+                # Récupérer aussi les événements et invitations
+                pv_events = enrichment_service._get_pv_events(siret_clean)
+                old_invitations = enrichment_service._get_old_invitations(siret_clean)
+                if pv_events:
+                    historique_pv['evenements'] = pv_events
+                if old_invitations:
+                    historique_pv['anciennes_invitations'] = old_invitations
+            else:
+                historique_pv = {
+                    'found': False,
+                    'message': 'Aucun historique PV trouvé dans la base'
+                }
+
+            # Construire l'objet PAP
+            pap_data = {
+                'siret': siret_clean,
+                'raison_sociale': nom_entreprise,
+                'code_postal': code_postal,
+                'ville': ville,
+                'date_invitation': date_arrivee,
+                'ud': ud,
+                'fd': fd,
+                'est_siege': est_siege.upper() in ['OUI', 'TRUE', '1'],
+                'idcc': idcc,
+                'effectif': effectif,
+                'inscrits': inscrits,
+                'date_election': date_election,
+                'notes': commentaires,
+                'category': 'enjeux' if is_enjeux else 'standard',
+                'is_priority': is_enjeux,
+                'pdf_url': pdf_url,
+                'historique_pv': historique_pv,
+                'departement': code_postal[:2] if code_postal and len(code_postal) >= 2 else None
+            }
+
+            # Générer l'email pour ce PAP
+            email_content = campaign_service.generate_email_content(pap_data, is_priority=is_enjeux)
+
+            paps_with_emails.append({
+                'pap': pap_data,
+                'email': email_content,
+                'row_number': row_num
+            })
+
+            logger.info(f"✅ Ligne {row_num}: Email généré pour {nom_entreprise} ({siret_clean})")
+
+        if not paps_with_emails:
+            raise HTTPException(
+                status_code=400,
+                detail="Aucun PAP valide trouvé dans le fichier Excel"
+            )
+
+        # Log de l'action
+        log_admin_action(
+            request=request,
+            api_key=None,
+            action="import_excel_pap",
+            resource_type="campaign",
+            success=True,
+            resource_id=f"import_{len(paps_with_emails)}",
+            request_params={
+                'filename': file.filename,
+                'total_rows': ws.max_row - 1,
+                'emails_generated': len(paps_with_emails)
+            }
+        )
+
+        logger.info(f"✅ Import Excel terminé - {len(paps_with_emails)} emails générés")
+
+        return {
+            'success': True,
+            'total': len(paps_with_emails),
+            'emails': paps_with_emails,
+            'stats': {
+                'enjeux': sum(1 for p in paps_with_emails if p['pap']['category'] == 'enjeux'),
+                'standard': sum(1 for p in paps_with_emails if p['pap']['category'] == 'standard'),
+                'with_cgt_history': sum(1 for p in paps_with_emails if p['pap']['historique_pv'].get('found')),
+                'new_implantations': sum(1 for p in paps_with_emails if not p['pap']['historique_pv'].get('found'))
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import Excel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'import: {str(e)}")
 
 
 @router.get("/health")

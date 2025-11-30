@@ -106,6 +106,76 @@
       <div id="stats-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
     </div>
 
+    <!-- Zone de ré-import Excel et génération d'emails -->
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-md border-2 border-purple-300 p-6 mb-8">
+      <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <i class="fas fa-file-import text-purple-600"></i>
+        Étape 2 : Ré-importer Excel complété et générer les emails
+      </h3>
+
+      <div class="bg-white rounded-lg p-4 mb-4">
+        <div class="flex items-start gap-3 mb-4">
+          <i class="fas fa-info-circle text-blue-600 text-xl mt-1"></i>
+          <div class="text-sm text-gray-700">
+            <p class="font-semibold mb-2">Instructions :</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>Téléchargez le fichier Excel exporté ci-dessus</li>
+              <li>Complétez les SIRET manquants et autres informations</li>
+              <li>Ré-importez le fichier Excel complété ici</li>
+              <li>Le système génèrera automatiquement tous les emails adaptés (avec détection de présence CGT)</li>
+              <li>Copiez chaque email pour l'envoyer manuellement via Outlook</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <input type="file" id="excel-import-input" accept=".xlsx,.xls" class="hidden">
+          <button id="import-excel-btn" onclick="triggerExcelImport()" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition flex items-center gap-2">
+            <i class="fas fa-upload"></i>
+            Importer Excel complété
+          </button>
+          <span id="excel-filename" class="text-sm text-gray-600"></span>
+        </div>
+      </div>
+
+      <!-- Progress de l'import -->
+      <div id="import-progress" class="bg-white rounded-lg p-4 mb-4 hidden">
+        <div class="flex items-center gap-3 mb-2">
+          <i class="fas fa-spinner fa-spin text-purple-600"></i>
+          <span class="text-sm font-semibold text-gray-700">Import et génération des emails en cours...</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+          <div id="import-progress-bar" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Zone des emails générés -->
+      <div id="generated-emails-zone" class="hidden">
+        <div class="bg-white rounded-lg p-4 mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-envelope text-purple-600"></i>
+              Emails générés (<span id="emails-count">0</span>)
+            </h4>
+            <div class="flex gap-2">
+              <button onclick="copyAllEmails()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition">
+                <i class="fas fa-copy mr-1"></i>
+                Copier tous les destinataires
+              </button>
+            </div>
+          </div>
+
+          <!-- Statistiques de génération -->
+          <div id="generation-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+        </div>
+
+        <!-- Liste des emails -->
+        <div id="emails-list" class="space-y-3 max-h-[600px] overflow-y-auto">
+          <!-- Les emails seront insérés ici par JavaScript -->
+        </div>
+      </div>
+    </div>
+
     <!-- Vue Tableau (masquée par défaut) -->
     <div id="table-view" class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8 hidden">
       <h3 class="text-lg font-bold text-gray-800 mb-4">
@@ -911,6 +981,216 @@ async function exportToExcel() {
     exportBtn.disabled = false;
     exportBtn.innerHTML = '<i class="fas fa-file-excel mr-2"></i>Exporter Excel';
   }
+}
+
+// ===== EXCEL IMPORT ET GÉNÉRATION D'EMAILS =====
+
+function triggerExcelImport() {
+  const input = document.getElementById('excel-import-input');
+  input.click();
+}
+
+// Écouter les changements sur le file input
+document.addEventListener('DOMContentLoaded', () => {
+  const excelInput = document.getElementById('excel-import-input');
+  if (excelInput) {
+    excelInput.addEventListener('change', handleExcelImport);
+  }
+});
+
+async function handleExcelImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Afficher le nom du fichier
+  document.getElementById('excel-filename').textContent = file.name;
+
+  // Afficher la progress bar
+  const progressZone = document.getElementById('import-progress');
+  const progressBar = document.getElementById('import-progress-bar');
+  progressZone.classList.remove('hidden');
+  progressBar.style.width = '10%';
+
+  try {
+    // Créer FormData pour l'upload
+    const formData = new FormData();
+    formData.append('file', file);
+
+    progressBar.style.width = '30%';
+
+    // Envoyer au serveur
+    const response = await fetch('/api/campaign/import-excel', {
+      method: 'POST',
+      body: formData
+    });
+
+    progressBar.style.width = '60%';
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Erreur lors de l\'import');
+    }
+
+    const result = await response.json();
+    progressBar.style.width = '100%';
+
+    // Afficher les emails générés
+    displayGeneratedEmails(result);
+
+    // Cacher la progress bar après un court délai
+    setTimeout(() => {
+      progressZone.classList.add('hidden');
+      progressBar.style.width = '0%';
+    }, 1000);
+
+    alert(`✅ Import réussi ! ${result.total} emails générés.`);
+
+  } catch (error) {
+    alert('❌ Erreur lors de l\'import Excel: ' + error.message);
+    console.error('Erreur import:', error);
+    progressZone.classList.add('hidden');
+    progressBar.style.width = '0%';
+  }
+
+  // Réinitialiser l'input pour permettre de réimporter le même fichier
+  event.target.value = '';
+}
+
+function displayGeneratedEmails(result) {
+  const emailsZone = document.getElementById('generated-emails-zone');
+  const emailsList = document.getElementById('emails-list');
+  const emailsCount = document.getElementById('emails-count');
+  const generationStats = document.getElementById('generation-stats');
+
+  // Afficher la zone
+  emailsZone.classList.remove('hidden');
+
+  // Mettre à jour le compteur
+  emailsCount.textContent = result.total;
+
+  // Afficher les statistiques
+  generationStats.innerHTML = `
+    <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+      <p class="text-xs text-gray-600 mb-1">PAP à Enjeux</p>
+      <p class="text-2xl font-bold text-red-700">${result.stats.enjeux}</p>
+    </div>
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+      <p class="text-xs text-gray-600 mb-1">PAP Standard</p>
+      <p class="text-2xl font-bold text-blue-700">${result.stats.standard}</p>
+    </div>
+    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+      <p class="text-xs text-gray-600 mb-1">Avec historique CGT</p>
+      <p class="text-2xl font-bold text-green-700">${result.stats.with_cgt_history}</p>
+    </div>
+    <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+      <p class="text-xs text-gray-600 mb-1">Nouvelles implantations</p>
+      <p class="text-2xl font-bold text-purple-700">${result.stats.new_implantations}</p>
+    </div>
+  `;
+
+  // Afficher chaque email
+  emailsList.innerHTML = '';
+  result.emails.forEach((item, index) => {
+    const pap = item.pap;
+    const email = item.email;
+    const isEnjeux = pap.category === 'enjeux';
+    const hasCgtHistory = pap.historique_pv && pap.historique_pv.found;
+
+    const emailCard = document.createElement('div');
+    emailCard.className = `bg-white rounded-lg shadow border-2 ${isEnjeux ? 'border-red-300' : 'border-gray-200'} p-4`;
+    emailCard.innerHTML = `
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-2">
+            ${isEnjeux ? '<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">ENJEUX</span>' : '<span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded">STANDARD</span>'}
+            ${hasCgtHistory ? '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded flex items-center gap-1"><i class="fas fa-history"></i>CGT présente</span>' : '<span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded">Nouvelle implantation</span>'}
+          </div>
+          <h5 class="font-bold text-gray-900">${pap.raison_sociale}</h5>
+          <p class="text-sm text-gray-600">${pap.siret} • ${pap.ville} (${pap.code_postal})</p>
+        </div>
+      </div>
+
+      <div class="bg-gray-50 rounded-lg p-3 mb-3">
+        <p class="text-xs font-semibold text-gray-700 mb-1">Destinataire :</p>
+        <p class="text-sm font-mono text-gray-900">${email.recipient}</p>
+      </div>
+
+      <div class="bg-gray-50 rounded-lg p-3 mb-3">
+        <p class="text-xs font-semibold text-gray-700 mb-1">Objet :</p>
+        <p class="text-sm text-gray-900">${email.subject}</p>
+      </div>
+
+      <div class="bg-gray-50 rounded-lg p-3 mb-3">
+        <p class="text-xs font-semibold text-gray-700 mb-2">Corps du message :</p>
+        <pre class="text-xs text-gray-900 whitespace-pre-wrap font-sans max-h-48 overflow-y-auto">${email.body}</pre>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="copyEmailContent(${index})" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition">
+          <i class="fas fa-copy mr-1"></i>
+          Copier l'email complet
+        </button>
+        <button onclick="copyRecipient('${email.recipient}')" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition">
+          <i class="fas fa-envelope mr-1"></i>
+          Copier destinataire
+        </button>
+        ${pap.pdf_url ? `
+          <a href="${pap.pdf_url}" target="_blank" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition inline-flex items-center">
+            <i class="fas fa-file-pdf mr-1"></i>
+            PDF
+          </a>
+        ` : ''}
+      </div>
+    `;
+
+    emailsList.appendChild(emailCard);
+  });
+
+  // Stocker les emails pour les fonctions de copie
+  window.generatedEmails = result.emails;
+}
+
+function copyEmailContent(index) {
+  const item = window.generatedEmails[index];
+  const email = item.email;
+
+  const fullContent = `Destinataire: ${email.recipient}
+
+Objet: ${email.subject}
+
+${email.body}`;
+
+  navigator.clipboard.writeText(fullContent).then(() => {
+    alert('✅ Email copié dans le presse-papiers !');
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie');
+  });
+}
+
+function copyRecipient(recipient) {
+  navigator.clipboard.writeText(recipient).then(() => {
+    alert(`✅ Destinataire copié: ${recipient}`);
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie');
+  });
+}
+
+function copyAllEmails() {
+  if (!window.generatedEmails || window.generatedEmails.length === 0) {
+    alert('Aucun email à copier');
+    return;
+  }
+
+  const allRecipients = window.generatedEmails.map(item => item.email.recipient).join('; ');
+
+  navigator.clipboard.writeText(allRecipients).then(() => {
+    alert(`✅ ${window.generatedEmails.length} destinataires copiés dans le presse-papiers !`);
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie');
+  });
 }
 </script>
 

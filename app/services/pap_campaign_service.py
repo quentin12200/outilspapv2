@@ -213,16 +213,46 @@ class PAPCampaignService:
         priority_reasons = pap_data.get('priority_reason', [])
         pdf_url = pap_data.get('pdf_url')
 
+        # Vérifier l'historique CGT
+        historique_pv = pap_data.get('historique_pv', {})
+        has_cgt_history = historique_pv.get('found', False)
+        cgt_c3 = historique_pv.get('presence_cgt_c3', False)
+        cgt_c4 = historique_pv.get('presence_cgt_c4', False)
+        has_cgt_presence = cgt_c3 or cgt_c4
+
         if is_priority:
             # Email pour PAP à enjeux
             subject = f"🔥 PAP À ENJEUX - {raison_sociale} ({ville})"
 
-            body = f"""Bonjour,
+            # Adapter le message selon la présence CGT
+            if has_cgt_presence:
+                intro = f"""Bonjour,
 
-⚠️ ATTENTION - PAP À ENJEUX ⚠️
+⚠️ ATTENTION - PAP À ENJEUX - RENOUVELLEMENT ⚠️
 
-Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire :
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire où la CGT est déjà présente.
 
+🔄 CONTEXTE HISTORIQUE :"""
+                if cgt_c3:
+                    voix_cgt_c3 = historique_pv.get('voix_cgt_c3', 'N/A')
+                    elus_cgt_c3 = historique_pv.get('elus_cgt_c3', 'N/A')
+                    intro += f"\n• CGT présente au C3 (dernier cycle) - {voix_cgt_c3} voix - {elus_cgt_c3} élu(s)"
+                if cgt_c4:
+                    voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
+                    elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
+                    intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
+                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE\n"
+            else:
+                intro = f"""Bonjour,
+
+⚠️ ATTENTION - PAP À ENJEUX - NOUVELLE IMPLANTATION ⚠️
+
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire.
+
+🎯 OPPORTUNITÉ : Entreprise sans historique CGT connu - Potentiel de nouvelle implantation !
+"""
+
+            body = intro + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -273,10 +303,31 @@ Confédération CGT"""
             # Email standard
             subject = f"PAP - {raison_sociale} ({ville})"
 
-            body = f"""Bonjour,
+            # Adapter le message selon la présence CGT
+            if has_cgt_presence:
+                intro = f"""Bonjour,
 
-Nous avons reçu une invitation à un Protocole d'Accord Préélectoral :
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une entreprise où la CGT est déjà présente.
 
+🔄 CONTEXTE HISTORIQUE :"""
+                if cgt_c3:
+                    voix_cgt_c3 = historique_pv.get('voix_cgt_c3', 'N/A')
+                    elus_cgt_c3 = historique_pv.get('elus_cgt_c3', 'N/A')
+                    intro += f"\n• CGT présente au C3 (dernier cycle) - {voix_cgt_c3} voix - {elus_cgt_c3} élu(s)"
+                if cgt_c4:
+                    voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
+                    elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
+                    intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
+                intro += "\n"
+            else:
+                intro = f"""Bonjour,
+
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
+
+💡 Entreprise sans historique CGT connu - Opportunité de nouvelle implantation.
+"""
+
+            body = intro + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
