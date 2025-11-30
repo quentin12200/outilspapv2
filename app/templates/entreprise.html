@@ -162,8 +162,7 @@
     </div>
 
     <!-- Carte des établissements -->
-    <div class="bg-white rounded-xl shadow-md p-6 mb-6"
-         x-init="setTimeout(() => { if (!map && !loading) { initMap(); } }, 500)">
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
       <h2 class="text-xl font-bold text-gray-900 mb-4">
         <i class="fas fa-map-marked-alt text-cgt-red mr-2"></i>
         Carte des établissements
@@ -226,18 +225,9 @@
         data: []
       },
 
-      async init() {
-        // Charger les données
-        await this.loadData();
-        this.loading = false;
-      },
-
-      initMap() {
-        if (this.map) return; // Déjà initialisée
-
-        console.log('Initialisation Leaflet...');
-
-        // Initialiser la carte Leaflet
+      init() {
+        // EXACTEMENT comme etablissements-carte.html
+        // Initialiser la carte AVANT de charger les données
         this.map = L.map('map', {
           center: [46.7111, 1.7191],
           zoom: 6,
@@ -250,21 +240,15 @@
           maxZoom: 19
         }).addTo(this.map);
 
-        console.log('Carte initialisée');
-
-        // Forcer recalcul et ajouter marqueurs
+        // Forcer recalcul
         setTimeout(() => {
           if (this.map) {
             this.map.invalidateSize();
-            this.addMapMarkers();
-
-            setTimeout(() => {
-              if (this.map) {
-                this.map.invalidateSize();
-              }
-            }, 300);
           }
         }, 250);
+
+        // Charger les données
+        this.loadData();
       },
 
       async loadData() {
@@ -319,9 +303,25 @@
           // Préparer les données du graphique
           this.prepareChartData();
 
-          // Note: les marqueurs seront ajoutés après l'initialisation de la carte dans init()
+          this.loading = false;
+
+          // Ajouter les marqueurs sur la carte
+          this.$nextTick(() => {
+            setTimeout(() => {
+              if (this.map) {
+                this.map.invalidateSize();
+              }
+              this.addMapMarkers();
+              setTimeout(() => {
+                if (this.map) {
+                  this.map.invalidateSize();
+                }
+              }, 300);
+            }, 200);
+          });
         } catch (error) {
           console.error('Erreur lors du chargement des données:', error);
+          this.loading = false;
         }
       },
 
