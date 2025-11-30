@@ -351,7 +351,7 @@
               Dernière mise à jour:
               <span class="font-semibold" x-text="new Date(data?.pappers?.derniere_mise_a_jour).toLocaleDateString('fr-FR')"></span>
             </div>
-            <a href="https://www.pappers.fr" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+            <a :href="'https://www.pappers.fr/entreprise/' + (data?.siren || '')" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
               <i class="fas fa-external-link-alt mr-1"></i>
               Consulter sur Pappers.fr
             </a>
