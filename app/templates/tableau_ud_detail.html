@@ -2,8 +2,9 @@
 {% block title %}Tableau UD {{ code_ud }} · Kit renforcement CGT{% endblock %}
 
 {% block content %}
+<div x-data="tableauUDDetailApp()">
 <main class="py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-7xl mx-auto" x-data="tableauUDDetailApp()">
+  <div class="max-w-7xl mx-auto">
 
     <!-- Breadcrumb -->
     <div class="mb-6">
@@ -413,5 +414,5 @@ document.addEventListener('alpine:init', () => {
   });
 });
 </script>
-
+</div>
 {% endblock %}

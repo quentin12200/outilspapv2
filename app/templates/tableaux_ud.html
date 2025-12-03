@@ -2,8 +2,9 @@
 {% block title %}Tableaux de Bord UD · Kit renforcement CGT{% endblock %}
 
 {% block content %}
+<div x-data="tableauxUDApp()">
 <main class="py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-7xl mx-auto" x-data="tableauxUDApp()">
+  <div class="max-w-7xl mx-auto">
 
     <!-- Header -->
     <div class="mb-8">
@@ -336,5 +337,5 @@ function tableauxUDApp() {
   }
 }
 </script>
-
+</div>
 {% endblock %}
