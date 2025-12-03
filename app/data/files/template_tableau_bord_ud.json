@@ -1,0 +1,308 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "description": "Template générique pour le suivi des activités d'une Union Départementale CGT",
+    "date_creation": "2024",
+    "type": "tableau_bord_ud"
+  },
+  
+  "configuration_ud": {
+    "numero_departement": "XX",
+    "nom_departement": "Nom du département",
+    "code_ud": "udXX",
+    "commentaire": "À adapter selon le département (ex: ud66 pour Pyrénées-Orientales)"
+  },
+  
+  "feuilles": {
+    "tableau_bord_principal": {
+      "nom": "TDB {NUM_DEPT}",
+      "description": "Tableau de bord pour organiser les réunions et événements de l'UD",
+      "colonnes": [
+        {
+          "nom": "ORGANISATION",
+          "type": "text",
+          "description": "Nom de l'organisation/événement"
+        },
+        {
+          "nom": "DATE ET HEURE",
+          "type": "datetime",
+          "description": "Date et heure de l'événement"
+        },
+        {
+          "nom": "HEURE",
+          "type": "time",
+          "description": "Heure de début"
+        },
+        {
+          "nom": "RUBRIQUE",
+          "type": "text",
+          "description": "Catégorie de l'événement"
+        },
+        {
+          "nom": "PRÉSENTATEUR",
+          "type": "text",
+          "description": "Personne responsable de la présentation"
+        },
+        {
+          "nom": "Ordre du jour",
+          "type": "text",
+          "description": "Points à aborder"
+        },
+        {
+          "nom": "Référent CEC",
+          "type": "text",
+          "description": "Référent Comité d'Entreprise Central"
+        },
+        {
+          "nom": "Collectif confédéral",
+          "type": "text",
+          "description": "Équipe confédérale impliquée"
+        }
+      ]
+    },
+    
+    "entreprises_cibles_Presentes": {
+      "nom": "A CIBLE",
+      "description": "Suivi des entreprises où la CGT est déjà présente - potentiel de développement",
+      "colonnes": [
+        {
+          "nom": "CIBLE",
+          "type": "text",
+          "description": "Nom de l'entreprise ciblée",
+          "obligatoire": true
+        },
+        {
+          "nom": "DATE PRESENTATION CE",
+          "type": "date",
+          "description": "Date de présentation au Comité d'Entreprise"
+        },
+        {
+          "nom": "VOTE CE",
+          "type": "text",
+          "description": "Résultat du vote au CE"
+        },
+        {
+          "nom": "DATE SCRUTIN",
+          "type": "date",
+          "description": "Date des élections professionnelles"
+        },
+        {
+          "nom": "SUIVI PAP",
+          "type": "text",
+          "description": "Suivi du Protocole d'Accord Préélectoral"
+        },
+        {
+          "nom": "NB SALARIES",
+          "type": "number",
+          "description": "Nombre de salariés dans l'entreprise"
+        },
+        {
+          "nom": "KBIS ETBS SECONDAIRES",
+          "type": "text",
+          "description": "Établissements secondaires (extrait KBIS)"
+        },
+        {
+          "nom": "Sites",
+          "type": "text",
+          "description": "Nombre et localisation des sites"
+        },
+        {
+          "nom": "idcc",
+          "type": "text",
+          "description": "Identifiant Convention Collective"
+        },
+        {
+          "nom": "N° SIRET",
+          "type": "text",
+          "description": "Numéro SIRET de l'établissement",
+          "obligatoire": true
+        },
+        {
+          "nom": "VOIX CGT",
+          "type": "number",
+          "description": "Nombre de voix obtenues par la CGT"
+        },
+        {
+          "nom": "NB SYNDIQUES",
+          "type": "number",
+          "description": "Nombre de syndiqués CGT dans l'entreprise"
+        },
+        {
+          "nom": "PILOTE",
+          "type": "text",
+          "description": "Responsable du dossier au sein de l'UD"
+        },
+        {
+          "nom": "OBJET",
+          "type": "text",
+          "description": "Objectif de l'action"
+        },
+        {
+          "nom": "ENJEUX",
+          "type": "text",
+          "description": "Enjeux stratégiques identifiés"
+        },
+        {
+          "nom": "ORGA",
+          "type": "text",
+          "description": "Organisation/structure responsable"
+        },
+        {
+          "nom": "CONTACT",
+          "type": "text",
+          "description": "Nom du contact dans l'entreprise"
+        },
+        {
+          "nom": "TELEPHONE",
+          "type": "text",
+          "description": "Téléphone du contact"
+        },
+        {
+          "nom": "MAIL",
+          "type": "email",
+          "description": "Email du contact"
+        }
+      ]
+    },
+    
+    "entreprises_cibles_absentes": {
+      "nom": "A CIBLE ABSENTE",
+      "description": "Suivi des entreprises où la CGT n'est pas encore présente - implantation à développer",
+      "colonnes": "mêmes colonnes que A CIBLE avec ajout de:",
+      "colonnes_supplementaires": [
+        {
+          "nom": "UD",
+          "type": "text",
+          "description": "Union Départementale concernée"
+        },
+        {
+          "nom": "ANNEE",
+          "type": "year",
+          "description": "Année de référence"
+        }
+      ]
+    },
+    
+    "animateurs_vie_syndicale": {
+      "nom": "AVS",
+      "description": "Liste nationale des Animateurs Vie Syndicale par département",
+      "colonnes": [
+        {
+          "nom": "DPT",
+          "type": "text",
+          "description": "Numéro du département"
+        },
+        {
+          "nom": "UD",
+          "type": "text",
+          "description": "Nom de l'Union Départementale"
+        },
+        {
+          "nom": "NOM",
+          "type": "text",
+          "description": "Nom de l'animateur"
+        },
+        {
+          "nom": "PRENOM",
+          "type": "text",
+          "description": "Prénom de l'animateur"
+        },
+        {
+          "nom": "TEL PORTABLE",
+          "type": "phone",
+          "description": "Téléphone portable"
+        },
+        {
+          "nom": "TEL UD",
+          "type": "phone",
+          "description": "Téléphone de l'UD"
+        },
+        {
+          "nom": "En responsabilité depuis le",
+          "type": "date",
+          "description": "Date de prise de fonction"
+        },
+        {
+          "nom": "MAIL",
+          "type": "email",
+          "description": "Adresse email"
+        }
+      ],
+      "note": "Cette feuille contient la liste COMPLÈTE nationale - utiliser un filtre sur DPT pour isoler son département"
+    },
+    
+    "carte_evs": {
+      "nom": "CARTE EVS",
+      "description": "Carte visuelle (peut être vide dans certaines versions)"
+    },
+    
+    "coordonnees_evs": {
+      "nom": "COORDONNEES EVS",
+      "description": "Coordonnées de l'équipe Vie Syndicale confédérale (Montreuil)",
+      "colonnes": [
+        {
+          "nom": "NOM Prénom",
+          "type": "text",
+          "description": "Nom et prénom du conseiller"
+        },
+        {
+          "nom": "Mail",
+          "type": "email",
+          "description": "Email professionnel @cgt.fr"
+        },
+        {
+          "nom": "Téléphone",
+          "type": "phone",
+          "description": "Téléphone direct"
+        },
+        {
+          "nom": "Fonction",
+          "type": "text",
+          "description": "Fonction (Conseiller.ère, Animateur.rice, etc.)"
+        },
+        {
+          "nom": "Pôle",
+          "type": "text",
+          "description": "Pôle de rattachement"
+        },
+        {
+          "nom": "Espace",
+          "type": "text",
+          "description": "Espace VIE SYNDICALE"
+        }
+      ],
+      "note": "Liste de référence commune à toutes les UD"
+    }
+  },
+  
+  "usage": {
+    "pour_une_nouvelle_ud": [
+      "1. Remplacer {NUM_DEPT} par le numéro du département (ex: 34 pour Hérault)",
+      "2. Adapter 'configuration_ud' avec les bonnes valeurs",
+      "3. Renommer la feuille 'TDB 66' en 'TDB {NUM_DEPT}'",
+      "4. Vider les données exemple mais conserver la structure des colonnes",
+      "5. Les feuilles AVS et COORDONNEES EVS peuvent rester inchangées (données nationales)"
+    ],
+    "integration_avec_pap_cse_dashboard": [
+      "Les colonnes N° SIRET, VOIX CGT, NB SALARIES sont essentielles pour l'intégration",
+      "DATE SCRUTIN permet de suivre les cycles électoraux",
+      "PILOTE permet d'attribuer les responsabilités de suivi"
+    ]
+  },
+  
+  "indicateurs_cles": {
+    "par_entreprise": [
+      "Nombre de salariés",
+      "Nombre de syndiqués",
+      "Résultats électoraux (voix CGT)",
+      "Suivi PAP",
+      "Date prochaine élection"
+    ],
+    "par_ud": [
+      "Nombre d'entreprises cibles",
+      "Taux de présence CGT",
+      "Nombre total de syndiqués",
+      "Nombre d'élections à venir"
+    ]
+  }
+}

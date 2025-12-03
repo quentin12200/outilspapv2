@@ -1,0 +1,325 @@
+📦 Structure de Projet Recommandée pour Template UD
+═══════════════════════════════════════════════════
+
+mon_projet_tableau_bord_ud/
+│
+├── 📄 .gitignore                          # Protection données sensibles
+├── 📄 README.md                           # Documentation principale
+├── 📄 INDEX.md                            # Guide navigation fichiers
+│
+├── 📁 templates/                          # Templates vides (à commit sur Git)
+│   ├── template_tableau_bord_ud.json     # Schéma JSON
+│   ├── template_vide.xlsx                # Fichier Excel vide type
+│   └── .gitkeep                          # Maintenir le dossier dans Git
+│
+├── 📁 scripts/                            # Scripts d'automatisation
+│   ├── ud_automation.py                  # Script principal
+│   ├── custom_indicators.py              # Vos indicateurs perso (optionnel)
+│   ├── requirements.txt                  # Dépendances Python
+│   └── .gitkeep
+│
+├── 📁 docs/                               # Documentation
+│   ├── GUIDE_TEMPLATE_UD.md              # Guide technique complet
+│   ├── PROMPTS_CLAUDE_CODE.md            # Bibliothèque de prompts
+│   ├── CHANGELOG.md                       # Historique modifications
+│   ├── FAQ.md                             # Questions fréquentes (optionnel)
+│   └── .gitkeep
+│
+├── 📁 data/                               # ⚠️ DONNÉES RÉELLES (gitignored)
+│   ├── .gitkeep                          # Maintenir structure
+│   ├── TABLEAU_de_BORD_UD66_2024.xlsx   # Fichier courant
+│   ├── TABLEAU_de_BORD_UD66_2025.xlsx   # Nouvelle année
+│   └── archives/                          # Anciennes versions
+│       ├── TABLEAU_de_BORD_UD66_2023.xlsx
+│       └── .gitkeep
+│
+├── 📁 exports/                            # ⚠️ EXPORTS GÉNÉRÉS (gitignored)
+│   ├── .gitkeep
+│   ├── json/                              # Exports JSON
+│   │   ├── export_dashboard_ud66_20241203.json
+│   │   ├── a_cible_20241203.json
+│   │   └── .gitkeep
+│   │
+│   ├── rapports/                          # Rapports générés
+│   │   ├── rapport_mensuel_202412.md
+│   │   ├── audit_qualite_20241203.json
+│   │   └── .gitkeep
+│   │
+│   └── csv/                               # Exports CSV
+│       ├── export_militants_20241203.csv
+│       └── .gitkeep
+│
+├── 📁 logs/                               # ⚠️ LOGS (gitignored)
+│   ├── validation_20241203.log
+│   ├── enrichissement_20241203.log
+│   └── .gitkeep
+│
+├── 📁 config/                             # Configuration (gitignore credentials)
+│   ├── .gitkeep
+│   ├── config.example.json               # Exemple config (à commit)
+│   └── config.local.json                 # Config réelle (gitignored)
+│
+└── 📁 examples/                           # Exemples anonymisés (OK pour Git)
+    ├── exemple_anonymise.xlsx            # Données fictives
+    ├── exemple_export.json
+    └── .gitkeep
+
+
+═══════════════════════════════════════════════════
+COMMANDES POUR CRÉER LA STRUCTURE
+═══════════════════════════════════════════════════
+
+# Linux/Mac
+mkdir -p mon_projet_tableau_bord_ud/{templates,scripts,docs,data/archives,exports/{json,rapports,csv},logs,config,examples}
+cd mon_projet_tableau_bord_ud
+touch templates/.gitkeep scripts/.gitkeep docs/.gitkeep data/.gitkeep data/archives/.gitkeep
+touch exports/.gitkeep exports/json/.gitkeep exports/rapports/.gitkeep exports/csv/.gitkeep
+touch logs/.gitkeep config/.gitkeep examples/.gitkeep
+
+# Windows (PowerShell)
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\templates"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\scripts"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\docs"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\data\archives"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\exports\json"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\exports\rapports"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\exports\csv"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\logs"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\config"
+New-Item -ItemType Directory -Path "mon_projet_tableau_bord_ud\examples"
+
+# Créer les .gitkeep
+New-Item -ItemType File -Path "mon_projet_tableau_bord_ud\templates\.gitkeep"
+# ... (répéter pour chaque dossier)
+
+
+═══════════════════════════════════════════════════
+PLACEMENT DES FICHIERS DU PACKAGE
+═══════════════════════════════════════════════════
+
+1. Copier à la racine :
+   - README.md
+   - INDEX.md
+   - .gitignore
+
+2. Copier dans templates/ :
+   - template_tableau_bord_ud.json
+
+3. Copier dans scripts/ :
+   - ud_automation.py
+
+4. Copier dans docs/ :
+   - GUIDE_TEMPLATE_UD.md
+   - PROMPTS_CLAUDE_CODE.md
+
+5. Créer dans scripts/ :
+   - requirements.txt (contenu ci-dessous)
+
+
+═══════════════════════════════════════════════════
+CONTENU DE requirements.txt
+═══════════════════════════════════════════════════
+
+pandas>=2.0.0
+openpyxl>=3.1.0
+python-dateutil>=2.8.0
+
+
+═══════════════════════════════════════════════════
+INSTALLATION COMPLÈTE
+═══════════════════════════════════════════════════
+
+# 1. Cloner ou créer la structure
+git clone [URL_SI_GIT] mon_projet_tableau_bord_ud
+# OU créer manuellement avec les commandes ci-dessus
+
+# 2. Placer tous les fichiers
+
+# 3. Installer Python (si pas déjà fait)
+python --version  # Vérifier >= 3.8
+
+# 4. Installer les dépendances
+cd mon_projet_tableau_bord_ud/scripts
+pip install -r requirements.txt
+
+# 5. Tester l'installation
+python ud_automation.py --help
+
+# 6. Créer votre premier tableau
+python ud_automation.py create --ud 66 --nom "Pyrénées-Orientales" --output ../data/TDB_UD66_2025.xlsx
+
+# 7. Si utilisation Git
+cd ..
+git init
+git add .
+git commit -m "Initial commit - Template UD"
+
+
+═══════════════════════════════════════════════════
+UTILISATION QUOTIDIENNE
+═══════════════════════════════════════════════════
+
+# Générer un rapport
+cd scripts
+python ud_automation.py rapport --fichier ../data/TABLEAU_de_BORD_UD66.xlsx --output ../exports/rapports/rapport_$(date +%Y%m%d).md
+
+# Exporter vers JSON
+python ud_automation.py export --fichier ../data/TABLEAU_de_BORD_UD66.xlsx --feuille "A CIBLE" --output ../exports/json/a_cible_$(date +%Y%m%d).json
+
+# Valider les données
+python ud_automation.py validate --fichier ../data/TABLEAU_de_BORD_UD66.xlsx 2>&1 | tee ../logs/validation_$(date +%Y%m%d).log
+
+# Synchroniser Dashboard
+python ud_automation.py sync-dashboard --fichier ../data/TABLEAU_de_BORD_UD66.xlsx --ud-code ud66 --api-url https://app.pap-cse.org/api
+
+
+═══════════════════════════════════════════════════
+SÉCURITÉ ET GIT
+═══════════════════════════════════════════════════
+
+✅ COMMIT SUR GIT (sûr) :
+- README.md, INDEX.md, GUIDE_TEMPLATE_UD.md
+- template_tableau_bord_ud.json (structure)
+- ud_automation.py, requirements.txt
+- .gitignore, .gitkeep
+- config.example.json
+- Documentation complète
+- Templates vides
+
+❌ NE JAMAIS COMMIT (gitignored) :
+- data/*.xlsx (fichiers avec données réelles)
+- exports/**/*.json (exports nominatifs)
+- logs/*.log (peuvent contenir des données)
+- config/config.local.json (credentials)
+- Tout fichier contenant SIRET, noms, contacts réels
+
+
+═══════════════════════════════════════════════════
+WORKFLOW GIT RECOMMANDÉ
+═══════════════════════════════════════════════════
+
+# Setup initial
+git init
+git add .
+git commit -m "Setup template UD"
+
+# Branches
+git checkout -b develop          # Pour développement
+git checkout -b feature/nouveau  # Pour nouvelles fonctionnalités
+
+# Avant chaque commit, vérifier
+git status  # Aucun fichier data/ ou exports/ ne doit apparaître !
+
+# Commit des modifications scripts/docs uniquement
+git add scripts/ud_automation.py docs/GUIDE_TEMPLATE_UD.md
+git commit -m "Ajout fonction X dans ud_automation"
+
+# Pusher (si repo distant)
+git push origin main
+
+
+═══════════════════════════════════════════════════
+SAUVEGARDE DES DONNÉES
+═══════════════════════════════════════════════════
+
+Les données réelles ne sont pas sur Git, donc :
+
+1. Sauvegarde locale régulière :
+   - Copie manuelle sur disque externe
+   - Ou script automatique
+
+2. Sauvegarde cloud (si autorisé) :
+   - Google Drive UD
+   - Nextcloud
+   - Synology
+   - ⚠️ Chiffrer si cloud public !
+
+3. Script de backup :
+
+#!/bin/bash
+# backup_data.sh
+DATE=$(date +%Y%m%d)
+BACKUP_DIR="/chemin/vers/backup"
+mkdir -p "$BACKUP_DIR"
+cp -r data/ "$BACKUP_DIR/data_$DATE/"
+tar -czf "$BACKUP_DIR/backup_ud66_$DATE.tar.gz" -C "$BACKUP_DIR" "data_$DATE"
+echo "Backup créé : backup_ud66_$DATE.tar.gz"
+
+
+═══════════════════════════════════════════════════
+PARTAGE AVEC D'AUTRES UD
+═══════════════════════════════════════════════════
+
+Pour partager le template avec une autre UD :
+
+1. Cloner uniquement le repo Git :
+   git clone [URL_REPO] nouveau_projet_ud34
+   
+2. L'autre UD obtient :
+   ✅ Toute la documentation
+   ✅ Scripts d'automatisation
+   ✅ Templates vides
+   ✅ Structure de dossiers
+   ❌ Aucune donnée de l'UD 66 (sécurité)
+
+3. L'autre UD crée son propre tableau :
+   cd scripts
+   python ud_automation.py create --ud 34 --nom "Hérault"
+
+
+═══════════════════════════════════════════════════
+PERSONNALISATION PAR UD
+═══════════════════════════════════════════════════
+
+Chaque UD peut personnaliser :
+
+1. config/config.local.json :
+{
+  "ud_numero": "66",
+  "ud_nom": "Pyrénées-Orientales",
+  "ud_code": "ud66",
+  "dashboard_api": "https://app.pap-cse.org/api",
+  "email_contact": "ud66@cgt.fr"
+}
+
+2. scripts/custom_indicators.py :
+# Indicateurs spécifiques à votre UD
+def calculer_score_territorial(df):
+    # Votre logique
+    pass
+
+3. docs/FAQ_UD66.md :
+# Questions spécifiques à notre UD
+
+Ces personnalisations peuvent rester privées (gitignored)
+ou être partagées (committées) selon le besoin.
+
+
+═══════════════════════════════════════════════════
+MAINTENANCE
+═══════════════════════════════════════════════════
+
+Mensuel :
+- Backup des données
+- Vérification logs/
+- Mise à jour AVS et COORDONNEES EVS
+
+Trimestriel :
+- Audit qualité données (validate)
+- Nettoyage exports anciens
+- Archivage données > 1 an
+
+Annuel :
+- Créer nouveau fichier année N+1
+- Archiver fichier année N
+- Mise à jour documentation
+
+Au besoin :
+- Mettre à jour scripts/
+- Améliorer prompts
+- Partager retours avec confédération
+
+
+═══════════════════════════════════════════════════
+FIN DU DOCUMENT
+═══════════════════════════════════════════════════
