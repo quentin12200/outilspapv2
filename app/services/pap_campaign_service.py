@@ -6,7 +6,10 @@ et de générer des emails différenciés pour les UD.
 """
 
 import logging
+import json
+import os
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -22,6 +25,10 @@ class PAPCampaignService:
     SEUIL_EFFECTIF_ENJEUX = 1000
     SEUIL_RATIO_INSCRITS_DEPT = 1.5  # 150% de la moyenne du département
 
+    # Charger les contacts UD au démarrage de la classe
+    _ud_contacts = None
+    _referents_regionaux = None
+
     def __init__(self, db: Session):
         """
         Initialise le service de campagne PAP.
@@ -30,6 +37,114 @@ class PAPCampaignService:
             db: Session de base de données
         """
         self.db = db
+        self._load_ud_contacts()
+        self._load_referents_regionaux()
+
+    def _load_ud_contacts(self):
+        """Charge les contacts des UD depuis le fichier JSON."""
+        if PAPCampaignService._ud_contacts is None:
+            try:
+                contacts_path = Path(__file__).parent.parent / 'data' / 'ud_contacts.json'
+                with open(contacts_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    PAPCampaignService._ud_contacts = data.get('unions_departementales', {})
+                    logger.info(f"✅ Contacts UD chargés: {len(PAPCampaignService._ud_contacts)} départements")
+            except Exception as e:
+                logger.error(f"❌ Erreur chargement contacts UD: {str(e)}")
+                PAPCampaignService._ud_contacts = {}
+
+    def _load_referents_regionaux(self):
+        """Charge les référents régionaux depuis le fichier JSON."""
+        if PAPCampaignService._referents_regionaux is None:
+            try:
+                referents_path = Path(__file__).parent.parent / 'data' / 'referents_regionaux.json'
+                with open(referents_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    PAPCampaignService._referents_regionaux = {
+                        'referents': data.get('referents', {}),
+                        'departement_to_referent': data.get('departement_to_referent', {})
+                    }
+                    logger.info(f"✅ Référents régionaux chargés: {len(data.get('referents', {}))} référents")
+            except Exception as e:
+                logger.error(f"❌ Erreur chargement référents régionaux: {str(e)}")
+                PAPCampaignService._referents_regionaux = {'referents': {}, 'departement_to_referent': {}}
+
+    @staticmethod
+    def get_ud_contact(departement: str) -> Dict[str, str]:
+        """
+        Récupère les informations de contact d'une UD.
+
+        Args:
+            departement: Code département (ex: "75", "13", "20A")
+
+        Returns:
+            Dictionnaire avec email et responsable
+        """
+        if PAPCampaignService._ud_contacts is None:
+            return {
+                'email': f'ud{departement.lower()}@cgt.fr',
+                'responsable': None
+            }
+
+        # Essayer avec le code département tel quel
+        contact = PAPCampaignService._ud_contacts.get(departement.upper())
+        if contact:
+            return contact
+
+        # Essayer sans le zéro initial (ex: "01" -> "1")
+        if departement.startswith('0') and len(departement) == 2:
+            contact = PAPCampaignService._ud_contacts.get(departement[1])
+            if contact:
+                return contact
+
+        # Fallback
+        return {
+            'email': f'ud{departement.lower()}@cgt.fr',
+            'responsable': None
+        }
+
+    @staticmethod
+    def get_referent_regional(departement: str) -> Optional[Dict[str, str]]:
+        """
+        Récupère les informations du référent régional pour un département.
+
+        Args:
+            departement: Code département (ex: "75", "13", "20A")
+
+        Returns:
+            Dictionnaire avec nom et email du référent, ou None si non trouvé
+        """
+        if PAPCampaignService._referents_regionaux is None:
+            return None
+
+        # Normaliser le code département
+        dept_key = departement.upper().lstrip('0') if departement.isdigit() else departement.upper()
+
+        # Chercher dans le mapping département -> référent
+        dept_to_ref = PAPCampaignService._referents_regionaux.get('departement_to_referent', {})
+
+        # Essayer avec le département tel quel
+        referent_key = dept_to_ref.get(departement)
+        if not referent_key:
+            # Essayer avec zéro devant si numérique
+            if departement.isdigit() and len(departement) == 1:
+                referent_key = dept_to_ref.get(f'0{departement}')
+
+        if not referent_key:
+            return None
+
+        # Récupérer les infos du référent
+        referents = PAPCampaignService._referents_regionaux.get('referents', {})
+        referent_data = referents.get(referent_key)
+
+        if referent_data:
+            return {
+                'nom': referent_data.get('nom'),
+                'email': referent_data.get('email'),
+                'regions': ', '.join(referent_data.get('regions', []))
+            }
+
+        return None
 
     def analyze_pap(self, pap_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -208,21 +323,65 @@ class PAPCampaignService:
         effectif = pap_data.get('effectif', 'N/A')
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
+        date_invitation = pap_data.get('date_invitation', 'N/A')
         idcc = pap_data.get('idcc', 'N/A')
+        fd = pap_data.get('fd', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
         priority_reasons = pap_data.get('priority_reason', [])
         pdf_url = pap_data.get('pdf_url')
+        departement = pap_data.get('departement', 'XX')
+
+        # Récupérer les vraies informations de contact UD
+        ud_contact = PAPCampaignService.get_ud_contact(departement)
+        recipient_email = ud_contact.get('email', f'ud{departement.lower()}@cgt.fr')
+        responsable_nom = ud_contact.get('responsable')
+
+        # Récupérer le référent régional
+        referent = PAPCampaignService.get_referent_regional(departement)
+
+        # Vérifier l'historique CGT
+        historique_pv = pap_data.get('historique_pv', {})
+        has_cgt_history = historique_pv.get('found', False)
+        cgt_c3 = historique_pv.get('presence_cgt_c3', False)
+        cgt_c4 = historique_pv.get('presence_cgt_c4', False)
+        has_cgt_presence = cgt_c3 or cgt_c4
+
+        # Salutation personnalisée si le responsable est connu
+        salutation = f"Bonjour {responsable_nom}," if responsable_nom else "Bonjour,"
 
         if is_priority:
             # Email pour PAP à enjeux
             subject = f"🔥 PAP À ENJEUX - {raison_sociale} ({ville})"
 
-            body = f"""Bonjour,
+            # Adapter le message selon la présence CGT
+            if has_cgt_presence:
+                intro = f"""{salutation}
 
-⚠️ ATTENTION - PAP À ENJEUX ⚠️
+⚠️ ATTENTION - PAP À ENJEUX - RENOUVELLEMENT ⚠️
 
-Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire :
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire où la CGT est déjà présente.
 
+🔄 CONTEXTE HISTORIQUE :"""
+                if cgt_c3:
+                    voix_cgt_c3 = historique_pv.get('voix_cgt_c3', 'N/A')
+                    elus_cgt_c3 = historique_pv.get('elus_cgt_c3', 'N/A')
+                    intro += f"\n• CGT présente au C3 (dernier cycle) - {voix_cgt_c3} voix - {elus_cgt_c3} élu(s)"
+                if cgt_c4:
+                    voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
+                    elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
+                    intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
+                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE\n"
+            else:
+                intro = f"""{salutation}
+
+⚠️ ATTENTION - PAP À ENJEUX - NOUVELLE IMPLANTATION ⚠️
+
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une cible prioritaire.
+
+🎯 OPPORTUNITÉ : Entreprise sans historique CGT connu - Potentiel de nouvelle implantation !
+"""
+
+            body = intro + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -234,7 +393,10 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
 • IDCC : {idcc}
+• Fédération : {fd}
 • Union Départementale : {ud}
+
+📅 La réunion de négociation est fixée au : {date_invitation}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 POURQUOI C'EST UN PAP À ENJEUX ?
@@ -246,8 +408,9 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète
-                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
+                # Construire l'URL complète avec la variable d'environnement APP_URL
+                app_url = os.getenv('APP_URL', 'http://localhost:8000')
+                full_pdf_url = f"{app_url}{pdf_url}"
                 body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -255,9 +418,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 {full_pdf_url}
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
-
-Cordialement,
-Confédération CGT"""
+"""
             else:
                 body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -265,7 +426,25 @@ Confédération CGT"""
 Le document PAP complet est joint à cet email.
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
+"""
 
+            # Ajouter les coordonnées du référent régional si disponible
+            if referent:
+                body += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 VOTRE RÉFÉRENT RÉGIONAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{referent['nom']}
+📧 {referent['email']}
+📍 {referent['regions']}
+
+Pour toute question ou accompagnement, n'hésitez pas à contacter votre référent régional.
+
+Cordialement,
+Confédération CGT"""
+            else:
+                body += """
 Cordialement,
 Confédération CGT"""
 
@@ -273,10 +452,31 @@ Confédération CGT"""
             # Email standard
             subject = f"PAP - {raison_sociale} ({ville})"
 
-            body = f"""Bonjour,
+            # Adapter le message selon la présence CGT
+            if has_cgt_presence:
+                intro = f"""{salutation}
 
-Nous avons reçu une invitation à un Protocole d'Accord Préélectoral :
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une entreprise où la CGT est déjà présente.
 
+🔄 CONTEXTE HISTORIQUE :"""
+                if cgt_c3:
+                    voix_cgt_c3 = historique_pv.get('voix_cgt_c3', 'N/A')
+                    elus_cgt_c3 = historique_pv.get('elus_cgt_c3', 'N/A')
+                    intro += f"\n• CGT présente au C3 (dernier cycle) - {voix_cgt_c3} voix - {elus_cgt_c3} élu(s)"
+                if cgt_c4:
+                    voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
+                    elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
+                    intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
+                intro += "\n"
+            else:
+                intro = f"""{salutation}
+
+Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
+
+💡 Entreprise sans historique CGT connu - Opportunité de nouvelle implantation.
+"""
+
+            body = intro + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -288,31 +488,36 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral :
 • Inscrits : {inscrits} électeur(s)
 • Date élection : {date_election}
 • IDCC : {idcc}
+• Fédération : {fd}
 • Union Départementale : {ud}
+
+📅 La réunion de négociation est fixée au : {date_invitation}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 """
             # Ajouter le lien PDF si disponible
             if pdf_url:
-                # Construire l'URL complète
-                full_pdf_url = f"https://app.pap-cse.org{pdf_url}"
+                # Construire l'URL complète avec la variable d'environnement APP_URL
+                app_url = os.getenv('APP_URL', 'http://localhost:8000')
+                full_pdf_url = f"{app_url}{pdf_url}"
                 body += f"""📎 Document PAP disponible en ligne :
 {full_pdf_url}
-
-Cordialement,
-Confédération CGT"""
+"""
             else:
                 body += f"""Le document PAP complet est joint à cet email.
+"""
 
+            # PAS de référent régional pour les emails standard
+            body += """
 Cordialement,
 Confédération CGT"""
 
-        # Déterminer le destinataire (email UD - pour l'instant un placeholder)
-        recipient = f"ud{pap_data.get('departement', 'XX')}@cgt.fr"
-
+        # Utiliser le vrai email de l'UD
         return {
             'subject': subject,
             'body': body,
-            'recipient': recipient
+            'recipient': recipient_email,
+            'responsable': responsable_nom,
+            'referent': referent
         }
