@@ -13,7 +13,7 @@ from typing import List, Optional
 import logging
 
 from ..db import get_session
-from ..models import TableauBordUD, EntrepriseUD, EvenementUD, ElectionUD, User
+from ..models import TableauBordUD, EntrepriseUD, EvenementUD, ElectionUD, User, ChecklistItemUD
 from ..user_auth import get_current_user_or_none
 
 logger = logging.getLogger(__name__)
@@ -423,4 +423,197 @@ async def get_stats_tableau_ud(
         raise
     except Exception as e:
         logger.error(f"Erreur lors du calcul des statistiques: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===============================================
+# ROUTES CHECKLIST MÉTHODOLOGIQUE
+# ===============================================
+
+class ChecklistItemUpdate(BaseModel):
+    est_coche: Optional[bool] = None
+    informations: Optional[str] = None
+    objectif: Optional[str] = None
+    action: Optional[str] = None
+    echeance: Optional[date] = None
+    responsable: Optional[str] = None
+
+
+class ChecklistItemCreate(BaseModel):
+    categorie: str
+    libelle: str
+    ordre: int = 0
+    objectif: Optional[str] = None
+    action: Optional[str] = None
+    echeance: Optional[date] = None
+    responsable: Optional[str] = None
+
+
+@router.get("/entreprises/{entreprise_id}/checklist")
+async def get_checklist(
+    entreprise_id: int,
+    db: Session = Depends(get_session),
+    user: User | None = Depends(get_current_user_or_none)
+):
+    """Récupère la checklist méthodologique d'une entreprise"""
+    try:
+        # Vérifier que l'entreprise existe
+        entreprise = db.query(EntrepriseUD).filter(EntrepriseUD.id == entreprise_id).first()
+        if not entreprise:
+            raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+
+        # Récupérer tous les items de la checklist
+        items = db.query(ChecklistItemUD).filter(
+            ChecklistItemUD.entreprise_id == entreprise_id
+        ).order_by(ChecklistItemUD.categorie, ChecklistItemUD.ordre).all()
+
+        # Grouper par catégorie
+        checklist_by_category = {}
+        for item in items:
+            if item.categorie not in checklist_by_category:
+                checklist_by_category[item.categorie] = []
+
+            checklist_by_category[item.categorie].append({
+                "id": item.id,
+                "libelle": item.libelle,
+                "ordre": item.ordre,
+                "est_coche": item.est_coche,
+                "informations": item.informations,
+                "objectif": item.objectif,
+                "action": item.action,
+                "echeance": item.echeance.isoformat() if item.echeance else None,
+                "responsable": item.responsable
+            })
+
+        return {
+            "success": True,
+            "data": {
+                "entreprise": {
+                    "id": entreprise.id,
+                    "nom": entreprise.nom_entreprise,
+                    "type_cible": entreprise.type_cible,
+                    "type_label": "Renforcement" if entreprise.type_cible == "presente" else "Implantation"
+                },
+                "checklist": checklist_by_category,
+                "total_items": len(items),
+                "items_coches": sum(1 for item in items if item.est_coche),
+                "progression": round((sum(1 for item in items if item.est_coche) / len(items) * 100) if items else 0, 1)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la checklist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/entreprises/{entreprise_id}/checklist/{item_id}")
+async def update_checklist_item(
+    entreprise_id: int,
+    item_id: int,
+    item_update: ChecklistItemUpdate,
+    db: Session = Depends(get_session),
+    user: User | None = Depends(get_current_user_or_none)
+):
+    """Met à jour un item de la checklist"""
+    try:
+        # Récupérer l'item
+        item = db.query(ChecklistItemUD).filter(
+            ChecklistItemUD.id == item_id,
+            ChecklistItemUD.entreprise_id == entreprise_id
+        ).first()
+
+        if not item:
+            raise HTTPException(status_code=404, detail="Item de checklist non trouvé")
+
+        # Mettre à jour les champs fournis
+        if item_update.est_coche is not None:
+            item.est_coche = item_update.est_coche
+
+        if item_update.informations is not None:
+            item.informations = item_update.informations
+
+        if item_update.objectif is not None:
+            item.objectif = item_update.objectif
+
+        if item_update.action is not None:
+            item.action = item_update.action
+
+        if item_update.echeance is not None:
+            item.echeance = item_update.echeance
+
+        if item_update.responsable is not None:
+            item.responsable = item_update.responsable
+
+        item.updated_at = datetime.now()
+        db.commit()
+        db.refresh(item)
+
+        return {
+            "success": True,
+            "message": "Item mis à jour avec succès",
+            "data": {
+                "id": item.id,
+                "est_coche": item.est_coche,
+                "informations": item.informations
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour de l'item: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/entreprises/{entreprise_id}/checklist")
+async def create_checklist_item(
+    entreprise_id: int,
+    new_item: ChecklistItemCreate,
+    db: Session = Depends(get_session),
+    user: User | None = Depends(get_current_user_or_none)
+):
+    """Ajoute un nouvel item à la checklist (ex: plan d'action personnalisé)"""
+    try:
+        # Vérifier que l'entreprise existe
+        entreprise = db.query(EntrepriseUD).filter(EntrepriseUD.id == entreprise_id).first()
+        if not entreprise:
+            raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+
+        # Créer le nouvel item
+        checklist_item = ChecklistItemUD(
+            entreprise_id=entreprise_id,
+            categorie=new_item.categorie,
+            libelle=new_item.libelle,
+            ordre=new_item.ordre,
+            est_coche=False,
+            informations="",
+            objectif=new_item.objectif,
+            action=new_item.action,
+            echeance=new_item.echeance,
+            responsable=new_item.responsable,
+            created_by=user.id if user else None
+        )
+
+        db.add(checklist_item)
+        db.commit()
+        db.refresh(checklist_item)
+
+        return {
+            "success": True,
+            "message": "Item créé avec succès",
+            "data": {
+                "id": checklist_item.id,
+                "categorie": checklist_item.categorie,
+                "libelle": checklist_item.libelle
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de l'item: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

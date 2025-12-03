@@ -1053,3 +1053,49 @@ class ElectionUD(Base):
         Index('idx_election_ud_date', 'date_scrutin'),
         Index('idx_election_ud_prochain', 'date_prochain_scrutin'),
     )
+
+
+class ChecklistItemUD(Base):
+    """
+    Items de checklist méthodologique pour l'implantation CGT (entreprises absentes)
+    Suit la méthodologie d'implantation avec cases à cocher et informations
+    """
+    __tablename__ = "checklist_items_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec l'entreprise
+    entreprise_id = Column(Integer, nullable=False, index=True)  # Lien vers EntrepriseUD
+
+    # Catégorie de checklist
+    categorie = Column(String(100), nullable=False, index=True)
+    # Valeurs possibles: "ud_connaissance", "mise_dispo_connaissance", "fd_connaissance",
+    # "ugict_connaissance", "parrain", "plan_action"
+
+    # Item de checklist
+    libelle = Column(Text, nullable=False)  # Le texte de l'item à cocher
+    ordre = Column(Integer, default=0)  # Pour trier les items dans la catégorie
+
+    # État de la checklist
+    est_coche = Column(Boolean, default=False, nullable=False)  # Case cochée ou non
+    informations = Column(Text)  # Colonne "Informations" pour notes/commentaires
+
+    # Pour le plan d'action uniquement
+    objectif = Column(String(200))  # Objectif du plan d'action
+    action = Column(Text)  # Action à mener
+    echeance = Column(Date)  # Date limite
+    responsable = Column(String(100))  # Camarade en charge du suivi
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<ChecklistItemUD(id={self.id}, entreprise_id={self.entreprise_id}, categorie={self.categorie}, libelle={self.libelle[:30]})>"
+
+    __table_args__ = (
+        Index('idx_checklist_entreprise', 'entreprise_id'),
+        Index('idx_checklist_categorie', 'categorie'),
+        Index('idx_checklist_ordre', 'ordre'),
+    )
