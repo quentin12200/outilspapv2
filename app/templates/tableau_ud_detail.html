@@ -1,462 +1,417 @@
 {% extends "base.html" %}
-
-{% block title %}Tableau de Bord UD - {{ code_ud }}{% endblock %}
+{% block title %}Tableau UD {{ code_ud }} · Kit renforcement CGT{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- En-tête -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/tableaux-ud">Tableaux UD</a></li>
-                    <li class="breadcrumb-item active" id="breadcrumb-ud">...</li>
-                </ol>
-            </nav>
+<main class="py-10 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-7xl mx-auto" x-data="tableauUDDetailApp()">
 
-            <h1 class="h2">
-                <i class="bi bi-clipboard-data"></i>
-                <span id="titre-ud">Chargement...</span>
-            </h1>
-        </div>
+    <!-- Breadcrumb -->
+    <div class="mb-6">
+      <a href="/tableaux-ud" class="inline-flex items-center text-sm text-gray-600 hover:text-cgt-red">
+        <i class="fas fa-arrow-left mr-2"></i>
+        Retour aux tableaux UD
+      </a>
+    </div>
+
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900" x-text="titre"></h1>
+      <p class="mt-2 text-gray-600" x-text="'Union Départementale ' + tableauData.nom_departement + ' (' + tableauData.code_ud + ')'"></p>
     </div>
 
     <!-- Statistiques principales -->
-    <div class="row mb-4" id="stats-principales">
-        <div class="col-md-3">
-            <div class="card text-white bg-success">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-building"></i> Entreprises Cibles
-                    </h5>
-                    <h2 class="mb-0" id="stat-cibles">-</h2>
-                    <small>CGT présente</small>
-                </div>
-            </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <!-- Entreprises Cibles -->
+      <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
+        <div class="flex items-center justify-between mb-2">
+          <i class="fas fa-building text-2xl opacity-80"></i>
+          <span class="text-3xl font-bold" x-text="tableauData.nb_entreprises_cibles || 0"></span>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-building-exclamation"></i> Entreprises Absentes
-                    </h5>
-                    <h2 class="mb-0" id="stat-absentes">-</h2>
-                    <small>À implanter</small>
-                </div>
-            </div>
+        <div class="text-sm font-medium opacity-90">Entreprises Cibles</div>
+        <div class="text-xs opacity-75 mt-1">CGT présente</div>
+      </div>
+
+      <!-- Entreprises Absentes -->
+      <div class="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl shadow-lg p-6 text-white">
+        <div class="flex items-center justify-between mb-2">
+          <i class="fas fa-building-circle-exclamation text-2xl opacity-80"></i>
+          <span class="text-3xl font-bold" x-text="tableauData.nb_entreprises_absentes || 0"></span>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-info">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-people"></i> Total Syndiqués
-                    </h5>
-                    <h2 class="mb-0" id="stat-syndiques">-</h2>
-                    <small>Toutes entreprises</small>
-                </div>
-            </div>
+        <div class="text-sm font-medium opacity-90">Entreprises Absentes</div>
+        <div class="text-xs opacity-75 mt-1">À implanter</div>
+      </div>
+
+      <!-- Total Syndiqués -->
+      <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
+        <div class="flex items-center justify-between mb-2">
+          <i class="fas fa-users text-2xl opacity-80"></i>
+          <span class="text-3xl font-bold" x-text="tableauData.nb_total_syndiques || 0"></span>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-danger">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-calendar-event"></i> Prochaines Élections
-                    </h5>
-                    <h2 class="mb-0" id="stat-elections">-</h2>
-                    <small>Dans les 90 jours</small>
-                </div>
-            </div>
+        <div class="text-sm font-medium opacity-90">Total Syndiqués</div>
+        <div class="text-xs opacity-75 mt-1">Toutes entreprises</div>
+      </div>
+
+      <!-- Prochaines Élections -->
+      <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl shadow-lg p-6 text-white">
+        <div class="flex items-center justify-between mb-2">
+          <i class="fas fa-calendar-days text-2xl opacity-80"></i>
+          <span class="text-3xl font-bold" x-text="tableauData.nb_prochaines_elections || 0"></span>
         </div>
+        <div class="text-sm font-medium opacity-90">Prochaines Élections</div>
+        <div class="text-xs opacity-75 mt-1">Dans les 90 jours</div>
+      </div>
     </div>
 
     <!-- Onglets -->
-    <ul class="nav nav-tabs" id="myTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="entreprises-tab" data-bs-toggle="tab" data-bs-target="#entreprises" type="button">
-                <i class="bi bi-building"></i> Entreprises
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="evenements-tab" data-bs-toggle="tab" data-bs-target="#evenements" type="button">
-                <i class="bi bi-calendar"></i> Événements
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button">
-                <i class="bi bi-graph-up"></i> Statistiques
-            </button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="myTabContent">
-        <!-- Onglet Entreprises -->
-        <div class="tab-pane fade show active" id="entreprises" role="tabpanel">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Liste des Entreprises</h5>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNouvelleEntreprise">
-                            <i class="bi bi-plus-circle"></i> Ajouter une entreprise
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- Filtres -->
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <select class="form-select" id="filtre-type-cible">
-                                <option value="all">Toutes les entreprises</option>
-                                <option value="presente">CGT présente (cibles)</option>
-                                <option value="absente">CGT absente (implantation)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <input type="text" class="form-control" id="filtre-recherche" placeholder="Rechercher une entreprise...">
-                        </div>
-                    </div>
-
-                    <!-- Tableau entreprises -->
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Entreprise</th>
-                                    <th>SIRET</th>
-                                    <th>Type</th>
-                                    <th class="text-center">Effectif</th>
-                                    <th class="text-center">Syndiqués</th>
-                                    <th>Pilote</th>
-                                    <th>Prochaine élection</th>
-                                    <th class="text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="entreprises-tbody">
-                                <tr>
-                                    <td colspan="8" class="text-center">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Chargement...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Onglet Événements -->
-        <div class="tab-pane fade" id="evenements" role="tabpanel">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Planning des Événements</h5>
-                    <button type="button" class="btn btn-sm btn-primary">
-                        <i class="bi bi-plus-circle"></i> Ajouter un événement
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="evenements-list">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Chargement...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Onglet Statistiques -->
-        <div class="tab-pane fade" id="stats" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Statistiques Détaillées</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Prochaines Élections (90 jours)</h6>
-                            <div id="prochaines-elections-list">
-                                <div class="text-center">
-                                    <div class="spinner-border spinner-border-sm" role="status">
-                                        <span class="visually-hidden">Chargement...</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Top 10 Pilotes</h6>
-                            <div id="top-pilotes-list">
-                                <div class="text-center">
-                                    <div class="spinner-border spinner-border-sm" role="status">
-                                        <span class="visually-hidden">Chargement...</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="mb-6">
+      <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <button
+            @click="activeTab = 'entreprises'"
+            :class="activeTab === 'entreprises' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+            <i class="fas fa-building mr-2"></i>
+            Entreprises
+          </button>
+          <button
+            @click="activeTab = 'evenements'"
+            :class="activeTab === 'evenements' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+            <i class="fas fa-calendar mr-2"></i>
+            Événements
+          </button>
+          <button
+            @click="activeTab = 'stats'"
+            :class="activeTab === 'stats' ? 'border-cgt-red text-cgt-red' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+            <i class="fas fa-chart-line mr-2"></i>
+            Statistiques
+          </button>
+        </nav>
+      </div>
     </div>
+
+    <!-- Contenu des onglets -->
+    <div>
+      <!-- Onglet Entreprises -->
+      <div x-show="activeTab === 'entreprises'">
+        <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Liste des Entreprises</h2>
+            <button
+              @click="openAddModal = true"
+              class="inline-flex items-center px-4 py-2 bg-cgt-red hover:bg-cgt-darkred text-white font-medium rounded-lg transition-colors shadow-sm">
+              <i class="fas fa-plus-circle mr-2"></i>
+              Ajouter une entreprise
+            </button>
+          </div>
+
+          <!-- Filtres -->
+          <div class="grid md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+              <select
+                x-model="filters.type_cible"
+                @change="loadEntreprises()"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent">
+                <option value="all">Toutes les entreprises</option>
+                <option value="presente">CGT présente (cibles)</option>
+                <option value="absente">CGT absente (implantation)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+              <input
+                type="text"
+                x-model="filters.search"
+                @input.debounce.500ms="loadEntreprises()"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red focus:border-transparent"
+                placeholder="Nom d'entreprise...">
+            </div>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="loading" class="flex justify-center py-8">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-cgt-red"></div>
+          </div>
+
+          <!-- Table -->
+          <div x-show="!loading && entreprises.length > 0" class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entreprise</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SIRET</th>
+                  <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Effectif</th>
+                  <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Syndiqués</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pilote</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prochaine élection</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <template x-for="e in entreprises" :key="e.id">
+                  <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4">
+                      <span class="text-sm font-medium text-gray-900" x-text="e.nom_entreprise"></span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="text-xs text-gray-500" x-text="e.siret"></span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                            :class="e.type_cible === 'presente' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
+                            x-text="e.type_cible === 'presente' ? 'CGT présente' : 'CGT absente'"></span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <span class="text-sm text-gray-900" x-text="e.nb_salaries || '-'"></span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <span class="text-sm text-gray-900" x-text="e.nb_syndiques || '-'"></span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="text-sm text-gray-900" x-text="e.pilote || '-'"></span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="text-sm text-gray-900" x-text="e.date_prochaine_election ? new Date(e.date_prochaine_election).toLocaleDateString('fr-FR') : '-'"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Aucune donnée -->
+          <div x-show="!loading && entreprises.length === 0" class="text-center py-8">
+            <i class="fas fa-inbox text-gray-400 text-4xl mb-3"></i>
+            <p class="text-gray-500">Aucune entreprise trouvée</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Statistiques -->
+      <div x-show="activeTab === 'stats'">
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Prochaines élections -->
+          <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Prochaines Élections (90 jours)</h3>
+            <div x-show="statsLoading" class="flex justify-center py-4">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-cgt-red"></div>
+            </div>
+            <div x-show="!statsLoading && stats.prochaines_elections && stats.prochaines_elections.count > 0" class="space-y-3">
+              <template x-for="e in stats.prochaines_elections.liste" :key="e.entreprise">
+                <div class="p-3 bg-gray-50 rounded-lg">
+                  <div class="flex justify-between items-start mb-1">
+                    <span class="font-medium text-gray-900 text-sm" x-text="e.entreprise"></span>
+                    <span class="text-xs text-gray-500" x-text="new Date(e.date).toLocaleDateString('fr-FR')"></span>
+                  </div>
+                  <div class="text-xs text-gray-600">
+                    <span x-show="e.nb_salaries">Effectif: <span x-text="e.nb_salaries"></span> • </span>
+                    <span x-show="e.pilote">Pilote: <span x-text="e.pilote"></span></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div x-show="!statsLoading && (!stats.prochaines_elections || stats.prochaines_elections.count === 0)" class="text-center py-8 text-gray-500">
+              Aucune élection prévue dans les 90 jours
+            </div>
+          </div>
+
+          <!-- Top pilotes -->
+          <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Top 10 Pilotes</h3>
+            <div x-show="statsLoading" class="flex justify-center py-4">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-cgt-red"></div>
+            </div>
+            <div x-show="!statsLoading && stats.pilotes && stats.pilotes.length > 0" class="space-y-2">
+              <template x-for="(p, i) in stats.pilotes" :key="p.nom">
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm text-gray-900">
+                    <span class="font-bold text-gray-400 mr-2" x-text="(i + 1) + '.'"></span>
+                    <span x-text="p.nom"></span>
+                  </span>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cgt-red text-white" x-text="p.nb_entreprises"></span>
+                </div>
+              </template>
+            </div>
+            <div x-show="!statsLoading && (!stats.pilotes || stats.pilotes.length === 0)" class="text-center py-8 text-gray-500">
+              Aucun pilote assigné
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Modal : Ajouter entreprise -->
+<div x-show="openAddModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div x-show="openAddModal" x-transition class="fixed inset-0 bg-gray-500 bg-opacity-75"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+    <div x-show="openAddModal" x-transition class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+      <div class="bg-gradient-to-r from-cgt-red to-cgt-darkred px-6 py-4">
+        <h3 class="text-lg font-semibold text-white">Ajouter une Entreprise</h3>
+      </div>
+      <form @submit.prevent="addEntreprise()">
+        <div class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">SIRET <span class="text-red-600">*</span></label>
+              <input type="text" x-model="newEntreprise.siret" required maxlength="14" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Type <span class="text-red-600">*</span></label>
+              <select x-model="newEntreprise.type_cible" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+                <option value="presente">CGT présente (développement)</option>
+                <option value="absente">CGT absente (implantation)</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise <span class="text-red-600">*</span></label>
+            <input type="text" x-model="newEntreprise.nom_entreprise" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+          </div>
+          <div class="grid md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Effectif</label>
+              <input type="number" x-model.number="newEntreprise.nb_salaries" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Syndiqués CGT</label>
+              <input type="number" x-model.number="newEntreprise.nb_syndiques" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Voix CGT</label>
+              <input type="number" x-model.number="newEntreprise.voix_cgt" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+          </div>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Pilote</label>
+              <input type="text" x-model="newEntreprise.pilote" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Prochaine élection</label>
+              <input type="date" x-model="newEntreprise.date_prochaine_election" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Enjeux</label>
+            <textarea x-model="newEntreprise.enjeux" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cgt-red"></textarea>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+          <button type="button" @click="openAddModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Annuler</button>
+          <button type="submit" :disabled="saving" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-cgt-red hover:bg-cgt-darkred disabled:opacity-50">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span x-text="saving ? 'Ajout...' : 'Ajouter'"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
-<!-- Modal : Nouvelle Entreprise -->
-<div class="modal fade" id="modalNouvelleEntreprise" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-building-add"></i> Ajouter une Entreprise</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="formNouvelleEntreprise">
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">SIRET <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="ent_siret" maxlength="14" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Type <span class="text-danger">*</span></label>
-                            <select class="form-select" id="ent_type_cible" required>
-                                <option value="presente">CGT présente (développement)</option>
-                                <option value="absente">CGT absente (implantation)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Nom de l'entreprise <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="ent_nom_entreprise" required>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Effectif</label>
-                            <input type="number" class="form-control" id="ent_nb_salaries">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Syndiqués CGT</label>
-                            <input type="number" class="form-control" id="ent_nb_syndiques">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Voix CGT</label>
-                            <input type="number" class="form-control" id="ent_voix_cgt">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Pilote</label>
-                            <input type="text" class="form-control" id="ent_pilote">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Prochaine élection</label>
-                            <input type="date" class="form-control" id="ent_date_prochaine_election">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Enjeux</label>
-                        <textarea class="form-control" id="ent_enjeux" rows="2"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Ajouter
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-{% endblock %}
-
-{% block extra_js %}
 <script>
-const CODE_UD = '{{ code_ud }}';
+function tableauUDDetailApp() {
+  return {
+    codeUD: '{{ code_ud }}',
+    titre: 'Chargement...',
+    activeTab: 'entreprises',
+    loading: false,
+    statsLoading: false,
+    saving: false,
+    openAddModal: false,
+    tableauData: {},
+    entreprises: [],
+    stats: {},
+    filters: { type_cible: 'all', search: '' },
+    newEntreprise: { siret: '', nom_entreprise: '', type_cible: 'presente', nb_salaries: null, nb_syndiques: null, voix_cgt: null, pilote: '', date_prochaine_election: '', enjeux: '' },
 
-// Charger les données du tableau UD
-async function chargerTableauUD() {
-    try {
-        const response = await fetch(`/api/ud/tableaux/${CODE_UD}`);
+    async init() {
+      await this.loadTableauData();
+      await this.loadEntreprises();
+    },
+
+    async loadTableauData() {
+      try {
+        const response = await fetch(`/api/ud/tableaux/${this.codeUD}`);
         const result = await response.json();
-
         if (result.success) {
-            const data = result.data;
-            document.getElementById('titre-ud').textContent =
-                `Tableau de Bord UD ${data.numero_departement} - ${data.nom_departement}`;
-            document.getElementById('breadcrumb-ud').textContent =
-                `${data.nom_departement} (${data.code_ud})`;
-
-            // Mettre à jour les stats
-            document.getElementById('stat-cibles').textContent = data.nb_entreprises_cibles || 0;
-            document.getElementById('stat-absentes').textContent = data.nb_entreprises_absentes || 0;
-            document.getElementById('stat-syndiques').textContent = data.nb_total_syndiques || 0;
-            document.getElementById('stat-elections').textContent = data.nb_prochaines_elections || 0;
+          this.tableauData = result.data;
+          this.titre = `Tableau de Bord UD ${result.data.numero_departement} - ${result.data.nom_departement}`;
         }
-    } catch (error) {
+      } catch (error) {
         console.error('Erreur:', error);
-    }
-}
+      }
+    },
 
-// Charger les entreprises
-async function chargerEntreprises() {
-    const typeCible = document.getElementById('filtre-type-cible').value;
-    const search = document.getElementById('filtre-recherche').value;
-
-    let url = `/api/ud/tableaux/${CODE_UD}/entreprises?type_cible=${typeCible}`;
-    if (search) url += `&search=${encodeURIComponent(search)}`;
-
-    try {
+    async loadEntreprises() {
+      try {
+        this.loading = true;
+        let url = `/api/ud/tableaux/${this.codeUD}/entreprises?type_cible=${this.filters.type_cible}`;
+        if (this.filters.search) url += `&search=${encodeURIComponent(this.filters.search)}`;
         const response = await fetch(url);
         const result = await response.json();
-
-        const tbody = document.getElementById('entreprises-tbody');
-
-        if (result.success && result.data.length > 0) {
-            tbody.innerHTML = result.data.map(e => `
-                <tr>
-                    <td><strong>${e.nom_entreprise}</strong></td>
-                    <td><small class="text-muted">${e.siret}</small></td>
-                    <td>
-                        <span class="badge ${e.type_cible === 'presente' ? 'bg-success' : 'bg-warning text-dark'}">
-                            ${e.type_cible === 'presente' ? 'CGT présente' : 'CGT absente'}
-                        </span>
-                    </td>
-                    <td class="text-center">${e.nb_salaries || '-'}</td>
-                    <td class="text-center">${e.nb_syndiques || '-'}</td>
-                    <td>${e.pilote || '-'}</td>
-                    <td>${e.date_prochaine_election ? new Date(e.date_prochaine_election).toLocaleDateString('fr-FR') : '-'}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        } else {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Aucune entreprise trouvée</td></tr>';
-        }
-    } catch (error) {
+        if (result.success) this.entreprises = result.data;
+      } catch (error) {
         console.error('Erreur:', error);
-    }
-}
+      } finally {
+        this.loading = false;
+      }
+    },
 
-// Charger les statistiques détaillées
-async function chargerStatistiques() {
-    try {
-        const response = await fetch(`/api/ud/tableaux/${CODE_UD}/stats`);
+    async loadStats() {
+      try {
+        this.statsLoading = true;
+        const response = await fetch(`/api/ud/tableaux/${this.codeUD}/stats`);
         const result = await response.json();
-
-        if (result.success) {
-            const stats = result.data;
-
-            // Prochaines élections
-            const electionsDiv = document.getElementById('prochaines-elections-list');
-            if (stats.prochaines_elections.count > 0) {
-                electionsDiv.innerHTML = `
-                    <div class="list-group">
-                        ${stats.prochaines_elections.liste.map(e => `
-                            <div class="list-group-item">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">${e.entreprise}</h6>
-                                    <small>${new Date(e.date).toLocaleDateString('fr-FR')}</small>
-                                </div>
-                                <p class="mb-1"><small>Effectif: ${e.nb_salaries || '-'} | Pilote: ${e.pilote || '-'}</small></p>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            } else {
-                electionsDiv.innerHTML = '<p class="text-muted">Aucune élection prévue dans les 90 jours</p>';
-            }
-
-            // Top pilotes
-            const pilotesDiv = document.getElementById('top-pilotes-list');
-            if (stats.pilotes.length > 0) {
-                pilotesDiv.innerHTML = `
-                    <div class="list-group">
-                        ${stats.pilotes.map((p, i) => `
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>${i + 1}. ${p.nom}</span>
-                                <span class="badge bg-primary rounded-pill">${p.nb_entreprises}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            } else {
-                pilotesDiv.innerHTML = '<p class="text-muted">Aucun pilote assigné</p>';
-            }
-        }
-    } catch (error) {
+        if (result.success) this.stats = result.data;
+      } catch (error) {
         console.error('Erreur:', error);
-    }
-}
+      } finally {
+        this.statsLoading = false;
+      }
+    },
 
-// Ajouter une entreprise
-document.getElementById('formNouvelleEntreprise').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const data = {
-        siret: document.getElementById('ent_siret').value,
-        nom_entreprise: document.getElementById('ent_nom_entreprise').value,
-        type_cible: document.getElementById('ent_type_cible').value,
-        nb_salaries: parseInt(document.getElementById('ent_nb_salaries').value) || null,
-        nb_syndiques: parseInt(document.getElementById('ent_nb_syndiques').value) || null,
-        voix_cgt: parseInt(document.getElementById('ent_voix_cgt').value) || null,
-        pilote: document.getElementById('ent_pilote').value || null,
-        date_prochaine_election: document.getElementById('ent_date_prochaine_election').value || null,
-        enjeux: document.getElementById('ent_enjeux').value || null
-    };
-
-    try {
-        const response = await fetch(`/api/ud/tableaux/${CODE_UD}/entreprises`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+    async addEntreprise() {
+      try {
+        this.saving = true;
+        const response = await fetch(`/api/ud/tableaux/${this.codeUD}/entreprises`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.newEntreprise)
         });
-
         const result = await response.json();
-
         if (result.success) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNouvelleEntreprise'));
-            modal.hide();
-            e.target.reset();
-            await chargerEntreprises();
-            await chargerTableauUD();
-            alert('Entreprise ajoutée avec succès !');
+          this.openAddModal = false;
+          await this.loadEntreprises();
+          await this.loadTableauData();
+          this.newEntreprise = { siret: '', nom_entreprise: '', type_cible: 'presente', nb_salaries: null, nb_syndiques: null, voix_cgt: null, pilote: '', date_prochaine_election: '', enjeux: '' };
         } else {
-            alert('Erreur : ' + result.error);
+          alert('Erreur : ' + result.error);
         }
-    } catch (error) {
+      } catch (error) {
         console.error('Erreur:', error);
-        alert('Erreur lors de l\'ajout de l\'entreprise');
+        alert('Erreur lors de l\'ajout');
+      } finally {
+        this.saving = false;
+      }
     }
-});
-
-// Filtres
-document.getElementById('filtre-type-cible').addEventListener('change', chargerEntreprises);
-document.getElementById('filtre-recherche').addEventListener('input', debounce(chargerEntreprises, 500));
-
-// Debounce helper
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
-    };
+  }
 }
-
-// Charger au démarrage
-document.addEventListener('DOMContentLoaded', async () => {
-    await chargerTableauUD();
-    await chargerEntreprises();
-});
 
 // Charger les stats quand on affiche l'onglet
-document.getElementById('stats-tab').addEventListener('shown.bs.tab', chargerStatistiques);
+document.addEventListener('alpine:init', () => {
+  Alpine.watch('activeTab', value => {
+    if (value === 'stats') {
+      const app = Alpine.$data(document.querySelector('[x-data]'));
+      if (app && !app.stats.prochaines_elections) app.loadStats();
+    }
+  });
+});
 </script>
+
 {% endblock %}
