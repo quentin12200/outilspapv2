@@ -687,6 +687,7 @@ from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
 from .routers import api_campaign  # noqa: E402
+from .routers import api_ud  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -757,6 +758,7 @@ app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
 app.include_router(api_campaign.router)
+app.include_router(api_ud.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -6869,3 +6871,52 @@ def siret_detail(siret: str, request: Request, db: Session = Depends(get_session
 
 # Cette route sera gérée dans app/routers/api.py
 # Ajoutez cette route dans api.py pour récupérer les données
+
+# =========================================================
+# Routes HTML - Tableaux de Bord UD
+# =========================================================
+
+@app.get("/tableaux-ud", response_class=HTMLResponse)
+def tableaux_ud_page(
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
+    """Page de liste des tableaux de bord UD"""
+    
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "tableaux_ud_view", resource_name="Tableaux UD")
+    
+    return templates.TemplateResponse(
+        "tableaux_ud.html",
+        {
+            "request": request,
+            "user": user,
+        },
+    )
+
+
+@app.get("/tableaux-ud/{code_ud}", response_class=HTMLResponse)
+def tableau_ud_detail_page(
+    code_ud: str,
+    request: Request,
+    user: User | None = Depends(get_current_user_or_none),
+    db: Session = Depends(get_session)
+):
+    """Page de détail d'un tableau de bord UD"""
+    
+    # Tracker l'activité si l'utilisateur est connecté
+    if user:
+        from .activity_tracker import track_activity
+        track_activity(db, user, "tableau_ud_detail_view", resource_id=code_ud, resource_name=f"UD {code_ud}")
+    
+    return templates.TemplateResponse(
+        "tableau_ud_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "code_ud": code_ud,
+        },
+    )

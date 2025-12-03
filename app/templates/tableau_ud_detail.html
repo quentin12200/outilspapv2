@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Tableau de Bord UD - {{ code_ud }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/tableaux-ud">Tableaux UD</a></li>
+                    <li class="breadcrumb-item active" id="breadcrumb-ud">...</li>
+                </ol>
+            </nav>
+
+            <h1 class="h2">
+                <i class="bi bi-clipboard-data"></i>
+                <span id="titre-ud">Chargement...</span>
+            </h1>
+        </div>
+    </div>
+
+    <!-- Statistiques principales -->
+    <div class="row mb-4" id="stats-principales">
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-building"></i> Entreprises Cibles
+                    </h5>
+                    <h2 class="mb-0" id="stat-cibles">-</h2>
+                    <small>CGT présente</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-building-exclamation"></i> Entreprises Absentes
+                    </h5>
+                    <h2 class="mb-0" id="stat-absentes">-</h2>
+                    <small>À implanter</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-people"></i> Total Syndiqués
+                    </h5>
+                    <h2 class="mb-0" id="stat-syndiques">-</h2>
+                    <small>Toutes entreprises</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-calendar-event"></i> Prochaines Élections
+                    </h5>
+                    <h2 class="mb-0" id="stat-elections">-</h2>
+                    <small>Dans les 90 jours</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="entreprises-tab" data-bs-toggle="tab" data-bs-target="#entreprises" type="button">
+                <i class="bi bi-building"></i> Entreprises
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="evenements-tab" data-bs-toggle="tab" data-bs-target="#evenements" type="button">
+                <i class="bi bi-calendar"></i> Événements
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button">
+                <i class="bi bi-graph-up"></i> Statistiques
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="myTabContent">
+        <!-- Onglet Entreprises -->
+        <div class="tab-pane fade show active" id="entreprises" role="tabpanel">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Liste des Entreprises</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNouvelleEntreprise">
+                            <i class="bi bi-plus-circle"></i> Ajouter une entreprise
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filtres -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <select class="form-select" id="filtre-type-cible">
+                                <option value="all">Toutes les entreprises</option>
+                                <option value="presente">CGT présente (cibles)</option>
+                                <option value="absente">CGT absente (implantation)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="filtre-recherche" placeholder="Rechercher une entreprise...">
+                        </div>
+                    </div>
+
+                    <!-- Tableau entreprises -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Entreprise</th>
+                                    <th>SIRET</th>
+                                    <th>Type</th>
+                                    <th class="text-center">Effectif</th>
+                                    <th class="text-center">Syndiqués</th>
+                                    <th>Pilote</th>
+                                    <th>Prochaine élection</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="entreprises-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onglet Événements -->
+        <div class="tab-pane fade" id="evenements" role="tabpanel">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Planning des Événements</h5>
+                    <button type="button" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus-circle"></i> Ajouter un événement
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="evenements-list">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onglet Statistiques -->
+        <div class="tab-pane fade" id="stats" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Statistiques Détaillées</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Prochaines Élections (90 jours)</h6>
+                            <div id="prochaines-elections-list">
+                                <div class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Top 10 Pilotes</h6>
+                            <div id="top-pilotes-list">
+                                <div class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal : Nouvelle Entreprise -->
+<div class="modal fade" id="modalNouvelleEntreprise" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-building-add"></i> Ajouter une Entreprise</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formNouvelleEntreprise">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">SIRET <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ent_siret" maxlength="14" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Type <span class="text-danger">*</span></label>
+                            <select class="form-select" id="ent_type_cible" required>
+                                <option value="presente">CGT présente (développement)</option>
+                                <option value="absente">CGT absente (implantation)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nom de l'entreprise <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ent_nom_entreprise" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Effectif</label>
+                            <input type="number" class="form-control" id="ent_nb_salaries">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Syndiqués CGT</label>
+                            <input type="number" class="form-control" id="ent_nb_syndiques">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Voix CGT</label>
+                            <input type="number" class="form-control" id="ent_voix_cgt">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Pilote</label>
+                            <input type="text" class="form-control" id="ent_pilote">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prochaine élection</label>
+                            <input type="date" class="form-control" id="ent_date_prochaine_election">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Enjeux</label>
+                        <textarea class="form-control" id="ent_enjeux" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Ajouter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CODE_UD = '{{ code_ud }}';
+
+// Charger les données du tableau UD
+async function chargerTableauUD() {
+    try {
+        const response = await fetch(`/api/ud/tableaux/${CODE_UD}`);
+        const result = await response.json();
+
+        if (result.success) {
+            const data = result.data;
+            document.getElementById('titre-ud').textContent =
+                `Tableau de Bord UD ${data.numero_departement} - ${data.nom_departement}`;
+            document.getElementById('breadcrumb-ud').textContent =
+                `${data.nom_departement} (${data.code_ud})`;
+
+            // Mettre à jour les stats
+            document.getElementById('stat-cibles').textContent = data.nb_entreprises_cibles || 0;
+            document.getElementById('stat-absentes').textContent = data.nb_entreprises_absentes || 0;
+            document.getElementById('stat-syndiques').textContent = data.nb_total_syndiques || 0;
+            document.getElementById('stat-elections').textContent = data.nb_prochaines_elections || 0;
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+// Charger les entreprises
+async function chargerEntreprises() {
+    const typeCible = document.getElementById('filtre-type-cible').value;
+    const search = document.getElementById('filtre-recherche').value;
+
+    let url = `/api/ud/tableaux/${CODE_UD}/entreprises?type_cible=${typeCible}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
+    try {
+        const response = await fetch(url);
+        const result = await response.json();
+
+        const tbody = document.getElementById('entreprises-tbody');
+
+        if (result.success && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(e => `
+                <tr>
+                    <td><strong>${e.nom_entreprise}</strong></td>
+                    <td><small class="text-muted">${e.siret}</small></td>
+                    <td>
+                        <span class="badge ${e.type_cible === 'presente' ? 'bg-success' : 'bg-warning text-dark'}">
+                            ${e.type_cible === 'presente' ? 'CGT présente' : 'CGT absente'}
+                        </span>
+                    </td>
+                    <td class="text-center">${e.nb_salaries || '-'}</td>
+                    <td class="text-center">${e.nb_syndiques || '-'}</td>
+                    <td>${e.pilote || '-'}</td>
+                    <td>${e.date_prochaine_election ? new Date(e.date_prochaine_election).toLocaleDateString('fr-FR') : '-'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Aucune entreprise trouvée</td></tr>';
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+// Charger les statistiques détaillées
+async function chargerStatistiques() {
+    try {
+        const response = await fetch(`/api/ud/tableaux/${CODE_UD}/stats`);
+        const result = await response.json();
+
+        if (result.success) {
+            const stats = result.data;
+
+            // Prochaines élections
+            const electionsDiv = document.getElementById('prochaines-elections-list');
+            if (stats.prochaines_elections.count > 0) {
+                electionsDiv.innerHTML = `
+                    <div class="list-group">
+                        ${stats.prochaines_elections.liste.map(e => `
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${e.entreprise}</h6>
+                                    <small>${new Date(e.date).toLocaleDateString('fr-FR')}</small>
+                                </div>
+                                <p class="mb-1"><small>Effectif: ${e.nb_salaries || '-'} | Pilote: ${e.pilote || '-'}</small></p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                electionsDiv.innerHTML = '<p class="text-muted">Aucune élection prévue dans les 90 jours</p>';
+            }
+
+            // Top pilotes
+            const pilotesDiv = document.getElementById('top-pilotes-list');
+            if (stats.pilotes.length > 0) {
+                pilotesDiv.innerHTML = `
+                    <div class="list-group">
+                        ${stats.pilotes.map((p, i) => `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>${i + 1}. ${p.nom}</span>
+                                <span class="badge bg-primary rounded-pill">${p.nb_entreprises}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                pilotesDiv.innerHTML = '<p class="text-muted">Aucun pilote assigné</p>';
+            }
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+// Ajouter une entreprise
+document.getElementById('formNouvelleEntreprise').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        siret: document.getElementById('ent_siret').value,
+        nom_entreprise: document.getElementById('ent_nom_entreprise').value,
+        type_cible: document.getElementById('ent_type_cible').value,
+        nb_salaries: parseInt(document.getElementById('ent_nb_salaries').value) || null,
+        nb_syndiques: parseInt(document.getElementById('ent_nb_syndiques').value) || null,
+        voix_cgt: parseInt(document.getElementById('ent_voix_cgt').value) || null,
+        pilote: document.getElementById('ent_pilote').value || null,
+        date_prochaine_election: document.getElementById('ent_date_prochaine_election').value || null,
+        enjeux: document.getElementById('ent_enjeux').value || null
+    };
+
+    try {
+        const response = await fetch(`/api/ud/tableaux/${CODE_UD}/entreprises`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNouvelleEntreprise'));
+            modal.hide();
+            e.target.reset();
+            await chargerEntreprises();
+            await chargerTableauUD();
+            alert('Entreprise ajoutée avec succès !');
+        } else {
+            alert('Erreur : ' + result.error);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'ajout de l\'entreprise');
+    }
+});
+
+// Filtres
+document.getElementById('filtre-type-cible').addEventListener('change', chargerEntreprises);
+document.getElementById('filtre-recherche').addEventListener('input', debounce(chargerEntreprises, 500));
+
+// Debounce helper
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
+
+// Charger au démarrage
+document.addEventListener('DOMContentLoaded', async () => {
+    await chargerTableauUD();
+    await chargerEntreprises();
+});
+
+// Charger les stats quand on affiche l'onglet
+document.getElementById('stats-tab').addEventListener('shown.bs.tab', chargerStatistiques);
+</script>
+{% endblock %}

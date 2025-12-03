@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Tableaux de Bord UD{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h2">
+                <i class="bi bi-clipboard-data"></i> Tableaux de Bord UD
+            </h1>
+            <p class="text-muted">
+                Gestion des tableaux de bord des Unions Départementales - Suivi des entreprises et activités syndicales
+            </p>
+        </div>
+    </div>
+
+    <!-- Bouton créer nouveau tableau -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNouveauTableau">
+                <i class="bi bi-plus-circle"></i> Créer un nouveau tableau UD
+            </button>
+        </div>
+    </div>
+
+    <!-- Liste des tableaux UD -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> Tableaux de Bord Actifs</h5>
+                </div>
+                <div class="card-body">
+                    <div id="loading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+
+                    <div id="tableaux-list" style="display: none;">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Département</th>
+                                        <th>Code UD</th>
+                                        <th>Nom</th>
+                                        <th class="text-center">Entreprises<br>Cibles</th>
+                                        <th class="text-center">Entreprises<br>Absentes</th>
+                                        <th class="text-center">Total<br>Syndiqués</th>
+                                        <th class="text-center">Prochaines<br>Élections</th>
+                                        <th>Contact</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableaux-tbody">
+                                    <!-- Rempli dynamiquement par JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="no-data" style="display: none;" class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Aucun tableau de bord UD trouvé.
+                        Créez-en un avec le bouton ci-dessus !
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal : Nouveau Tableau UD -->
+<div class="modal fade" id="modalNouveauTableau" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Créer un Tableau UD</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formNouveauTableau">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="numero_departement" class="form-label">
+                            Numéro du département <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="numero_departement"
+                               placeholder="Ex: 66, 34, 75" maxlength="3" required>
+                        <small class="text-muted">2 ou 3 caractères (ex: 66, 2A, 975)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="nom_departement" class="form-label">
+                            Nom du département <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="nom_departement"
+                               placeholder="Ex: Pyrénées-Orientales, Hérault" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="code_ud" class="form-label">
+                            Code UD <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="code_ud"
+                               placeholder="Ex: ud66, ud34" required>
+                        <small class="text-muted">Format recommandé : ud{numéro} (ex: ud66)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email_ud" class="form-label">Email UD</label>
+                        <input type="email" class="form-control" id="email_ud"
+                               placeholder="contact@ud66.cgt.fr">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="telephone_ud" class="form-label">Téléphone UD</label>
+                        <input type="tel" class="form-control" id="telephone_ud"
+                               placeholder="04 68 XX XX XX">
+                    </div>
+
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Une fois créé, vous pourrez ajouter des entreprises et gérer le tableau de bord.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Créer le tableau
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Charger la liste des tableaux UD
+async function chargerTableaux() {
+    try {
+        const response = await fetch('/api/ud/tableaux');
+        const result = await response.json();
+
+        document.getElementById('loading').style.display = 'none';
+
+        if (result.success && result.data.length > 0) {
+            document.getElementById('tableaux-list').style.display = 'block';
+            document.getElementById('no-data').style.display = 'none';
+
+            const tbody = document.getElementById('tableaux-tbody');
+            tbody.innerHTML = result.data.map(t => `
+                <tr>
+                    <td><strong>${t.numero_departement}</strong></td>
+                    <td><span class="badge bg-primary">${t.code_ud}</span></td>
+                    <td>${t.nom_departement}</td>
+                    <td class="text-center">
+                        <span class="badge bg-success">${t.nb_entreprises_cibles || 0}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-warning text-dark">${t.nb_entreprises_absentes || 0}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-info">${t.nb_total_syndiques || 0}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge ${t.nb_prochaines_elections > 0 ? 'bg-danger' : 'bg-secondary'}">
+                            ${t.nb_prochaines_elections || 0}
+                        </span>
+                    </td>
+                    <td>
+                        ${t.email_ud ? `<small><i class="bi bi-envelope"></i> ${t.email_ud}</small><br>` : ''}
+                        ${t.telephone_ud ? `<small><i class="bi bi-telephone"></i> ${t.telephone_ud}</small>` : ''}
+                    </td>
+                    <td class="text-center">
+                        <a href="/tableaux-ud/${t.code_ud}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> Voir
+                        </a>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            document.getElementById('tableaux-list').style.display = 'none';
+            document.getElementById('no-data').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('loading').style.display = 'none';
+        alert('Erreur lors du chargement des tableaux UD');
+    }
+}
+
+// Créer un nouveau tableau UD
+document.getElementById('formNouveauTableau').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        numero_departement: document.getElementById('numero_departement').value,
+        nom_departement: document.getElementById('nom_departement').value,
+        code_ud: document.getElementById('code_ud').value,
+        email_ud: document.getElementById('email_ud').value || null,
+        telephone_ud: document.getElementById('telephone_ud').value || null
+    };
+
+    try {
+        const response = await fetch('/api/ud/tableaux', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Fermer le modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNouveauTableau'));
+            modal.hide();
+
+            // Réinitialiser le formulaire
+            e.target.reset();
+
+            // Recharger la liste
+            await chargerTableaux();
+
+            alert('Tableau UD créé avec succès !');
+        } else {
+            alert('Erreur : ' + result.error);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la création du tableau UD');
+    }
+});
+
+// Auto-générer le code UD à partir du numéro de département
+document.getElementById('numero_departement').addEventListener('input', (e) => {
+    const num = e.target.value.toLowerCase();
+    if (num) {
+        document.getElementById('code_ud').value = 'ud' + num;
+    }
+});
+
+// Charger au démarrage
+document.addEventListener('DOMContentLoaded', chargerTableaux);
+</script>
+{% endblock %}

@@ -809,3 +809,247 @@ class UserActivity(Base):
         Index('idx_activity_user_date', 'user_id', 'accessed_at'),
         Index('idx_activity_type_date', 'activity_type', 'accessed_at'),
     )
+
+
+class TableauBordUD(Base):
+    """
+    Tableau de bord pour une Union Départementale
+    Remplace les fichiers Excel pour gérer le suivi des entreprises et activités UD
+    """
+    __tablename__ = "tableaux_bord_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Identification UD
+    numero_departement = Column(String(3), nullable=False, index=True)  # Ex: "66", "34"
+    nom_departement = Column(String(100), nullable=False)  # Ex: "Pyrénées-Orientales", "Hérault"
+    code_ud = Column(String(10), nullable=False, unique=True, index=True)  # Ex: "ud66", "ud34"
+
+    # Informations de contact UD (optionnel)
+    email_ud = Column(String(255))
+    telephone_ud = Column(String(20))
+    adresse_ud = Column(Text)
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id du créateur
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Statistiques calculées (mise à jour périodique pour performance)
+    nb_entreprises_cibles = Column(Integer, default=0)  # Entreprises avec CGT présente
+    nb_entreprises_absentes = Column(Integer, default=0)  # Entreprises sans CGT
+    nb_total_syndiques = Column(Integer, default=0)  # Total syndiqués toutes entreprises
+    nb_prochaines_elections = Column(Integer, default=0)  # Élections dans les 90 jours
+
+    # Statut
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    def __repr__(self):
+        return f"<TableauBordUD(id={self.id}, code={self.code_ud}, dept={self.nom_departement})>"
+
+    __table_args__ = (
+        Index('idx_tableau_ud_code', 'code_ud'),
+        Index('idx_tableau_ud_dept', 'numero_departement'),
+    )
+
+
+class EntrepriseUD(Base):
+    """
+    Entreprise suivie par une Union Départementale
+    Peut être une cible (CGT présente) ou absente (CGT non présente)
+    """
+    __tablename__ = "entreprises_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec tableau de bord UD
+    tableau_bord_id = Column(Integer, nullable=False, index=True)
+
+    # Identification entreprise
+    siret = Column(String(14), index=True, nullable=False)
+    nom_entreprise = Column(Text, nullable=False)
+    enseigne = Column(Text)
+
+    # Type de cible
+    type_cible = Column(String(20), nullable=False, index=True)  # "presente" ou "absente"
+    # presente = CGT déjà implantée (objectif: développement)
+    # absente = CGT non présente (objectif: implantation)
+
+    # Effectifs
+    nb_salaries = Column(Integer)
+    tranche_effectifs = Column(String(50))
+
+    # Localisation
+    code_postal = Column(String(10))
+    ville = Column(Text)
+    adresse = Column(Text)
+
+    # Convention collective
+    idcc = Column(String(20))
+    deno_coll = Column(Text)  # Dénomination convention collective
+
+    # Établissements secondaires
+    nb_sites = Column(Integer, default=1)
+    liste_sites = Column(Text)  # Liste des sites/établissements
+
+    # Informations syndicales
+    nb_syndiques = Column(Integer, default=0)  # Nombre de syndiqués CGT
+    date_derniere_election = Column(Date)  # Dernière élection connue
+    date_prochaine_election = Column(Date)  # Prochaine élection prévue
+    voix_cgt = Column(Integer)  # Voix CGT à la dernière élection
+    taux_participation = Column(Float)  # Taux de participation en %
+
+    # Suivi PAP
+    date_presentation_ce = Column(Date)  # Date présentation au CE
+    vote_ce = Column(String(50))  # Résultat du vote CE
+    suivi_pap = Column(Text)  # Commentaire sur le suivi PAP
+
+    # Gestion du dossier
+    pilote = Column(String(100))  # Responsable du dossier dans l'UD
+    objet = Column(Text)  # Objectif de l'action
+    enjeux = Column(Text)  # Enjeux stratégiques identifiés
+
+    # Contact dans l'entreprise
+    nom_contact = Column(String(255))
+    telephone_contact = Column(String(20))
+    email_contact = Column(String(255))
+
+    # Organisation responsable
+    organisation_resp = Column(String(100))  # Ex: UL, Fédération
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Statut
+    is_archived = Column(Boolean, default=False, nullable=False)
+
+    def __repr__(self):
+        return f"<EntrepriseUD(id={self.id}, nom={self.nom_entreprise}, type={self.type_cible}, siret={self.siret})>"
+
+    __table_args__ = (
+        Index('idx_entreprise_ud_tableau', 'tableau_bord_id'),
+        Index('idx_entreprise_ud_siret', 'siret'),
+        Index('idx_entreprise_ud_type', 'type_cible'),
+        Index('idx_entreprise_ud_pilote', 'pilote'),
+    )
+
+
+class EvenementUD(Base):
+    """
+    Événement ou réunion planifié par une Union Départementale
+    Équivalent de la feuille "TDB {NUM_DEPT}" dans Excel
+    """
+    __tablename__ = "evenements_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec tableau de bord UD
+    tableau_bord_id = Column(Integer, nullable=False, index=True)
+
+    # Informations de base
+    titre = Column(Text, nullable=False)  # Nom de l'événement/organisation
+    date_heure = Column(DateTime, nullable=False, index=True)  # Date et heure de l'événement
+    rubrique = Column(String(100))  # Catégorie (réunion, formation, action, etc.)
+
+    # Intervenants
+    presentateur = Column(String(255))  # Personne responsable de la présentation
+    referent_cec = Column(String(255))  # Référent CEC (Comité d'Entreprise Central)
+    collectif_confederal = Column(Text)  # Équipe confédérale impliquée
+
+    # Détails
+    ordre_du_jour = Column(Text)  # Points à aborder
+    description = Column(Text)  # Description détaillée
+    lieu = Column(Text)  # Lieu de l'événement
+
+    # Entreprise concernée (optionnel)
+    entreprise_id = Column(Integer, index=True, nullable=True)  # Lien vers EntrepriseUD
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Statut
+    statut = Column(String(20), default='prevu')  # prevu, en_cours, termine, annule
+    is_archived = Column(Boolean, default=False, nullable=False)
+
+    def __repr__(self):
+        return f"<EvenementUD(id={self.id}, titre={self.titre}, date={self.date_heure})>"
+
+    __table_args__ = (
+        Index('idx_evenement_ud_tableau', 'tableau_bord_id'),
+        Index('idx_evenement_ud_date', 'date_heure'),
+        Index('idx_evenement_ud_statut', 'statut'),
+    )
+
+
+class ElectionUD(Base):
+    """
+    Détails d'une élection professionnelle dans une entreprise suivie par l'UD
+    Historise tous les scrutins pour analyser l'évolution
+    """
+    __tablename__ = "elections_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Relation avec l'entreprise
+    entreprise_id = Column(Integer, nullable=False, index=True)  # Lien vers EntrepriseUD
+
+    # Date et type d'élection
+    date_scrutin = Column(Date, nullable=False, index=True)
+    type_election = Column(String(50))  # CSE, CSE_central, etc.
+    duree_mandat = Column(Float)  # Durée en années
+
+    # Participation
+    nb_inscrits = Column(Integer)
+    nb_votants = Column(Integer)
+    nb_suffrages_exprimes = Column(Integer)
+    taux_participation = Column(Float)  # Calculé automatiquement
+
+    # Résultats CGT
+    voix_cgt = Column(Integer, nullable=False)
+    siege_cgt = Column(Integer, default=0)
+    pct_cgt = Column(Float)  # Pourcentage CGT
+
+    # Résultats autres syndicats
+    voix_cfdt = Column(Integer, default=0)
+    voix_fo = Column(Integer, default=0)
+    voix_cftc = Column(Integer, default=0)
+    voix_cgc = Column(Integer, default=0)
+    voix_unsa = Column(Integer, default=0)
+    voix_sud = Column(Integer, default=0)
+    voix_autre = Column(Integer, default=0)
+
+    siege_cfdt = Column(Integer, default=0)
+    siege_fo = Column(Integer, default=0)
+    siege_cftc = Column(Integer, default=0)
+    siege_cgc = Column(Integer, default=0)
+    siege_unsa = Column(Integer, default=0)
+    siege_sud = Column(Integer, default=0)
+    siege_autre = Column(Integer, default=0)
+
+    # Composition des collèges
+    nb_colleges = Column(Integer, default=1)
+    composition_colleges = Column(Text)  # Description des collèges
+
+    # Prochaine élection prévue
+    date_prochain_scrutin = Column(Date, index=True)
+
+    # Commentaires
+    observations = Column(Text)  # Remarques sur le scrutin
+
+    # Métadonnées
+    created_by = Column(Integer, index=True, nullable=True)  # user_id
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<ElectionUD(id={self.id}, entreprise_id={self.entreprise_id}, date={self.date_scrutin}, voix_cgt={self.voix_cgt})>"
+
+    __table_args__ = (
+        Index('idx_election_ud_entreprise', 'entreprise_id'),
+        Index('idx_election_ud_date', 'date_scrutin'),
+        Index('idx_election_ud_prochain', 'date_prochain_scrutin'),
+    )
