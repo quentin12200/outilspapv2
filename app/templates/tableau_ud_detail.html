@@ -420,6 +420,105 @@
   </div>
 </div>
 
+<!-- Modal : Méthodologie / Checklist -->
+<div x-show="openMethodologieModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div x-show="openMethodologieModal" x-transition class="fixed inset-0 bg-gray-500 bg-opacity-75"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+    <div x-show="openMethodologieModal" x-transition class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
+
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-bold text-white flex items-center">
+              <i class="fas fa-clipboard-check mr-3 text-2xl"></i>
+              Méthodologie <span x-text="currentEntreprise.type_cible === 'presente' ? 'Renforcement' : 'Implantation'"></span>
+            </h3>
+            <p class="text-blue-100 mt-1" x-text="currentEntreprise.nom"></p>
+          </div>
+          <button @click="openMethodologieModal = false" class="text-white hover:text-gray-200">
+            <i class="fas fa-times text-2xl"></i>
+          </button>
+        </div>
+        <!-- Barre de progression -->
+        <div class="mt-4 bg-blue-800 rounded-full h-3 overflow-hidden">
+          <div class="bg-green-400 h-full transition-all duration-300"
+               :style="'width: ' + (checklist.progression || 0) + '%'"></div>
+        </div>
+        <p class="text-sm text-blue-100 mt-2">
+          Progression : <span class="font-bold" x-text="(checklist.progression || 0) + '%'"></span>
+          (<span x-text="checklist.items_coches || 0"></span>/<span x-text="checklist.total_items || 0"></span> items)
+        </p>
+      </div>
+
+      <!-- Contenu -->
+      <div class="px-8 py-6 max-h-[600px] overflow-y-auto">
+        <!-- Loading -->
+        <div x-show="checklistLoading" class="flex justify-center py-12">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+
+        <!-- Checklist -->
+        <div x-show="!checklistLoading && checklist.checklist">
+          <template x-for="(items, categorie) in checklist.checklist" :key="categorie">
+            <div class="mb-8">
+              <!-- Titre de catégorie -->
+              <h4 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-blue-600 flex items-center">
+                <i class="fas fa-folder text-blue-600 mr-2"></i>
+                <span x-text="getCategoryTitle(categorie)"></span>
+              </h4>
+
+              <!-- Items de la catégorie -->
+              <div class="space-y-3">
+                <template x-for="item in items" :key="item.id">
+                  <div class="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                    <div class="flex items-start space-x-3">
+                      <!-- Checkbox -->
+                      <div class="flex-shrink-0 mt-1">
+                        <input type="checkbox"
+                               :checked="item.est_coche"
+                               @change="toggleChecklistItem(item.id, item.est_coche)"
+                               class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                      </div>
+
+                      <!-- Contenu -->
+                      <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-900"
+                           :class="item.est_coche ? 'line-through text-gray-500' : ''"
+                           x-text="item.libelle"></p>
+
+                        <!-- Zone informations -->
+                        <div class="mt-2">
+                          <textarea
+                            :placeholder="'Informations / Notes...'"
+                            x-model="item.informations"
+                            @blur="updateChecklistInfo(item.id, item.informations)"
+                            rows="2"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-8 py-5 bg-gray-50 flex justify-end">
+        <button @click="openMethodologieModal = false"
+          class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl transition-all shadow-lg">
+          <i class="fas fa-check mr-2"></i>
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 function tableauUDDetailApp() {
   return {
@@ -430,6 +529,10 @@ function tableauUDDetailApp() {
     statsLoading: false,
     saving: false,
     openAddModal: false,
+    openMethodologieModal: false,
+    checklistLoading: false,
+    currentEntreprise: {},
+    checklist: {},
     tableauData: {},
     entreprises: [],
     stats: {},
@@ -505,6 +608,78 @@ function tableauUDDetailApp() {
       } finally {
         this.saving = false;
       }
+    },
+
+    async openMethodologie(entrepriseId, nom, typeCible) {
+      this.currentEntreprise = { id: entrepriseId, nom, type_cible: typeCible };
+      this.openMethodologieModal = true;
+      await this.loadChecklist(entrepriseId);
+    },
+
+    async loadChecklist(entrepriseId) {
+      try {
+        this.checklistLoading = true;
+        const response = await fetch(`/api/ud/entreprises/${entrepriseId}/checklist`);
+        const result = await response.json();
+        if (result.success) {
+          this.checklist = result.data;
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors du chargement de la checklist');
+      } finally {
+        this.checklistLoading = false;
+      }
+    },
+
+    async toggleChecklistItem(itemId, currentState) {
+      try {
+        const response = await fetch(`/api/ud/entreprises/${this.currentEntreprise.id}/checklist/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ est_coche: !currentState })
+        });
+        const result = await response.json();
+        if (result.success) {
+          await this.loadChecklist(this.currentEntreprise.id);
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    },
+
+    async updateChecklistInfo(itemId, info) {
+      try {
+        const response = await fetch(`/api/ud/entreprises/${this.currentEntreprise.id}/checklist/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ informations: info })
+        });
+        const result = await response.json();
+        if (!result.success) {
+          alert('Erreur lors de la mise à jour');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    },
+
+    getCategoryTitle(categorie) {
+      const titles = {
+        'ud_connaissance': "Si l'UD apporte la connaissance",
+        'mise_dispo_ud': 'Mise à disposition des contenus liés à la connaissance (UD)',
+        'fd_connaissance': "Si FD apporte la connaissance",
+        'mise_dispo_fd': 'Mise à disposition des contenus liés à la connaissance (FD)',
+        'ugict_connaissance': 'Spécifique UGICT UFICT apporte la connaissance',
+        'mise_dispo_ugict': 'Mise à disposition des contenus liés à la connaissance (UGICT)',
+        'parrain': 'Parrain',
+        'plan_action': "Plan d'action",
+        'diagnostic': 'Diagnostic initial',
+        'premier_contact': 'Premier contact',
+        'developpement': 'Développement',
+        'structuration': 'Structuration'
+      };
+      return titles[categorie] || categorie;
     }
   }
 }
