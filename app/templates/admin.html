@@ -748,6 +748,71 @@
       </div>
     </section>
 
+    <!-- Gestion des PDFs stockés -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-file-pdf text-red-500 mr-2"></i>
+        Gestion des PDFs PAP stockés
+      </h3>
+      <div class="space-y-4">
+        <!-- Stats -->
+        <div id="pdf-stats" class="grid grid-cols-4 gap-4 mb-4">
+          <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600" id="pdf-total-count">-</div>
+            <div class="text-xs text-gray-600">Total PDFs</div>
+          </div>
+          <div class="bg-green-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-green-600" id="pdf-total-size">-</div>
+            <div class="text-xs text-gray-600">Espace utilisé</div>
+          </div>
+          <div class="bg-yellow-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-yellow-600" id="pdf-recent">-</div>
+            <div class="text-xs text-gray-600">Moins de 7 jours</div>
+          </div>
+          <div class="bg-red-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-red-600" id="pdf-old">-</div>
+            <div class="text-xs text-gray-600">Plus de 90 jours</div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex space-x-2 mb-4">
+          <button onclick="loadPDFList()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+            <i class="fas fa-sync-alt"></i>
+            <span>Actualiser</span>
+          </button>
+          <button onclick="showCleanupDialog()" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center space-x-2">
+            <i class="fas fa-trash-alt"></i>
+            <span>Nettoyage automatique</span>
+          </button>
+        </div>
+
+        <!-- Liste des PDFs -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200" id="pdf-table">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fichier</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SIRET</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date upload</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taille</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Âge</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="pdf-table-body">
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Chargement...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- Enrichir IDCC -->
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
@@ -1384,6 +1449,148 @@ async function forceMigrations() {
     buttonText.textContent = 'Exécuter les migrations';
   }
 }
+
+// ============================================
+// PDF Management Functions
+
+// Charger les stats des PDFs
+async function loadPDFStats() {
+  try {
+    const response = await fetch('/api/admin/pdfs/stats');
+    const data = await response.json();
+
+    if (data.success) {
+      document.getElementById('pdf-total-count').textContent = data.total_count;
+      document.getElementById('pdf-total-size').textContent = data.total_size_mb + ' MB';
+      document.getElementById('pdf-recent').textContent = data.by_age.moins_7_jours;
+      document.getElementById('pdf-old').textContent = data.by_age.plus_90_jours;
+    }
+  } catch (error) {
+    console.error('Erreur chargement stats PDFs:', error);
+  }
+}
+
+// Charger la liste des PDFs
+async function loadPDFList() {
+  const tbody = document.getElementById('pdf-table-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Chargement...</p></td></tr>';
+
+  try {
+    const response = await fetch('/api/admin/pdfs/list');
+    const data = await response.json();
+
+    if (data.success && data.pdfs.length > 0) {
+      tbody.innerHTML = '';
+      data.pdfs.forEach(pdf => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+
+        const ageClass = pdf.age_days > 90 ? 'text-red-600' : (pdf.age_days > 30 ? 'text-orange-600' : 'text-green-600');
+
+        row.innerHTML = `
+          <td class="px-4 py-3 text-sm">
+            <a href="${pdf.url}" target="_blank" class="text-blue-600 hover:underline flex items-center space-x-2">
+              <i class="fas fa-file-pdf text-red-500"></i>
+              <span class="truncate max-w-xs" title="${pdf.filename}">${pdf.filename}</span>
+            </a>
+          </td>
+          <td class="px-4 py-3 text-sm font-mono">${pdf.siret || '-'}</td>
+          <td class="px-4 py-3 text-sm">${pdf.date_upload}</td>
+          <td class="px-4 py-3 text-sm">${pdf.size_kb} KB</td>
+          <td class="px-4 py-3 text-sm ${ageClass} font-semibold">${pdf.age_days} jours</td>
+          <td class="px-4 py-3 text-sm">
+            <button onclick="deletePDF('${pdf.filename}')" class="text-red-600 hover:text-red-800">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucun PDF stocké</td></tr>';
+    }
+
+    // Rafraîchir les stats
+    loadPDFStats();
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Erreur de chargement</td></tr>';
+    console.error('Erreur chargement PDFs:', error);
+  }
+}
+
+// Supprimer un PDF
+async function deletePDF(filename) {
+  if (!confirm(`Supprimer le PDF "${filename}" ?\nCette action est irréversible.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/pdfs/delete/${filename}`, {
+      method: 'DELETE'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✓ ${data.message}\nEspace libéré: ${data.freed_space_mb} MB`);
+      loadPDFList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de la suppression'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  }
+}
+
+// Afficher le dialogue de nettoyage
+function showCleanupDialog() {
+  const days = prompt('Supprimer les PDFs plus vieux que combien de jours ?\n(Entrez un nombre, ex: 90)', '90');
+
+  if (days === null) return;
+
+  const daysNum = parseInt(days);
+  if (isNaN(daysNum) || daysNum < 1) {
+    alert('Veuillez entrer un nombre valide de jours (minimum 1)');
+    return;
+  }
+
+  if (!confirm(`Confirmer la suppression de tous les PDFs plus vieux que ${daysNum} jours ?`)) {
+    return;
+  }
+
+  cleanupOldPDFs(daysNum);
+}
+
+// Nettoyer les vieux PDFs
+async function cleanupOldPDFs(daysOld) {
+  try {
+    const response = await fetch('/api/admin/pdfs/cleanup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ days_old: daysOld })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✓ Nettoyage terminé !\n\n${data.message}`);
+      loadPDFList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec du nettoyage'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  }
+}
+
+// Charger au démarrage
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('pdf-table')) {
+    loadPDFList();
+  }
+});
 
 // ============================================
 // Chatbot IA Functions

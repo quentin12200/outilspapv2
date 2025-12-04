@@ -1,0 +1,270 @@
+"""
+Routes API pour la gestion des PDFs PAP stockés
+"""
+
+import logging
+import os
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from ..user_auth import require_admin_user
+from ..audit import log_admin_action
+from ..db import get_session
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/admin/pdfs", tags=["Admin PDFs"])
+
+# Répertoire de stockage des PDFs
+PAP_UPLOADS_DIR = Path("app/static/pap_uploads")
+PAP_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+class PDFInfo(BaseModel):
+    filename: str
+    siret: Optional[str] = None
+    date_upload: str
+    size_kb: float
+    url: str
+    age_days: int
+
+
+class PDFListResponse(BaseModel):
+    success: bool
+    total: int
+    total_size_mb: float
+    pdfs: List[PDFInfo]
+
+
+class CleanupRequest(BaseModel):
+    days_old: int = 90
+
+
+class CleanupResponse(BaseModel):
+    success: bool
+    deleted_count: int
+    freed_space_mb: float
+    message: str
+
+
+@router.get("/list", response_model=PDFListResponse)
+async def list_pdfs(
+    current_user = Depends(require_admin_user)
+):
+    """
+    Liste tous les PDFs PAP stockés avec leurs métadonnées.
+    """
+    try:
+        pdfs = []
+        total_size = 0
+
+        # Parcourir tous les PDFs dans le dossier
+        for pdf_path in PAP_UPLOADS_DIR.glob("*.pdf"):
+            if pdf_path.name == ".gitkeep":
+                continue
+
+            try:
+                stat = pdf_path.stat()
+                size_kb = stat.st_size / 1024
+                total_size += stat.st_size
+
+                # Extraire SIRET du nom de fichier (format: SIRET_DATE.pdf)
+                filename = pdf_path.name
+                siret = None
+                date_str = None
+
+                if "_" in filename:
+                    parts = filename.replace(".pdf", "").split("_")
+                    if len(parts) >= 2 and parts[0].isdigit() and len(parts[0]) == 14:
+                        siret = parts[0]
+                        date_str = parts[1] if len(parts[1]) == 8 else None
+
+                # Date de modification du fichier
+                mtime = datetime.fromtimestamp(stat.st_mtime)
+                age_days = (datetime.now() - mtime).days
+
+                pdfs.append(PDFInfo(
+                    filename=filename,
+                    siret=siret,
+                    date_upload=mtime.strftime("%Y-%m-%d %H:%M:%S"),
+                    size_kb=round(size_kb, 2),
+                    url=f"/static/pap_uploads/{filename}",
+                    age_days=age_days
+                ))
+            except Exception as e:
+                logger.error(f"Erreur lecture fichier {pdf_path}: {e}")
+
+        # Trier par date (plus récent en premier)
+        pdfs.sort(key=lambda x: x.date_upload, reverse=True)
+
+        return PDFListResponse(
+            success=True,
+            total=len(pdfs),
+            total_size_mb=round(total_size / (1024 * 1024), 2),
+            pdfs=pdfs
+        )
+
+    except Exception as e:
+        logger.error(f"Erreur lors du listage des PDFs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/delete/{filename}")
+async def delete_pdf(
+    filename: str,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """
+    Supprime un PDF spécifique.
+    """
+    try:
+        # Validation du nom de fichier (sécurité)
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Nom de fichier invalide")
+
+        pdf_path = PAP_UPLOADS_DIR / filename
+
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="PDF non trouvé")
+
+        # Récupérer la taille avant suppression
+        size_mb = pdf_path.stat().st_size / (1024 * 1024)
+
+        # Supprimer le fichier
+        pdf_path.unlink()
+
+        # Logger l'action
+        log_admin_action(
+            db=db,
+            user_id=current_user.id if hasattr(current_user, 'id') else None,
+            action="delete_pdf",
+            details={"filename": filename, "size_mb": round(size_mb, 2)}
+        )
+
+        return {
+            "success": True,
+            "message": f"PDF {filename} supprimé avec succès",
+            "freed_space_mb": round(size_mb, 2)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression du PDF {filename}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cleanup", response_model=CleanupResponse)
+async def cleanup_old_pdfs(
+    request: CleanupRequest,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """
+    Supprime les PDFs plus vieux que X jours.
+    """
+    try:
+        cutoff_date = datetime.now() - timedelta(days=request.days_old)
+        deleted_count = 0
+        freed_space = 0
+
+        for pdf_path in PAP_UPLOADS_DIR.glob("*.pdf"):
+            if pdf_path.name == ".gitkeep":
+                continue
+
+            try:
+                mtime = datetime.fromtimestamp(pdf_path.stat().st_mtime)
+
+                if mtime < cutoff_date:
+                    size = pdf_path.stat().st_size
+                    pdf_path.unlink()
+                    deleted_count += 1
+                    freed_space += size
+                    logger.info(f"PDF supprimé: {pdf_path.name} (age: {(datetime.now() - mtime).days} jours)")
+
+            except Exception as e:
+                logger.error(f"Erreur suppression {pdf_path.name}: {e}")
+
+        freed_space_mb = freed_space / (1024 * 1024)
+
+        # Logger l'action
+        log_admin_action(
+            db=db,
+            user_id=current_user.id if hasattr(current_user, 'id') else None,
+            action="cleanup_pdfs",
+            details={
+                "days_old": request.days_old,
+                "deleted_count": deleted_count,
+                "freed_space_mb": round(freed_space_mb, 2)
+            }
+        )
+
+        return CleanupResponse(
+            success=True,
+            deleted_count=deleted_count,
+            freed_space_mb=round(freed_space_mb, 2),
+            message=f"{deleted_count} PDF(s) supprimé(s), {round(freed_space_mb, 2)} MB libérés"
+        )
+
+    except Exception as e:
+        logger.error(f"Erreur lors du nettoyage des PDFs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats")
+async def get_pdf_stats(
+    current_user = Depends(require_admin_user)
+):
+    """
+    Retourne les statistiques sur les PDFs stockés.
+    """
+    try:
+        total_count = 0
+        total_size = 0
+        by_age = {
+            "moins_7_jours": 0,
+            "7_30_jours": 0,
+            "30_90_jours": 0,
+            "plus_90_jours": 0
+        }
+
+        for pdf_path in PAP_UPLOADS_DIR.glob("*.pdf"):
+            if pdf_path.name == ".gitkeep":
+                continue
+
+            try:
+                stat = pdf_path.stat()
+                total_count += 1
+                total_size += stat.st_size
+
+                mtime = datetime.fromtimestamp(stat.st_mtime)
+                age_days = (datetime.now() - mtime).days
+
+                if age_days < 7:
+                    by_age["moins_7_jours"] += 1
+                elif age_days < 30:
+                    by_age["7_30_jours"] += 1
+                elif age_days < 90:
+                    by_age["30_90_jours"] += 1
+                else:
+                    by_age["plus_90_jours"] += 1
+
+            except Exception as e:
+                logger.error(f"Erreur lecture {pdf_path.name}: {e}")
+
+        return {
+            "success": True,
+            "total_count": total_count,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "by_age": by_age,
+            "directory": str(PAP_UPLOADS_DIR.absolute())
+        }
+
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
