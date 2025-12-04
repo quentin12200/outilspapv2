@@ -6576,6 +6576,74 @@ async def migrate_pap_columns(request: Request):
         )
 
 
+@app.post("/api/admin/migrate-ud-responsable")
+async def migrate_ud_responsable(request: Request):
+    """
+    Ajoute la colonne responsable_ud à la table tableaux_bord_ud.
+    Route API pour exécuter la migration sans accès terminal.
+    """
+    try:
+        import sqlite3
+
+        DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./papcse.db").replace("sqlite:///", "")
+
+        if not os.path.exists(DB_PATH):
+            raise Exception(f"Base de données introuvable: {DB_PATH}")
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Vérifier colonnes existantes
+        cursor.execute("PRAGMA table_info(tableaux_bord_ud)")
+        existing_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'responsable_ud' in existing_columns:
+            conn.close()
+            return JSONResponse(content={
+                "success": True,
+                "message": "✅ La colonne existe déjà",
+                "details": "responsable_ud est déjà présente dans tableaux_bord_ud"
+            })
+
+        # Ajouter la colonne
+        logger.info("➕ Ajout colonne responsable_ud...")
+        cursor.execute("ALTER TABLE tableaux_bord_ud ADD COLUMN responsable_ud VARCHAR(255)")
+
+        conn.commit()
+
+        # Vérifier
+        cursor.execute("PRAGMA table_info(tableaux_bord_ud)")
+        final_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'responsable_ud' not in final_columns:
+            raise Exception("La colonne n'a pas été ajoutée")
+
+        cursor.execute("SELECT COUNT(*) FROM tableaux_bord_ud")
+        count = cursor.fetchone()[0]
+
+        conn.close()
+
+        logger.info("✅ Migration réussie: responsable_ud ajoutée")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "✅ Migration réussie ! Colonne responsable_ud ajoutée",
+            "details": f"{count} tableaux UD dans la base"
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Erreur migration: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur: {str(e)}"
+            }
+        )
+
+
 @app.get("/mentions-legales", response_class=HTMLResponse)
 def mentions_legales_page(request: Request):
     return templates.TemplateResponse("mentions-legales.html", {"request": request})
