@@ -28,8 +28,8 @@ from ..models import User
 
 logger = logging.getLogger(__name__)
 
-# Répertoire de stockage des PDFs
-PAP_UPLOADS_DIR = Path("app/static/pap_uploads")
+# Répertoire de stockage des PDFs - Utilise le volume Railway persistant
+PAP_UPLOADS_DIR = Path("/app/data/pap_uploads")
 PAP_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(prefix="/api/campaign", tags=["Campagnes PAP"])
@@ -135,8 +135,8 @@ async def analyze_pap_batch(
                     with open(pdf_path, 'wb') as f:
                         f.write(file_data)
 
-                    # Générer l'URL publique
-                    pdf_url = f"/static/pap_uploads/{pdf_filename}"
+                    # Générer l'URL publique (nouvelle route pour servir depuis le volume)
+                    pdf_url = f"/pap-pdfs/{pdf_filename}"
                     logger.info(f"✅ PDF stocké : {pdf_filename}")
                 except Exception as e:
                     logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")

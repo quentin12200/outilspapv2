@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/pdfs", tags=["Admin PDFs"])
 
-# Répertoire de stockage des PDFs
-PAP_UPLOADS_DIR = Path("app/static/pap_uploads")
+# Répertoire de stockage des PDFs - Utilise le volume Railway persistant
+PAP_UPLOADS_DIR = Path("/app/data/pap_uploads")
 PAP_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -92,7 +92,7 @@ async def list_pdfs(
                     siret=siret,
                     date_upload=mtime.strftime("%Y-%m-%d %H:%M:%S"),
                     size_kb=round(size_kb, 2),
-                    url=f"/static/pap_uploads/{filename}",
+                    url=f"/pap-pdfs/{filename}",
                     age_days=age_days
                 ))
             except Exception as e:

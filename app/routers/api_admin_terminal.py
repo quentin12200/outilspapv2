@@ -56,9 +56,9 @@ ALLOWED_COMMANDS = {
     "force migration": ["python", "force_create_ud_table.py"],
 
     # Gestion des PDFs
-    "pdfs list": ["ls", "-lh", "app/static/pap_uploads/"],
-    "pdfs count": ["bash", "-c", "ls app/static/pap_uploads/*.pdf 2>/dev/null | wc -l"],
-    "pdfs size": ["du", "-sh", "app/static/pap_uploads/"],
+    "pdfs list": ["ls", "-lh", "/app/data/pap_uploads/"],
+    "pdfs count": ["bash", "-c", "ls /app/data/pap_uploads/*.pdf 2>/dev/null | wc -l"],
+    "pdfs size": ["du", "-sh", "/app/data/pap_uploads/"],
 
     # Liste des commandes
     "help": None,  # Commande spéciale traitée séparément

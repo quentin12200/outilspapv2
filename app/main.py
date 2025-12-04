@@ -765,6 +765,29 @@ app.include_router(api_admin_terminal.router)
 app.include_router(api_admin_pdfs.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Route pour servir les PDFs depuis le volume Railway persistant
+from fastapi.responses import FileResponse
+from pathlib import Path as PathLib
+
+@app.get("/pap-pdfs/{filename}")
+async def serve_pap_pdf(filename: str):
+    """Sert les PDFs PAP depuis le volume Railway persistant."""
+    # Sécurité : vérifier que le filename ne contient pas de ../
+    if ".." in filename or "/" in filename:
+        raise HTTPException(status_code=400, detail="Nom de fichier invalide")
+
+    pdf_path = PathLib("/app/data/pap_uploads") / filename
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF non trouvé")
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=filename
+    )
+
 templates = Jinja2Templates(directory="app/templates")
 
 # Ajouter un filtre Jinja2 personnalisé pour nettoyer les valeurs "nan"
