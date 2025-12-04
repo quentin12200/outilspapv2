@@ -352,8 +352,11 @@ class PAPCampaignService:
         # Construire le bloc du lien PDF en avant si disponible
         pdf_block = ""
         if pdf_url:
-            app_url = os.getenv('APP_URL', 'http://localhost:8000')
-            full_pdf_url = f"{app_url}{pdf_url}"
+            # Nettoyer les URLs pour éviter les doubles slashes
+            app_url = os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')
+            pdf_url_clean = pdf_url if pdf_url.startswith('/') else f'/{pdf_url}'
+            full_pdf_url = f"{app_url}{pdf_url_clean}"
+
             pdf_block = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📎 DOCUMENT PAP EN LIGNE
