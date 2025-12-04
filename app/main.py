@@ -67,6 +67,7 @@ from .models import User, PasswordResetToken, DataExportRequest
 import uuid
 from .services.export_service import generate_calendrier_excel
 from .services.email_service import get_resend_service
+from . import config
 
 # =========================================================
 # Bootstrap DB (AVANT d'importer les routers)
@@ -3932,8 +3933,8 @@ async def generer_emails_pap(
                 "naf": inv.activite_principale or "",
                 "libelle_naf": inv.libelle_activite or "",
                 "date_invit": inv.date_invit.strftime("%d/%m/%Y") if inv.date_invit else "",
-                # Lien PAP scanner
-                "lien_pap": f"https://app.pap-cse.org/siret/{inv.siret}",
+                # Lien PAP scanner (utilise APP_URL depuis config)
+                "lien_pap": f"{config.APP_URL}/siret/{inv.siret}",
                 # Informations supplémentaires
                 "enseigne": inv.enseigne or "",
                 "est_siege": "Oui" if inv.est_siege else "Non",

@@ -45,3 +45,9 @@ RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 # Nom d'affichage de l'expéditeur (optionnel)
 # Exemple: "PAP/CSE - Tableau de bord <noreply@example.com>"
 RESEND_FROM_NAME = os.getenv("RESEND_FROM_NAME", "PAP/CSE - Tableau de bord")
+
+# ==================== Configuration Application ====================
+# URL de base de l'application (utilisée pour générer les liens dans les emails)
+# En développement: http://localhost:8000
+# En production: https://pap-cse.org ou https://app.pap-cse.org
+APP_URL = os.getenv("APP_URL", "http://localhost:8000")
