@@ -14,6 +14,7 @@ from ..user_auth import require_admin_user
 from ..audit import log_admin_action
 from ..db import get_session
 from sqlalchemy.orm import Session
+from sqlalchemy import String
 
 logger = logging.getLogger(__name__)
 
@@ -407,6 +408,7 @@ async def import_existing_pdfs(
                 elif existing and force_reimport:
                     # Supprimer l'ancien pour le recréer
                     db.delete(existing)
+                    db.flush()  # Force la suppression immédiate pour éviter UNIQUE constraint
                     is_reimport = True
                     logger.info(f"🔄 {pdf_path.name} - suppression de l'ancien enregistrement pour ré-importation")
 
@@ -459,28 +461,35 @@ async def import_existing_pdfs(
                 if invitation:
                     fd_value = invitation.fd if invitation.fd else "sans fd"
 
+                    # Calculer numero_departement depuis code_postal
+                    numero_departement = None
+                    nom_departement = None
+                    if invitation.code_postal:
+                        numero_departement = invitation.code_postal[:2]
+                        nom_departement = f"Département {numero_departement}"
+
                     pap_doc = PAPDocument(
                         filename=pdf_path.name,
                         pdf_url=f"/pap-pdfs/{pdf_path.name}",
                         file_size_kb=file_size_kb,
                         siret=siret,
-                        raison_sociale=invitation.raison_sociale,
-                        ville=invitation.ville,
+                        raison_sociale=invitation.denomination or f"SIRET {siret}",
+                        ville=invitation.commune,
                         code_postal=invitation.code_postal,
-                        effectif=invitation.effectif,
-                        inscrits=invitation.inscrits,
-                        date_invitation=invitation.date_invitation,
+                        effectif=invitation.effectif_connu,
+                        inscrits=None,  # N'existe pas dans Invitation
+                        date_invitation=invitation.date_reception or invitation.date_invit,
                         date_election=invitation.date_election,
-                        numero_departement=invitation.numero_departement,
-                        nom_departement=invitation.nom_departement,
-                        ud=invitation.ud,
+                        numero_departement=numero_departement,
+                        nom_departement=nom_departement,
+                        ud=invitation.ud or f"UD-{numero_departement}" if numero_departement else None,
                         fd=fd_value,
                         idcc=invitation.idcc,
-                        is_priority=invitation.is_priority or False,
-                        priority_reasons=invitation.priority_reasons,
-                        has_cgt_history=invitation.has_cgt_history or False,
-                        cgt_c3=invitation.cgt_c3 or False,
-                        cgt_c4=invitation.cgt_c4 or False,
+                        is_priority=False,  # N'existe pas dans Invitation
+                        priority_reasons=None,
+                        has_cgt_history=False,  # N'existe pas dans Invitation
+                        cgt_c3=False,
+                        cgt_c4=False,
                         created_by=current_user.id if hasattr(current_user, 'id') else None,
                         is_active=True,
                         uploaded_at=datetime.fromtimestamp(pdf_path.stat().st_mtime)
@@ -542,17 +551,14 @@ async def import_existing_pdfs(
 
                     if code_postal:
                         # Extraire les 2 premiers chiffres du code postal
-                        numero_departement = code_postal[:2]
-                        nom_departement = f"Département {numero_departement}"
-                        logger.info(f"📍 {pdf_path.name} - Département {numero_departement} extrait du code postal {code_postal}")
-                    else:
-                        # Fallback : extraire département du SIRET (approximatif mais mieux que rien)
-                        # Les chiffres 10-11 du SIRET correspondent parfois au département
-                        logger.warning(f"⚠️  Pas de code postal trouvé, extraction approximative depuis SIRET")
-                        numero_departement = siret[9:11] if len(siret) >= 11 else None
-                        if numero_departement:
+                        dept_temp = code_postal[:2]
+                        # Valider que c'est un département valide (01-95, 97-98 pour DOM-TOM)
+                        if dept_temp.isdigit() and (1 <= int(dept_temp) <= 95 or 97 <= int(dept_temp) <= 98):
+                            numero_departement = dept_temp
                             nom_departement = f"Département {numero_departement}"
-                            logger.info(f"📍 {pdf_path.name} - Département {numero_departement} (approximatif depuis SIRET)")
+                            logger.info(f"📍 {pdf_path.name} - Département {numero_departement} extrait du code postal {code_postal}")
+                        else:
+                            logger.warning(f"⚠️  Code postal {code_postal} donne un département invalide: {dept_temp}")
 
                     pap_doc = PAPDocument(
                         filename=pdf_path.name,
