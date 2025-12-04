@@ -687,6 +687,7 @@ from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
 from .routers import api_campaign  # noqa: E402
+from .routers import api_ud  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -757,6 +758,7 @@ app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
 app.include_router(api_campaign.router)
+app.include_router(api_ud.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")

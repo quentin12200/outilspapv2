@@ -809,3 +809,46 @@ class UserActivity(Base):
         Index('idx_activity_user_date', 'user_id', 'accessed_at'),
         Index('idx_activity_type_date', 'activity_type', 'accessed_at'),
     )
+
+
+class TableauBordUD(Base):
+    """
+    Tableaux de bord des Unions Départementales CGT
+    Permet de gérer les informations et statistiques de chaque UD
+    """
+    __tablename__ = "tableaux_bord_ud"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Informations de l'UD
+    numero_departement = Column(String(3), nullable=False, unique=True, index=True)  # Ex: "34", "2A", "2B"
+    nom_departement = Column(String(100), nullable=False)  # Ex: "Hérault"
+    code_ud = Column(String(10), nullable=False, unique=True, index=True)  # Ex: "ud34"
+
+    # Coordonnées de contact
+    email_ud = Column(String(255), nullable=True)
+    telephone_ud = Column(String(20), nullable=True)
+    adresse_ud = Column(Text, nullable=True)
+    responsable_ud = Column(String(255), nullable=True)  # Nom du responsable UD
+
+    # Métadonnées de création
+    created_by = Column(Integer, nullable=True)  # ID de l'utilisateur créateur
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # Statistiques calculées (mise à jour après import Excel)
+    nb_entreprises_cibles = Column(Integer, default=0, nullable=False)  # Nombre d'entreprises avec CGT présente
+    nb_entreprises_absentes = Column(Integer, default=0, nullable=False)  # Nombre d'entreprises sans CGT
+    nb_total_syndiques = Column(Integer, default=0, nullable=False)  # Total des syndiqués CGT
+    nb_prochaines_elections = Column(Integer, default=0, nullable=False)  # Élections dans les 90 prochains jours
+
+    # Statut
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    def __repr__(self):
+        return f"<TableauBordUD(id={self.id}, numero_departement={self.numero_departement}, nom={self.nom_departement})>"
+
+    __table_args__ = (
+        Index('idx_ud_numero', 'numero_departement'),
+        Index('idx_ud_code', 'code_ud'),
+    )

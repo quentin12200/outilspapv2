@@ -553,6 +553,54 @@ def fill_invitation_columns_from_raw():
         session.close()
 
 
+def create_tableaux_bord_ud_table_if_needed():
+    """Crée la table tableaux_bord_ud si elle n'existe pas."""
+    logger.info("🔍 Vérification de la table tableaux_bord_ud...")
+
+    inspector = inspect(engine)
+    if "tableaux_bord_ud" in inspector.get_table_names():
+        logger.info("✅ Table tableaux_bord_ud existe déjà")
+        return
+
+    logger.info("📝 Création de la table tableaux_bord_ud...")
+
+    sql = text("""
+        CREATE TABLE IF NOT EXISTS tableaux_bord_ud (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_departement VARCHAR(3) NOT NULL UNIQUE,
+            nom_departement VARCHAR(100) NOT NULL,
+            code_ud VARCHAR(10) NOT NULL UNIQUE,
+            email_ud VARCHAR(255),
+            telephone_ud VARCHAR(20),
+            adresse_ud TEXT,
+            responsable_ud VARCHAR(255),
+            created_by INTEGER,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            nb_entreprises_cibles INTEGER NOT NULL DEFAULT 0,
+            nb_entreprises_absentes INTEGER NOT NULL DEFAULT 0,
+            nb_total_syndiques INTEGER NOT NULL DEFAULT 0,
+            nb_prochaines_elections INTEGER NOT NULL DEFAULT 0,
+            is_active BOOLEAN NOT NULL DEFAULT 1
+        )
+    """)
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(sql)
+            conn.commit()
+
+        # Créer les index
+        with engine.connect() as conn:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ud_numero ON tableaux_bord_ud(numero_departement)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ud_code ON tableaux_bord_ud(code_ud)"))
+            conn.commit()
+
+        logger.info("✅ Table tableaux_bord_ud créée avec succès")
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la création de la table tableaux_bord_ud: {e}")
+
+
 def run_migrations():
     """Point d'entrée pour exécuter toutes les migrations."""
     try:
@@ -575,6 +623,9 @@ def run_migrations():
 
         # Migration statistiques de connexion utilisateurs
         add_user_session_tracking_columns_if_needed()
+
+        # Migration table tableaux_bord_ud
+        create_tableaux_bord_ud_table_if_needed()
 
         logger.info("✅ Toutes les migrations ont été exécutées avec succès!")
     except Exception as e:
