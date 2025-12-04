@@ -56,6 +56,7 @@ ALLOWED_COMMANDS = {
 
     # Migrations
     "force migration": ["python", "-c", "from app.migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed; create_tableaux_bord_ud_table_if_needed(); create_pap_documents_table_if_needed(); print('✅ Migrations terminées')"],
+    "recreate tables": ["python", "-c", "from app.db import engine; from sqlalchemy import text; conn = engine.connect(); conn.execute(text('DROP TABLE IF EXISTS tableaux_bord_ud')); conn.execute(text('DROP TABLE IF EXISTS pap_documents')); conn.commit(); conn.close(); from app.migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed; create_tableaux_bord_ud_table_if_needed(); create_pap_documents_table_if_needed(); print('✅ Tables recréées avec succès')"],
 
     # Gestion des PDFs
     "pdfs list": ["ls", "-lh", "/app/data/pap_uploads/"],
