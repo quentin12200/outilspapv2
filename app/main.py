@@ -6407,6 +6407,49 @@ async def force_migration(request: Request):
         logger.error(f"❌ Erreur lors de la migration forcée: {e}")
         import traceback
         logger.error(traceback.format_exc())
+
+
+@app.post("/api/admin/recreate-tables")
+async def recreate_tables(request: Request):
+    """
+    Supprime et recrée les tables tableaux_bord_ud et pap_documents.
+
+    ⚠️ ATTENTION : Cela supprime toutes les données de ces tables !
+    Utilisez seulement si les tables ont une structure incorrecte.
+    """
+    try:
+        from sqlalchemy import text
+        from .migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed
+
+        logger.info("🔧 Recréation des tables tableaux_bord_ud et pap_documents...")
+
+        # DROP les tables existantes
+        with engine.connect() as conn:
+            logger.info("🗑️  Suppression de la table tableaux_bord_ud...")
+            conn.execute(text('DROP TABLE IF EXISTS tableaux_bord_ud'))
+
+            logger.info("🗑️  Suppression de la table pap_documents...")
+            conn.execute(text('DROP TABLE IF EXISTS pap_documents'))
+
+            conn.commit()
+
+        logger.info("✅ Tables supprimées")
+
+        # Recréer les tables avec la nouvelle structure
+        logger.info("📝 Recréation des tables...")
+        create_tableaux_bord_ud_table_if_needed()
+        create_pap_documents_table_if_needed()
+
+        logger.info("✅ Tables recréées avec succès !")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "✅ Tables tableaux_bord_ud et pap_documents recréées avec succès !\n\nVous pouvez maintenant importer les PDFs existants."
+        })
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la recréation des tables: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={

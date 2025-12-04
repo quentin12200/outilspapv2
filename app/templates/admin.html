@@ -683,11 +683,24 @@
           </div>
         </div>
 
-        <!-- Action button -->
-        <button id="migration-button" onclick="forceMigrations()" class="w-full px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-magic" id="migration-icon"></i>
-          <span id="migration-text">Exécuter les migrations</span>
-        </button>
+        <!-- Action buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button id="migration-button" onclick="forceMigrations()" class="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition shadow-md flex items-center justify-center space-x-2">
+            <i class="fas fa-magic" id="migration-icon"></i>
+            <span id="migration-text">Exécuter les migrations</span>
+          </button>
+
+          <button id="recreate-button" onclick="recreateTables()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
+            <i class="fas fa-redo-alt" id="recreate-icon"></i>
+            <span id="recreate-text">Recréer les tables</span>
+          </button>
+        </div>
+
+        <div class="p-3 bg-red-50 border-l-4 border-red-500 rounded text-sm text-red-800">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          <strong>Recréer les tables :</strong> Supprime et recrée tableaux_bord_ud et pap_documents avec la bonne structure.
+          ⚠️ Les données de ces tables seront perdues !
+        </div>
 
         <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>À utiliser en cas d'erreur "no such column" lors de l'import des UD.</p>
       </div>
@@ -1564,6 +1577,89 @@ async function forceMigrations() {
     button.classList.remove('opacity-50', 'cursor-not-allowed');
     buttonIcon.classList.remove('fa-spin');
     buttonText.textContent = 'Exécuter les migrations';
+  }
+}
+
+// ============================================
+// Recreate Tables Function
+
+async function recreateTables() {
+  // Confirmation avec avertissement
+  if (!confirm('⚠️ ATTENTION : Cette action va SUPPRIMER toutes les données des tables tableaux_bord_ud et pap_documents.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+    return;
+  }
+
+  // Double confirmation
+  if (!confirm('Dernière confirmation : Toutes les données seront perdues. Continuer ?')) {
+    return;
+  }
+
+  const button = document.getElementById('recreate-button');
+  const buttonText = document.getElementById('recreate-text');
+  const buttonIcon = document.getElementById('recreate-icon');
+  const statusDiv = document.getElementById('migration-status');
+  const statusContent = document.getElementById('migration-status-content');
+
+  // Disable button
+  button.disabled = true;
+  button.classList.add('opacity-50', 'cursor-not-allowed');
+  buttonIcon.classList.add('fa-spin');
+  buttonText.textContent = 'Recréation en cours...';
+
+  try {
+    const response = await fetch('/api/admin/recreate-tables', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    // Show status
+    statusDiv.classList.remove('hidden');
+
+    if (data.success) {
+      statusContent.className = 'p-4 rounded-lg border bg-green-50 border-green-200 text-green-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-check-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✓ Tables recréées avec succès</div>
+            <div class="text-sm mt-1">${data.message}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-exclamation-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✗ Erreur</div>
+            <div class="text-sm mt-1">${data.error || 'Erreur inconnue'}</div>
+          </div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    statusDiv.classList.remove('hidden');
+    statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+    statusContent.innerHTML = `
+      <div class="flex items-center space-x-3">
+        <i class="fas fa-exclamation-circle text-lg"></i>
+        <div>
+          <div class="font-semibold">✗ Erreur réseau</div>
+          <div class="text-sm mt-1">${error.message}</div>
+        </div>
+      </div>
+    `;
+  } finally {
+    // Reset button
+    button.disabled = false;
+    button.classList.remove('opacity-50', 'cursor-not-allowed');
+    buttonIcon.classList.remove('fa-spin');
+    buttonText.textContent = 'Recréer les tables';
   }
 }
 
