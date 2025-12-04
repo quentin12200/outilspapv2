@@ -693,6 +693,61 @@
       </div>
     </section>
 
+    <!-- Terminal Admin -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-terminal text-gray-700 mr-2"></i>
+        Terminal Admin
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm" style="min-height: 400px; max-height: 600px; overflow-y: auto;" id="terminal-output">
+          <div class="mb-2">
+            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Bienvenue dans le terminal admin sécurisé</span>
+          </div>
+          <div class="mb-2 text-gray-400">
+            Tapez "help" pour voir les commandes disponibles
+          </div>
+          <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
+        </div>
+
+        <!-- Input -->
+        <div class="flex space-x-2">
+          <div class="flex-1 flex items-center bg-gray-900 text-green-400 rounded-lg px-4 py-2 font-mono text-sm">
+            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$&nbsp;
+            <input
+              type="text"
+              id="terminal-input"
+              class="flex-1 bg-transparent border-none outline-none text-green-400"
+              placeholder="Entrez une commande..."
+              autocomplete="off"
+            />
+          </div>
+          <button
+            onclick="executeTerminalCommand()"
+            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center space-x-2"
+          >
+            <i class="fas fa-play"></i>
+            <span>Exécuter</span>
+          </button>
+        </div>
+
+        <div class="flex items-center space-x-4 text-xs text-gray-500">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-info-circle"></i>
+            <span>Utilisez ↑ ↓ pour naviguer dans l'historique</span>
+          </div>
+          <button onclick="clearTerminal()" class="text-red-500 hover:text-red-700 flex items-center space-x-1">
+            <i class="fas fa-trash"></i>
+            <span>Effacer</span>
+          </button>
+          <button onclick="showTerminalHelp()" class="text-blue-500 hover:text-blue-700 flex items-center space-x-1">
+            <i class="fas fa-question-circle"></i>
+            <span>Aide</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- Enrichir IDCC -->
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
@@ -1130,6 +1185,132 @@ function resetIDCCButton() {
   buttonIcon.classList.remove('fa-spin');
   buttonText.textContent = 'Enrichir les IDCC';
 }
+
+// ============================================
+// Terminal Admin Functions
+
+let terminalHistory = [];
+let historyIndex = -1;
+
+// Ajouter une ligne au terminal
+function addTerminalLine(content, type = 'output') {
+  const terminalOutput = document.getElementById('terminal-output');
+  const line = document.createElement('div');
+  line.className = 'mb-2';
+
+  if (type === 'command') {
+    line.innerHTML = `<span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-white">${content}</span>`;
+  } else if (type === 'error') {
+    line.innerHTML = `<span class="text-red-400">${content}</span>`;
+  } else if (type === 'success') {
+    line.innerHTML = `<span class="text-green-400">${content}</span>`;
+  } else {
+    line.innerHTML = `<span class="text-gray-300">${content}</span>`;
+  }
+
+  terminalOutput.appendChild(line);
+  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+}
+
+// Exécuter une commande
+async function executeTerminalCommand() {
+  const input = document.getElementById('terminal-input');
+  const command = input.value.trim();
+
+  if (!command) return;
+
+  // Ajouter à l'historique
+  terminalHistory.push(command);
+  historyIndex = terminalHistory.length;
+
+  // Afficher la commande
+  addTerminalLine(command, 'command');
+
+  // Vider l'input
+  input.value = '';
+
+  try {
+    const response = await fetch('/api/admin/terminal/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ command: command })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Afficher la sortie
+      const lines = data.output.split('\n');
+      lines.forEach(line => {
+        addTerminalLine(line, 'output');
+      });
+    } else {
+      // Afficher l'erreur
+      if (data.error) {
+        addTerminalLine(data.error, 'error');
+      }
+    }
+  } catch (error) {
+    addTerminalLine(`❌ Erreur réseau: ${error.message}`, 'error');
+  }
+}
+
+// Effacer le terminal
+function clearTerminal() {
+  const terminalOutput = document.getElementById('terminal-output');
+  terminalOutput.innerHTML = `
+    <div class="mb-2">
+      <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Terminal effacé</span>
+    </div>
+    <div class="mb-2 text-gray-400">
+      Tapez "help" pour voir les commandes disponibles
+    </div>
+    <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
+  `;
+}
+
+// Afficher l'aide
+function showTerminalHelp() {
+  document.getElementById('terminal-input').value = 'help';
+  executeTerminalCommand();
+}
+
+// Gestion de l'input avec Enter et historique
+document.addEventListener('DOMContentLoaded', function() {
+  const input = document.getElementById('terminal-input');
+
+  if (input) {
+    // Exécuter avec Enter
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        executeTerminalCommand();
+      }
+      // Historique avec flèches haut/bas
+      else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          input.value = terminalHistory[historyIndex];
+        }
+      }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex < terminalHistory.length - 1) {
+          historyIndex++;
+          input.value = terminalHistory[historyIndex];
+        } else {
+          historyIndex = terminalHistory.length;
+          input.value = '';
+        }
+      }
+    });
+
+    // Auto-focus
+    input.focus();
+  }
+});
 
 // ============================================
 // Force Migrations Function
