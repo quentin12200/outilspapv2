@@ -6357,14 +6357,19 @@ async def force_migration(request: Request):
     Utile quand Railway n'a pas encore redéployé avec les nouvelles migrations.
     """
     try:
-        from .migrations import add_invitation_metadata_columns_if_needed
+        from .migrations import add_invitation_metadata_columns_if_needed, create_tableaux_bord_ud_table_if_needed
 
-        logger.info("🔧 Forçage manuel de la migration created_at/updated_at...")
+        logger.info("🔧 Forçage manuel des migrations...")
+
+        # Migration invitations
         add_invitation_metadata_columns_if_needed()
+
+        # Migration tableaux_bord_ud
+        create_tableaux_bord_ud_table_if_needed()
 
         return JSONResponse(content={
             "success": True,
-            "message": "Migration exécutée avec succès. Les colonnes created_at et updated_at ont été ajoutées à la table invitations."
+            "message": "Migrations exécutées avec succès. Les colonnes created_at/updated_at ont été ajoutées à la table invitations et la table tableaux_bord_ud a été créée."
         })
     except Exception as e:
         logger.error(f"❌ Erreur lors de la migration forcée: {e}")
