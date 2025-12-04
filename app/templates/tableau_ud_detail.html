@@ -99,12 +99,21 @@
         <div class="bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 p-6">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-semibold text-gray-900">Liste des Entreprises</h2>
-            <button
-              @click="openAddModal = true"
-              class="inline-flex items-center px-4 py-2 bg-cgt-red hover:bg-cgt-darkred text-white font-medium rounded-lg transition-colors shadow-sm">
-              <i class="fas fa-plus-circle mr-2"></i>
-              Ajouter une entreprise
-            </button>
+            <div class="flex gap-3">
+              <button
+                @click="importerEntreprises()"
+                :disabled="importLoading"
+                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-all shadow-sm">
+                <i :class="importLoading ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-download mr-2'"></i>
+                <span x-text="importLoading ? 'Import en cours...' : 'Importer depuis la base PV'"></span>
+              </button>
+              <button
+                @click="openAddModal = true"
+                class="inline-flex items-center px-4 py-2 bg-cgt-red hover:bg-cgt-darkred text-white font-medium rounded-lg transition-colors shadow-sm">
+                <i class="fas fa-plus-circle mr-2"></i>
+                Ajouter manuellement
+              </button>
+            </div>
           </div>
 
           <!-- Filtres -->
@@ -528,6 +537,7 @@ function tableauUDDetailApp() {
     loading: false,
     statsLoading: false,
     saving: false,
+    importLoading: false,
     openAddModal: false,
     openMethodologieModal: false,
     checklistLoading: false,
@@ -607,6 +617,42 @@ function tableauUDDetailApp() {
         alert('Erreur lors de l\'ajout');
       } finally {
         this.saving = false;
+      }
+    },
+
+    async importerEntreprises() {
+      if (!confirm('Importer toutes les entreprises de ce département depuis la base PV ?\n\nCela va récupérer tous les SIRET du département et créer automatiquement les checklists méthodologiques.')) {
+        return;
+      }
+
+      try {
+        this.importLoading = true;
+        const response = await fetch(`/api/ud/tableaux/${this.codeUD}/importer-entreprises`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          const data = result.data;
+          alert(`✅ Import réussi !\n\n` +
+                `• ${data.nb_importees} nouvelles entreprises importées\n` +
+                `• ${data.nb_cgt_presente} avec CGT présente (RENFORCEMENT)\n` +
+                `• ${data.nb_cgt_absente} avec CGT absente (IMPLANTATION)\n` +
+                `• ${data.nb_deja_existantes} déjà existantes (ignorées)\n` +
+                `• Total dans base PV : ${data.total_pv}`);
+
+          // Recharger les données
+          await this.loadEntreprises();
+          await this.loadTableauData();
+        } else {
+          alert('❌ Erreur : ' + (result.error || 'Erreur inconnue'));
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de l\'import des entreprises');
+      } finally {
+        this.importLoading = false;
       }
     },
 

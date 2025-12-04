@@ -13,7 +13,7 @@ from typing import List, Optional
 import logging
 
 from ..db import get_session
-from ..models import TableauBordUD, EntrepriseUD, EvenementUD, ElectionUD, User, ChecklistItemUD
+from ..models import TableauBordUD, EntrepriseUD, EvenementUD, ElectionUD, User, ChecklistItemUD, PVEvent
 from ..user_auth import get_current_user_or_none
 
 logger = logging.getLogger(__name__)
@@ -370,6 +370,138 @@ async def create_entreprise_ud(
     except Exception as e:
         session.rollback()
         logger.error(f"Erreur lors de l'ajout de l'entreprise: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tableaux/{code_ud}/importer-entreprises")
+async def importer_entreprises_depuis_pv(
+    code_ud: str,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_or_none)
+):
+    """
+    Import automatique des entreprises d'un département depuis la base Tous_PV.
+    Récupère tous les SIRET uniques du département et crée automatiquement les entreprises
+    avec leurs checklists méthodologiques (RENFORCEMENT ou IMPLANTATION selon présence CGT).
+    """
+    try:
+        # Récupérer le tableau UD
+        tableau = session.query(TableauBordUD).filter_by(code_ud=code_ud).first()
+        if not tableau:
+            raise HTTPException(status_code=404, detail="Tableau UD non trouvé")
+
+        # Construire le nom UD pour la recherche (ex: "66 - Pyrénées-Orientales")
+        ud_search = f"{tableau.numero_departement} - {tableau.nom_departement}"
+
+        logger.info(f"Recherche des entreprises pour UD: {ud_search}")
+
+        # Récupérer tous les SIRET uniques de ce département depuis Tous_PV
+        # On agrège par SIRET pour éviter les doublons (plusieurs PV pour même entreprise)
+        entreprises_pv = session.query(
+            PVEvent.siret,
+            PVEvent.raison_sociale,
+            PVEvent.ville,
+            PVEvent.cp,
+            PVEvent.fd,
+            PVEvent.idcc,
+            func.max(PVEvent.effectif_siret).label('effectif'),
+            func.max(PVEvent.presence_cgt_pv).label('presence_cgt_pv'),
+            func.max(PVEvent.pres_siret_cgt).label('pres_siret_cgt')
+        ).filter(
+            PVEvent.ud == ud_search,
+            PVEvent.siret.isnot(None),
+            PVEvent.siret != ''
+        ).group_by(
+            PVEvent.siret,
+            PVEvent.raison_sociale,
+            PVEvent.ville,
+            PVEvent.cp,
+            PVEvent.fd,
+            PVEvent.idcc
+        ).all()
+
+        logger.info(f"Trouvé {len(entreprises_pv)} SIRET uniques dans Tous_PV")
+
+        nb_importees = 0
+        nb_deja_existantes = 0
+        nb_cgt_presente = 0
+        nb_cgt_absente = 0
+
+        for entr in entreprises_pv:
+            # Vérifier si l'entreprise existe déjà dans ce tableau
+            existe = session.query(EntrepriseUD).filter(
+                EntrepriseUD.tableau_bord_id == tableau.id,
+                EntrepriseUD.siret == entr.siret
+            ).first()
+
+            if existe:
+                nb_deja_existantes += 1
+                continue
+
+            # Déterminer si CGT est présente ou absente
+            cgt_presente = (
+                entr.presence_cgt_pv == "Oui" or
+                entr.pres_siret_cgt == "Oui"
+            )
+            type_cible = "presente" if cgt_presente else "absente"
+
+            if cgt_presente:
+                nb_cgt_presente += 1
+            else:
+                nb_cgt_absente += 1
+
+            # Créer l'entreprise
+            nouvelle_entreprise = EntrepriseUD(
+                tableau_bord_id=tableau.id,
+                siret=entr.siret,
+                nom_entreprise=entr.raison_sociale or "Entreprise sans nom",
+                type_cible=type_cible,
+                ville=entr.ville,
+                code_postal=entr.cp,
+                nb_salaries=int(entr.effectif) if entr.effectif else None,
+                idcc=entr.idcc,
+                created_by=current_user.id if current_user else None
+            )
+
+            session.add(nouvelle_entreprise)
+            session.flush()  # Pour obtenir l'ID
+
+            # Créer la checklist appropriée
+            try:
+                create_default_checklist(session, nouvelle_entreprise.id, type_cible)
+                logger.debug(f"Checklist {type_cible} créée pour {entr.siret}")
+            except Exception as e:
+                logger.error(f"Erreur création checklist pour {entr.siret}: {e}")
+
+            # Mettre à jour les stats du tableau
+            if type_cible == 'presente':
+                tableau.nb_entreprises_cibles = (tableau.nb_entreprises_cibles or 0) + 1
+            else:
+                tableau.nb_entreprises_absentes = (tableau.nb_entreprises_absentes or 0) + 1
+
+            nb_importees += 1
+
+        session.commit()
+
+        logger.info(f"Import terminé pour {code_ud}: {nb_importees} nouvelles entreprises, {nb_deja_existantes} déjà existantes")
+
+        return {
+            "success": True,
+            "message": f"{nb_importees} entreprises importées avec succès ({nb_cgt_presente} CGT présente, {nb_cgt_absente} CGT absente)",
+            "data": {
+                "nb_importees": nb_importees,
+                "nb_deja_existantes": nb_deja_existantes,
+                "nb_cgt_presente": nb_cgt_presente,
+                "nb_cgt_absente": nb_cgt_absente,
+                "total_pv": len(entreprises_pv)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Erreur lors de l'import des entreprises: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
