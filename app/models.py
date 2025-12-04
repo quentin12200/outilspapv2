@@ -217,6 +217,7 @@ class Invitation(Base):
     date_reception = Column(Date)                                # Date de réception de l'invitation
     date_election = Column(Date)                                 # Date de l'élection si connue
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
+    lien_pap_pdf = Column(Text, nullable=True)                   # Lien permanent vers le PDF scanné du PAP
 
     # Métadonnées - TEMPORAIREMENT COMMENTÉES jusqu'à ce que la migration soit exécutée
     # Une fois que POST /api/admin/force-migration aura été appelé et les colonnes créées,

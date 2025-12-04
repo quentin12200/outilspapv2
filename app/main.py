@@ -3956,6 +3956,87 @@ async def generer_emails_pap(
     })
 
 
+@app.post("/api/invitations/{siret}/upload-pap")
+async def upload_pap_pdf(
+    siret: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)
+):
+    """
+    Upload un PDF scanné du PAP (PV d'élection) pour une invitation.
+    Crée un lien permanent: https://app.pap-cse.org/pap/uploads/{siret}.pdf
+    """
+    try:
+        # Vérifier que l'invitation existe
+        invitation = db.query(Invitation).filter(Invitation.siret == siret).first()
+        if not invitation:
+            raise HTTPException(status_code=404, detail="Invitation non trouvée")
+
+        # Vérifier que c'est bien un PDF
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
+
+        # Créer le dossier uploads/pap s'il n'existe pas
+        upload_dir = "uploads/pap"
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Sauvegarder le fichier avec le nom {siret}.pdf
+        file_path = f"{upload_dir}/{siret}.pdf"
+
+        # Lire et sauvegarder le contenu
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        # Générer le lien permanent
+        lien_permanent = f"{config.APP_URL}/pap/uploads/{siret}.pdf"
+
+        # Mettre à jour l'invitation avec le lien
+        invitation.lien_pap_pdf = lien_permanent
+        db.commit()
+
+        logger.info(f"PDF PAP uploadé pour SIRET {siret}: {file_path}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "PDF uploadé avec succès",
+            "lien_permanent": lien_permanent,
+            "file_size": len(content)
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur upload PDF PAP pour {siret}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/pap/uploads/{siret}.pdf")
+async def get_pap_pdf(siret: str):
+    """
+    Télécharge le PDF scanné du PAP pour un SIRET donné.
+    Lien permanent accessible publiquement.
+    """
+    try:
+        file_path = f"uploads/pap/{siret}.pdf"
+
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="PDF non trouvé")
+
+        return FileResponse(
+            file_path,
+            media_type="application/pdf",
+            filename=f"PAP_{siret}.pdf"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur téléchargement PDF PAP pour {siret}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 PRIORITY_TOKENS = [
     "siret",
     "raison",
