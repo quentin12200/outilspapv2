@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..user_auth import require_admin_user
@@ -272,6 +272,7 @@ async def get_pdf_stats(
 
 @router.post("/import-existing")
 async def import_existing_pdfs(
+    request: Request,
     db: Session = Depends(get_session),
     current_user = Depends(require_admin_user)
 ):
@@ -390,11 +391,16 @@ async def import_existing_pdfs(
 
         # Logger l'action
         log_admin_action(
-            db=db,
-            user_id=current_user.id if hasattr(current_user, 'id') else None,
+            request=request,
+            api_key=None,
             action="import_existing_pdfs",
-            details={
-                "total_pdfs": total_pdfs,
+            resource_type="pdfs",
+            success=True,
+            resource_id=f"batch_{imported}",
+            request_params={
+                "total_pdfs": total_pdfs
+            },
+            response_summary={
                 "imported": imported,
                 "skipped": skipped,
                 "errors_count": len(errors)
