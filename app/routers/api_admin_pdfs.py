@@ -270,6 +270,83 @@ async def get_pdf_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/debug-list")
+async def debug_list_pdfs(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """
+    Liste tous les PDFs dans le dossier avec analyse détaillée.
+    Debug pour comprendre pourquoi certains PDFs ne sont pas importés.
+    """
+    try:
+        from ..models import PAPDocument, Invitation, EmailLog
+        import re
+
+        pdf_files = list(PAP_UPLOADS_DIR.glob("*.pdf"))
+        total_pdfs = len(pdf_files)
+
+        analysis = []
+
+        for pdf_path in pdf_files:
+            if pdf_path.name == ".gitkeep":
+                continue
+
+            info = {
+                'filename': pdf_path.name,
+                'size_kb': round(pdf_path.stat().st_size / 1024, 2),
+                'modified': pdf_path.stat().st_mtime,
+                'already_imported': False,
+                'siret_found': None,
+                'siret_method': None,
+                'has_invitation': False,
+                'has_email_log': False
+            }
+
+            # Vérifier si déjà importé
+            existing = db.query(PAPDocument).filter(
+                PAPDocument.filename == pdf_path.name
+            ).first()
+            info['already_imported'] = existing is not None
+
+            # Méthode 1 : SIRET dans le nom
+            match = re.match(r'(\d{14})_\d{8}\.pdf', pdf_path.name)
+            if match:
+                info['siret_found'] = match.group(1)
+                info['siret_method'] = 'filename'
+            else:
+                # Méthode 2 : EmailLog
+                email_log = db.query(EmailLog).filter(
+                    EmailLog.extra_metadata.cast(String).contains(pdf_path.name)
+                ).first()
+
+                if email_log and email_log.siret:
+                    info['siret_found'] = email_log.siret
+                    info['siret_method'] = 'email_log'
+                    info['has_email_log'] = True
+
+            # Vérifier si invitation existe
+            if info['siret_found']:
+                invitation = db.query(Invitation).filter(
+                    Invitation.siret == info['siret_found']
+                ).first()
+                info['has_invitation'] = invitation is not None
+
+            analysis.append(info)
+
+        return {
+            "success": True,
+            "total_pdfs": total_pdfs,
+            "pdfs": analysis,
+            "upload_dir": str(PAP_UPLOADS_DIR)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Erreur debug: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/import-existing")
 async def import_existing_pdfs(
     request: Request,

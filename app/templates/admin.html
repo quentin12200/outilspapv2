@@ -794,6 +794,10 @@
             <i class="fas fa-sync-alt"></i>
             <span>Actualiser</span>
           </button>
+          <button onclick="debugPDFAnalysis()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center space-x-2">
+            <i class="fas fa-search"></i>
+            <span>🔍 Analyser les PDFs</span>
+          </button>
           <button onclick="importExistingPDFs()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2">
             <i class="fas fa-database"></i>
             <span>Importer les PDFs existants</span>
@@ -1878,6 +1882,71 @@ async function importExistingPDFs() {
       loadPDFList();
     } else {
       alert(`✗ Erreur: ${data.detail || 'Échec de l\'import'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
+  }
+}
+
+// Analyser les PDFs (debug)
+async function debugPDFAnalysis() {
+  const button = event.target.closest('button');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyse en cours...';
+
+  try {
+    const response = await fetch('/api/admin/pdfs/debug-list');
+    const data = await response.json();
+
+    if (data.success) {
+      let report = `📁 ANALYSE DES PDFs DANS LE DOSSIER\n`;
+      report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      report += `📂 Dossier : ${data.upload_dir}\n`;
+      report += `📊 Total PDFs : ${data.total_pdfs}\n\n`;
+
+      const notImported = data.pdfs.filter(p => !p.already_imported);
+      const noSiret = data.pdfs.filter(p => !p.siret_found);
+      const noInvitation = data.pdfs.filter(p => p.siret_found && !p.has_invitation);
+
+      report += `✅ Déjà importés : ${data.pdfs.length - notImported.length}\n`;
+      report += `⏭️  Pas encore importés : ${notImported.length}\n`;
+      report += `❌ Sans SIRET trouvé : ${noSiret.length}\n`;
+      report += `⚠️  SIRET trouvé mais pas d'invitation : ${noInvitation.length}\n\n`;
+
+      if (noSiret.length > 0) {
+        report += `\n❌ PDFs SANS SIRET (ne peuvent PAS être importés) :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noSiret.slice(0, 10).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   Taille: ${pdf.size_kb} KB\n`;
+          report += `   ❌ SIRET introuvable (pas dans nom, pas dans EmailLog)\n`;
+        });
+        if (noSiret.length > 10) {
+          report += `\n... et ${noSiret.length - 10} autre(s) PDF(s) sans SIRET\n`;
+        }
+      }
+
+      if (noInvitation.length > 0) {
+        report += `\n\n⚠️  PDFs AVEC SIRET MAIS SANS INVITATION :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noInvitation.slice(0, 5).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   SIRET: ${pdf.siret_found} (${pdf.siret_method})\n`;
+          report += `   ⚠️  Pas d'invitation en base\n`;
+          report += `   💡 Sera importé avec données minimales\n`;
+        });
+        if (noInvitation.length > 5) {
+          report += `\n... et ${noInvitation.length - 5} autre(s)\n`;
+        }
+      }
+
+      alert(report);
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de l\'analyse'}`);
     }
   } catch (error) {
     alert(`✗ Erreur réseau: ${error.message}`);
