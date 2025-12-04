@@ -504,10 +504,23 @@ async def import_existing_pdfs(
 
                     # Essayer d'extraire des infos de l'email
                     raison_sociale = None
+                    code_postal = None
+                    ville = None
                     if email_log and email_log.extra_metadata:
                         metadata = email_log.extra_metadata
                         if isinstance(metadata, dict):
                             raison_sociale = metadata.get('raison_sociale')
+                            code_postal = metadata.get('code_postal')
+                            ville = metadata.get('ville')
+
+                    # Extraire le numéro de département du code postal
+                    numero_departement = None
+                    nom_departement = None
+                    if code_postal:
+                        # Extraire les 2 premiers chiffres du code postal
+                        numero_departement = code_postal[:2]
+                        nom_departement = f"Département {numero_departement}"
+                        logger.info(f"📍 {pdf_path.name} - Département {numero_departement} extrait du code postal {code_postal}")
 
                     pap_doc = PAPDocument(
                         filename=pdf_path.name,
@@ -515,15 +528,15 @@ async def import_existing_pdfs(
                         file_size_kb=file_size_kb,
                         siret=siret,
                         raison_sociale=raison_sociale or f"Entreprise {siret}",
-                        ville=None,
-                        code_postal=None,
+                        ville=ville,
+                        code_postal=code_postal,
                         effectif=None,
                         inscrits=None,
                         date_invitation=None,
                         date_election=None,
-                        numero_departement=None,
-                        nom_departement=None,
-                        ud="inconnu",
+                        numero_departement=numero_departement,
+                        nom_departement=nom_departement,
+                        ud=f"UD-{numero_departement}" if numero_departement else "inconnu",
                         fd="inconnu",
                         idcc=None,
                         is_priority=False,
