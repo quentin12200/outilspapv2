@@ -349,6 +349,22 @@ class PAPCampaignService:
         # Salutation personnalisée si le responsable est connu
         salutation = f"Bonjour {responsable_nom}," if responsable_nom else "Bonjour,"
 
+        # Construire le bloc du lien PDF en avant si disponible
+        pdf_block = ""
+        if pdf_url:
+            app_url = os.getenv('APP_URL', 'http://localhost:8000')
+            full_pdf_url = f"{app_url}{pdf_url}"
+            pdf_block = f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📎 DOCUMENT PAP EN LIGNE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👉 Accès direct au PAP :
+{full_pdf_url}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
         if is_priority:
             # Email pour PAP à enjeux
             subject = f"🔥 PAP À ENJEUX - {raison_sociale} ({ville})"
@@ -381,7 +397,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 🎯 OPPORTUNITÉ : Entreprise sans historique CGT connu - Potentiel de nouvelle implantation !
 """
 
-            body = intro + f"""
+            body = intro + pdf_block + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -406,24 +422,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
             for reason in priority_reasons:
                 body += f"✓ {reason}\n"
 
-            # Ajouter le lien PDF si disponible
-            if pdf_url:
-                # Construire l'URL complète avec la variable d'environnement APP_URL
-                app_url = os.getenv('APP_URL', 'http://localhost:8000')
-                full_pdf_url = f"{app_url}{pdf_url}"
-                body += f"""
+            body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📎 Document PAP disponible en ligne :
-{full_pdf_url}
-
-Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
-"""
-            else:
-                body += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Le document PAP complet est joint à cet email.
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
 """
@@ -476,7 +476,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 💡 Entreprise sans historique CGT connu - Opportunité de nouvelle implantation.
 """
 
-            body = intro + f"""
+            body = intro + pdf_block + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -495,21 +495,6 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-"""
-            # Ajouter le lien PDF si disponible
-            if pdf_url:
-                # Construire l'URL complète avec la variable d'environnement APP_URL
-                app_url = os.getenv('APP_URL', 'http://localhost:8000')
-                full_pdf_url = f"{app_url}{pdf_url}"
-                body += f"""📎 Document PAP disponible en ligne :
-{full_pdf_url}
-"""
-            else:
-                body += f"""Le document PAP complet est joint à cet email.
-"""
-
-            # PAS de référent régional pour les emails standard
-            body += """
 Cordialement,
 Confédération CGT"""
 
