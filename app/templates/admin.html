@@ -794,39 +794,32 @@
             <i class="fas fa-sync-alt"></i>
             <span>Actualiser</span>
           </button>
+          <button onclick="importNewPDFs()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center space-x-2">
+            <i class="fas fa-plus"></i>
+            <span>Importer les nouveaux PDFs</span>
+          </button>
+          <button onclick="reimportAllPDFs()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2">
+            <i class="fas fa-redo"></i>
+            <span>🔄 Ré-importer TOUS les anciens PDFs</span>
+          </button>
           <button onclick="debugPDFAnalysis()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center space-x-2">
             <i class="fas fa-search"></i>
-            <span>🔍 Analyser les PDFs</span>
-          </button>
-          <button onclick="importExistingPDFs()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2">
-            <i class="fas fa-database"></i>
-            <span>Importer les PDFs existants</span>
+            <span>🔍 Analyser</span>
           </button>
           <button onclick="showCleanupDialog()" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center space-x-2">
             <i class="fas fa-trash-alt"></i>
-            <span>Nettoyage automatique</span>
+            <span>Nettoyage</span>
           </button>
         </div>
 
-        <!-- Option force réimportation -->
-        <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-500 rounded">
-          <label class="inline-flex items-start cursor-pointer">
-            <input type="checkbox" id="force-reimport-checkbox" class="w-5 h-5 mt-0.5 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500">
-            <span class="ml-3 text-sm">
-              <strong class="text-blue-900">🔄 Forcer la ré-importation des anciens PAPs scannés</strong>
-              <div class="text-gray-700 mt-1">
-                Cochez cette case pour récupérer tous vos vieux PAPs déjà scannés et envoyés par email AVANT le système de portails.
-                Cela réactivera les liens morts dans vos anciens emails.
-              </div>
-            </span>
-          </label>
-        </div>
-
         <!-- Info import -->
-        <div class="p-3 bg-purple-50 border-l-4 border-purple-500 rounded text-sm text-purple-800">
-          <i class="fas fa-info-circle mr-2"></i>
-          <strong>Import en masse :</strong> Importe tous les PDFs existants dans les portails UD/FD.
-          Nécessaire après avoir scanné des PAPs AVANT l'activation du système de portails.
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div class="p-3 bg-green-50 border-l-4 border-green-500 rounded text-sm text-green-800">
+            <strong>✅ Importer les nouveaux :</strong> Ajoute seulement les PDFs pas encore en base.
+          </div>
+          <div class="p-3 bg-purple-50 border-l-4 border-purple-500 rounded text-sm text-purple-800">
+            <strong>🔄 Ré-importer TOUS :</strong> Récupère tous vos vieux PDFs scannés avant le système de portails.
+          </div>
         </div>
 
         <!-- Liste des PDFs -->
@@ -1816,33 +1809,26 @@ async function cleanupOldPDFs(daysOld) {
   }
 }
 
-// Importer les PDFs existants dans la base de données
-async function importExistingPDFs() {
-  // Lire l'option de ré-importation
-  const forceReimport = document.getElementById('force-reimport-checkbox').checked;
-
-  let confirmMessage = '';
-  if (forceReimport) {
-    confirmMessage = '🔄 RÉ-IMPORTATION DES ANCIENS PAPs SCANNÉS\n\n';
-    confirmMessage += '✓ Cette option va récupérer TOUS vos vieux PAPs :\n';
-    confirmMessage += '  • Les PDFs déjà scannés et envoyés par email\n';
-    confirmMessage += '  • Ceux qui ont des liens morts actuellement\n';
-    confirmMessage += '  • Les anciens scans d\'AVANT le système de portails\n\n';
-    confirmMessage += '⚠️ Les enregistrements existants seront mis à jour\n\n';
-  } else {
-    confirmMessage = '📥 IMPORT STANDARD (nouveaux PDFs uniquement)\n\n';
-    confirmMessage += 'Cette option importe seulement :\n';
-    confirmMessage += '  • Les nouveaux PDFs pas encore en base\n';
-    confirmMessage += '  • Saute les PDFs déjà importés\n\n';
-    confirmMessage += '💡 Pour récupérer vos anciens PAPs scannés,\n';
-    confirmMessage += '   cochez "Forcer la ré-importation" d\'abord !\n\n';
-  }
-  confirmMessage += 'Continuer ?';
-
-  if (!confirm(confirmMessage)) {
+// Importer les nouveaux PDFs uniquement
+async function importNewPDFs() {
+  if (!confirm('Importer les nouveaux PDFs ?\n\nCela va ajouter seulement les PDFs pas encore en base.\nLes PDFs déjà importés seront ignorés.')) {
     return;
   }
 
+  await runImport(false);
+}
+
+// Ré-importer TOUS les anciens PDFs
+async function reimportAllPDFs() {
+  if (!confirm('🔄 RÉ-IMPORTER TOUS LES ANCIENS PDFs ?\n\n✓ Cette action va récupérer TOUS vos vieux PAPs scannés,\n  y compris ceux d\'AVANT le système de portails.\n\n⚠️ Les enregistrements existants seront mis à jour.\n\nContinuer ?')) {
+    return;
+  }
+
+  await runImport(true);
+}
+
+// Fonction commune pour l'import
+async function runImport(forceReimport) {
   const button = event.target.closest('button');
   const originalText = button.innerHTML;
   button.disabled = true;
@@ -1860,12 +1846,12 @@ async function importExistingPDFs() {
 
     if (data.success) {
       let message = `✓ Import terminé !\n\n`;
-      message += `📊 Total PDFs : ${data.total_pdfs}\n`;
+      message += `📊 Total PDFs dans le dossier : ${data.total_pdfs}\n`;
       message += `✅ Importés : ${data.imported}\n`;
       if (data.updated > 0) {
         message += `🔄 Ré-importés : ${data.updated}\n`;
       }
-      message += `⏭️  Déjà existants : ${data.skipped}\n`;
+      message += `⏭️  Déjà existants (ignorés) : ${data.skipped}\n`;
       message += `❌ Erreurs : ${data.errors.length}\n`;
 
       if (data.errors.length > 0) {
