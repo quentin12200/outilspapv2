@@ -22,6 +22,30 @@ router = APIRouter(prefix="/api/ud", tags=["Tableaux UD"])
 
 
 # ===============================================
+# HELPER FUNCTIONS
+# ===============================================
+
+def create_default_checklist(db: Session, entreprise_id: int, type_cible: str):
+    """Crée la checklist par défaut pour une entreprise selon son type"""
+    from create_checklist_table import CHECKLIST_RENFORCEMENT, CHECKLIST_IMPLANTATION
+
+    template = CHECKLIST_RENFORCEMENT if type_cible == "presente" else CHECKLIST_IMPLANTATION
+
+    for item_template in template:
+        checklist_item = ChecklistItemUD(
+            entreprise_id=entreprise_id,
+            categorie=item_template["categorie"],
+            libelle=item_template["libelle"],
+            ordre=item_template["ordre"],
+            est_coche=False,
+            informations=""
+        )
+        db.add(checklist_item)
+
+    db.commit()
+
+
+# ===============================================
 # PYDANTIC MODELS (validation des données)
 # ===============================================
 
@@ -324,6 +348,14 @@ async def create_entreprise_ud(
 
         session.commit()
         session.refresh(entreprise)
+
+        # Créer automatiquement la checklist pour cette entreprise
+        try:
+            create_default_checklist(session, entreprise.id, data.type_cible)
+            logger.info(f"Checklist créée pour entreprise {entreprise.id}")
+        except Exception as e:
+            logger.error(f"Erreur création checklist: {e}")
+            # Ne pas bloquer la création de l'entreprise si la checklist échoue
 
         logger.info(f"Entreprise ajoutée au tableau {code_ud}: {entreprise.nom_entreprise}")
 
