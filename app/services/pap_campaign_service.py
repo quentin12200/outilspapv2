@@ -386,8 +386,9 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
                     elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
-                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE\n"
-            else:
+                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE"
+
+            body = intro + pdf_block + f"""
                 intro = f"""{salutation}
 
 ⚠️ ATTENTION - PAP À ENJEUX - NOUVELLE IMPLANTATION ⚠️
