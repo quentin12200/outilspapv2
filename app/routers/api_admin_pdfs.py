@@ -268,3 +268,149 @@ async def get_pdf_stats(
     except Exception as e:
         logger.error(f"Erreur lors du calcul des stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import-existing")
+async def import_existing_pdfs(
+    db: Session = Depends(get_session),
+    current_user = Depends(require_admin_user)
+):
+    """
+    Importe tous les PDFs existants dans le volume Railway vers la table pap_documents.
+
+    Pour chaque PDF:
+    - Extrait le SIRET du nom de fichier (format: SIRET_DATE.pdf)
+    - Cherche les données dans la table invitations
+    - Crée un enregistrement PAPDocument
+    - Les PAPs apparaissent ensuite dans les portails UD/FD
+    """
+    try:
+        from ..models import PAPDocument, Invitation
+        import re
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        logger.info("🔄 Démarrage import en masse des PDFs existants...")
+
+        # Lister tous les PDFs
+        pdf_files = list(PAP_UPLOADS_DIR.glob("*.pdf"))
+        total_pdfs = len(pdf_files)
+
+        logger.info(f"📁 {total_pdfs} PDF(s) trouvé(s) dans {PAP_UPLOADS_DIR}")
+
+        for pdf_path in pdf_files:
+            if pdf_path.name == ".gitkeep":
+                continue
+
+            try:
+                # Vérifier si déjà importé
+                existing = db.query(PAPDocument).filter(
+                    PAPDocument.filename == pdf_path.name
+                ).first()
+
+                if existing:
+                    skipped += 1
+                    logger.debug(f"⏭️  {pdf_path.name} déjà importé")
+                    continue
+
+                # Extraire le SIRET du nom du fichier (format: SIRET_DATE.pdf)
+                match = re.match(r'(\d{14})_\d{8}\.pdf', pdf_path.name)
+                if not match:
+                    errors.append({
+                        'filename': pdf_path.name,
+                        'error': 'Format de nom invalide (attendu: SIRET_DATE.pdf)'
+                    })
+                    continue
+
+                siret = match.group(1)
+
+                # Chercher les données dans la table invitations
+                invitation = db.query(Invitation).filter(
+                    Invitation.siret == siret
+                ).first()
+
+                if not invitation:
+                    errors.append({
+                        'filename': pdf_path.name,
+                        'error': f'Aucune invitation trouvée pour SIRET {siret}'
+                    })
+                    continue
+
+                # Calculer la taille du fichier
+                file_size_kb = pdf_path.stat().st_size / 1024
+
+                # Gérer le cas FD vide
+                fd_value = invitation.fd if invitation.fd else "sans fd"
+
+                # Créer l'enregistrement PAPDocument
+                pap_doc = PAPDocument(
+                    filename=pdf_path.name,
+                    pdf_url=f"/pap-pdfs/{pdf_path.name}",
+                    file_size_kb=file_size_kb,
+                    siret=siret,
+                    raison_sociale=invitation.raison_sociale,
+                    ville=invitation.ville,
+                    code_postal=invitation.code_postal,
+                    effectif=invitation.effectif,
+                    inscrits=invitation.inscrits,
+                    date_invitation=invitation.date_invitation,
+                    date_election=invitation.date_election,
+                    numero_departement=invitation.numero_departement,
+                    nom_departement=invitation.nom_departement,
+                    ud=invitation.ud,
+                    fd=fd_value,
+                    idcc=invitation.idcc,
+                    is_priority=invitation.is_priority or False,
+                    priority_reasons=invitation.priority_reasons,
+                    has_cgt_history=invitation.has_cgt_history or False,
+                    cgt_c3=invitation.cgt_c3 or False,
+                    cgt_c4=invitation.cgt_c4 or False,
+                    created_by=current_user.id if hasattr(current_user, 'id') else None,
+                    is_active=True,
+                    uploaded_at=datetime.fromtimestamp(pdf_path.stat().st_mtime)
+                )
+
+                db.add(pap_doc)
+                imported += 1
+                logger.info(f"✅ {pdf_path.name} importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
+
+            except Exception as e:
+                errors.append({
+                    'filename': pdf_path.name,
+                    'error': str(e)
+                })
+                logger.error(f"❌ Erreur import {pdf_path.name}: {e}")
+
+        # Commit tous les imports d'un coup
+        if imported > 0:
+            db.commit()
+            logger.info(f"💾 {imported} PDF(s) importé(s) en base de données")
+
+        # Logger l'action
+        log_admin_action(
+            db=db,
+            user_id=current_user.id if hasattr(current_user, 'id') else None,
+            action="import_existing_pdfs",
+            details={
+                "total_pdfs": total_pdfs,
+                "imported": imported,
+                "skipped": skipped,
+                "errors_count": len(errors)
+            }
+        )
+
+        return {
+            "success": True,
+            "total_pdfs": total_pdfs,
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "message": f"{imported} PDF(s) importé(s), {skipped} déjà existant(s), {len(errors)} erreur(s)"
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Erreur lors de l'import en masse: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
