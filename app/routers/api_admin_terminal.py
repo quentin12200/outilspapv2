@@ -41,7 +41,9 @@ ALLOWED_COMMANDS = {
     # Database info
     "db info": ["sqlite3", "data/pap.db", ".tables"],
     "db schema ud": ["sqlite3", "data/pap.db", ".schema tableaux_bord_ud"],
+    "db schema pap": ["sqlite3", "data/pap.db", ".schema pap_documents"],
     "db count ud": ["sqlite3", "data/pap.db", "SELECT COUNT(*) FROM tableaux_bord_ud;"],
+    "db count pap": ["sqlite3", "data/pap.db", "SELECT COUNT(*) FROM pap_documents;"],
 
     # System info
     "disk space": ["df", "-h"],
@@ -53,7 +55,7 @@ ALLOWED_COMMANDS = {
     "pip list": ["pip", "list"],
 
     # Migrations
-    "force migration": ["python", "force_create_ud_table.py"],
+    "force migration": ["python", "-c", "from app.migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed; create_tableaux_bord_ud_table_if_needed(); create_pap_documents_table_if_needed(); print('✅ Migrations terminées')"],
 
     # Gestion des PDFs
     "pdfs list": ["ls", "-lh", "/app/data/pap_uploads/"],

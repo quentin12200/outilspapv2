@@ -501,6 +501,19 @@ IMPORTANT: Le SIRET doit contenir exactement 14 chiffres. Vérifie bien que c'es
                - La ville peut être en MAJUSCULES après le code postal
                - Extrait le nom exact de la commune
 
+            5. DATES (CRUCIAL - BIEN DISTINGUER):
+               - DATE INVITATION (date de la réunion de négociation du PAP):
+                 * Cherche des phrases comme: "la réunion de négociation du protocole aura lieu le...",
+                   "réunion de négociation fixée au...", "négociation du PAP prévue le...",
+                   "vous convie à une réunion le...", "rendez-vous fixé au..."
+                 * C'est la date où l'employeur invite les syndicats à venir négocier le PAP
+                 * ATTENTION: Ne pas confondre avec la date d'élection !
+
+               - DATE ÉLECTION (date du scrutin):
+                 * Cherche des phrases comme: "élections prévues le...", "scrutin fixé au...",
+                   "les élections auront lieu le...", "date du vote..."
+                 * C'est la date où les salariés voteront
+
             Retourne UNIQUEMENT un objet JSON valide avec cette structure:
 
             {
@@ -511,8 +524,8 @@ IMPORTANT: Le SIRET doit contenir exactement 14 chiffres. Vérifie bien que c'es
                 "adresse": "Adresse complète (numéro, rue)",
                 "code_postal": "Code postal (5 chiffres)",
                 "ville": "Nom de la commune/ville EXACT (comme écrit dans le document)",
-                "date_invitation": "Date du courrier au format YYYY-MM-DD",
-                "date_election": "Date de l'élection au format YYYY-MM-DD",
+                "date_invitation": "Date de la réunion de négociation du PAP (pas la date du courrier!) au format YYYY-MM-DD",
+                "date_election": "Date de l'élection/scrutin au format YYYY-MM-DD",
                 "date_limite_candidature": "Date limite candidatures au format YYYY-MM-DD",
                 "effectif": "Effectif TOTAL de l'établissement (nombre entier)",
                 "inscrits": "Nombre total d'électeurs inscrits (somme de tous les collèges)",
