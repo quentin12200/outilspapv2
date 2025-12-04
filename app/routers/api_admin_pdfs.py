@@ -440,6 +440,32 @@ async def import_existing_pdfs(
                         if email_with_file and email_with_file.siret:
                             siret = email_with_file.siret
                             logger.debug(f"📎 {pdf_path.name} - SIRET trouvé via metadata: {siret}")
+                        else:
+                            # Méthode 4 : Extraire le SIRET du contenu du PDF lui-même
+                            try:
+                                from pypdf import PdfReader
+                                logger.info(f"🔍 {pdf_path.name} - Extraction du SIRET depuis le contenu PDF...")
+
+                                pdf_reader = PdfReader(str(pdf_path))
+                                text = ""
+                                # Lire les 3 premières pages (le SIRET est généralement au début)
+                                for page_num in range(min(3, len(pdf_reader.pages))):
+                                    text += pdf_reader.pages[page_num].extract_text()
+
+                                # Chercher un pattern SIRET (14 chiffres consécutifs ou avec espaces)
+                                # Pattern 1: 14 chiffres d'affilée
+                                siret_match = re.search(r'\b(\d{14})\b', text)
+                                if siret_match:
+                                    siret = siret_match.group(1)
+                                    logger.info(f"✅ {pdf_path.name} - SIRET {siret} extrait du PDF")
+                                else:
+                                    # Pattern 2: SIRET avec espaces (XXX XXX XXX XXXXX)
+                                    siret_match = re.search(r'\b(\d{3})\s*(\d{3})\s*(\d{3})\s*(\d{5})\b', text)
+                                    if siret_match:
+                                        siret = ''.join(siret_match.groups())
+                                        logger.info(f"✅ {pdf_path.name} - SIRET {siret} extrait du PDF (avec espaces)")
+                            except Exception as e:
+                                logger.warning(f"⚠️  Impossible d'extraire le SIRET du PDF {pdf_path.name}: {e}")
 
                 if not siret:
                     errors.append({
