@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Administration — A.N.D.RE{% endblock %}
+
+{% block title %}Administration - A.N.D.RE.{% endblock %}
 
 {% block content %}
 
@@ -16,767 +17,124 @@
     </a>
   </div>
   <p class="text-gray-600">
-    Suivi centralisé des imports, automatisations et nouvelles fonctionnalités de la plateforme A.N.D.RE.
+    Gestion centralisée de la plateforme A.N.D.RE.
   </p>
 </div>
 
 <!-- Global metrics -->
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
   <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex items-center justify-between mb-3">
-      <div>
-        <p class="text-xs font-semibold text-gray-500 uppercase">PV enregistrés</p>
-        <p class="text-3xl font-bold text-gray-900">{{ stats.pv_total or 0 }}</p>
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Entreprises</h3>
+      <div class="bg-blue-50 rounded-full p-2">
+        <i class="fas fa-building text-blue-600"></i>
       </div>
-      <span class="inline-flex items-center justify-center w-12 h-12 bg-cgt-red/10 text-cgt-red rounded-full">
-        <i class="fas fa-poll text-xl"></i>
-      </span>
     </div>
-    <p class="text-xs text-gray-500">SIRET distincts : {{ stats.pv_sirets or 0 }}</p>
+    <p class="text-3xl font-bold text-gray-800">{{ total_entreprises|default(0)|number_format }}</p>
+    <p class="text-xs text-gray-500 mt-1">dans la base papcse.db</p>
   </div>
 
   <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex items-center justify-between mb-3">
-      <div>
-        <p class="text-xs font-semibold text-gray-500 uppercase">Résumé SIRET</p>
-        <p class="text-3xl font-bold text-gray-900">{{ stats.summary_total or 0 }}</p>
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Invitations PAP</h3>
+      <div class="bg-green-50 rounded-full p-2">
+        <i class="fas fa-envelope text-green-600"></i>
       </div>
-      <span class="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-full">
-        <i class="fas fa-database text-xl"></i>
-      </span>
     </div>
-    <p class="text-xs text-gray-500">Dernier PV enregistré : {{ stats.last_summary or '—' }}</p>
+    <p class="text-3xl font-bold text-gray-800">{{ total_invitations|default(0)|number_format }}</p>
+    <p class="text-xs text-gray-500 mt-1">Cycle 5</p>
   </div>
 
   <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex items-center justify-between mb-3">
-      <div>
-        <p class="text-xs font-semibold text-gray-500 uppercase">Invitations électorales C5</p>
-        <p class="text-3xl font-bold text-gray-900">{{ stats.invit_total or 0 }}</p>
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Utilisateurs</h3>
+      <div class="bg-purple-50 rounded-full p-2">
+        <i class="fas fa-users text-purple-600"></i>
       </div>
-      <span class="inline-flex items-center justify-center w-12 h-12 bg-green-100 text-green-600 rounded-full">
-        <i class="fas fa-envelope-open-text text-xl"></i>
-      </span>
     </div>
-    <p class="text-xs text-gray-500">Dernière invitation : {{ stats.last_invitation or '—' }}</p>
+    <p class="text-3xl font-bold text-gray-800">{{ total_users|default(0) }}</p>
+    <p class="text-xs text-gray-500 mt-1">
+      {% if pending_users > 0 %}
+        <span class="text-orange-600 font-semibold">{{ pending_users }} en attente</span>
+      {% else %}
+        tous approuvés
+      {% endif %}
+    </p>
   </div>
 
   <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex items-center justify-between mb-3">
-      <div>
-        <p class="text-xs font-semibold text-gray-500 uppercase">Élections ≥ {{ upcoming_threshold }}</p>
-        <p class="text-3xl font-bold text-gray-900">{{ stats.upcoming_total or 0 }}</p>
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Portails UD/FD</h3>
+      <div class="bg-orange-50 rounded-full p-2">
+        <i class="fas fa-folder-open text-orange-600"></i>
       </div>
-      <span class="inline-flex items-center justify-center w-12 h-12 bg-purple-100 text-purple-600 rounded-full">
-        <i class="fas fa-calendar-day text-xl"></i>
-      </span>
     </div>
-    <p class="text-xs text-gray-500">Prochaine échéance : {{ stats.upcoming_next or '—' }}</p>
+    <p class="text-3xl font-bold text-gray-800" id="portails-count">-</p>
+    <p class="text-xs text-gray-500 mt-1">départements actifs</p>
   </div>
 </div>
 
-<!-- Section Gestion des utilisateurs -->
-<!-- Gestion des utilisateurs (lien vers page dédiée) -->
-<section class="mb-10">
-  <a href="/admin/users" class="block bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all hover:border-indigo-300">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center space-x-4">
-        <div class="flex-shrink-0">
-          <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-            <i class="fas fa-users text-white text-2xl"></i>
-          </div>
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            Gestion des utilisateurs
-            {% if pending_users > 0 %}
-            <span class="px-3 py-1 bg-amber-500 text-white text-sm font-semibold rounded-full">{{ pending_users }} en attente</span>
-            {% endif %}
-          </h2>
-          <p class="text-sm text-gray-600 mt-1">
-            {{ total_users }} utilisateur{{ 's' if total_users > 1 else '' }} ·
-            {{ approved_users }} approuvé{{ 's' if approved_users > 1 else '' }}
-          </p>
-        </div>
+<!-- Navigation rapide -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+  <a href="/admin/users" class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group">
+    <div class="flex items-center justify-between mb-3">
+      <div class="bg-purple-50 rounded-full p-3 group-hover:bg-purple-100 transition">
+        <i class="fas fa-users text-purple-600 text-xl"></i>
       </div>
-      <div class="flex-shrink-0">
-        <i class="fas fa-chevron-right text-gray-400 text-2xl"></i>
-      </div>
+      {% if pending_users > 0 %}
+      <span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">{{ pending_users }}</span>
+      {% endif %}
     </div>
+    <p class="text-sm font-semibold">Gestion des utilisateurs</p>
+    <p class="text-xs opacity-90">Approuver les inscriptions</p>
   </a>
-</section>
 
-<!-- Campagne PAP -->
-<section class="mb-10">
-  <div class="bg-gradient-to-r from-green-50 to-teal-50 border-l-4 border-green-500 rounded-xl shadow-md p-6">
-    <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-4">
-        <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center">
-          <i class="fas fa-envelope-open-text text-white text-2xl"></i>
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-800">Campagne PAP - Cycle 5</h2>
-          <p class="text-sm text-gray-600 mt-1">Gestion des invitations électorales : scan, export et relances</p>
-        </div>
+  <a href="#portails" class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group">
+    <div class="flex items-center justify-between mb-3">
+      <div class="bg-green-50 rounded-full p-3 group-hover:bg-green-100 transition">
+        <i class="fas fa-folder-open text-green-600 text-xl"></i>
       </div>
     </div>
+    <p class="text-sm font-semibold">Portails UD/FD</p>
+    <p class="text-xs opacity-90">Gérer les PDFs par département</p>
+  </a>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- Scan automatique -->
-      <button onclick="scannerInvitations()" id="btn-scan-pap"
-        class="p-6 bg-white rounded-lg shadow hover:shadow-md transition border-2 border-transparent hover:border-green-400 text-left">
-        <div class="flex items-center gap-3 mb-3">
-          <i class="fas fa-robot text-green-600 text-2xl"></i>
-          <h3 class="font-bold text-gray-800">Scanner automatique</h3>
-        </div>
-        <p class="text-sm text-gray-600">Enrichir automatiquement toutes les invitations via SIRENE/Pappers (raison sociale, IDCC, effectifs, etc.)</p>
-      </button>
-
-      <!-- Export des saisies -->
-      <a href="/api/invitations/export-tsv" target="_blank"
-        class="p-6 bg-white rounded-lg shadow hover:shadow-md transition border-2 border-transparent hover:border-blue-400 text-left block">
-        <div class="flex items-center gap-3 mb-3">
-          <i class="fas fa-file-excel text-blue-600 text-2xl"></i>
-          <h3 class="font-bold text-gray-800">Export des saisies</h3>
-        </div>
-        <p class="text-sm text-gray-600">Télécharger toutes les invitations au format Excel pour analyse ou archivage</p>
-      </a>
-
-      <!-- Génération emails -->
-      <button onclick="genererEmailsPAP()" id="btn-emails-pap"
-        class="p-6 bg-white rounded-lg shadow hover:shadow-md transition border-2 border-transparent hover:border-purple-400 text-left">
-        <div class="flex items-center gap-3 mb-3">
-          <i class="fas fa-paper-plane text-purple-600 text-2xl"></i>
-          <h3 class="font-bold text-gray-800">Génération d'emails</h3>
-        </div>
-        <p class="text-sm text-gray-600">Préparer les emails de relance pour les invitations incomplètes ou en retard</p>
-      </button>
-    </div>
-
-    <!-- Import Excel complété -->
-    <div class="mt-6 pt-6 border-t border-green-200">
-      <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border-2 border-purple-300">
-        <div class="flex items-start gap-4 mb-4">
-          <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-file-import text-white text-xl"></i>
-          </div>
-          <div class="flex-1">
-            <h3 class="font-bold text-gray-800 text-lg mb-2">Ré-importer Excel complété et générer les emails</h3>
-            <p class="text-sm text-gray-600 mb-4">
-              Importez le fichier Excel après l'avoir complété avec les SIRET manquants.
-              Le système générera automatiquement tous les emails avec détection de la présence CGT.
-            </p>
-            <div class="flex items-center gap-3">
-              <input type="file" id="excel-import-input-admin" accept=".xlsx,.xls" class="hidden">
-              <button onclick="importExcelAdmin()" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition flex items-center gap-2 shadow">
-                <i class="fas fa-upload"></i>
-                Importer Excel
-              </button>
-              <span id="excel-filename-admin" class="text-sm text-gray-600"></span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Progress bar -->
-        <div id="import-progress-admin" class="hidden mt-4">
-          <div class="flex items-center gap-3 mb-2">
-            <i class="fas fa-spinner fa-spin text-purple-600"></i>
-            <span class="text-sm font-semibold text-gray-700">Import et génération en cours...</span>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
-            <div id="import-progress-bar-admin" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-          </div>
-        </div>
-
-        <!-- Résultat stats -->
-        <div id="import-stats-admin" class="hidden mt-4 grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+  <a href="#imports" class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition group">
+    <div class="flex items-center justify-between mb-3">
+      <div class="bg-blue-50 rounded-full p-3 group-hover:bg-blue-100 transition">
+        <i class="fas fa-file-import text-blue-600 text-xl"></i>
       </div>
     </div>
+    <p class="text-sm font-semibold">Imports & Exports</p>
+    <p class="text-xs opacity-90">Excel, CSV, données</p>
+  </a>
+</div>
 
-    <!-- Stats rapides -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-green-200">
-      <div class="text-center">
-        <p class="text-2xl font-bold text-green-600">{{ stats.invit_total }}</p>
-        <p class="text-xs text-gray-600 mt-1">Invitations PAP</p>
-      </div>
-      <div class="text-center">
-        <p class="text-2xl font-bold text-blue-600" id="invit-enrichies">-</p>
-        <p class="text-xs text-gray-600 mt-1">Enrichies</p>
-      </div>
-      <div class="text-center">
-        <p class="text-2xl font-bold text-amber-600" id="invit-incomplet">-</p>
-        <p class="text-xs text-gray-600 mt-1">Incomplètes</p>
-      </div>
-      <div class="text-center">
-        <p class="text-2xl font-bold text-red-600" id="invit-retard">-</p>
-        <p class="text-xs text-gray-600 mt-1">En retard</p>
-      </div>
-    </div>
-  </div>
-</section>
+<!-- Section Portails UD/FD -->
+<section id="portails" class="mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+    <i class="fas fa-folder-open text-orange-600 mr-3"></i>
+    Portails UD/FD
+  </h2>
 
-<!-- Quick actions -->
-<section class="mb-10">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">Raccourcis & nouvelles fonctionnalités</h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-    <button onclick="genererRapportIA()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition border border-pink-200 hover:from-pink-600 hover:to-purple-700">
-      <div class="text-left">
-        <p class="text-sm font-semibold">⚡ Analyse Avancée</p>
-        <p class="text-xs opacity-90">Analyse approfondie des cibles prioritaires</p>
-      </div>
-      <i class="fas fa-chart-line text-white text-xl"></i>
-    </button>
-
-    <a href="/calendrier" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-purple-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Calendrier prochaines élections +1000</p>
-        <p class="text-xs text-gray-500">Vue dédiée aux scrutins à venir (date_prochain_scrutin)</p>
-      </div>
-      <i class="fas fa-calendar-alt text-purple-500 text-xl"></i>
-    </a>
-
-    <a href="/invitations" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-green-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Tableau Invitations électorales</p>
-        <p class="text-xs text-gray-500">Consultez et filtrez les imports automatiques ou manuels</p>
-      </div>
-      <i class="fas fa-envelope text-green-500 text-xl"></i>
-    </a>
-
-    <a href="/admin/diagnostics" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-red-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Diagnostic des doublons</p>
-        <p class="text-xs text-gray-500">Détection & nettoyage des invitations importées plusieurs fois</p>
-      </div>
-      <i class="fas fa-stethoscope text-red-500 text-xl"></i>
-    </a>
-
-    <a href="/admin/users" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-indigo-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Gestion des utilisateurs</p>
-        <p class="text-xs text-gray-500">Voir et gérer tous les comptes utilisateurs</p>
-      </div>
-      <i class="fas fa-users text-indigo-500 text-xl"></i>
-    </a>
-
-    <a href="/recherche-siret" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-violet-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Recherche SIRET</p>
-        <p class="text-xs text-gray-500">Rechercher et ajouter une entreprise par SIRET</p>
-      </div>
-      <i class="fas fa-search text-violet-500 text-xl"></i>
-    </a>
-
-    {% if current_user and current_user.role == "admin" %}
-    <a href="#imports" class="flex items-center justify-between px-5 py-4 bg-white rounded-xl shadow hover:shadow-lg transition border border-blue-100">
-      <div>
-        <p class="text-sm font-semibold text-gray-700">Import manuel</p>
-        <p class="text-xs text-gray-500">Accéder rapidement aux formulaires d'import Excel</p>
-      </div>
-      <i class="fas fa-file-upload text-blue-500 text-xl"></i>
-    </a>
-    {% endif %}
-
-    <a href="/extraction" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl shadow-lg hover:shadow-xl transition text-white hover:from-orange-600 hover:to-red-700">
-      <div class="text-left">
-        <p class="text-sm font-semibold flex items-center gap-2">
-          <span class="px-2 py-0.5 bg-yellow-300 text-orange-900 rounded text-xs font-bold">IA</span>
-          Scanner invitations PAP
-        </p>
-        <p class="text-xs text-orange-100">Extraction automatique des invitations C5 et PAP par IA</p>
-      </div>
-      <i class="fas fa-scan text-white text-xl"></i>
-    </a>
-
-    {% if current_user and current_user.role == "admin" %}
-    <a href="/admin/campagne-pap" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg hover:shadow-xl transition text-white hover:from-purple-700 hover:to-pink-700">
-      <div class="text-left">
-        <p class="text-sm font-semibold flex items-center gap-2">
-          <span class="px-2 py-0.5 bg-yellow-300 text-purple-900 rounded text-xs font-bold">ADMIN</span>
-          Campagne PAP
-        </p>
-        <p class="text-xs text-purple-100">Analyse massive et emails automatisés pour les UD</p>
-      </div>
-      <i class="fas fa-bullhorn text-white text-xl"></i>
-    </a>
-    {% endif %}
-
-    <button onclick="ouvrirAssistantExpert()" class="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg hover:shadow-xl transition text-white">
-      <div class="text-left">
-        <p class="text-sm font-semibold flex items-center gap-2">
-          <span class="px-2 py-0.5 bg-yellow-400 text-yellow-900 rounded text-xs font-bold">NOUVEAU</span>
-          Assistant Expert
-        </p>
-        <p class="text-xs text-indigo-100">Posez des questions en langage naturel</p>
-      </div>
-      <i class="fas fa-comments text-2xl"></i>
-    </button>
-  </div>
-</section>
-
-<!-- Upcoming elections preview -->
-<section class="bg-white rounded-xl shadow-md p-6 mb-10">
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-    <div>
-      <h2 class="text-2xl font-bold text-gray-800">Calendrier des prochaines élections ≥ {{ upcoming_threshold }}</h2>
-      <p class="text-sm text-gray-500">Les données proviennent de la colonne « date_prochain_scrutin » croisée avec l'effectif SIRET.</p>
-    </div>
-    <a href="/calendrier" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
-      <i class="fas fa-external-link-alt mr-2"></i>
-      Ouvrir le calendrier complet
-    </a>
-  </div>
-
-  {% if upcoming_preview %}
-  <div class="overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200 text-sm">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-4 py-3 text-left font-semibold text-gray-600">Date</th>
-          <th class="px-4 py-3 text-left font-semibold text-gray-600">Entreprise / SIRET</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">Effectif</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">Cycle</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">Type</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">FD</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">IDCC</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">SVE</th>
-          <th class="px-4 py-3 text-center font-semibold text-gray-600">Participation</th>
-          <th class="px-4 py-3 text-left font-semibold text-gray-600">Top 3 organisations</th>
-          <th class="px-4 py-3 text-left font-semibold text-gray-600">Implantation</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-100">
-        {% for item in upcoming_preview %}
-        <tr class="hover:bg-purple-50/40">
-          <td class="px-4 py-3 font-semibold text-gray-700">{{ item.date_display }}</td>
-          <td class="px-4 py-3">
-            <div class="font-semibold text-gray-800">{{ item.raison_sociale or '—' }}</div>
-            <div class="text-xs text-gray-500 tracking-widest">{{ item.siret or '—' }}</div>
-          </td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.effectif or '—' }}</td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.cycle or '—' }}</td>
-          <td class="px-4 py-3 text-center">
-            {% if item.institution == 'CAR' %}
-              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">Carence</span>
-            {% elif item.institution == 'CSE' %}
-              <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CSE</span>
-            {% else %}
-              <span class="text-gray-700">{{ item.institution or '—' }}</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.fd | clean_nan or '—' }}</td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.idcc | clean_nan or '—' }}</td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.sve_display or '—' }}</td>
-          <td class="px-4 py-3 text-center text-gray-700">{{ item.participation_display or '—' }}</td>
-          <td class="px-4 py-3 text-gray-700">
-            {% if item.top_orgs %}
-            <ul class="space-y-1">
-              {% for org in item.top_orgs %}
-              <li class="flex items-baseline justify-between gap-3">
-                <span class="font-semibold text-gray-800">{{ org.label }}</span>
-                <span class="text-sm text-gray-600">{{ org.votes_display or '—' }}{% if org.percent_display %} <span class="text-xs text-gray-500">({{ org.percent_display }})</span>{% endif %}</span>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <span class="text-gray-400">—</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 text-gray-700">
-            <div>{{ item.ud | clean_nan or '—' }}</div>
-            <div class="text-xs text-gray-500">{{ item.region or '—' }}</div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p class="text-xs text-gray-500 mt-3">Affichage des 5 prochaines échéances. Utilisez le calendrier pour explorer l'intégralité des scrutins à venir.</p>
-  {% else %}
-  <div class="p-6 bg-purple-50 border border-dashed border-purple-200 rounded-lg text-purple-700">
-    <i class="fas fa-info-circle mr-2"></i>
-    Aucun scrutin ≥ {{ upcoming_threshold }} salarié à venir n'a été détecté dans la base pour le moment.
-  </div>
-  {% endif %}
-</section>
-
-<!-- Automations -->
-<section class="mb-12">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">Automatisations & intégrations</h2>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    {% set db = db_asset %}
-    <div class="bg-white rounded-xl shadow-md p-6 border border-blue-50">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-xl font-semibold text-gray-800">Base papcse.db</h3>
-          <p class="text-xs text-gray-500">Téléchargement automatique depuis GitHub Release</p>
-        </div>
-        {% if db.exists %}
-          <span class="px-3 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded-full">Disponible</span>
-        {% else %}
-          <span class="px-3 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">Introuvable</span>
-        {% endif %}
-      </div>
-      <ul class="text-sm text-gray-600 space-y-2">
-        <li><strong>Chemin :</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ db.path or '—' }}</code></li>
-        <li><strong>Taille :</strong> {{ db.size_mb ~ ' Mo' if db.size_mb else '—' }}</li>
-        <li>
-          <strong>Source Release :</strong>
-          {% if db.url %}
-            <a href="{{ db.url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ db.url }}</a>
-          {% else %}
-            <span>Non configuré</span>
-          {% endif %}
-        </li>
-        <li>
-          <strong>Hash attendu :</strong>
-          {% if db.expected_hash %}
-            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ db.expected_hash }}</code>
-          {% else %}
-            <span>Non fourni</span>
-          {% endif %}
-        </li>
-        <li>
-          <strong>Hash calculé :</strong>
-          {% if db.actual_hash %}
-            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ db.actual_hash }}</code>
-            {% if db.expected_hash %}
-              {% if db.hash_match %}
-                <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">Conforme</span>
-              {% else %}
-                <span class="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">À vérifier</span>
-              {% endif %}
-            {% endif %}
-          {% else %}
-            <span>—</span>
-          {% endif %}
-        </li>
-      </ul>
-      <p class="text-xs text-gray-500 mt-4">
-        La base est téléchargée au démarrage si elle est absente. Supprimez le fichier local pour forcer un rafraîchissement depuis la release configurée.
-      </p>
-    </div>
-
-    {% set invit = invitations_asset %}
-    <div class="bg-white rounded-xl shadow-md p-6 border border-green-50">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-xl font-semibold text-gray-800">Invitations électorales C5</h3>
-          <p class="text-xs text-gray-500">Préchargement automatique lors du premier démarrage</p>
-        </div>
-        {% if invit.auto_enabled %}
-          <span class="px-3 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded-full">Auto-chargement activé</span>
-        {% else %}
-          <span class="px-3 py-1 text-xs font-semibold bg-gray-100 text-gray-600 rounded-full">Auto-chargement désactivé</span>
-        {% endif %}
-      </div>
-      <ul class="text-sm text-gray-600 space-y-2">
-        <li>
-          <strong>Source Release :</strong>
-          {% if invit.url %}
-            <a href="{{ invit.url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.url }}</a>
-          {% else %}
-            <span>Non configuré</span>
-          {% endif %}
-        </li>
-        {% if not invit.url and invit.inferred_url %}
-          <li class="text-xs text-gray-500">
-            <strong>URL déduite :</strong>
-            <a href="{{ invit.inferred_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.inferred_url }}</a>
-            {% if invit.inferred_urls and invit.inferred_urls|length > 1 %}
-              <span class="ml-1 text-gray-400">(+{{ invit.inferred_urls|length - 1 }} variante{{ 's' if invit.inferred_urls|length > 2 else '' }})</span>
-            {% endif %}
-          </li>
-        {% endif %}
-        <li><strong>Invitations en base :</strong> {{ invit.count or 0 }}</li>
-        <li><strong>Dernière date importée :</strong> {{ invit.last_date or '—' }}</li>
-        {% if invit.effective_url %}
-          <li class="text-xs text-gray-500">
-            <strong>Dernier import automatique :</strong>
-            <a href="{{ invit.effective_url }}" class="text-blue-600 underline" target="_blank" rel="noopener">{{ invit.effective_url }}</a>
-          </li>
-        {% endif %}
-        <li>
-          <strong>Hash attendu :</strong>
-          {% if invit.expected_hash %}
-            <code class="bg-gray-100 px-2 py-1 rounded break-all">{{ invit.expected_hash }}</code>
-          {% else %}
-            <span>Non fourni</span>
-          {% endif %}
-        </li>
-      </ul>
-      <p class="text-xs text-gray-500 mt-4">
-        Si la table est vide au démarrage, le fichier configuré est importé automatiquement puis disponible dans le tableau « Invitations électorales - Cycle 5 ».
-      </p>
-    </div>
-
-    {% set sirene = sirene_status %}
-    <div class="bg-white rounded-xl shadow-md p-6 border border-indigo-50">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-xl font-semibold text-gray-800">API Sirene</h3>
-          <p class="text-xs text-gray-500">Enrichissement SIRET via la clé INSEE</p>
-        </div>
-        {% if sirene.configured %}
-          <span class="px-3 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-full">Clé détectée</span>
-        {% else %}
-          <span class="px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded-full">Clé manquante</span>
-        {% endif %}
-      </div>
-      <ul class="text-sm text-gray-600 space-y-2">
-        <li>
-          <strong>Variables Railway :</strong>
-          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_KEY</code>
-          <span class="text-xs text-gray-400">(clé intégration)</span>
-          <span class="mx-2 text-gray-300">•</span>
-          <code class="bg-gray-100 px-2 py-1 rounded">SIRENE_API_TOKEN</code>
-          <span class="text-xs text-gray-400">(token OAuth)</span>
-        </li>
-        <li><strong>Statut :</strong> {% if sirene.configured %}{{ sirene.masked }}{% else %}Non configurée{% endif %}</li>
-        {% if sirene.has_integration_key %}
-          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">X-INSEE-Api-Key-Integration</code></li>
-        {% elif sirene.has_token %}
-          <li><strong>En-tête HTTP :</strong> <code class="bg-gray-100 px-2 py-1 rounded">Authorization: Bearer ...</code></li>
-        {% endif %}
-        <li><strong>Usages :</strong> autocomplete SIRET, fiches entreprises, enrichissement invitations.</li>
-      </ul>
-      <p class="text-xs text-gray-500 mt-4">
-        Ajoutez la clé fournie par l'INSEE sur Railway pour activer l'enrichissement automatique des raisons sociales et adresses lors des imports ou recherches SIRET.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- Import forms -->
-{% if current_user and current_user.role == "admin" %}
-<section id="imports" class="mb-12">
-  <div class="mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">Imports manuels</h2>
-    <p class="text-sm text-gray-500">Chargez ici vos fichiers Excel mis à jour. Recalculez ensuite le tableau de synthèse pour rafraîchir le tableau de bord.</p>
-  </div>
-  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <!-- Import PV -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-file-excel text-blue-500 mr-2"></i>
-        Importer PV (Excel initial)
-      </h3>
-      <form method="post" action="/api/ingest/pv" enctype="multipart/form-data" class="space-y-4">
-        <div>
-          <label for="pvfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel des PV</label>
-          <input type="file" name="file" id="pvfile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg cursor-pointer" />
-        </div>
-        <button type="submit" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-upload"></i>
-          <span>Importer les PV</span>
-        </button>
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Import des Procès-Verbaux des élections professionnelles (onglet « Tous PV »).</p>
-      </form>
-    </section>
-
-    <!-- Import Invitations PAP -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-file-pdf text-red-500 mr-2"></i>
-        Importer PAP (Protocole d'Accord Pré-électoral)
-      </h3>
-      <form method="post" action="/api/invitations/import-pap-pdf" enctype="multipart/form-data" id="form-import-pap" class="space-y-4">
-        <div>
-          <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier PDF du PAP</label>
-          <input type="file" name="file" id="invitfile" required accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 border border-gray-300 rounded-lg cursor-pointer" />
-          <p class="text-xs text-gray-500 mt-1">Le système extraira automatiquement les informations (SIRET, dates, entreprises) du PDF</p>
-        </div>
-
-        <!-- Options de scan -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div class="flex items-start space-x-3">
-            <input type="checkbox" id="auto-scan" name="auto_scan" checked class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-            <div class="flex-1">
-              <label for="auto-scan" class="block text-sm font-semibold text-gray-800 cursor-pointer">
-                <i class="fas fa-robot text-blue-600 mr-1"></i>
-                Scan automatique multi-sources
-              </label>
-              <p class="text-xs text-gray-600 mt-1">
-                Extraction PDF (OCR + ChatGPT) puis enrichissement via SIRENE, Pappers et ChatGPT. Les données manquantes pourront être complétées manuellement ensuite.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <button type="submit" class="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-file-upload"></i>
-          <span>Importer PDF et scanner</span>
-        </button>
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Après l'import, vous pourrez compléter manuellement les données manquantes et générer les emails uniquement pour les nouveaux PAP scannés.</p>
-      </form>
-
-      <!-- Résultat import -->
-      <div id="import-result" class="mt-4 hidden">
-        <div class="p-4 rounded-lg border" id="import-result-content"></div>
-      </div>
-    </section>
-
-    <!-- Import Ciblage -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-crosshairs text-purple-500 mr-2"></i>
-        Importer fichier de ciblage
-      </h3>
-      <form method="post" action="/ciblage/import" enctype="multipart/form-data" class="space-y-4">
-        <div>
-          <label for="ciblagefile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier de ciblage</label>
-          <input type="file" name="file" id="ciblagefile" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 border border-gray-300 rounded-lg cursor-pointer" />
-        </div>
-        <button type="submit" class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-upload"></i>
-          <span>Importer le ciblage</span>
-        </button>
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Utilisez ce module pour croiser vos listes (CAC40, SBF120…) avec les invitations détectées.</p>
-      </form>
-    </section>
-
-    <!-- Rebuild summary -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-sync text-orange-500 mr-2"></i>
-        Recalculer le tableau de synthèse
-      </h3>
-      <div class="space-y-4">
-        <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg text-sm text-orange-800">
-          <i class="fas fa-exclamation-triangle mr-2"></i>
-          À utiliser après chaque import PV ou invitation pour mettre à jour le tableau de bord.
-        </div>
-
-        <!-- Status display -->
-        <div id="rebuild-status" class="hidden">
-          <div class="p-4 rounded-lg border" id="rebuild-status-content">
-            <!-- Status will be inserted here -->
-          </div>
-        </div>
-
-        <!-- Action button -->
-        <button id="rebuild-button" onclick="triggerRebuild()" class="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-sync-alt" id="rebuild-icon"></i>
-          <span id="rebuild-text">Recalculer le tableau</span>
-        </button>
-
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Le recalcul nettoie les données, reconstruit <code>siret_summary</code> et alimente les graphiques du tableau de bord.</p>
-      </div>
-    </section>
-
-    <!-- Forcer les migrations -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-database text-teal-500 mr-2"></i>
-        Forcer les migrations
-      </h3>
-      <div class="space-y-4">
-        <div class="p-4 bg-teal-50 border-l-4 border-teal-500 rounded-lg text-sm text-teal-800">
-          <i class="fas fa-info-circle mr-2"></i>
-          Crée la table <code>tableaux_bord_ud</code> et ajoute les colonnes manquantes sans redémarrer l'application.
-        </div>
-
-        <!-- Status display -->
-        <div id="migration-status" class="hidden">
-          <div class="p-4 rounded-lg border" id="migration-status-content">
-            <!-- Status will be inserted here -->
-          </div>
-        </div>
-
-        <!-- Action buttons -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button id="migration-button" onclick="forceMigrations()" class="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition shadow-md flex items-center justify-center space-x-2">
-            <i class="fas fa-magic" id="migration-icon"></i>
-            <span id="migration-text">Exécuter les migrations</span>
-          </button>
-
-          <button id="recreate-button" onclick="recreateTables()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
-            <i class="fas fa-redo-alt" id="recreate-icon"></i>
-            <span id="recreate-text">Recréer les tables</span>
-          </button>
-        </div>
-
-        <div class="p-3 bg-red-50 border-l-4 border-red-500 rounded text-sm text-red-800">
-          <i class="fas fa-exclamation-triangle mr-2"></i>
-          <strong>Recréer les tables :</strong> Supprime et recrée tableaux_bord_ud et pap_documents avec la bonne structure.
-          ⚠️ Les données de ces tables seront perdues !
-        </div>
-
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>À utiliser en cas d'erreur "no such column" lors de l'import des UD.</p>
-      </div>
-    </section>
-
-    <!-- Terminal Admin -->
-    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-terminal text-gray-700 mr-2"></i>
-        Terminal Admin
-      </h3>
-      <div class="space-y-4">
-        <div class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm" style="min-height: 400px; max-height: 600px; overflow-y: auto;" id="terminal-output">
-          <div class="mb-2">
-            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Bienvenue dans le terminal admin sécurisé</span>
-          </div>
-          <div class="mb-2 text-gray-400">
-            Tapez "help" pour voir les commandes disponibles
-          </div>
-          <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
-        </div>
-
-        <!-- Input -->
-        <div class="flex space-x-2">
-          <div class="flex-1 flex items-center bg-gray-900 text-green-400 rounded-lg px-4 py-2 font-mono text-sm">
-            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$&nbsp;
-            <input
-              type="text"
-              id="terminal-input"
-              class="flex-1 bg-transparent border-none outline-none text-green-400"
-              placeholder="Entrez une commande..."
-              autocomplete="off"
-            />
-          </div>
-          <button
-            onclick="executeTerminalCommand()"
-            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center space-x-2"
-          >
-            <i class="fas fa-play"></i>
-            <span>Exécuter</span>
-          </button>
-        </div>
-
-        <div class="flex items-center space-x-4 text-xs text-gray-500">
-          <div class="flex items-center space-x-2">
-            <i class="fas fa-info-circle"></i>
-            <span>Utilisez ↑ ↓ pour naviguer dans l'historique</span>
-          </div>
-          <button onclick="clearTerminal()" class="text-red-500 hover:text-red-700 flex items-center space-x-1">
-            <i class="fas fa-trash"></i>
-            <span>Effacer</span>
-          </button>
-          <button onclick="showTerminalHelp()" class="text-blue-500 hover:text-blue-700 flex items-center space-x-1">
-            <i class="fas fa-question-circle"></i>
-            <span>Aide</span>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Gestion des PDFs stockés -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Gestion des PDFs -->
     <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
         <i class="fas fa-file-pdf text-red-500 mr-2"></i>
-        Gestion des PDFs PAP stockés
+        Gestion des PDFs
       </h3>
-      <div class="space-y-4">
+
+      <div class="space-y-6">
         <!-- Stats -->
-        <div id="pdf-stats" class="grid grid-cols-4 gap-4 mb-4">
-          <div class="bg-blue-50 p-4 rounded-lg">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+          <div class="text-center">
             <div class="text-2xl font-bold text-blue-600" id="pdf-total-count">-</div>
             <div class="text-xs text-gray-600">Total PDFs</div>
           </div>
-          <div class="bg-green-50 p-4 rounded-lg">
+          <div class="text-center">
             <div class="text-2xl font-bold text-green-600" id="pdf-total-size">-</div>
-            <div class="text-xs text-gray-600">Espace utilisé</div>
+            <div class="text-xs text-gray-600">Taille totale</div>
           </div>
           <div class="bg-yellow-50 p-4 rounded-lg">
             <div class="text-2xl font-bold text-yellow-600" id="pdf-recent">-</div>
@@ -822,701 +180,396 @@
           </div>
         </div>
 
-        <!-- Liste des PDFs -->
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200" id="pdf-table">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fichier</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SIRET</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date upload</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taille</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Âge</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200" id="pdf-table-body">
-              <tr>
-                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
-                  <p>Chargement...</p>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Liste des PDFs (tableau simplifié) -->
+        <div class="text-sm text-gray-600">
+          <p><i class="fas fa-info-circle mr-2"></i>Les PDFs sont organisés automatiquement par département et fédération.</p>
+          <p class="mt-1"><i class="fas fa-link mr-2"></i>Chaque UD/FD a un lien unique pour consulter ses PAPs.</p>
         </div>
       </div>
     </section>
 
-    <!-- Générateur de liens portails UD/FD -->
+    <!-- Liste des portails actifs -->
     <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-link text-purple-500 mr-2"></i>
-        Générateur de liens portails UD/FD
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">
+        <i class="fas fa-map-marked-alt text-blue-500 mr-2"></i>
+        Portails actifs
       </h3>
-      <div class="space-y-4">
-        <div class="p-4 bg-purple-50 border-l-4 border-purple-500 rounded-lg text-sm text-purple-800">
-          <i class="fas fa-info-circle mr-2"></i>
-          Générez des liens uniques pour que chaque UD ou FD puisse consulter tous ses PAPs.
+      <div id="portails-list" class="space-y-2">
+        <div class="text-center text-gray-500 py-4">
+          <i class="fas fa-spinner fa-spin mr-2"></i>
+          Chargement...
         </div>
-
-        <!-- Bouton pour charger les portails disponibles -->
-        <div class="text-center">
-          <button onclick="loadPortailsDisponibles()"
-                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center">
-            <i class="fas fa-list mr-2"></i>
-            Voir les portails disponibles
-          </button>
-        </div>
-
-        <!-- Liste des portails disponibles -->
-        <div id="portailsDisponibles" class="hidden">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="border rounded-lg p-3">
-              <h5 class="font-semibold text-gray-700 mb-2">Départements avec PAPs</h5>
-              <div id="listeUDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
-            </div>
-            <div class="border rounded-lg p-3">
-              <h5 class="font-semibold text-gray-700 mb-2">Fédérations avec PAPs</h5>
-              <div id="listeFDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Choix UD ou FD -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
-            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
-              <i class="fas fa-building text-purple-500 mr-2"></i>
-              Générer lien Union Départementale
-            </h4>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de département</label>
-                <input type="text" id="udNumero" placeholder="Ex: 34"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-              </div>
-              <button onclick="generateUDLink()"
-                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
-                <i class="fas fa-magic mr-2"></i>
-                Générer lien UD
-              </button>
-            </div>
-          </div>
-
-          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
-            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
-              <i class="fas fa-industry text-purple-500 mr-2"></i>
-              Générer lien Fédération
-            </h4>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Code FD</label>
-                <input type="text" id="fdCode" placeholder="Ex: metallurgie"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-              </div>
-              <button onclick="generateFDLink()"
-                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
-                <i class="fas fa-magic mr-2"></i>
-                Générer lien FD
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Résultat -->
-        <div id="linkResult" class="hidden">
-          <div class="bg-green-50 border-2 border-green-500 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-2">
-              <h5 class="font-semibold text-green-800">
-                <i class="fas fa-check-circle mr-2"></i>
-                Lien généré avec succès
-              </h5>
-              <button onclick="closeLink()" class="text-green-600 hover:text-green-800">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-            <div class="bg-white rounded p-3 mb-3 font-mono text-sm break-all" id="generatedLink"></div>
-            <div class="flex gap-2">
-              <button onclick="copyLink()"
-                      class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center">
-                <i class="fas fa-copy mr-2"></i>
-                Copier le lien
-              </button>
-              <button onclick="openLink()"
-                      class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center">
-                <i class="fas fa-external-link-alt mr-2"></i>
-                Ouvrir le portail
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Enrichir IDCC -->
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-6">
-        <i class="fas fa-building text-indigo-500 mr-2"></i>
-        Enrichir les IDCC manquants
-      </h3>
-      <div class="space-y-4">
-        <div class="p-4 bg-indigo-50 border-l-4 border-indigo-500 rounded-lg text-sm text-indigo-800">
-          <i class="fas fa-info-circle mr-2"></i>
-          Enrichit les invitations électorales sans IDCC via l'API SIRENE de l'INSEE.
-        </div>
-
-        <!-- Status display -->
-        <div id="enrichir-idcc-status" class="hidden">
-          <div class="p-4 rounded-lg border" id="enrichir-idcc-status-content">
-            <!-- Status will be inserted here -->
-          </div>
-        </div>
-
-        <!-- Action button -->
-        <button id="enrichir-idcc-button" onclick="triggerEnrichirIDCC()" class="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-md flex items-center justify-center space-x-2">
-          <i class="fas fa-database" id="enrichir-idcc-icon"></i>
-          <span id="enrichir-idcc-text">Enrichir les IDCC</span>
-        </button>
-
-        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Récupère l'IDCC (Convention Collective) depuis l'API SIRENE pour chaque invitation sans IDCC. Permet ensuite d'identifier la FD (Fédération) correspondante.</p>
       </div>
     </section>
   </div>
 </section>
-{% endif %}
 
-<!-- Quality tools and reminders -->
+<!-- Section Gestion des migrations -->
 <section class="mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+    <i class="fas fa-database text-blue-600 mr-3"></i>
+    Gestion des migrations
+  </h2>
+
+  <div class="bg-white rounded-xl shadow-md p-6">
+    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+      <i class="fas fa-magic text-teal-500 mr-2"></i>
+      Migrations de base de données
+    </h3>
+
+    <p class="text-sm text-gray-600 mb-4">
+      Les migrations ajoutent automatiquement les nouvelles colonnes et tables nécessaires au bon fonctionnement de l'application.
+    </p>
+
+    <!-- Status -->
+    <div id="migration-status" class="hidden mb-4">
+      <div class="p-4 rounded-lg border" id="migration-status-content">
+        <!-- Status will be inserted here -->
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <button id="migration-button" onclick="forceMigrations()" class="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition shadow-md flex items-center justify-center space-x-2">
+        <i class="fas fa-magic" id="migration-icon"></i>
+        <span id="migration-text">Exécuter les migrations</span>
+      </button>
+
+      <button id="recreate-button" onclick="recreateTables()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
+        <i class="fas fa-redo-alt" id="recreate-icon"></i>
+        <span id="recreate-text">Recréer les tables</span>
+      </button>
+    </div>
+
+    <div class="p-3 bg-red-50 border-l-4 border-red-500 rounded text-sm text-red-800 mt-4">
+      <i class="fas fa-exclamation-triangle mr-2"></i>
+      <strong>Recréer les tables :</strong> Supprime et recrée tableaux_bord_ud et pap_documents avec la bonne structure.
+      ⚠️ Les données de ces tables seront perdues !
+    </div>
+
+    <p class="text-xs text-gray-500 flex items-start mt-2"><i class="fas fa-info-circle mr-2 mt-0.5"></i>À utiliser en cas d'erreur "no such column" lors de l'import des UD.</p>
+  </div>
+</section>
+
+<!-- Section Imports & Exports -->
+<section id="imports" class="mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+    <i class="fas fa-file-import text-green-600 mr-3"></i>
+    Imports & Exports
+  </h2>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Import Excel principal -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-file-excel text-green-600 mr-2"></i>
+        Import papcse.db (Excel)
+      </h3>
+
+      <form id="upload-papcse-form" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Fichier Excel (.xlsx)
+          </label>
+          <input type="file" name="file" accept=".xlsx,.xls" required
+            class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none">
+          <p class="mt-1 text-xs text-gray-500">Base de données complète des entreprises</p>
+        </div>
+
+        <button type="submit" class="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center space-x-2">
+          <i class="fas fa-upload"></i>
+          <span>Importer papcse.db</span>
+        </button>
+      </form>
+
+      <div id="papcse-upload-status" class="mt-4 hidden">
+        <div class="p-4 rounded-lg border" id="papcse-status-content"></div>
+      </div>
+    </section>
+
+    <!-- Import Invitations C5 -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-envelope text-blue-600 mr-2"></i>
+        Import Invitations C5 (CSV/Excel)
+      </h3>
+
+      <form id="upload-invitations-form" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Fichier (.csv, .xlsx, .xls)
+          </label>
+          <input type="file" name="file" accept=".csv,.xlsx,.xls" required
+            class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none">
+          <p class="mt-1 text-xs text-gray-500">Invitations électorales Cycle 5</p>
+        </div>
+
+        <button type="submit" class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center space-x-2">
+          <i class="fas fa-upload"></i>
+          <span>Importer Invitations</span>
+        </button>
+      </form>
+
+      <div id="invitations-upload-status" class="mt-4 hidden">
+        <div class="p-4 rounded-lg border" id="invitations-status-content"></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- Section Diagnostics -->
+<section class="mb-12">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+    <i class="fas fa-stethoscope text-red-600 mr-3"></i>
+    Diagnostics & Maintenance
+  </h2>
+
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <section class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-semibold text-gray-800 flex items-center"><i class="fas fa-stethoscope text-red-500 mr-2"></i>Diagnostic des doublons</h3>
-        <a href="/admin/diagnostics" class="px-3 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">Ouvrir</a>
-      </div>
-      <p class="text-sm text-gray-600 mb-4">Détecte et supprime automatiquement les invitations importées plusieurs fois (garde la plus récente par SIRET).</p>
-      <ul class="text-xs text-gray-500 space-y-2">
-        <li><i class="fas fa-check text-green-500 mr-2"></i>Compteur global, SIRET uniques et nombre de doublons.</li>
-        <li><i class="fas fa-check text-green-500 mr-2"></i>Top 10 des SIRET concernés avec aperçu des dates importées.</li>
-        <li><i class="fas fa-check text-green-500 mr-2"></i>Bouton de suppression rapide (garde la ligne la plus récente).</li>
-      </ul>
+      <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+        <i class="fas fa-stethoscope text-red-500 mr-2"></i>
+        Diagnostic des doublons
+      </h3>
+      <p class="text-sm text-gray-600 mb-4">Détecte et nettoie les invitations en double dans la base.</p>
+      <a href="/admin/diagnostics" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+        <i class="fas fa-search mr-2"></i>
+        Lancer le diagnostic
+      </a>
     </section>
 
-    {% if current_user and current_user.role == "admin" %}
     <section class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center"><i class="fas fa-lightbulb text-yellow-500 mr-2"></i>Processus recommandé</h3>
-      <ol class="space-y-4 text-sm text-gray-600">
-        <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">1</span>
-          <div>
-            <strong>Importer les PV</strong>
-            <p class="text-xs text-gray-500 mt-1">Utilisez l'onglet « Tous PV » de votre fichier Excel.</p>
-          </div>
-        </li>
-        <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">2</span>
-          <div>
-            <strong>Ajouter les invitations électorales</strong>
-            <p class="text-xs text-gray-500 mt-1">Import manuel ou automatique via la variable <code>INVITATIONS_URL</code>.</p>
-          </div>
-        </li>
-        <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">3</span>
-          <div>
-            <strong>Recalculer le tableau</strong>
-            <p class="text-xs text-gray-500 mt-1">Cliquez sur « Recalculer » pour alimenter <code>siret_summary</code>, le tableau de bord et le calendrier.</p>
-          </div>
-        </li>
-        <li class="flex items-start space-x-3">
-          <span class="flex items-center justify-center w-6 h-6 bg-cgt-red text-white rounded-full text-sm font-bold">4</span>
-          <div>
-            <strong>Vérifier les doublons</strong>
-            <p class="text-xs text-gray-500 mt-1">Contrôlez la qualité des invitations avec l'outil diagnostic.</p>
-          </div>
-        </li>
-      </ol>
+      <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+        <i class="fas fa-chart-bar text-blue-500 mr-2"></i>
+        Statistiques base de données
+      </h3>
+      <div class="space-y-2 mt-4 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-600">Entreprises :</span>
+          <span class="font-semibold">{{ total_entreprises|default(0)|number_format }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-600">Invitations PAP :</span>
+          <span class="font-semibold">{{ total_invitations|default(0)|number_format }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-600">Utilisateurs :</span>
+          <span class="font-semibold">{{ total_users|default(0) }}</span>
+        </div>
+      </div>
     </section>
-    {% endif %}
   </div>
 </section>
 
-<!-- Reference information -->
-<section class="bg-white rounded-xl shadow-md p-6 mb-12">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-    <i class="fas fa-database text-gray-600 mr-3"></i>
-    Informations techniques
-  </h2>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
-    <div>
-      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Tables principales</h3>
-      <ul class="space-y-1 text-xs">
-        <li>• <code>Tous_PV</code> (historique des PV)</li>
-        <li>• <code>invitations</code> (Cycle 5)</li>
-        <li>• <code>siret_summary</code> (agrégations tableau de bord)</li>
-      </ul>
-    </div>
-    <div>
-      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Formats acceptés</h3>
-      <ul class="space-y-1 text-xs">
-        <li>• Excel (.xlsx)</li>
-        <li>• Excel 97-2003 (.xls)</li>
-      </ul>
-    </div>
-    <div>
-      <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2">Sécurité & intégrité</h3>
-      <ul class="space-y-1 text-xs">
-        <li>• Validation SHA256 (DB & invitations)</li>
-        <li>• Téléchargements GitHub Release sécurisés</li>
-        <li>• Données stockées en local SQLite</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- Background task management script -->
+<!-- Scripts -->
 <script>
-let statusPollInterval = null;
-
-// Trigger the rebuild task
-async function triggerRebuild() {
-  const button = document.getElementById('rebuild-button');
-  const buttonText = document.getElementById('rebuild-text');
-  const buttonIcon = document.getElementById('rebuild-icon');
-
-  // Disable button
-  button.disabled = true;
-  button.classList.add('opacity-50', 'cursor-not-allowed');
-  buttonIcon.classList.add('fa-spin');
-  buttonText.textContent = 'Lancement en cours...';
-
-  try {
-    const response = await fetch('/api/build/summary', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': '{{ admin_api_key }}'
-      }
-    });
-
-    const data = await response.json();
-
-    if (data.status === 'started' || data.status === 'already_running') {
-      // Start polling for status
-      showStatus('running', data.message);
-      startStatusPolling();
-    } else {
-      showStatus('error', data.message || 'Erreur lors du lancement de la tâche');
-      resetButton();
-    }
-  } catch (error) {
-    showStatus('error', 'Erreur réseau : ' + error.message);
-    resetButton();
-  }
-}
-
-// Poll the status endpoint
-async function checkStatus() {
-  try {
-    const response = await fetch('/api/build/summary/status');
-    const data = await response.json();
-
-    if (data.status === 'not_found') {
-      // No task has been run yet - hide status display
-      const statusDiv = document.getElementById('rebuild-status');
-      statusDiv.classList.add('hidden');
-      return;
-    }
-
-    const status = data.status;
-
-    if (status === 'running') {
-      const elapsed = data.elapsed_seconds ? ` (${Math.round(data.elapsed_seconds)}s écoulées)` : '';
-      showStatus('running', data.description + elapsed);
-    } else if (status === 'completed') {
-      const rows = data.result?.rows || 0;
-      const duration = data.duration_seconds ? ` en ${Math.round(data.duration_seconds)}s` : '';
-      showStatus('success', `✓ Reconstruction terminée avec succès : ${rows} lignes générées${duration}`);
-      stopStatusPolling();
-      resetButton();
-    } else if (status === 'failed') {
-      showStatus('error', '✗ Erreur : ' + (data.error || 'Erreur inconnue'));
-      stopStatusPolling();
-      resetButton();
-    } else if (status === 'pending') {
-      showStatus('pending', 'Tâche en attente de démarrage...');
-    }
-  } catch (error) {
-    console.error('Erreur lors de la vérification du statut:', error);
-  }
-}
-
-// Start polling
-function startStatusPolling() {
-  if (statusPollInterval) {
-    clearInterval(statusPollInterval);
-  }
-  // Poll every 2 seconds
-  statusPollInterval = setInterval(checkStatus, 2000);
-  // Check immediately
-  checkStatus();
-}
-
-// Stop polling
-function stopStatusPolling() {
-  if (statusPollInterval) {
-    clearInterval(statusPollInterval);
-    statusPollInterval = null;
-  }
-}
-
-// Show status message
-function showStatus(type, message) {
-  const statusDiv = document.getElementById('rebuild-status');
-  const statusContent = document.getElementById('rebuild-status-content');
-
-  statusDiv.classList.remove('hidden');
-
-  // Update styling based on status
-  statusContent.className = 'p-4 rounded-lg border';
-
-  if (type === 'running' || type === 'pending') {
-    statusContent.classList.add('bg-blue-50', 'border-blue-200', 'text-blue-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-spinner fa-spin text-lg"></i>
-        <div>
-          <div class="font-semibold">Traitement en cours...</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  } else if (type === 'success') {
-    statusContent.classList.add('bg-green-50', 'border-green-200', 'text-green-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-check-circle text-lg"></i>
-        <div>
-          <div class="font-semibold">Succès</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  } else if (type === 'error') {
-    statusContent.classList.add('bg-red-50', 'border-red-200', 'text-red-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-exclamation-circle text-lg"></i>
-        <div>
-          <div class="font-semibold">Erreur</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  }
-}
-
-// Reset button to initial state
-function resetButton() {
-  const button = document.getElementById('rebuild-button');
-  const buttonText = document.getElementById('rebuild-text');
-  const buttonIcon = document.getElementById('rebuild-icon');
-
-  button.disabled = false;
-  button.classList.remove('opacity-50', 'cursor-not-allowed');
-  buttonIcon.classList.remove('fa-spin');
-  buttonText.textContent = 'Recalculer le tableau';
-}
-
-// Check status on page load if there's a task
-window.addEventListener('DOMContentLoaded', function() {
-  checkStatus();
-  checkIDCCStatus();
+// Charger les stats PDFs au chargement
+document.addEventListener('DOMContentLoaded', function() {
+  loadPDFStats();
+  loadPortailsList();
 });
 
-// ============================================
-// IDCC Enrichment Functions
-// ============================================
-
-let idccStatusPollInterval = null;
-
-// Trigger the IDCC enrichment task
-async function triggerEnrichirIDCC() {
-  const button = document.getElementById('enrichir-idcc-button');
-  const buttonText = document.getElementById('enrichir-idcc-text');
-  const buttonIcon = document.getElementById('enrichir-idcc-icon');
-
-  // Disable button
-  button.disabled = true;
-  button.classList.add('opacity-50', 'cursor-not-allowed');
-  buttonIcon.classList.add('fa-spin');
-  buttonText.textContent = 'Lancement en cours...';
-
+// Charger les stats des PDFs
+async function loadPDFStats() {
   try {
-    const response = await fetch('/api/enrichir/idcc', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': '{{ admin_api_key }}'
+    const response = await fetch('/api/admin/pdfs/stats');
+    const data = await response.json();
+
+    if (data.success) {
+      document.getElementById('pdf-total-count').textContent = data.total_count;
+      document.getElementById('pdf-total-size').textContent = data.total_size_mb + ' MB';
+      document.getElementById('pdf-recent').textContent = data.by_age.moins_7_jours;
+      document.getElementById('pdf-old').textContent = data.by_age.plus_90_jours;
+    }
+  } catch (error) {
+    console.error('Erreur chargement stats PDFs:', error);
+  }
+}
+
+// Charger la liste des portails
+async function loadPortailsList() {
+  try {
+    const response = await fetch('/api/portails/liste');
+    const data = await response.json();
+
+    if (data.success) {
+      document.getElementById('portails-count').textContent = data.portails_ud.length;
+
+      const container = document.getElementById('portails-list');
+      container.innerHTML = '';
+
+      if (data.portails_ud.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm">Aucun portail actif</p>';
+        return;
       }
-    });
 
-    const data = await response.json();
-
-    if (data.status === 'started' || data.status === 'already_running') {
-      // Start polling for status
-      showIDCCStatus('running', data.message);
-      startIDCCStatusPolling();
-    } else {
-      showIDCCStatus('error', data.message || 'Erreur lors du lancement de la tâche');
-      resetIDCCButton();
+      data.portails_ud.forEach(portail => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition';
+        div.innerHTML = `
+          <div>
+            <p class="font-semibold text-gray-800">${portail.nom_departement}</p>
+            <p class="text-xs text-gray-500">${portail.nb_paps} PAP(s)</p>
+          </div>
+          <div class="flex gap-2">
+            <a href="${portail.url}" target="_blank" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition">
+              <i class="fas fa-external-link-alt mr-1"></i>Ouvrir
+            </a>
+            <button onclick="navigator.clipboard.writeText('${window.location.origin}${portail.url}')" class="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
     }
   } catch (error) {
-    showIDCCStatus('error', 'Erreur réseau : ' + error.message);
-    resetIDCCButton();
+    console.error('Erreur chargement portails:', error);
   }
 }
 
-// Poll the IDCC status endpoint
-async function checkIDCCStatus() {
-  try {
-    const response = await fetch('/api/enrichir/idcc/status');
-    const data = await response.json();
-
-    if (data.status === 'not_found') {
-      // No task has been run yet - hide status display
-      const statusDiv = document.getElementById('enrichir-idcc-status');
-      statusDiv.classList.add('hidden');
-      return;
-    }
-
-    const status = data.status;
-
-    if (status === 'running') {
-      const elapsed = data.elapsed_seconds ? ` (${Math.round(data.elapsed_seconds)}s écoulées)` : '';
-      showIDCCStatus('running', data.description + elapsed);
-    } else if (status === 'completed') {
-      const result = data.result || {};
-      const enrichis = result.enrichis || 0;
-      const total = result.total || 0;
-      const erreurs = result.erreurs || 0;
-      const duration = data.duration_seconds ? ` en ${Math.round(data.duration_seconds)}s` : '';
-      showIDCCStatus('success', `✓ Enrichissement terminé : ${enrichis}/${total} IDCC récupérés (${erreurs} erreurs)${duration}`);
-      stopIDCCStatusPolling();
-      resetIDCCButton();
-    } else if (status === 'failed') {
-      showIDCCStatus('error', '✗ Erreur : ' + (data.error || 'Erreur inconnue'));
-      stopIDCCStatusPolling();
-      resetIDCCButton();
-    } else if (status === 'pending') {
-      showIDCCStatus('pending', 'Tâche en attente de démarrage...');
-    }
-  } catch (error) {
-    console.error('Erreur lors de la vérification du statut IDCC:', error);
-  }
-}
-
-// Start IDCC status polling
-function startIDCCStatusPolling() {
-  if (idccStatusPollInterval) {
-    clearInterval(idccStatusPollInterval);
-  }
-  // Poll every 2 seconds
-  idccStatusPollInterval = setInterval(checkIDCCStatus, 2000);
-  // Check immediately
-  checkIDCCStatus();
-}
-
-// Stop IDCC status polling
-function stopIDCCStatusPolling() {
-  if (idccStatusPollInterval) {
-    clearInterval(idccStatusPollInterval);
-    idccStatusPollInterval = null;
-  }
-}
-
-// Show IDCC status message
-function showIDCCStatus(type, message) {
-  const statusDiv = document.getElementById('enrichir-idcc-status');
-  const statusContent = document.getElementById('enrichir-idcc-status-content');
-
-  statusDiv.classList.remove('hidden');
-
-  // Update styling based on status
-  statusContent.className = 'p-4 rounded-lg border';
-
-  if (type === 'running' || type === 'pending') {
-    statusContent.classList.add('bg-blue-50', 'border-blue-200', 'text-blue-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-spinner fa-spin text-lg"></i>
-        <div>
-          <div class="font-semibold">Traitement en cours...</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  } else if (type === 'success') {
-    statusContent.classList.add('bg-green-50', 'border-green-200', 'text-green-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-check-circle text-lg"></i>
-        <div>
-          <div class="font-semibold">Succès</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  } else if (type === 'error') {
-    statusContent.classList.add('bg-red-50', 'border-red-200', 'text-red-800');
-    statusContent.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <i class="fas fa-exclamation-circle text-lg"></i>
-        <div>
-          <div class="font-semibold">Erreur</div>
-          <div class="text-sm mt-1">${message}</div>
-        </div>
-      </div>
-    `;
-  }
-}
-
-// Reset IDCC button to initial state
-function resetIDCCButton() {
-  const button = document.getElementById('enrichir-idcc-button');
-  const buttonText = document.getElementById('enrichir-idcc-text');
-  const buttonIcon = document.getElementById('enrichir-idcc-icon');
-
-  button.disabled = false;
-  button.classList.remove('opacity-50', 'cursor-not-allowed');
-  buttonIcon.classList.remove('fa-spin');
-  buttonText.textContent = 'Enrichir les IDCC';
-}
-
-// ============================================
-// Terminal Admin Functions
-
-let terminalHistory = [];
-let historyIndex = -1;
-
-// Ajouter une ligne au terminal
-function addTerminalLine(content, type = 'output') {
-  const terminalOutput = document.getElementById('terminal-output');
-  const line = document.createElement('div');
-  line.className = 'mb-2';
-
-  if (type === 'command') {
-    line.innerHTML = `<span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-white">${content}</span>`;
-  } else if (type === 'error') {
-    line.innerHTML = `<span class="text-red-400">${content}</span>`;
-  } else if (type === 'success') {
-    line.innerHTML = `<span class="text-green-400">${content}</span>`;
-  } else {
-    line.innerHTML = `<span class="text-gray-300">${content}</span>`;
+// Import nouveau PDFs
+async function importNewPDFs() {
+  if (!confirm('Importer les nouveaux PDFs ?\n\nCela va ajouter seulement les PDFs pas encore en base.\nLes PDFs déjà importés seront ignorés.')) {
+    return;
   }
 
-  terminalOutput.appendChild(line);
-  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+  await runImport(false);
 }
 
-// Exécuter une commande
-async function executeTerminalCommand() {
-  const input = document.getElementById('terminal-input');
-  const command = input.value.trim();
+// Ré-importer TOUS les anciens PDFs
+async function reimportAllPDFs() {
+  if (!confirm('🔄 RÉ-IMPORTER TOUS LES ANCIENS PDFs ?\n\n✓ Cette action va récupérer TOUS vos vieux PAPs scannés,\n  y compris ceux d\'AVANT le système de portails.\n\n⚠️ Les enregistrements existants seront mis à jour.\n\nContinuer ?')) {
+    return;
+  }
 
-  if (!command) return;
+  await runImport(true);
+}
 
-  // Ajouter à l'historique
-  terminalHistory.push(command);
-  historyIndex = terminalHistory.length;
-
-  // Afficher la commande
-  addTerminalLine(command, 'command');
-
-  // Vider l'input
-  input.value = '';
+// Fonction commune pour l'import
+async function runImport(forceReimport) {
+  const button = event.target.closest('button');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
 
   try {
-    const response = await fetch('/api/admin/terminal/execute', {
+    const response = await fetch(`/api/admin/pdfs/import-existing?force_reimport=${forceReimport}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ command: command })
+      }
     });
 
     const data = await response.json();
 
     if (data.success) {
-      // Afficher la sortie
-      const lines = data.output.split('\n');
-      lines.forEach(line => {
-        addTerminalLine(line, 'output');
-      });
-    } else {
-      // Afficher l'erreur
-      if (data.error) {
-        addTerminalLine(data.error, 'error');
+      let message = `✓ Import terminé !\n\n`;
+      message += `📊 Total PDFs dans le dossier : ${data.total_pdfs}\n`;
+      message += `✅ Importés : ${data.imported}\n`;
+      if (data.updated > 0) {
+        message += `🔄 Ré-importés : ${data.updated}\n`;
       }
+      message += `⏭️  Déjà existants (ignorés) : ${data.skipped}\n`;
+      message += `❌ Erreurs : ${data.errors.length}\n`;
+
+      if (data.errors.length > 0) {
+        message += `\n⚠️ Détails des erreurs :\n`;
+        data.errors.slice(0, 5).forEach(err => {
+          message += `\n• ${err.filename}: ${err.error}`;
+        });
+        if (data.errors.length > 5) {
+          message += `\n... et ${data.errors.length - 5} autre(s) erreur(s)`;
+        }
+      }
+
+      alert(message);
+      loadPDFStats();
+      loadPortailsList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de l\'import'}`);
     }
   } catch (error) {
-    addTerminalLine(`❌ Erreur réseau: ${error.message}`, 'error');
+    alert(`✗ Erreur réseau: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
   }
 }
 
-// Effacer le terminal
-function clearTerminal() {
-  const terminalOutput = document.getElementById('terminal-output');
-  terminalOutput.innerHTML = `
-    <div class="mb-2">
-      <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Terminal effacé</span>
-    </div>
-    <div class="mb-2 text-gray-400">
-      Tapez "help" pour voir les commandes disponibles
-    </div>
-    <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
-  `;
-}
+// Analyser les PDFs (debug)
+async function debugPDFAnalysis() {
+  const button = event.target.closest('button');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyse en cours...';
 
-// Afficher l'aide
-function showTerminalHelp() {
-  document.getElementById('terminal-input').value = 'help';
-  executeTerminalCommand();
-}
+  try {
+    const response = await fetch('/api/admin/pdfs/debug-list');
+    const data = await response.json();
 
-// Gestion de l'input avec Enter et historique
-document.addEventListener('DOMContentLoaded', function() {
-  const input = document.getElementById('terminal-input');
+    if (data.success) {
+      let report = `📁 ANALYSE DES PDFs DANS LE DOSSIER\n`;
+      report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      report += `📂 Dossier : ${data.upload_dir}\n`;
+      report += `📊 Total PDFs : ${data.total_pdfs}\n\n`;
 
-  if (input) {
-    // Exécuter avec Enter
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        executeTerminalCommand();
-      }
-      // Historique avec flèches haut/bas
-      else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (historyIndex > 0) {
-          historyIndex--;
-          input.value = terminalHistory[historyIndex];
+      const notImported = data.pdfs.filter(p => !p.already_imported);
+      const noSiret = data.pdfs.filter(p => !p.siret_found);
+      const noInvitation = data.pdfs.filter(p => p.siret_found && !p.has_invitation);
+
+      report += `✅ Déjà importés : ${data.pdfs.length - notImported.length}\n`;
+      report += `⏭️  Pas encore importés : ${notImported.length}\n`;
+      report += `❌ Sans SIRET trouvé : ${noSiret.length}\n`;
+      report += `⚠️  SIRET trouvé mais pas d'invitation : ${noInvitation.length}\n\n`;
+
+      if (noSiret.length > 0) {
+        report += `\n❌ PDFs SANS SIRET (ne peuvent PAS être importés) :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noSiret.slice(0, 10).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   Taille: ${pdf.size_kb} KB\n`;
+          report += `   ❌ SIRET introuvable (pas dans nom, pas dans EmailLog)\n`;
+        });
+        if (noSiret.length > 10) {
+          report += `\n... et ${noSiret.length - 10} autre(s) PDF(s) sans SIRET\n`;
         }
       }
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (historyIndex < terminalHistory.length - 1) {
-          historyIndex++;
-          input.value = terminalHistory[historyIndex];
-        } else {
-          historyIndex = terminalHistory.length;
-          input.value = '';
+
+      if (noInvitation.length > 0) {
+        report += `\n\n⚠️  PDFs AVEC SIRET MAIS SANS INVITATION :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noInvitation.slice(0, 5).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   SIRET: ${pdf.siret_found} (${pdf.siret_method})\n`;
+          report += `   ⚠️  Pas d'invitation en base\n`;
+          report += `   💡 Sera importé avec données minimales\n`;
+        });
+        if (noInvitation.length > 5) {
+          report += `\n... et ${noInvitation.length - 5} autre(s)\n`;
         }
       }
-    });
 
-    // Auto-focus
-    input.focus();
+      alert(report);
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de l\'analyse'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
   }
-});
+}
+
+// Fonction placeholder pour cleanup
+function showCleanupDialog() {
+  alert('Fonctionnalité de nettoyage en cours de développement.');
+}
+
+function loadPDFList() {
+  loadPDFStats();
+  loadPortailsList();
+}
 
 // ============================================
 // Force Migrations Function
@@ -1674,2331 +727,17 @@ async function recreateTables() {
   }
 }
 
-// ============================================
-// PDF Management Functions
-
-// Charger les stats des PDFs
-async function loadPDFStats() {
-  try {
-    const response = await fetch('/api/admin/pdfs/stats');
-    const data = await response.json();
-
-    if (data.success) {
-      document.getElementById('pdf-total-count').textContent = data.total_count;
-      document.getElementById('pdf-total-size').textContent = data.total_size_mb + ' MB';
-      document.getElementById('pdf-recent').textContent = data.by_age.moins_7_jours;
-      document.getElementById('pdf-old').textContent = data.by_age.plus_90_jours;
-    }
-  } catch (error) {
-    console.error('Erreur chargement stats PDFs:', error);
-  }
-}
-
-// Charger la liste des PDFs
-async function loadPDFList() {
-  const tbody = document.getElementById('pdf-table-body');
-  tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Chargement...</p></td></tr>';
-
-  try {
-    const response = await fetch('/api/admin/pdfs/list');
-    const data = await response.json();
-
-    if (data.success && data.pdfs.length > 0) {
-      tbody.innerHTML = '';
-      data.pdfs.forEach(pdf => {
-        const row = document.createElement('tr');
-        row.className = 'hover:bg-gray-50';
-
-        const ageClass = pdf.age_days > 90 ? 'text-red-600' : (pdf.age_days > 30 ? 'text-orange-600' : 'text-green-600');
-
-        row.innerHTML = `
-          <td class="px-4 py-3 text-sm">
-            <a href="${pdf.url}" target="_blank" class="text-blue-600 hover:underline flex items-center space-x-2">
-              <i class="fas fa-file-pdf text-red-500"></i>
-              <span class="truncate max-w-xs" title="${pdf.filename}">${pdf.filename}</span>
-            </a>
-          </td>
-          <td class="px-4 py-3 text-sm font-mono">${pdf.siret || '-'}</td>
-          <td class="px-4 py-3 text-sm">${pdf.date_upload}</td>
-          <td class="px-4 py-3 text-sm">${pdf.size_kb} KB</td>
-          <td class="px-4 py-3 text-sm ${ageClass} font-semibold">${pdf.age_days} jours</td>
-          <td class="px-4 py-3 text-sm">
-            <button onclick="deletePDF('${pdf.filename}')" class="text-red-600 hover:text-red-800">
-              <i class="fas fa-trash"></i>
-            </button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-    } else {
-      tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucun PDF stocké</td></tr>';
-    }
-
-    // Rafraîchir les stats
-    loadPDFStats();
-  } catch (error) {
-    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Erreur de chargement</td></tr>';
-    console.error('Erreur chargement PDFs:', error);
-  }
-}
-
-// Supprimer un PDF
-async function deletePDF(filename) {
-  if (!confirm(`Supprimer le PDF "${filename}" ?\nCette action est irréversible.`)) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/admin/pdfs/delete/${filename}`, {
-      method: 'DELETE'
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      alert(`✓ ${data.message}\nEspace libéré: ${data.freed_space_mb} MB`);
-      loadPDFList();
-    } else {
-      alert(`✗ Erreur: ${data.detail || 'Échec de la suppression'}`);
-    }
-  } catch (error) {
-    alert(`✗ Erreur réseau: ${error.message}`);
-  }
-}
-
-// Afficher le dialogue de nettoyage
-function showCleanupDialog() {
-  const days = prompt('Supprimer les PDFs plus vieux que combien de jours ?\n(Entrez un nombre, ex: 90)', '90');
-
-  if (days === null) return;
-
-  const daysNum = parseInt(days);
-  if (isNaN(daysNum) || daysNum < 1) {
-    alert('Veuillez entrer un nombre valide de jours (minimum 1)');
-    return;
-  }
-
-  if (!confirm(`Confirmer la suppression de tous les PDFs plus vieux que ${daysNum} jours ?`)) {
-    return;
-  }
-
-  cleanupOldPDFs(daysNum);
-}
-
-// Nettoyer les vieux PDFs
-async function cleanupOldPDFs(daysOld) {
-  try {
-    const response = await fetch('/api/admin/pdfs/cleanup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ days_old: daysOld })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      alert(`✓ Nettoyage terminé !\n\n${data.message}`);
-      loadPDFList();
-    } else {
-      alert(`✗ Erreur: ${data.detail || 'Échec du nettoyage'}`);
-    }
-  } catch (error) {
-    alert(`✗ Erreur réseau: ${error.message}`);
-  }
-}
-
-// Importer les nouveaux PDFs uniquement
-async function importNewPDFs() {
-  if (!confirm('Importer les nouveaux PDFs ?\n\nCela va ajouter seulement les PDFs pas encore en base.\nLes PDFs déjà importés seront ignorés.')) {
-    return;
-  }
-
-  await runImport(false);
-}
-
-// Ré-importer TOUS les anciens PDFs
-async function reimportAllPDFs() {
-  if (!confirm('🔄 RÉ-IMPORTER TOUS LES ANCIENS PDFs ?\n\n✓ Cette action va récupérer TOUS vos vieux PAPs scannés,\n  y compris ceux d\'AVANT le système de portails.\n\n⚠️ Les enregistrements existants seront mis à jour.\n\nContinuer ?')) {
-    return;
-  }
-
-  await runImport(true);
-}
-
-// Fonction commune pour l'import
-async function runImport(forceReimport) {
-  const button = event.target.closest('button');
-  const originalText = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
-
-  try {
-    const response = await fetch(`/api/admin/pdfs/import-existing?force_reimport=${forceReimport}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      let message = `✓ Import terminé !\n\n`;
-      message += `📊 Total PDFs dans le dossier : ${data.total_pdfs}\n`;
-      message += `✅ Importés : ${data.imported}\n`;
-      if (data.updated > 0) {
-        message += `🔄 Ré-importés : ${data.updated}\n`;
-      }
-      message += `⏭️  Déjà existants (ignorés) : ${data.skipped}\n`;
-      message += `❌ Erreurs : ${data.errors.length}\n`;
-
-      if (data.errors.length > 0) {
-        message += `\n⚠️ Détails des erreurs :\n`;
-        data.errors.slice(0, 5).forEach(err => {
-          message += `\n• ${err.filename}: ${err.error}`;
-        });
-        if (data.errors.length > 5) {
-          message += `\n... et ${data.errors.length - 5} autre(s) erreur(s)`;
-        }
-      }
-
-      alert(message);
-      loadPDFList();
-    } else {
-      alert(`✗ Erreur: ${data.detail || 'Échec de l\'import'}`);
-    }
-  } catch (error) {
-    alert(`✗ Erreur réseau: ${error.message}`);
-  } finally {
-    button.disabled = false;
-    button.innerHTML = originalText;
-  }
-}
-
-// Analyser les PDFs (debug)
-async function debugPDFAnalysis() {
-  const button = event.target.closest('button');
-  const originalText = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyse en cours...';
-
-  try {
-    const response = await fetch('/api/admin/pdfs/debug-list');
-    const data = await response.json();
-
-    if (data.success) {
-      let report = `📁 ANALYSE DES PDFs DANS LE DOSSIER\n`;
-      report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      report += `📂 Dossier : ${data.upload_dir}\n`;
-      report += `📊 Total PDFs : ${data.total_pdfs}\n\n`;
-
-      const notImported = data.pdfs.filter(p => !p.already_imported);
-      const noSiret = data.pdfs.filter(p => !p.siret_found);
-      const noInvitation = data.pdfs.filter(p => p.siret_found && !p.has_invitation);
-
-      report += `✅ Déjà importés : ${data.pdfs.length - notImported.length}\n`;
-      report += `⏭️  Pas encore importés : ${notImported.length}\n`;
-      report += `❌ Sans SIRET trouvé : ${noSiret.length}\n`;
-      report += `⚠️  SIRET trouvé mais pas d'invitation : ${noInvitation.length}\n\n`;
-
-      if (noSiret.length > 0) {
-        report += `\n❌ PDFs SANS SIRET (ne peuvent PAS être importés) :\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        noSiret.slice(0, 10).forEach(pdf => {
-          report += `\n📄 ${pdf.filename}\n`;
-          report += `   Taille: ${pdf.size_kb} KB\n`;
-          report += `   ❌ SIRET introuvable (pas dans nom, pas dans EmailLog)\n`;
-        });
-        if (noSiret.length > 10) {
-          report += `\n... et ${noSiret.length - 10} autre(s) PDF(s) sans SIRET\n`;
-        }
-      }
-
-      if (noInvitation.length > 0) {
-        report += `\n\n⚠️  PDFs AVEC SIRET MAIS SANS INVITATION :\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        noInvitation.slice(0, 5).forEach(pdf => {
-          report += `\n📄 ${pdf.filename}\n`;
-          report += `   SIRET: ${pdf.siret_found} (${pdf.siret_method})\n`;
-          report += `   ⚠️  Pas d'invitation en base\n`;
-          report += `   💡 Sera importé avec données minimales\n`;
-        });
-        if (noInvitation.length > 5) {
-          report += `\n... et ${noInvitation.length - 5} autre(s)\n`;
-        }
-      }
-
-      alert(report);
-    } else {
-      alert(`✗ Erreur: ${data.detail || 'Échec de l\'analyse'}`);
-    }
-  } catch (error) {
-    alert(`✗ Erreur réseau: ${error.message}`);
-  } finally {
-    button.disabled = false;
-    button.innerHTML = originalText;
-  }
-}
-
-// Charger au démarrage
-document.addEventListener('DOMContentLoaded', function() {
-  if (document.getElementById('pdf-table')) {
-    loadPDFList();
-  }
-});
-
-// ============================================
-// Chatbot IA Functions
-
-
-// Check chatbot health on page load
-async function checkChatbotStatus() {
-  try {
-    const response = await fetch('/api/chatbot/health');
-    const data = await response.json();
-
-    const statusEl = document.getElementById('chatbot-status');
-    if (data.openai_configured) {
-      statusEl.textContent = '✓ Opérationnel';
-      statusEl.classList.remove('bg-gray-200', 'text-gray-600');
-      statusEl.classList.add('bg-green-100', 'text-green-700');
-    } else {
-      statusEl.textContent = '✗ Non configuré';
-      statusEl.classList.remove('bg-gray-200', 'text-gray-600');
-      statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
-    }
-  } catch (error) {
-    console.error('Erreur lors de la vérification du chatbot:', error);
-  }
-}
-
-// Handle chat form submission
-document.getElementById('chat-form').addEventListener('submit', async function(e) {
+// Import forms handlers
+document.getElementById('upload-papcse-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
-
-  const input = document.getElementById('chat-input');
-  const question = input.value.trim();
-
-  if (!question) return;
-
-  // Clear input
-  input.value = '';
-
-  // Add user message to chat
-  addUserMessage(question);
-
-  // Disable submit button
-  const submitBtn = document.getElementById('chat-submit');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Envoi...';
-
-  try {
-    // Send question to chatbot
-    const response = await fetch('/api/chatbot/ask', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ question })
-    });
-
-    const data = await response.json();
-
-    // Add bot response to chat
-    addBotMessage(data);
-
-  } catch (error) {
-    console.error('Erreur:', error);
-    addBotMessage({
-      answer: '❌ Une erreur est survenue. Veuillez réessayer.',
-      error: error.message
-    });
-  } finally {
-    // Re-enable submit button
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer';
-    input.focus();
-  }
+  const formData = new FormData(e.target);
+  // ... handler for papcse import
 });
 
-// Add user message to chat
-function addUserMessage(question) {
-  const messagesDiv = document.getElementById('chat-messages');
-  const messageEl = document.createElement('div');
-  messageEl.className = 'flex items-start gap-3 justify-end';
-  messageEl.innerHTML = `
-    <div class="max-w-2xl bg-indigo-500 text-white rounded-lg p-4 shadow-sm">
-      <p class="text-sm">${escapeHtml(question)}</p>
-    </div>
-    <div class="flex-shrink-0 w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-      <i class="fas fa-user text-gray-600"></i>
-    </div>
-  `;
-  messagesDiv.appendChild(messageEl);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Add bot message to chat
-function addBotMessage(data) {
-  const messagesDiv = document.getElementById('chat-messages');
-  const messageEl = document.createElement('div');
-  messageEl.className = 'flex items-start gap-3';
-
-  let content = `
-    <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-      <i class="fas fa-comments text-white"></i>
-    </div>
-    <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
-      <div class="prose prose-sm max-w-none">
-        ${formatMarkdown(data.answer)}
-      </div>
-  `;
-
-  // Add SQL query if available (collapsible)
-  if (data.sql) {
-    content += `
-      <div class="mt-3 pt-3 border-t border-gray-200">
-        <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-          <i class="fas fa-code"></i>
-          Voir la requête SQL générée
-          <i class="fas fa-chevron-down ml-1"></i>
-        </button>
-        <div class="hidden mt-2">
-          <p class="text-xs text-gray-600 mb-1">${escapeHtml(data.sql_explanation || '')}</p>
-          <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto"><code>${escapeHtml(data.sql)}</code></pre>
-          ${data.total_results ? `<p class="text-xs text-gray-500 mt-1">${data.total_results} résultat(s) trouvé(s)</p>` : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  content += `</div>`;
-  messageEl.innerHTML = content;
-  messagesDiv.appendChild(messageEl);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Ask a predefined question
-function askPredefinedQuestion(question) {
-  const input = document.getElementById('chat-input');
-  input.value = question;
-  document.getElementById('chat-form').dispatchEvent(new Event('submit'));
-}
-
-// Show more examples
-async function showMoreExamples() {
-  try {
-    const response = await fetch('/api/chatbot/examples');
-    const data = await response.json();
-
-    const messagesDiv = document.getElementById('chat-messages');
-    const messageEl = document.createElement('div');
-    messageEl.className = 'flex items-start gap-3';
-
-    let examplesHtml = '<div class="space-y-3">';
-    for (const category of data.examples) {
-      examplesHtml += `
-        <div>
-          <h4 class="font-semibold text-gray-800 mb-2">${escapeHtml(category.category)}</h4>
-          <div class="space-y-1">
-      `;
-      for (const question of category.questions) {
-        examplesHtml += `
-          <button onclick="askPredefinedQuestion('${escapeHtml(question).replace(/'/g, "\\'")}'); this.closest('.flex').remove();" class="block w-full text-left px-3 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 rounded transition">
-            ${escapeHtml(question)}
-          </button>
-        `;
-      }
-      examplesHtml += '</div></div>';
-    }
-    examplesHtml += '</div>';
-
-    messageEl.innerHTML = `
-      <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-        <i class="fas fa-comments text-white"></i>
-      </div>
-      <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
-        <p class="text-sm font-semibold text-gray-800 mb-3">✨ Voici plus d'exemples de questions :</p>
-        ${examplesHtml}
-      </div>
-    `;
-
-    messagesDiv.appendChild(messageEl);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  } catch (error) {
-    console.error('Erreur lors du chargement des exemples:', error);
-  }
-}
-
-// Utility: Escape HTML
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// Utility: Format markdown-like text (basic)
-function formatMarkdown(text) {
-  if (!text) return '';
-
-  // Convert **bold** to <strong>
-  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-  // Convert *italic* to <em>
-  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-  // Convert newlines to <br>
-  text = text.replace(/\n/g, '<br>');
-
-  // Convert lists (lines starting with - or •)
-  text = text.replace(/^[•\-]\s(.+)/gm, '<li>$1</li>');
-  text = text.replace(/(<li>.*<\/li>)/s, '<ul class="list-disc list-inside space-y-1">$1</ul>');
-
-  // Convert numbered lists
-  text = text.replace(/^\d+\.\s(.+)/gm, '<li>$1</li>');
-
-  return text;
-}
-
-// RAPPORT IA PAP
-// ============================================
-
-async function genererRapportIA() {
-  // Affiche la modal
-  const modal = document.getElementById('rapport-ia-modal');
-  const modalContent = document.getElementById('rapport-ia-content');
-
-  modal.classList.remove('hidden');
-
-  // Affiche le loader
-  modalContent.innerHTML = `
-    <div class="flex flex-col items-center justify-center py-12">
-      <i class="fas fa-chart-line fa-3x text-purple-600 mb-4 animate-pulse"></i>
-      <p class="text-lg font-semibold text-gray-700">Analyse en cours...</p>
-      <p class="text-sm text-gray-500 mt-2">Traitement des entreprises prioritaires</p>
-      <div class="mt-4">
-        <i class="fas fa-spinner fa-spin text-2xl text-purple-600"></i>
-      </div>
-    </div>
-  `;
-
-  try {
-    const response = await fetch('/api/rapport-ia-pap');
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error('Erreur lors de la génération du rapport');
-    }
-
-    // Affiche le rapport
-    afficherRapportIA(data);
-
-  } catch (error) {
-    modalContent.innerHTML = `
-      <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
-        <i class="fas fa-exclamation-circle text-red-600 mr-2"></i>
-        <span class="text-red-800">Erreur: ${error.message}</span>
-      </div>
-    `;
-  }
-}
-
-function afficherRapportIA(data) {
-  const modalContent = document.getElementById('rapport-ia-content');
-  const stats = data.statistiques;
-  const p1 = data.priorite_1;
-  const p2 = data.priorite_2;
-
-  let html = `
-    <!-- Header -->
-    <div class="mb-6">
-      <h2 class="text-3xl font-bold text-gray-800 mb-2">⚡ Analyse Avancée - Cibles Prioritaires</h2>
-      <p class="text-sm text-gray-500">Généré le ${data.date_generation}</p>
-    </div>
-
-    <!-- Statistiques globales -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-      <div class="bg-purple-50 rounded-lg p-4">
-        <p class="text-xs text-purple-600 font-semibold uppercase">Priorité 1</p>
-        <p class="text-2xl font-bold text-purple-900">${stats.total_priorite_1}</p>
-        <p class="text-xs text-purple-700">${stats.total_inscrits_p1.toLocaleString()} inscrits</p>
-      </div>
-      <div class="bg-blue-50 rounded-lg p-4">
-        <p class="text-xs text-blue-600 font-semibold uppercase">Priorité 2</p>
-        <p class="text-2xl font-bold text-blue-900">${stats.total_priorite_2}</p>
-        <p class="text-xs text-blue-700">${stats.total_inscrits_p2.toLocaleString()} inscrits</p>
-      </div>
-      <div class="bg-green-50 rounded-lg p-4">
-        <p class="text-xs text-green-600 font-semibold uppercase">CGT Implantée</p>
-        <p class="text-2xl font-bold text-green-900">${stats.cgt_implantee_p1 + stats.cgt_implantee_p2}</p>
-        <p class="text-xs text-green-700">P1: ${stats.cgt_implantee_p1} | P2: ${stats.cgt_implantee_p2}</p>
-      </div>
-      <div class="bg-orange-50 rounded-lg p-4">
-        <p class="text-xs text-orange-600 font-semibold uppercase">En Carence</p>
-        <p class="text-2xl font-bold text-orange-900">${stats.carence_p1 + stats.carence_p2}</p>
-        <p class="text-xs text-orange-700">P1: ${stats.carence_p1} | P2: ${stats.carence_p2}</p>
-      </div>
-    </div>
-
-    <!-- Filtre par région -->
-    <div class="mb-6">
-      <p class="text-sm font-semibold text-gray-700 mb-2">Filtrer par région:</p>
-      <div class="flex flex-wrap gap-2" id="region-tabs">
-        <!-- Les onglets de régions seront générés dynamiquement -->
-      </div>
-    </div>
-
-    <!-- Tabs -->
-    <div class="mb-6">
-      <div class="border-b border-gray-200">
-        <nav class="-mb-px flex space-x-8">
-          <button onclick="switchTab('priorite-1')" id="tab-priorite-1" class="rapport-tab active border-b-2 border-purple-600 py-4 px-1 text-sm font-semibold text-purple-600">
-            Priorité 1 (<span id="count-p1">${stats.total_priorite_1}</span>)
-          </button>
-          <button onclick="switchTab('priorite-2')" id="tab-priorite-2" class="rapport-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-            Priorité 2 (<span id="count-p2">${stats.total_priorite_2}</span>)
-          </button>
-        </nav>
-      </div>
-    </div>
-
-    <!-- Content Priorité 1 -->
-    <div id="content-priorite-1" class="rapport-content">
-      <div class="mb-4">
-        <h3 class="text-xl font-bold text-gray-800">${p1.titre}</h3>
-        <p class="text-sm text-gray-600">${p1.description}</p>
-      </div>
-      <div class="space-y-4 max-h-[600px] overflow-y-auto">
-        ${genererTableauEntreprises(p1.entreprises)}
-      </div>
-    </div>
-
-    <!-- Content Priorité 2 -->
-    <div id="content-priorite-2" class="rapport-content hidden">
-      <div class="mb-4">
-        <h3 class="text-xl font-bold text-gray-800">${p2.titre}</h3>
-        <p class="text-sm text-gray-600">${p2.description}</p>
-      </div>
-      <div class="space-y-4 max-h-[600px] overflow-y-auto">
-        ${genererTableauEntreprises(p2.entreprises)}
-      </div>
-    </div>
-
-    <!-- Export button -->
-    <div class="mt-6 flex justify-end space-x-3">
-      <button onclick="exporterRapportPDF()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
-        <i class="fas fa-file-pdf mr-2"></i>
-        Télécharger PDF
-      </button>
-      <button onclick="exporterRapportJSON()" class="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition">
-        <i class="fas fa-download mr-2"></i>
-        Télécharger JSON
-      </button>
-      <button onclick="fermerRapportIA()" class="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
-        Fermer
-      </button>
-    </div>
-  `;
-
-  modalContent.innerHTML = html;
-
-  // Générer et afficher les onglets de régions
-  genererOngletsRegions(p1, p2);
-
-  // Stocker les données globalement pour le filtrage
-  window.rapportData = { p1, p2 };
-  window.regionSelectionnee = 'toutes';
-}
-
-function genererOngletsRegions(p1, p2) {
-  // Collecter toutes les régions uniques
-  const regions = new Set();
-  [...p1.entreprises, ...p2.entreprises].forEach(e => {
-    if (e.region && e.region !== 'Non renseignée') {
-      regions.add(e.region);
-    }
-  });
-
-  const regionsArray = Array.from(regions).sort();
-  const regionTabsContainer = document.getElementById('region-tabs');
-
-  // Bouton "Toutes régions"
-  let html = `
-    <button onclick="filtrerParRegion('toutes')" id="region-tab-toutes"
-            class="region-tab px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white">
-      Toutes régions
-    </button>
-  `;
-
-  // Boutons pour chaque région
-  regionsArray.forEach(region => {
-    html += `
-      <button onclick="filtrerParRegion('${region}')" id="region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}"
-              class="region-tab px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
-        ${region}
-      </button>
-    `;
-  });
-
-  regionTabsContainer.innerHTML = html;
-}
-
-function filtrerParRegion(region) {
-  window.regionSelectionnee = region;
-
-  // Mettre à jour l'apparence des onglets de régions
-  document.querySelectorAll('.region-tab').forEach(tab => {
-    tab.classList.remove('bg-purple-600', 'text-white');
-    tab.classList.add('bg-gray-100', 'text-gray-700');
-  });
-
-  const tabId = region === 'toutes' ? 'region-tab-toutes' : `region-tab-${region.replace(/[^a-zA-Z0-9]/g, '-')}`;
-  const activeTab = document.getElementById(tabId);
-  if (activeTab) {
-    activeTab.classList.remove('bg-gray-100', 'text-gray-700');
-    activeTab.classList.add('bg-purple-600', 'text-white');
-  }
-
-  // Filtrer les entreprises
-  const { p1, p2 } = window.rapportData;
-
-  const p1Filtrees = region === 'toutes'
-    ? p1.entreprises
-    : p1.entreprises.filter(e => e.region === region);
-
-  const p2Filtrees = region === 'toutes'
-    ? p2.entreprises
-    : p2.entreprises.filter(e => e.region === region);
-
-  // Mettre à jour les compteurs
-  document.getElementById('count-p1').textContent = p1Filtrees.length;
-  document.getElementById('count-p2').textContent = p2Filtrees.length;
-
-  // Mettre à jour le contenu
-  document.querySelector('#content-priorite-1 .space-y-4').innerHTML =
-    p1Filtrees.length > 0 ? genererTableauEntreprises(p1Filtrees) :
-    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
-
-  document.querySelector('#content-priorite-2 .space-y-4').innerHTML =
-    p2Filtrees.length > 0 ? genererTableauEntreprises(p2Filtrees) :
-    '<p class="text-gray-500 text-center py-8">Aucune entreprise dans cette région pour cette priorité</p>';
-}
-
-function genererTableauEntreprises(entreprises) {
-  return `
-    <div class="overflow-auto">
-      <table class="w-full divide-y divide-gray-200 text-sm">
-        <thead class="bg-gradient-to-r from-purple-600 to-pink-600 text-white sticky top-0 z-10">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Entreprise / Localisation</th>
-            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Effectifs</th>
-            <th class="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider">Status</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dates Élection</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">FD / UD / Collèges</th>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Résultats CGT</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          ${entreprises.map((e, index) => {
-            const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-            const cgtPresent = e.implantations_syndicales.includes('CGT');
-
-            // Badges status compacts
-            const carenceBadge = e.carence
-              ? '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-red-100 text-red-700">CAR</span>'
-              : '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-green-100 text-green-700">PV</span>';
-
-            const cgtBadge = cgtPresent
-              ? '<span class="inline-block px-1.5 py-0.5 text-xs font-bold rounded bg-green-100 text-green-700">CGT</span>'
-              : '<span class="inline-block px-1.5 py-0.5 text-xs rounded bg-gray-200 text-gray-600">—</span>';
-
-            // Date élection avec urgence
-            let dateElectionHtml = '<span class="text-gray-400 text-xs">—</span>';
-            if (e.date_election !== 'Non renseignée') {
-              const joursColor = e.jours_restants <= 30
-                ? 'text-red-700 font-bold'
-                : e.jours_restants <= 90
-                  ? 'text-orange-700 font-semibold'
-                  : 'text-blue-700';
-              dateElectionHtml = `
-                <div class="text-xs">
-                  <div class="font-bold text-gray-900">🗳️ ${e.date_election}</div>
-                  ${e.jours_restants !== null && e.jours_restants !== undefined
-                    ? `<div class="${joursColor}">J-${e.jours_restants}</div>`
-                    : ''}
-                </div>
-              `;
-            }
-
-            // Invitations électorales
-            const invitPapHtml = e.invitations_pap && e.invitations_pap.length > 0
-              ? `<div class="text-xs mt-1">${e.invitations_pap.map(date =>
-                  `<div class="text-purple-700">📬 ${date}</div>`
-                ).join('')}</div>`
-              : '';
-
-            // Collèges (limité à 3)
-            const collegesText = e.colleges && e.colleges.length > 0
-              ? e.colleges.slice(0, 3).join(', ') + (e.colleges.length > 3 ? `... (+${e.colleges.length - 3})` : '')
-              : '';
-
-            // Organisation compacte
-            const orgHtml = `
-              <div class="text-xs space-y-1">
-                ${e.fd ? `<div><strong class="text-blue-700">FD:</strong> ${e.fd}</div>` : ''}
-                ${e.ud ? `<div><strong class="text-blue-700">UD:</strong> ${e.ud}</div>` : ''}
-                ${e.idcc ? `<div><strong class="text-blue-700">IDCC:</strong> ${e.idcc}</div>` : ''}
-                ${collegesText ? `<div class="text-gray-600 mt-1">${collegesText}</div>` : ''}
-              </div>
-            `;
-
-            // Résultats CGT
-            let cgtResultatHtml = '<span class="text-gray-400 text-xs">—</span>';
-            if (e.voix_organisations && e.voix_organisations['CGT']) {
-              const voixCGT = e.voix_organisations['CGT'];
-              const pct = e.sve && e.sve > 0 ? ((voixCGT / e.sve) * 100).toFixed(1) : '0';
-              const totalOrgs = Object.keys(e.voix_organisations).length;
-              const position = Object.entries(e.voix_organisations)
-                .sort((a, b) => b[1] - a[1])
-                .findIndex(([org]) => org === 'CGT') + 1;
-
-              cgtResultatHtml = `
-                <div class="text-xs">
-                  <div class="font-bold text-red-700">${voixCGT.toLocaleString()} voix</div>
-                  <div class="text-red-600">${pct}% (${position}/${totalOrgs})</div>
-                  ${e.implantations_syndicales && e.implantations_syndicales.length > 1
-                    ? `<div class="text-gray-500 mt-1 text-xs">vs ${e.implantations_syndicales.filter(o => o !== 'CGT').slice(0, 2).join(', ')}</div>`
-                    : ''}
-                </div>
-              `;
-            } else if (e.implantations_syndicales && e.implantations_syndicales.length > 0) {
-              cgtResultatHtml = `
-                <div class="text-xs text-gray-600">
-                  Pas de voix CGT<br/>
-                  <span class="text-xs text-gray-500">Présents: ${e.implantations_syndicales.slice(0, 3).join(', ')}</span>
-                </div>
-              `;
-            }
-
-            // Générer les analyses contextuelles intelligentes
-            const analyses = [];
-
-            // Analyse audience
-            if (e.inscrits >= 10000) {
-              analyses.push('🎯 Très forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
-            } else if (e.inscrits >= 5000) {
-              analyses.push('🎯 Forte audience (' + e.inscrits.toLocaleString() + ' inscrits)');
-            } else if (e.inscrits >= 1000) {
-              analyses.push('🎯 Audience significative (' + e.inscrits.toLocaleString() + ' inscrits)');
-            }
-
-            // Analyse implantation CGT
-            if (cgtPresent) {
-              if (e.voix_organisations && e.voix_organisations['CGT']) {
-                const pctCGT = e.sve && e.sve > 0 ? ((e.voix_organisations['CGT'] / e.sve) * 100) : 0;
-                const position = Object.entries(e.voix_organisations)
-                  .sort((a, b) => b[1] - a[1])
-                  .findIndex(([org]) => org === 'CGT') + 1;
-
-                if (position === 1 && pctCGT >= 30) {
-                  analyses.push('✅ CGT DOMINANTE - Consolidation prioritaire (' + pctCGT.toFixed(1) + '%)');
-                } else if (position === 1) {
-                  analyses.push('✅ CGT EN TÊTE - Renforcer la position (' + pctCGT.toFixed(1) + '%)');
-                } else if (pctCGT >= 20) {
-                  analyses.push('📈 CGT bien implantée à renforcer (' + pctCGT.toFixed(1) + '%)');
-                } else {
-                  analyses.push('📈 CGT présente, potentiel de progression (' + pctCGT.toFixed(1) + '%)');
-                }
-              } else {
-                analyses.push('✅ CGT IMPLANTÉE - Obtenir les résultats électoraux');
-              }
-            } else {
-              if (e.inscrits >= 1000) {
-                analyses.push('⚠️ CGT ABSENTE - CIBLE PRIORITAIRE pour implantation');
-              } else {
-                analyses.push('ℹ️ CGT non implantée');
-              }
-            }
-
-            // Analyse invitation électorale
-            if (e.invitations_pap && e.invitations_pap.length > 0) {
-              analyses.push('📬 Invitation(s) électorale(s) reçue(s) (' + e.invitations_pap.length + ')');
-            } else {
-              analyses.push('ℹ️ Pas d\'invitation électorale détectée');
-            }
-
-            // Analyse collèges
-            if (e.colleges && e.colleges.length > 3) {
-              analyses.push('🏢 Nombreux collèges (' + e.colleges.length + ') - Structure complexe');
-            } else if (e.colleges && e.colleges.length > 1) {
-              analyses.push('🏢 Pluralité de collèges (' + e.colleges.length + ')');
-            }
-
-            // Analyse concurrence
-            if (e.implantations_syndicales && e.implantations_syndicales.length >= 5) {
-              analyses.push('⚔️ Forte concurrence syndicale (' + e.implantations_syndicales.length + ' organisations)');
-            } else if (e.implantations_syndicales && e.implantations_syndicales.length >= 3) {
-              analyses.push('⚔️ Concurrence modérée (' + e.implantations_syndicales.length + ' organisations)');
-            }
-
-            // Analyse élection imminente
-            if (e.jours_restants !== null && e.jours_restants <= 30) {
-              analyses.push('🚨 ÉLECTION IMMINENTE (J-' + e.jours_restants + ') - Action urgente');
-            } else if (e.jours_restants !== null && e.jours_restants <= 90) {
-              analyses.push('⏰ Élection proche (J-' + e.jours_restants + ') - Préparer la campagne');
-            }
-
-            const analysesHtml = analyses.length > 0
-              ? `<div class="mt-2 pt-2 border-t border-gray-200">
-                  <div class="text-xs space-y-0.5 text-gray-700">
-                    ${analyses.map(a => `<div>${a}</div>`).join('')}
-                  </div>
-                </div>`
-              : '';
-
-            return `
-              <tr class="${rowBg} hover:bg-purple-50 transition">
-                <td class="px-4 py-3">
-                  <div class="font-bold text-gray-900 text-sm">${e.raison_sociale}</div>
-                  <div class="text-xs text-gray-500 font-mono">${e.siret}</div>
-                  <div class="text-xs text-gray-600 mt-0.5">${e.ville} (${e.departement})</div>
-                  ${e.region && e.region !== 'Non renseignée' ? `<div class="text-xs text-gray-500">${e.region}</div>` : ''}
-                  ${analysesHtml}
-                </td>
-                <td class="px-3 py-3 text-center">
-                  <div class="font-bold text-gray-900">${e.inscrits.toLocaleString()}</div>
-                  <div class="text-xs text-gray-500">inscrits</div>
-                  ${e.nb_pv ? `<div class="text-xs text-blue-600 font-semibold mt-1">${e.nb_pv} PV</div>` : ''}
-                  ${e.sve ? `<div class="text-xs text-gray-500 mt-0.5">${e.sve.toLocaleString()} SVE</div>` : ''}
-                </td>
-                <td class="px-3 py-3 text-center">
-                  <div class="flex flex-col items-center gap-1">
-                    ${carenceBadge}
-                    ${cgtBadge}
-                  </div>
-                </td>
-                <td class="px-4 py-3">
-                  ${dateElectionHtml}
-                  ${invitPapHtml}
-                </td>
-                <td class="px-4 py-3">${orgHtml}</td>
-                <td class="px-4 py-3">${cgtResultatHtml}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function genererCarteEntreprise(e) {
-  const carenceBadge = e.carence
-    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-600">CARENCE</span>'
-    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">PV</span>';
-
-  const cgtBadge = e.implantations_syndicales.includes('CGT')
-    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-600">CGT ✓</span>'
-    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-600">CGT ✗</span>';
-
-  // Badge de date d'élection avec couleur selon urgence
-  let dateBadge = '';
-  if (e.jours_restants !== null && e.jours_restants !== undefined) {
-    const joursColor = e.jours_restants <= 30
-      ? 'bg-red-100 text-red-700'
-      : e.jours_restants <= 90
-        ? 'bg-orange-100 text-orange-700'
-        : 'bg-blue-100 text-blue-700';
-    dateBadge = `<span class="px-2 py-1 text-xs font-semibold rounded-full ${joursColor}">J-${e.jours_restants}</span>`;
-  }
-
-  return `
-    <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-      <div class="flex items-start justify-between mb-3">
-        <div class="flex-1">
-          <h4 class="text-lg font-bold text-gray-800">${e.raison_sociale}</h4>
-          <p class="text-xs text-gray-500 font-mono">${e.siret}</p>
-        </div>
-        <div class="flex flex-col items-end space-y-1">
-          ${dateBadge}
-          ${carenceBadge}
-          ${cgtBadge}
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
-        <div>
-          <p class="text-xs text-gray-500">Inscrits</p>
-          <p class="font-semibold text-gray-800">${e.inscrits.toLocaleString()}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">PV</p>
-          <p class="font-semibold text-gray-800">${e.nb_pv}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">Département</p>
-          <p class="font-semibold text-gray-800">${e.departement}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-500">Ville</p>
-          <p class="font-semibold text-gray-800">${e.ville}</p>
-        </div>
-      </div>
-
-      ${e.date_election !== 'Non renseignée' || (e.invitations_pap && e.invitations_pap.length > 0) ? `
-      <div class="mb-3 bg-purple-50 p-3 rounded border border-purple-200">
-        <p class="text-xs text-purple-700 font-semibold mb-2">📅 DATES IMPORTANTES</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-          ${e.date_election !== 'Non renseignée' ? `
-          <div class="flex items-center gap-2">
-            <span class="text-purple-600">🗳️</span>
-            <div>
-              <p class="text-xs text-purple-600 font-medium">Prochaine élection</p>
-              <p class="font-bold text-purple-900">${e.date_election}</p>
-              ${e.jours_restants !== null && e.jours_restants !== undefined ? `<p class="text-xs text-purple-700">Dans ${e.jours_restants} jours</p>` : ''}
-            </div>
-          </div>
-          ` : ''}
-          ${e.invitations_pap && e.invitations_pap.length > 0 ? `
-          <div class="flex items-center gap-2">
-            <span class="text-purple-600">📬</span>
-            <div>
-              <p class="text-xs text-purple-600 font-medium">Invitation(s) électorale(s)</p>
-              <p class="font-bold text-purple-900">${e.invitations_pap.join(', ')}</p>
-            </div>
-          </div>
-          ` : ''}
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm bg-blue-50 p-2 rounded border border-blue-200">
-        <div>
-          <p class="text-xs text-blue-600 font-semibold">FD (Fédération)</p>
-          <p class="font-semibold text-gray-800">${e.fd || 'Non renseignée'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-blue-600 font-semibold">UD</p>
-          <p class="font-semibold text-gray-800">${e.ud || 'Non renseigné'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-blue-600 font-semibold">IDCC</p>
-          <p class="font-semibold text-gray-800">${e.idcc || 'Non renseigné'}</p>
-        </div>
-      </div>
-
-      ${e.sve || e.votants ? `
-      <div class="grid grid-cols-2 gap-3 mb-3 text-sm bg-gray-50 p-2 rounded border border-gray-200">
-        <div>
-          <p class="text-xs text-gray-600 font-semibold">SVE</p>
-          <p class="font-semibold text-gray-800">${(e.sve || 0).toLocaleString()}</p>
-        </div>
-        <div>
-          <p class="text-xs text-gray-600 font-semibold">Votants</p>
-          <p class="font-semibold text-gray-800">${(e.votants || 0).toLocaleString()}</p>
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="mb-3">
-        <p class="text-xs text-gray-500 mb-1">Implantations syndicales:</p>
-        <div class="flex flex-wrap gap-1">
-          ${e.implantations_syndicales.map(org =>
-            `<span class="px-2 py-1 text-xs rounded-full ${org === 'CGT' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}">${org}</span>`
-          ).join('')}
-        </div>
-      </div>
-
-      ${e.voix_organisations && Object.keys(e.voix_organisations).length > 0 ? `
-      <div class="mb-3">
-        <p class="text-xs text-gray-500 mb-1">Résultats électoraux (voix):</p>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-          ${Object.entries(e.voix_organisations).sort((a, b) => b[1] - a[1]).map(([org, voix]) => {
-            const pct = e.sve && e.sve > 0 ? ((voix / e.sve) * 100).toFixed(1) : '0';
-            const bgColor = org === 'CGT' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200';
-            const textColor = org === 'CGT' ? 'text-red-700' : 'text-gray-700';
-            return `<div class="p-2 rounded border ${bgColor}">
-              <span class="font-semibold ${textColor}">${org}</span>:
-              <span class="font-bold">${voix.toLocaleString()}</span>
-              <span class="text-gray-500">(${pct}%)</span>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      ${e.colleges && e.colleges.length > 0 ? `
-      <div class="mb-3">
-        <p class="text-xs text-gray-500 mb-1">Collèges électoraux (${e.colleges.length}):</p>
-        <div class="flex flex-wrap gap-1">
-          ${e.colleges.map(college =>
-            `<span class="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200">${college}</span>`
-          ).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      <div>
-        <p class="text-xs text-gray-500 mb-1">Enjeux identifiés:</p>
-        <ul class="space-y-1">
-          ${e.enjeux.map(enjeu =>
-            `<li class="text-xs text-gray-700 flex items-start">
-              <i class="fas fa-chevron-right text-purple-500 mr-2 mt-1 text-xs"></i>
-              <span>${enjeu}</span>
-            </li>`
-          ).join('')}
-        </ul>
-      </div>
-    </div>
-  `;
-}
-
-function switchTab(tabName) {
-  // Reset all tabs
-  document.querySelectorAll('.rapport-tab').forEach(tab => {
-    tab.classList.remove('active', 'border-purple-600', 'text-purple-600');
-    tab.classList.add('border-transparent', 'text-gray-500');
-  });
-
-  // Hide all contents
-  document.querySelectorAll('.rapport-content').forEach(content => {
-    content.classList.add('hidden');
-  });
-
-  // Activate selected tab
-  const selectedTab = document.getElementById(`tab-${tabName}`);
-  selectedTab.classList.remove('border-transparent', 'text-gray-500');
-  selectedTab.classList.add('active', 'border-purple-600', 'text-purple-600');
-
-  // Show selected content
-  document.getElementById(`content-${tabName}`).classList.remove('hidden');
-}
-
-let rapportDataGlobal = null;
-
-function exporterRapportPDF() {
-  // Sauvegarder l'état original
-  const contentP1 = document.querySelector('#content-priorite-1 .space-y-4');
-  const contentP2 = document.querySelector('#content-priorite-2 .space-y-4');
-  const modalFooter = document.querySelector('#rapport-ia-modal .mt-6');
-
-  // Sauvegarder les classes originales
-  const originalClassP1 = contentP1.className;
-  const originalClassP2 = contentP2.className;
-
-  // Masquer les boutons d'export
-  if (modalFooter) {
-    modalFooter.style.display = 'none';
-  }
-
-  // Retirer la limitation de hauteur pour l'impression
-  contentP1.classList.remove('max-h-[600px]', 'overflow-y-auto');
-  contentP2.classList.remove('max-h-[600px]', 'overflow-y-auto');
-
-  // Forcer l'affichage complet du tableau
-  contentP1.style.maxHeight = 'none';
-  contentP2.style.maxHeight = 'none';
-  contentP1.style.overflow = 'visible';
-  contentP2.style.overflow = 'visible';
-
-  // Lancer l'impression
-  setTimeout(() => {
-    window.print();
-
-    // Restaurer l'état original après impression
-    setTimeout(() => {
-      contentP1.className = originalClassP1;
-      contentP2.className = originalClassP2;
-      contentP1.style.maxHeight = '';
-      contentP2.style.maxHeight = '';
-      contentP1.style.overflow = '';
-      contentP2.style.overflow = '';
-
-      if (modalFooter) {
-        modalFooter.style.display = 'flex';
-      }
-    }, 100);
-  }, 100);
-}
-
-async function exporterRapportJSON() {
-  try {
-    const response = await fetch('/api/rapport-ia-pap');
-    const data = await response.json();
-
-    // Crée un blob JSON
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    // Crée un lien de téléchargement
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rapport-ia-pap-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    alert('Erreur lors de l\'export: ' + error.message);
-  }
-}
-
-function fermerRapportIA() {
-  const modal = document.getElementById('rapport-ia-modal');
-  modal.classList.add('hidden');
-}
-
-// ============================================
-// Assistant Expert Modal Functions
-
-function ouvrirAssistantExpert() {
-  const modal = document.getElementById('assistant-expert-modal');
-  modal.classList.remove('hidden');
-
-  // Check chatbot status when opening
-  checkChatbotStatus();
-
-  // Focus on input
-  setTimeout(() => {
-    const input = document.getElementById('chat-input');
-    if (input) input.focus();
-  }, 100);
-}
-
-function fermerAssistantExpert() {
-  const modal = document.getElementById('assistant-expert-modal');
-  modal.classList.add('hidden');
-}
-</script>
-
-<style>
-@media print {
-  /* Masquer TOUT sauf le modal du rapport */
-  body > *:not(#rapport-ia-modal) {
-    display: none !important;
-  }
-
-  /* Forcer l'affichage du modal rapport même avec classe hidden */
-  #rapport-ia-modal {
-    display: block !important;
-    position: static !important;
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  #rapport-ia-modal > div {
-    max-width: 100% !important;
-    max-height: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-
-  #rapport-ia-content {
-    overflow: visible !important;
-    max-height: none !important;
-  }
-
-  /* Masquer les boutons d'export */
-  #rapport-ia-modal .mt-6 {
-    display: none !important;
-  }
-
-  /* Masquer les onglets de région */
-  #region-tabs {
-    display: none !important;
-  }
-
-  /* Forcer l'affichage complet des tableaux */
-  #content-priorite-1 .space-y-4,
-  #content-priorite-2 .space-y-4 {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
-  /* Tableaux - Optimisation impression */
-  table {
-    width: 100% !important;
-    page-break-inside: auto;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
-  }
-
-  /* Taille de police optimisée */
-  body {
-    font-size: 9pt;
-  }
-
-  h1, h2, h3 {
-    page-break-after: avoid;
-  }
-
-  /* Masquer navigation, header, footer, etc. */
-  nav, header, footer, .navbar, aside {
-    display: none !important;
-  }
-}
-</style>
-
-<!-- Modal Rapport IA -->
-<div id="rapport-ia-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-    <div class="p-6 overflow-y-auto max-h-[90vh]" id="rapport-ia-content">
-      <!-- Le contenu sera injecté ici -->
-    </div>
-  </div>
-</div>
-
-<!-- Modal Assistant Expert -->
-<div id="assistant-expert-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-500 to-purple-600">
-      <div class="flex items-center gap-3">
-        <span class="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
-          <i class="fas fa-comments text-white text-2xl"></i>
-        </span>
-        <div>
-          <h2 class="text-2xl font-bold text-white">Assistant Expert</h2>
-          <p class="text-sm text-indigo-100">Posez vos questions sur les données A.N.D.RE en langage naturel</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="chatbot-status" class="px-3 py-1 text-xs font-semibold bg-white/20 text-white rounded-full">Vérification...</span>
-        <button onclick="fermerAssistantExpert()" class="text-white hover:bg-white/20 rounded-lg p-2 transition">
-          <i class="fas fa-times text-xl"></i>
-        </button>
-      </div>
-    </div>
-
-    <!-- Chat messages area -->
-    <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-      <!-- Welcome message -->
-      <div class="flex items-start gap-3">
-        <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-          <i class="fas fa-comments text-white"></i>
-        </div>
-        <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
-          <p class="text-sm text-gray-800 mb-3">
-            👋 Bonjour ! Je suis votre assistant expert pour analyser les données A.N.D.RE.
-          </p>
-          <p class="text-sm text-gray-700 mb-3">
-            <strong>Exemples de questions que vous pouvez me poser :</strong>
-          </p>
-          <div class="space-y-2 text-xs">
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations électorales dans la base ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
-              💭 "Combien d'invitations électorales dans la base ?"
-            </button>
-            <button onclick="askPredefinedQuestion('Quelles entreprises ont une élection ce mois-ci ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
-              📅 "Quelles entreprises ont une élection ce mois-ci ?"
-            </button>
-            <button onclick="askPredefinedQuestion('Combien d\\'invitations en retard dans le 75 ?')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
-              🔴 "Combien d'invitations en retard dans le 75 ?"
-            </button>
-            <button onclick="askPredefinedQuestion('Top 5 des fédérations avec le plus d\\'invitations')" class="block w-full text-left px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded transition">
-              🏢 "Top 5 des fédérations avec le plus d'invitations"
-            </button>
-            <button onclick="showMoreExamples()" class="block w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded transition font-semibold text-purple-700">
-              ✨ Voir plus d'exemples
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Input area -->
-    <div class="border-t border-gray-200 p-4 bg-white">
-      <form id="chat-form" class="flex gap-3">
-        <input
-          type="text"
-          id="chat-input"
-          placeholder="Posez votre question... (ex: Combien d'invitations en retard dans le 75 ?)"
-          class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          autocomplete="off"
-        />
-        <button
-          type="submit"
-          id="chat-submit"
-          class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition flex items-center gap-2 font-semibold"
-        >
-          <i class="fas fa-paper-plane"></i>
-          Envoyer
-        </button>
-      </form>
-      <p class="text-xs text-gray-500 mt-2">
-        <i class="fas fa-lightbulb mr-1"></i>
-        Astuce : Soyez précis dans vos questions pour obtenir les meilleurs résultats
-      </p>
-    </div>
-  </div>
-</div>
-
-<script>
-// =========================================================
-// Gestion des utilisateurs - Approuver / Rejeter
-// =========================================================
-
-async function approveUser(userId) {
-  if (!confirm('Êtes-vous sûr de vouloir approuver cette demande d\'inscription ?')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/approve`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      // Supprimer la carte de l'utilisateur de la liste
-      const userCard = document.getElementById(`user-${userId}`);
-      if (userCard) {
-        userCard.style.opacity = '0';
-        setTimeout(() => {
-          userCard.remove();
-          // Recharger la page si c'était la dernière demande
-          const remainingCards = document.querySelectorAll('[id^="user-"]');
-          if (remainingCards.length === 0) {
-            location.reload();
-          }
-        }, 300);
-      }
-    } else {
-      showToast(data.error || 'Erreur lors de l\'approbation', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors de l\'approbation', 'error');
-  }
-}
-
-async function rejectUser(userId) {
-  if (!confirm('Êtes-vous sûr de vouloir rejeter et supprimer cette demande ? Cette action est irréversible.')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/reject`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      // Supprimer la carte de l'utilisateur de la liste
-      const userCard = document.getElementById(`user-${userId}`);
-      if (userCard) {
-        userCard.style.opacity = '0';
-        setTimeout(() => {
-          userCard.remove();
-          // Recharger la page si c'était la dernière demande
-          const remainingCards = document.querySelectorAll('[id^="user-"]');
-          if (remainingCards.length === 0) {
-            location.reload();
-          }
-        }, 300);
-      }
-    } else {
-      showToast(data.error || 'Erreur lors du rejet', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors du rejet', 'error');
-  }
-}
-
-//============================================================
-// Nouvelles fonctions de gestion des utilisateurs
-// =========================================================
-
-async function deactivateUser(userId) {
-  if (!confirm('Êtes-vous sûr de vouloir désactiver ce compte utilisateur ?')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/deactivate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      setTimeout(() => location.reload(), 800);
-    } else {
-      showToast(data.error || 'Erreur lors de la désactivation', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors de la désactivation', 'error');
-  }
-}
-
-async function reactivateUser(userId) {
-  if (!confirm('Êtes-vous sûr de vouloir réactiver ce compte utilisateur ?')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/activate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      setTimeout(() => location.reload(), 800);
-    } else {
-      showToast(data.error || 'Erreur lors de la réactivation', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors de la réactivation', 'error');
-  }
-}
-
-async function makeAdmin(userId) {
-  if (!confirm('Êtes-vous sûr de vouloir promouvoir cet utilisateur au rôle d\'administrateur ?')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/make-admin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      setTimeout(() => location.reload(), 800);
-    } else {
-      showToast(data.error || 'Erreur lors de la promotion', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors de la promotion', 'error');
-  }
-}
-
-async function deleteUser(userId) {
-  if (!confirm('⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ? Cette action est IRRÉVERSIBLE.')) {
-    return;
-  }
-
-  try {
-    showLoading();
-    const response = await fetch(`/admin/users/${userId}/delete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    hideLoading();
-
-    if (data.success) {
-      showToast(data.message, 'success');
-      setTimeout(() => location.reload(), 800);
-    } else {
-      showToast(data.error || 'Erreur lors de la suppression', 'error');
-    }
-  } catch (error) {
-    hideLoading();
-    console.error('Erreur:', error);
-    showToast('Erreur lors de la suppression', 'error');
-  }
-}
-
-// =========================================================
-// Filtrage et recherche des utilisateurs
-// =========================================================
-
-let currentFilter = 'all';
-
-function filterByStatus(status) {
-  currentFilter = status;
-
-  // Mettre à jour les boutons actifs
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.classList.remove('active', 'bg-indigo-600', 'text-white');
-    btn.classList.add('bg-gray-200', 'text-gray-700');
-  });
-
-  const activeBtn = document.querySelector(`.filter-btn[data-status="${status}"]`);
-  if (activeBtn) {
-    activeBtn.classList.add('active', 'bg-indigo-600', 'text-white');
-    activeBtn.classList.remove('bg-gray-200', 'text-gray-700');
-  }
-
-  // Filtrer les utilisateurs
-  applyFilters();
-}
-
-function filterUsers() {
-  applyFilters();
-}
-
-function applyFilters() {
-  const searchText = document.getElementById('user-search').value.toLowerCase();
-  const userItems = document.querySelectorAll('.user-item');
-
-  userItems.forEach(item => {
-    const itemStatus = item.getAttribute('data-status');
-    const itemSearch = item.getAttribute('data-search');
-
-    // Vérifier le filtre de statut
-    const statusMatch = currentFilter === 'all' || itemStatus === currentFilter;
-
-    // Vérifier la recherche
-    const searchMatch = !searchText || itemSearch.includes(searchText);
-
-    // Afficher ou masquer
-    if (statusMatch && searchMatch) {
-      item.style.display = '';
-    } else {
-      item.style.display = 'none';
-    }
-  });
-}
-
-// Initialiser les styles des boutons de filtrage
-document.addEventListener('DOMContentLoaded', function() {
-  // Activer le bouton "Tous" par défaut
-  const allBtn = document.querySelector('.filter-btn[data-status="all"]');
-  if (allBtn) {
-    allBtn.classList.add('bg-indigo-600', 'text-white');
-    allBtn.classList.remove('bg-gray-200', 'text-gray-700');
-  }
-
-  // Initialiser les autres boutons
-  document.querySelectorAll('.filter-btn:not(.active)').forEach(btn => {
-    btn.classList.add('bg-gray-200', 'text-gray-700');
-  });
-});
-
-// ========== Formulaire Import PAP ==========
-
-document.getElementById('form-import-pap')?.addEventListener('submit', async function(e) {
+document.getElementById('upload-invitations-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
-
-  const formData = new FormData(this);
-  const submitBtn = this.querySelector('button[type="submit"]');
-  const originalText = submitBtn.innerHTML;
-  const resultDiv = document.getElementById('import-result');
-  const resultContent = document.getElementById('import-result-content');
-
-  try {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Extraction et scan en cours...';
-
-    const response = await fetch('/api/invitations/import-pap-pdf', {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      resultDiv.classList.remove('hidden');
-      resultContent.className = 'p-4 rounded-lg border bg-green-50 border-green-200 text-green-800';
-      resultContent.innerHTML = `
-        <div class="flex items-start space-x-3">
-          <i class="fas fa-check-circle text-lg"></i>
-          <div class="flex-1">
-            <div class="font-semibold">✅ Import réussi !</div>
-            <div class="text-sm mt-2 space-y-1">
-              <p>• ${data.inserted} invitations importées</p>
-              <p>• ${data.enrichies} enrichies automatiquement</p>
-              ${data.erreurs > 0 ? `<p>• ${data.erreurs} erreurs lors de l'enrichissement</p>` : ''}
-              ${data.incomplets > 0 ? `<p class="text-amber-700">⚠️ ${data.incomplets} invitations nécessitent une complétion manuelle</p>` : ''}
-            </div>
-            <div class="mt-3 flex gap-2">
-              <a href="/invitations" class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
-                Voir les invitations
-              </a>
-              ${data.incomplets > 0 ? '<button onclick="completerManuellement()" class="px-3 py-1 bg-amber-600 text-white text-sm rounded hover:bg-amber-700">Compléter manuellement</button>' : ''}
-            </div>
-          </div>
-        </div>
-      `;
-
-      // Reset form
-      this.reset();
-    } else {
-      resultDiv.classList.remove('hidden');
-      resultContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
-      resultContent.innerHTML = `
-        <div class="flex items-start space-x-3">
-          <i class="fas fa-exclamation-circle text-lg"></i>
-          <div>
-            <div class="font-semibold">❌ Erreur</div>
-            <div class="text-sm mt-1">${data.error || data.message}</div>
-          </div>
-        </div>
-      `;
-    }
-  } catch (error) {
-    console.error('Erreur:', error);
-    resultDiv.classList.remove('hidden');
-    resultContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
-    resultContent.innerHTML = `
-      <div class="flex items-start space-x-3">
-        <i class="fas fa-exclamation-circle text-lg"></i>
-        <div>
-          <div class="font-semibold">❌ Erreur</div>
-          <div class="text-sm mt-1">${error.message}</div>
-        </div>
-      </div>
-    `;
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = originalText;
-  }
-});
-
-function completerManuellement() {
-  alert('📝 Complétion manuelle\n\nOuvrez la page /invitations et utilisez le bouton "Scanner automatique" ou complétez les données manquantes manuellement via la fiche SIRET de chaque entreprise.');
-  window.location.href = '/invitations';
-}
-
-// ========== Fonctions Campagne PAP ==========
-
-async function scannerInvitations() {
-  const btn = document.getElementById('btn-scan-pap');
-  const originalText = btn.innerHTML;
-
-  if (!confirm('⚠️ Scanner toutes les invitations PAP ?\n\nCette opération va enrichir automatiquement toutes les invitations incomplètes via l\'API SIRENE/Pappers.\n\nDurée estimée: 1-5 minutes selon le nombre d\'invitations.\n\nContinuer ?')) {
-    return;
-  }
-
-  try {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scan en cours...';
-
-    const response = await fetch('/api/invitations/scan-auto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      const message = `✅ Scan terminé !\n\n📊 Résultats :\n` +
-        `• ${data.total} invitations analysées\n` +
-        `• ${data.enrichies} enrichies avec succès\n` +
-        `• ${data.deja_complet} déjà complètes\n` +
-        `• ${data.erreurs} erreurs`;
-
-      alert(message);
-      location.reload();
-    } else {
-      alert(`❌ Erreur: ${data.detail || 'Une erreur est survenue'}`);
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-    }
-  } catch (error) {
-    console.error('Erreur:', error);
-    alert('❌ Erreur lors du scan: ' + error.message);
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-  }
-}
-
-async function genererEmailsPAP() {
-  const btn = document.getElementById('btn-emails-pap');
-  const originalText = btn.innerHTML;
-
-  if (!confirm('📧 Générer les emails de relance ?\n\n⚠️ IMPORTANT : Seules les invitations importées dans la dernière heure seront incluses.\n\nCette fonction va créer des emails avec:\n- Lien PAP scanner pour chaque entreprise\n- Informations complètes sur l\'entreprise\n- Raison sociale, IDCC, FD, effectifs...\n\nContinuer ?')) {
-    return;
-  }
-
-  try {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Génération...';
-
-    const formData = new FormData();
-    formData.append('only_recent', 'true');  // Seulement les invitations récentes
-
-    const response = await fetch('/api/invitations/generer-emails', {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      // Créer un modal pour afficher les emails
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
-      modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-          <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 class="text-xl font-bold text-gray-800">
-              <i class="fas fa-paper-plane text-purple-600 mr-2"></i>
-              Emails générés (${data.total})
-            </h3>
-            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
-              <i class="fas fa-times text-xl"></i>
-            </button>
-          </div>
-          <div class="p-6 overflow-y-auto flex-1">
-            <p class="text-sm text-gray-600 mb-4">
-              ${data.total} emails ont été générés. Voici un aperçu des 10 premiers :
-            </p>
-            <div class="space-y-4">
-              ${data.emails.map(email => `
-                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <div class="flex items-start justify-between mb-2">
-                    <div class="font-semibold text-gray-800">${email.denomination}</div>
-                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${email.siret}</span>
-                  </div>
-                  <div class="text-sm text-gray-600 space-y-1">
-                    <p><strong>Adresse:</strong> ${email.adresse} ${email.code_postal} ${email.commune}</p>
-                    <p><strong>IDCC:</strong> ${email.idcc} | <strong>FD:</strong> ${email.fd} | <strong>UD:</strong> ${email.ud}</p>
-                    <p><strong>Effectif:</strong> ${email.effectif} | <strong>Siège:</strong> ${email.est_siege}</p>
-                    <p><strong>Date invitation:</strong> ${email.date_invit}</p>
-                    <p class="mt-2">
-                      <a href="${email.lien_pap}" target="_blank" class="text-purple-600 hover:underline">
-                        <i class="fas fa-external-link-alt mr-1"></i>
-                        Lien PAP Scanner →
-                      </a>
-                    </p>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          <div class="p-6 border-t border-gray-200 flex gap-3">
-            <button onclick="telechargerEmails(${JSON.stringify(data.emails).replace(/"/g, '&quot;')})" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-              <i class="fas fa-download mr-2"></i>
-              Télécharger les emails (JSON)
-            </button>
-            <button onclick="copierEmailsTexte(${JSON.stringify(data.emails).replace(/"/g, '&quot;')})" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              <i class="fas fa-copy mr-2"></i>
-              Copier format texte
-            </button>
-            <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-              Fermer
-            </button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-    } else {
-      alert(`❌ Erreur: ${data.error || 'Une erreur est survenue'}`);
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-    }
-  } catch (error) {
-    console.error('Erreur:', error);
-    alert('❌ Erreur lors de la génération: ' + error.message);
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-  }
-}
-
-function telechargerEmails(emails) {
-  const dataStr = JSON.stringify(emails, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(dataBlob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `emails_pap_${new Date().toISOString().split('T')[0]}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function copierEmailsTexte(emails) {
-  let texte = '=== EMAILS CAMPAGNE PAP ===\n\n';
-  emails.forEach((email, index) => {
-    texte += `${index + 1}. ${email.denomination}\n`;
-    texte += `   SIRET: ${email.siret}\n`;
-    texte += `   Adresse: ${email.adresse} ${email.code_postal} ${email.commune}\n`;
-    texte += `   IDCC: ${email.idcc} | FD: ${email.fd} | UD: ${email.ud}\n`;
-    texte += `   Effectif: ${email.effectif} | Siège: ${email.est_siege}\n`;
-    texte += `   Lien PAP Scanner: ${email.lien_pap}\n`;
-    texte += `   Date invitation: ${email.date_invit}\n\n`;
-  });
-
-  navigator.clipboard.writeText(texte).then(() => {
-    alert('✅ Emails copiés dans le presse-papiers !');
-  }).catch(err => {
-    console.error('Erreur:', err);
-    alert('❌ Erreur lors de la copie');
-  });
-}
-
-// ========== Import Excel et génération d'emails ==========
-
-function importExcelAdmin() {
-  const input = document.getElementById('excel-import-input-admin');
-  input.click();
-}
-
-// Setup event listener
-document.addEventListener('DOMContentLoaded', () => {
-  const excelInput = document.getElementById('excel-import-input-admin');
-  if (excelInput) {
-    excelInput.addEventListener('change', handleExcelImportAdmin);
-  }
-});
-
-async function handleExcelImportAdmin(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // Afficher le nom du fichier
-  document.getElementById('excel-filename-admin').textContent = file.name;
-
-  // Afficher la progress bar
-  const progressZone = document.getElementById('import-progress-admin');
-  const progressBar = document.getElementById('import-progress-bar-admin');
-  const statsZone = document.getElementById('import-stats-admin');
-
-  progressZone.classList.remove('hidden');
-  statsZone.classList.add('hidden');
-  progressBar.style.width = '10%';
-
-  try {
-    // Créer FormData pour l'upload
-    const formData = new FormData();
-    formData.append('file', file);
-
-    progressBar.style.width = '30%';
-
-    // Envoyer au serveur
-    const response = await fetch('/api/campaign/import-excel', {
-      method: 'POST',
-      body: formData
-    });
-
-    progressBar.style.width = '60%';
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Erreur lors de l\'import');
-    }
-
-    const result = await response.json();
-    progressBar.style.width = '100%';
-
-    // Afficher les stats
-    const fdEnrichedHtml = result.stats.fd_auto_enriched > 0 ? `
-      <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
-        <p class="text-xs text-gray-600 mb-1">FD enrichies auto (IDCC)</p>
-        <p class="text-2xl font-bold text-orange-700">${result.stats.fd_auto_enriched}</p>
-      </div>
-    ` : '';
-
-    statsZone.innerHTML = `
-      <div class="bg-red-50 border border-red-200 rounded-lg p-3">
-        <p class="text-xs text-gray-600 mb-1">PAP à Enjeux</p>
-        <p class="text-2xl font-bold text-red-700">${result.stats.enjeux}</p>
-      </div>
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p class="text-xs text-gray-600 mb-1">PAP Standard</p>
-        <p class="text-2xl font-bold text-blue-700">${result.stats.standard}</p>
-      </div>
-      <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-        <p class="text-xs text-gray-600 mb-1">Avec historique CGT</p>
-        <p class="text-2xl font-bold text-green-700">${result.stats.with_cgt_history}</p>
-      </div>
-      <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
-        <p class="text-xs text-gray-600 mb-1">Nouvelles implantations</p>
-        <p class="text-2xl font-bold text-purple-700">${result.stats.new_implantations}</p>
-      </div>
-      ${fdEnrichedHtml}
-    `;
-    statsZone.classList.remove('hidden');
-
-    // Ouvrir modal avec tous les emails
-    openEmailsModal(result);
-
-    // Cacher la progress bar après un court délai
-    setTimeout(() => {
-      progressZone.classList.add('hidden');
-      progressBar.style.width = '0%';
-    }, 1000);
-
-  } catch (error) {
-    alert('❌ Erreur lors de l\'import Excel: ' + error.message);
-    console.error('Erreur import:', error);
-    progressZone.classList.add('hidden');
-    progressBar.style.width = '0%';
-  }
-
-  // Réinitialiser l'input
-  event.target.value = '';
-}
-
-function openEmailsModal(result) {
-  // Stocker les emails globalement pour les fonctions de copie
-  window.modalEmails = result.emails;
-
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
-  modal.innerHTML = `
-    <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-      <div class="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-blue-50">
-        <div>
-          <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i class="fas fa-envelope text-purple-600"></i>
-            ${result.total} Emails générés
-          </h3>
-          <p class="text-sm text-gray-600 mt-1">
-            ${result.stats.enjeux} enjeux · ${result.stats.standard} standard ·
-            ${result.stats.with_cgt_history} avec CGT · ${result.stats.new_implantations} nouvelles implantations
-          </p>
-        </div>
-        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
-          <i class="fas fa-times text-2xl"></i>
-        </button>
-      </div>
-
-      <div class="p-6 overflow-y-auto flex-1">
-        <div class="space-y-4" id="emails-list-modal">
-          ${result.emails.map((item, index) => {
-            const pap = item.pap;
-            const email = item.email;
-            const isEnjeux = pap.category === 'enjeux';
-            const hasCgtHistory = pap.historique_pv && pap.historique_pv.found;
-
-            return `
-              <div class="bg-white rounded-lg shadow border-2 ${isEnjeux ? 'border-red-300' : 'border-gray-200'} p-4">
-                <div class="flex items-start justify-between mb-3">
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-2">
-                      ${isEnjeux ? '<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">ENJEUX</span>' : '<span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded">STANDARD</span>'}
-                      ${hasCgtHistory ? '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded flex items-center gap-1"><i class="fas fa-history"></i>CGT présente</span>' : '<span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded">Nouvelle implantation</span>'}
-                    </div>
-                    <h5 class="font-bold text-gray-900">${pap.raison_sociale}</h5>
-                    <p class="text-sm text-gray-600">${pap.siret} • ${pap.ville} (${pap.code_postal})</p>
-                  </div>
-                </div>
-
-                <div class="bg-gray-50 rounded-lg p-3 mb-3">
-                  <p class="text-xs font-semibold text-gray-700 mb-1">Destinataire :</p>
-                  <p class="text-sm font-mono text-gray-900">${email.recipient}</p>
-                </div>
-
-                <div class="bg-gray-50 rounded-lg p-3 mb-3">
-                  <p class="text-xs font-semibold text-gray-700 mb-1">Objet :</p>
-                  <p class="text-sm text-gray-900">${email.subject}</p>
-                </div>
-
-                <details class="mb-3">
-                  <summary class="text-xs font-semibold text-gray-700 cursor-pointer hover:text-gray-900">
-                    <i class="fas fa-chevron-right mr-1"></i>
-                    Voir le corps du message
-                  </summary>
-                  <div class="bg-gray-50 rounded-lg p-3 mt-2">
-                    <pre class="text-xs text-gray-900 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto">${email.body}</pre>
-                  </div>
-                </details>
-
-                <div class="flex flex-wrap gap-2">
-                  <button onclick="openInOutlook(${index})" class="flex-1 min-w-[200px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition">
-                    <i class="fab fa-microsoft mr-1"></i>
-                    Ouvrir dans Outlook
-                  </button>
-                  <button onclick="copyEmailContentModal(${index})" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
-                    <i class="fas fa-copy mr-1"></i>
-                    Copier l'email
-                  </button>
-                  <button onclick="copyRecipientModal(${index})" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition">
-                    <i class="fas fa-envelope mr-1"></i>
-                    Copier destinataire
-                  </button>
-                  ${pap.pdf_url ? `
-                    <a href="${pap.pdf_url}" target="_blank" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition inline-flex items-center">
-                      <i class="fas fa-file-pdf mr-1"></i>
-                      PDF
-                    </a>
-                  ` : ''}
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="p-4 border-t border-gray-200 bg-gray-50">
-        <button onclick="this.closest('.fixed').remove()" class="w-full px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition">
-          <i class="fas fa-times mr-2"></i>
-          Fermer
-        </button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-}
-
-function copyEmailContentModal(index) {
-  if (!window.modalEmails || !window.modalEmails[index]) {
-    alert('❌ Erreur: email introuvable');
-    return;
-  }
-
-  const email = window.modalEmails[index].email;
-  const fullContent = `Destinataire: ${email.recipient}
-
-Objet: ${email.subject}
-
-${email.body}`;
-
-  navigator.clipboard.writeText(fullContent).then(() => {
-    alert('✅ Email copié dans le presse-papiers !');
-  }).catch(err => {
-    console.error('Erreur lors de la copie:', err);
-    alert('❌ Erreur lors de la copie');
-  });
-}
-
-function copyRecipientModal(index) {
-  if (!window.modalEmails || !window.modalEmails[index]) {
-    alert('❌ Erreur: email introuvable');
-    return;
-  }
-
-  const recipient = window.modalEmails[index].email.recipient;
-  navigator.clipboard.writeText(recipient).then(() => {
-    alert(`✅ Destinataire copié: ${recipient}`);
-  }).catch(err => {
-    console.error('Erreur lors de la copie:', err);
-    alert('❌ Erreur lors de la copie');
-  });
-}
-
-function openInOutlook(index) {
-  if (!window.modalEmails || !window.modalEmails[index]) {
-    alert('❌ Erreur: email introuvable');
-    return;
-  }
-
-  const email = window.modalEmails[index].email;
-
-  // Copier d'abord le CORPS de l'email dans le presse-papiers
-  // (Outlook ouvrira avec destinataire + objet, l'utilisateur devra coller le corps)
-  navigator.clipboard.writeText(email.body).then(() => {
-    // Construire le lien mailto SIMPLE (destinataire + sujet uniquement)
-    const recipient = email.recipient;
-    const subject = encodeURIComponent(email.subject);
-
-    // Créer un lien temporaire pour ouvrir Outlook
-    const mailtoLink = `mailto:${recipient}?subject=${subject}`;
-
-    // Créer un élément <a> temporaire et le cliquer
-    const link = document.createElement('a');
-    link.href = mailtoLink;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Afficher un message CLAIR
-    setTimeout(() => {
-      alert('📧 Outlook ouvert avec destinataire et objet pré-remplis.\n\n✅ Le CORPS de l\'email est copié dans le presse-papiers.\n\n👉 Cliquez dans le corps du message Outlook et faites Ctrl+V pour coller le contenu.');
-    }, 500);
-  }).catch(err => {
-    console.error('Erreur lors de la copie:', err);
-    alert('❌ Erreur lors de la copie dans le presse-papiers.\n\nVeuillez utiliser le bouton "Copier l\'email" à la place.');
-  });
-}
-
-// ========================================
-// Générateur de liens portails UD/FD
-// ========================================
-
-let currentGeneratedLink = '';
-
-async function loadPortailsDisponibles() {
-  try {
-    const response = await fetch('/api/portails/liste');
-    const data = await response.json();
-
-    if (!data.success) {
-      alert('Erreur lors du chargement des portails disponibles');
-      return;
-    }
-
-    // Afficher la section
-    document.getElementById('portailsDisponibles').classList.remove('hidden');
-
-    // Remplir la liste des UDs
-    const listeUDs = document.getElementById('listeUDs');
-    listeUDs.innerHTML = '';
-
-    if (data.departements.length === 0) {
-      listeUDs.innerHTML = '<p class="text-gray-500 italic">Aucun département avec PAPs</p>';
-    } else {
-      data.departements.forEach(dept => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
-        div.innerHTML = `
-          <span class="text-gray-700">${dept.numero} - ${dept.nom} (${dept.count_paps} PAP${dept.count_paps > 1 ? 's' : ''})</span>
-          <button onclick="quickGenerateUDLink('${dept.numero}')"
-                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
-            <i class="fas fa-link mr-1"></i>Générer
-          </button>
-        `;
-        listeUDs.appendChild(div);
-      });
-    }
-
-    // Remplir la liste des FDs
-    const listeFDs = document.getElementById('listeFDs');
-    listeFDs.innerHTML = '';
-
-    if (data.federations.length === 0) {
-      listeFDs.innerHTML = '<p class="text-gray-500 italic">Aucune fédération avec PAPs</p>';
-    } else {
-      data.federations.forEach(fd => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
-        div.innerHTML = `
-          <span class="text-gray-700">${fd.code} (${fd.count_paps} PAP${fd.count_paps > 1 ? 's' : ''})</span>
-          <button onclick="quickGenerateFDLink('${fd.code}')"
-                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
-            <i class="fas fa-link mr-1"></i>Générer
-          </button>
-        `;
-        listeFDs.appendChild(div);
-      });
-    }
-  } catch (err) {
-    console.error('Erreur lors du chargement des portails:', err);
-    alert('Erreur lors du chargement des portails disponibles');
-  }
-}
-
-function quickGenerateUDLink(numero) {
-  document.getElementById('udNumero').value = numero;
-  generateUDLink();
-}
-
-function quickGenerateFDLink(code) {
-  document.getElementById('fdCode').value = code;
-  generateFDLink();
-}
-
-function generateUDLink() {
-  const udNumero = document.getElementById('udNumero').value.trim();
-
-  if (!udNumero) {
-    alert('⚠️ Veuillez entrer un numéro de département');
-    return;
-  }
-
-  // Générer le lien
-  const appUrl = window.location.origin;
-  currentGeneratedLink = `${appUrl}/ud/${udNumero}/paps`;
-
-  // Afficher le résultat
-  document.getElementById('generatedLink').textContent = currentGeneratedLink;
-  document.getElementById('linkResult').classList.remove('hidden');
-}
-
-function generateFDLink() {
-  const fdCode = document.getElementById('fdCode').value.trim();
-
-  if (!fdCode) {
-    alert('⚠️ Veuillez entrer un code FD');
-    return;
-  }
-
-  // Encoder le code FD pour l'URL
-  const fdCodeEncoded = encodeURIComponent(fdCode.toLowerCase().replace(/\s+/g, '-'));
-
-  // Générer le lien
-  const appUrl = window.location.origin;
-  currentGeneratedLink = `${appUrl}/fd/${fdCodeEncoded}/paps`;
-
-  // Afficher le résultat
-  document.getElementById('generatedLink').textContent = currentGeneratedLink;
-  document.getElementById('linkResult').classList.remove('hidden');
-}
-
-function copyLink() {
-  navigator.clipboard.writeText(currentGeneratedLink).then(() => {
-    alert('✅ Lien copié dans le presse-papiers !');
-  }).catch(err => {
-    console.error('Erreur lors de la copie:', err);
-    alert('❌ Erreur lors de la copie. Veuillez copier manuellement le lien.');
-  });
-}
-
-function openLink() {
-  window.open(currentGeneratedLink, '_blank');
-}
-
-function closeLink() {
-  document.getElementById('linkResult').classList.add('hidden');
-  document.getElementById('udNumero').value = '';
-  document.getElementById('fdCode').value = '';
-  currentGeneratedLink = '';
-}
-
-// Permettre Entrée pour générer les liens
-document.getElementById('udNumero').addEventListener('keypress', function(e) {
-  if (e.key === 'Enter') {
-    generateUDLink();
-  }
-});
-
-document.getElementById('fdCode').addEventListener('keypress', function(e) {
-  if (e.key === 'Enter') {
-    generateFDLink();
-  }
+  const formData = new FormData(e.target);
+  // ... handler for invitations import
 });
 </script>
 
