@@ -62,6 +62,7 @@ class TableauUDUpdateContacts(BaseModel):
     email_ud: Optional[str] = None
     telephone_ud: Optional[str] = None
     adresse_ud: Optional[str] = None
+    responsable_ud: Optional[str] = None
 
 
 class EntrepriseUDCreate(BaseModel):
@@ -116,6 +117,7 @@ async def get_tableaux_ud(
                 "email_ud": t.email_ud,
                 "telephone_ud": t.telephone_ud,
                 "adresse_ud": t.adresse_ud,
+                "responsable_ud": t.responsable_ud,
                 "nb_entreprises_cibles": t.nb_entreprises_cibles or 0,
                 "nb_entreprises_absentes": t.nb_entreprises_absentes or 0,
                 "nb_total_syndiques": t.nb_total_syndiques or 0,
@@ -152,6 +154,7 @@ async def get_tableau_ud(
                 "email_ud": tableau.email_ud,
                 "telephone_ud": tableau.telephone_ud,
                 "adresse_ud": tableau.adresse_ud,
+                "responsable_ud": tableau.responsable_ud,
                 "nb_entreprises_cibles": tableau.nb_entreprises_cibles or 0,
                 "nb_entreprises_absentes": tableau.nb_entreprises_absentes or 0,
                 "nb_total_syndiques": tableau.nb_total_syndiques or 0,
@@ -241,6 +244,8 @@ async def update_tableau_ud_contacts(
             tableau.telephone_ud = data.telephone_ud
         if data.adresse_ud is not None:
             tableau.adresse_ud = data.adresse_ud
+        if data.responsable_ud is not None:
+            tableau.responsable_ud = data.responsable_ud
 
         session.commit()
         session.refresh(tableau)
@@ -255,7 +260,8 @@ async def update_tableau_ud_contacts(
                 "nom_departement": tableau.nom_departement,
                 "email_ud": tableau.email_ud,
                 "telephone_ud": tableau.telephone_ud,
-                "adresse_ud": tableau.adresse_ud
+                "adresse_ud": tableau.adresse_ud,
+                "responsable_ud": tableau.responsable_ud
             }
         }
 
@@ -264,6 +270,77 @@ async def update_tableau_ud_contacts(
     except Exception as e:
         session.rollback()
         logger.error(f"Erreur lors de la mise à jour des contacts UD {code_ud}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tableaux/importer-contacts-json")
+async def importer_contacts_depuis_json(
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_or_none)
+):
+    """
+    Importe les contacts UD depuis le fichier ud_contacts.json
+    Met à jour email_ud et responsable_ud pour tous les tableaux UD correspondants
+    """
+    try:
+        import json
+        import os
+
+        # Chemin vers le fichier JSON
+        json_path = "app/data/ud_contacts.json"
+
+        if not os.path.exists(json_path):
+            raise HTTPException(status_code=404, detail="Fichier ud_contacts.json non trouvé")
+
+        # Lire le fichier JSON
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        unions = data.get("unions_departementales", {})
+
+        updated_count = 0
+        not_found_count = 0
+        errors = []
+
+        # Pour chaque département dans le JSON
+        for numero_dept, contact_info in unions.items():
+            try:
+                # Chercher le tableau UD correspondant par numéro de département
+                tableau = session.query(TableauBordUD).filter_by(numero_departement=numero_dept).first()
+
+                if tableau:
+                    # Mettre à jour les contacts
+                    tableau.email_ud = contact_info.get("email")
+                    tableau.responsable_ud = contact_info.get("responsable")
+                    updated_count += 1
+                    logger.info(f"Contacts importés pour UD {numero_dept} ({tableau.nom_departement})")
+                else:
+                    not_found_count += 1
+                    logger.warning(f"Tableau UD non trouvé pour le département {numero_dept}")
+                    errors.append(f"Département {numero_dept}: tableau UD non trouvé")
+
+            except Exception as e:
+                logger.error(f"Erreur lors de l'import pour le département {numero_dept}: {e}")
+                errors.append(f"Département {numero_dept}: {str(e)}")
+
+        session.commit()
+
+        return {
+            "success": True,
+            "message": "Import des contacts UD terminé",
+            "details": {
+                "total_json": len(unions),
+                "updated": updated_count,
+                "not_found": not_found_count,
+                "errors": errors if errors else None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Erreur lors de l'import des contacts UD depuis JSON: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -831,6 +831,7 @@ class TableauBordUD(Base):
     email_ud = Column(String(255))
     telephone_ud = Column(String(20))
     adresse_ud = Column(Text)
+    responsable_ud = Column(String(255))  # Nom du responsable UD
 
     # Métadonnées
     created_by = Column(Integer, index=True, nullable=True)  # user_id du créateur
