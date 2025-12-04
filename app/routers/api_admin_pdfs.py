@@ -281,9 +281,15 @@ async def import_existing_pdfs(
 
     Pour chaque PDF:
     - Extrait le SIRET du nom de fichier (format: SIRET_DATE.pdf)
-    - Cherche les données dans la table invitations
-    - Crée un enregistrement PAPDocument
+    - OU cherche le SIRET dans EmailLog pour les PDFs avec UUID
+    - Cherche les données dans la table invitations (si disponible)
+    - Crée un enregistrement PAPDocument (avec ou sans données complètes)
     - Les PAPs apparaissent ensuite dans les portails UD/FD
+
+    Cette fonction gère:
+    - PDFs avec format SIRET_DATE.pdf (nouveaux)
+    - PDFs avec UUID.pdf (anciens, retrouve SIRET via EmailLog)
+    - Imports avec ou sans invitation (données minimales si pas d'invitation)
     """
     try:
         from ..models import PAPDocument, Invitation
@@ -316,66 +322,131 @@ async def import_existing_pdfs(
                     logger.debug(f"⏭️  {pdf_path.name} déjà importé")
                     continue
 
-                # Extraire le SIRET du nom du fichier (format: SIRET_DATE.pdf)
+                siret = None
+
+                # Méthode 1 : Extraire le SIRET du nom du fichier (format: SIRET_DATE.pdf)
                 match = re.match(r'(\d{14})_\d{8}\.pdf', pdf_path.name)
-                if not match:
+                if match:
+                    siret = match.group(1)
+                    logger.debug(f"📄 {pdf_path.name} - SIRET extrait du nom: {siret}")
+                else:
+                    # Méthode 2 : Chercher dans EmailLog pour les PDFs avec UUID
+                    from ..models import EmailLog
+
+                    # Chercher un email qui a ce PDF en attachement ou dans metadata
+                    email_log = db.query(EmailLog).filter(
+                        EmailLog.extra_metadata.cast(String).contains(pdf_path.name)
+                    ).first()
+
+                    if email_log and email_log.siret:
+                        siret = email_log.siret
+                        logger.debug(f"📧 {pdf_path.name} - SIRET trouvé via EmailLog: {siret}")
+                    else:
+                        # Méthode 3 : Chercher par nom de fichier dans les metadata
+                        email_with_file = db.query(EmailLog).filter(
+                            EmailLog.extra_metadata.cast(String).contains(pdf_path.name.replace('.pdf', ''))
+                        ).first()
+
+                        if email_with_file and email_with_file.siret:
+                            siret = email_with_file.siret
+                            logger.debug(f"📎 {pdf_path.name} - SIRET trouvé via metadata: {siret}")
+
+                if not siret:
                     errors.append({
                         'filename': pdf_path.name,
-                        'error': 'Format de nom invalide (attendu: SIRET_DATE.pdf)'
+                        'error': 'Impossible de trouver le SIRET (format invalide et pas dans EmailLog)'
                     })
+                    logger.warning(f"⚠️  {pdf_path.name} - SIRET introuvable")
                     continue
-
-                siret = match.group(1)
 
                 # Chercher les données dans la table invitations
                 invitation = db.query(Invitation).filter(
                     Invitation.siret == siret
                 ).first()
 
-                if not invitation:
-                    errors.append({
-                        'filename': pdf_path.name,
-                        'error': f'Aucune invitation trouvée pour SIRET {siret}'
-                    })
-                    continue
-
                 # Calculer la taille du fichier
                 file_size_kb = pdf_path.stat().st_size / 1024
 
-                # Gérer le cas FD vide
-                fd_value = invitation.fd if invitation.fd else "sans fd"
+                # Si on a une invitation, utiliser ses données
+                if invitation:
+                    fd_value = invitation.fd if invitation.fd else "sans fd"
 
-                # Créer l'enregistrement PAPDocument
-                pap_doc = PAPDocument(
-                    filename=pdf_path.name,
-                    pdf_url=f"/pap-pdfs/{pdf_path.name}",
-                    file_size_kb=file_size_kb,
-                    siret=siret,
-                    raison_sociale=invitation.raison_sociale,
-                    ville=invitation.ville,
-                    code_postal=invitation.code_postal,
-                    effectif=invitation.effectif,
-                    inscrits=invitation.inscrits,
-                    date_invitation=invitation.date_invitation,
-                    date_election=invitation.date_election,
-                    numero_departement=invitation.numero_departement,
-                    nom_departement=invitation.nom_departement,
-                    ud=invitation.ud,
-                    fd=fd_value,
-                    idcc=invitation.idcc,
-                    is_priority=invitation.is_priority or False,
-                    priority_reasons=invitation.priority_reasons,
-                    has_cgt_history=invitation.has_cgt_history or False,
-                    cgt_c3=invitation.cgt_c3 or False,
-                    cgt_c4=invitation.cgt_c4 or False,
-                    created_by=current_user.id if hasattr(current_user, 'id') else None,
-                    is_active=True,
-                    uploaded_at=datetime.fromtimestamp(pdf_path.stat().st_mtime)
-                )
+                    pap_doc = PAPDocument(
+                        filename=pdf_path.name,
+                        pdf_url=f"/pap-pdfs/{pdf_path.name}",
+                        file_size_kb=file_size_kb,
+                        siret=siret,
+                        raison_sociale=invitation.raison_sociale,
+                        ville=invitation.ville,
+                        code_postal=invitation.code_postal,
+                        effectif=invitation.effectif,
+                        inscrits=invitation.inscrits,
+                        date_invitation=invitation.date_invitation,
+                        date_election=invitation.date_election,
+                        numero_departement=invitation.numero_departement,
+                        nom_departement=invitation.nom_departement,
+                        ud=invitation.ud,
+                        fd=fd_value,
+                        idcc=invitation.idcc,
+                        is_priority=invitation.is_priority or False,
+                        priority_reasons=invitation.priority_reasons,
+                        has_cgt_history=invitation.has_cgt_history or False,
+                        cgt_c3=invitation.cgt_c3 or False,
+                        cgt_c4=invitation.cgt_c4 or False,
+                        created_by=current_user.id if hasattr(current_user, 'id') else None,
+                        is_active=True,
+                        uploaded_at=datetime.fromtimestamp(pdf_path.stat().st_mtime)
+                    )
 
-                db.add(pap_doc)
-                imported += 1
-                logger.info(f"✅ {pdf_path.name} importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
+                    db.add(pap_doc)
+                    imported += 1
+                    logger.info(f"✅ {pdf_path.name} importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
+
+                else:
+                    # Pas d'invitation, mais on importe quand même avec données minimales
+                    # Chercher dans EmailLog pour avoir des données supplémentaires
+                    from ..models import EmailLog
+                    email_log = db.query(EmailLog).filter(
+                        EmailLog.siret == siret
+                    ).order_by(EmailLog.created_at.desc()).first()
+
+                    # Essayer d'extraire des infos de l'email
+                    raison_sociale = None
+                    if email_log and email_log.extra_metadata:
+                        metadata = email_log.extra_metadata
+                        if isinstance(metadata, dict):
+                            raison_sociale = metadata.get('raison_sociale')
+
+                    pap_doc = PAPDocument(
+                        filename=pdf_path.name,
+                        pdf_url=f"/pap-pdfs/{pdf_path.name}",
+                        file_size_kb=file_size_kb,
+                        siret=siret,
+                        raison_sociale=raison_sociale or f"Entreprise {siret}",
+                        ville=None,
+                        code_postal=None,
+                        effectif=None,
+                        inscrits=None,
+                        date_invitation=None,
+                        date_election=None,
+                        numero_departement=None,
+                        nom_departement=None,
+                        ud="inconnu",
+                        fd="inconnu",
+                        idcc=None,
+                        is_priority=False,
+                        priority_reasons=None,
+                        has_cgt_history=False,
+                        cgt_c3=False,
+                        cgt_c4=False,
+                        created_by=current_user.id if hasattr(current_user, 'id') else None,
+                        is_active=True,
+                        uploaded_at=datetime.fromtimestamp(pdf_path.stat().st_mtime)
+                    )
+
+                    db.add(pap_doc)
+                    imported += 1
+                    logger.warning(f"⚠️  {pdf_path.name} importé sans invitation (SIRET: {siret}, données incomplètes)")
 
             except Exception as e:
                 errors.append({
