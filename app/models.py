@@ -215,6 +215,7 @@ class Invitation(Base):
     idcc_url = Column(Text)                                      # URL Legifrance de la convention collective
     effectif_connu = Column(Integer)                             # Effectif connu manuellement
     date_reception = Column(Date)                                # Date de réception de l'invitation
+    date_courrier = Column(Date, nullable=True)                  # Date du courrier d'invitation (distincte de date_invit)
     date_election = Column(Date)                                 # Date de l'élection si connue
     structure_saisie = Column(Text)                              # Organisation ayant saisi l'invitation
     lien_pap_pdf = Column(Text, nullable=True)                   # Lien permanent vers le PDF scanné du PAP

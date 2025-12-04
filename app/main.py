@@ -3965,7 +3965,11 @@ async def upload_pap_pdf(
 ):
     """
     Upload un PDF scanné du PAP (PV d'élection) pour une invitation.
-    Crée un lien permanent: https://app.pap-cse.org/pap/uploads/{siret}.pdf
+    Vérifie le contenu du PDF et crée un lien permanent.
+
+    Vérifications:
+    - Le PDF contient le SIRET de l'entreprise
+    - La date du courrier est cohérente avec la date d'invitation
     """
     try:
         # Vérifier que l'invitation existe
@@ -3977,38 +3981,75 @@ async def upload_pap_pdf(
         if not file.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Le fichier doit être un PDF")
 
-        # Créer le dossier uploads/pap s'il n'existe pas
+        # Lire le contenu
+        content = await file.read()
+        warnings = []
+        siret_found = False
+
+        # === VÉRIFICATION 1: Extraction texte PDF ===
+        try:
+            import PyPDF2
+            from io import BytesIO
+
+            pdf_file = BytesIO(content)
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            full_text = ""
+            for page in pdf_reader.pages:
+                full_text += page.extract_text()
+
+            siret_clean = siret.replace(" ", "")
+            if siret_clean in full_text.replace(" ", ""):
+                siret_found = True
+                logger.info(f"✅ SIRET {siret} trouvé dans le PDF")
+            else:
+                warnings.append({
+                    "type": "warning",
+                    "message": f"⚠️ SIRET {siret} NON trouvé dans le PDF. Vérifiez que c'est le bon document."
+                })
+        except Exception as e:
+            warnings.append({"type": "info", "message": f"ℹ️ Vérification PDF impossible: {str(e)}"})
+
+        # === VÉRIFICATION 2: Cohérence dates ===
+        if invitation.date_invit and invitation.date_courrier:
+            if invitation.date_courrier > invitation.date_invit:
+                warnings.append({
+                    "type": "error",
+                    "message": f"❌ Date courrier ({invitation.date_courrier}) > Date invitation ({invitation.date_invit})"
+                })
+
+        # Sauvegarder le fichier
         upload_dir = "uploads/pap"
         os.makedirs(upload_dir, exist_ok=True)
-
-        # Sauvegarder le fichier avec le nom {siret}.pdf
         file_path = f"{upload_dir}/{siret}.pdf"
-
-        # Lire et sauvegarder le contenu
-        content = await file.read()
         with open(file_path, "wb") as f:
             f.write(content)
 
-        # Générer le lien permanent
+        # Générer lien permanent
         lien_permanent = f"{config.APP_URL}/pap/uploads/{siret}.pdf"
-
-        # Mettre à jour l'invitation avec le lien
         invitation.lien_pap_pdf = lien_permanent
         db.commit()
 
-        logger.info(f"PDF PAP uploadé pour SIRET {siret}: {file_path}")
+        logger.info(f"✅ PDF uploadé: {siret}")
 
         return JSONResponse(content={
             "success": True,
             "message": "PDF uploadé avec succès",
             "lien_permanent": lien_permanent,
-            "file_size": len(content)
+            "file_size": len(content),
+            "siret_verified": siret_found,
+            "warnings": warnings,
+            "entreprise": {
+                "siret": invitation.siret,
+                "denomination": invitation.denomination,
+                "date_invit": invitation.date_invit.isoformat() if invitation.date_invit else None,
+                "date_courrier": invitation.date_courrier.isoformat() if invitation.date_courrier else None
+            }
         })
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erreur upload PDF PAP pour {siret}: {e}")
+        logger.error(f"❌ Erreur upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
