@@ -825,6 +825,29 @@
           Générez des liens uniques pour que chaque UD ou FD puisse consulter tous ses PAPs.
         </div>
 
+        <!-- Bouton pour charger les portails disponibles -->
+        <div class="text-center">
+          <button onclick="loadPortailsDisponibles()"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center">
+            <i class="fas fa-list mr-2"></i>
+            Voir les portails disponibles
+          </button>
+        </div>
+
+        <!-- Liste des portails disponibles -->
+        <div id="portailsDisponibles" class="hidden">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="border rounded-lg p-3">
+              <h5 class="font-semibold text-gray-700 mb-2">Départements avec PAPs</h5>
+              <div id="listeUDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
+            </div>
+            <div class="border rounded-lg p-3">
+              <h5 class="font-semibold text-gray-700 mb-2">Fédérations avec PAPs</h5>
+              <div id="listeFDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Choix UD ou FD -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
@@ -3586,6 +3609,76 @@ function openInOutlook(index) {
 // ========================================
 
 let currentGeneratedLink = '';
+
+async function loadPortailsDisponibles() {
+  try {
+    const response = await fetch('/api/portails/liste');
+    const data = await response.json();
+
+    if (!data.success) {
+      alert('Erreur lors du chargement des portails disponibles');
+      return;
+    }
+
+    // Afficher la section
+    document.getElementById('portailsDisponibles').classList.remove('hidden');
+
+    // Remplir la liste des UDs
+    const listeUDs = document.getElementById('listeUDs');
+    listeUDs.innerHTML = '';
+
+    if (data.departements.length === 0) {
+      listeUDs.innerHTML = '<p class="text-gray-500 italic">Aucun département avec PAPs</p>';
+    } else {
+      data.departements.forEach(dept => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
+        div.innerHTML = `
+          <span class="text-gray-700">${dept.numero} - ${dept.nom} (${dept.count_paps} PAP${dept.count_paps > 1 ? 's' : ''})</span>
+          <button onclick="quickGenerateUDLink('${dept.numero}')"
+                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
+            <i class="fas fa-link mr-1"></i>Générer
+          </button>
+        `;
+        listeUDs.appendChild(div);
+      });
+    }
+
+    // Remplir la liste des FDs
+    const listeFDs = document.getElementById('listeFDs');
+    listeFDs.innerHTML = '';
+
+    if (data.federations.length === 0) {
+      listeFDs.innerHTML = '<p class="text-gray-500 italic">Aucune fédération avec PAPs</p>';
+    } else {
+      data.federations.forEach(fd => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
+        div.innerHTML = `
+          <span class="text-gray-700">${fd.code} (${fd.count_paps} PAP${fd.count_paps > 1 ? 's' : ''})</span>
+          <button onclick="quickGenerateFDLink('${fd.code}')"
+                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
+            <i class="fas fa-link mr-1"></i>Générer
+          </button>
+        `;
+        listeFDs.appendChild(div);
+      });
+    }
+  } catch (err) {
+    console.error('Erreur lors du chargement des portails:', err);
+    alert('Erreur lors du chargement des portails disponibles');
+  }
+}
+
+function quickGenerateUDLink(numero) {
+  document.getElementById('udNumero').value = numero;
+  generateUDLink();
+}
+
+function quickGenerateFDLink(code) {
+  document.getElementById('fdCode').value = code;
+  generateFDLink();
+}
 
 function generateUDLink() {
   const udNumero = document.getElementById('udNumero').value.trim();

@@ -35,16 +35,24 @@ async def portail_ud(
     Affiche tous les PAPs destinés à une UD spécifique.
     """
     try:
-        # Vérifier que l'UD existe
+        # Vérifier si l'UD existe dans la base
         ud = db.query(TableauBordUD).filter(
             TableauBordUD.numero_departement == numero_departement
         ).first()
 
+        # Si l'UD n'existe pas, créer un objet minimal temporaire
         if not ud:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Union Départementale {numero_departement} non trouvée"
-            )
+            # Créer un objet UD minimal pour l'affichage
+            class MinimalUD:
+                def __init__(self, numero):
+                    self.numero_departement = numero
+                    self.nom_departement = f"Département {numero}"
+                    self.code_ud = f"UD-{numero}"
+                    self.email_ud = None
+                    self.telephone_ud = None
+
+            ud = MinimalUD(numero_departement)
+            logger.info(f"UD {numero_departement} non enregistrée, utilisation d'un objet minimal")
 
         # Récupérer tous les PAPs pour ce département
         paps = db.query(PAPDocument).filter(
@@ -235,4 +243,65 @@ async def api_get_paps_by_fd(
         }
     except Exception as e:
         logger.error(f"Erreur API PAPs FD {code_fd}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/portails/liste")
+async def api_liste_portails(
+    db: Session = Depends(get_session)
+):
+    """
+    Liste tous les départements et FDs qui ont des PAPs.
+
+    Utile pour générer automatiquement les liens de portails.
+    """
+    try:
+        from sqlalchemy import func, distinct
+
+        # Récupérer tous les départements uniques qui ont des PAPs
+        departements = db.query(
+            PAPDocument.numero_departement,
+            PAPDocument.nom_departement,
+            func.count(PAPDocument.id).label('count_paps')
+        ).filter(
+            PAPDocument.is_active == True,
+            PAPDocument.numero_departement.isnot(None)
+        ).group_by(
+            PAPDocument.numero_departement,
+            PAPDocument.nom_departement
+        ).order_by(PAPDocument.numero_departement).all()
+
+        # Récupérer toutes les FDs uniques qui ont des PAPs
+        federations = db.query(
+            PAPDocument.fd,
+            func.count(PAPDocument.id).label('count_paps')
+        ).filter(
+            PAPDocument.is_active == True,
+            PAPDocument.fd.isnot(None)
+        ).group_by(
+            PAPDocument.fd
+        ).order_by(PAPDocument.fd).all()
+
+        return {
+            "success": True,
+            "departements": [
+                {
+                    "numero": d.numero_departement,
+                    "nom": d.nom_departement or f"Département {d.numero_departement}",
+                    "count_paps": d.count_paps,
+                    "url": f"/ud/{d.numero_departement}/paps"
+                }
+                for d in departements
+            ],
+            "federations": [
+                {
+                    "code": f.fd,
+                    "count_paps": f.count_paps,
+                    "url": f"/fd/{f.fd.lower().replace(' ', '-')}/paps"
+                }
+                for f in federations
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Erreur API liste portails: {e}")
         raise HTTPException(status_code=500, detail=str(e))
