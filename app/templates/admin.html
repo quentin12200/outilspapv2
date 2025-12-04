@@ -106,6 +106,34 @@
   </a>
 </section>
 
+<!-- Gestion des contacts UD -->
+<section class="mb-10">
+  <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-4">
+        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+          <i class="fas fa-address-book text-white text-2xl"></i>
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Gestion des contacts UD</h2>
+          <p class="text-sm text-gray-600 mt-1">Gérer les coordonnées des Unions Départementales</p>
+        </div>
+      </div>
+      <button onclick="chargerContactsUD()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
+        <i class="fas fa-sync-alt mr-2"></i>
+        Actualiser
+      </button>
+    </div>
+
+    <div id="contacts-ud-container" class="space-y-3">
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Chargement des contacts UD...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- Campagne PAP -->
 <section class="mb-10">
   <div class="bg-gradient-to-r from-green-50 to-teal-50 border-l-4 border-green-500 rounded-xl shadow-md p-6">
@@ -2657,21 +2685,22 @@ async function genererEmailsPAP() {
             <div class="space-y-4">
               ${data.emails.map(email => `
                 <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <div class="flex items-start justify-between mb-2">
+                  <div class="flex items-start justify-between mb-3">
                     <div class="font-semibold text-gray-800">${email.denomination}</div>
                     <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${email.siret}</span>
+                  </div>
+                  <div class="mb-3 p-3 bg-purple-50 border-l-4 border-purple-500 rounded">
+                    <p class="text-sm font-semibold text-purple-900 mb-1">📄 Pour retrouver le PAP, cliquer ici :</p>
+                    <a href="${email.lien_pap}" target="_blank" class="text-purple-600 hover:underline font-medium break-all">
+                      <i class="fas fa-external-link-alt mr-1"></i>
+                      ${email.lien_pap}
+                    </a>
                   </div>
                   <div class="text-sm text-gray-600 space-y-1">
                     <p><strong>Adresse:</strong> ${email.adresse} ${email.code_postal} ${email.commune}</p>
                     <p><strong>IDCC:</strong> ${email.idcc} | <strong>FD:</strong> ${email.fd} | <strong>UD:</strong> ${email.ud}</p>
                     <p><strong>Effectif:</strong> ${email.effectif} | <strong>Siège:</strong> ${email.est_siege}</p>
                     <p><strong>Date invitation:</strong> ${email.date_invit}</p>
-                    <p class="mt-2">
-                      <a href="${email.lien_pap}" target="_blank" class="text-purple-600 hover:underline">
-                        <i class="fas fa-external-link-alt mr-1"></i>
-                        Lien PAP Scanner →
-                      </a>
-                    </p>
                   </div>
                 </div>
               `).join('')}
@@ -2723,12 +2752,13 @@ function telechargerEmails(emails) {
 function copierEmailsTexte(emails) {
   let texte = '=== EMAILS CAMPAGNE PAP ===\n\n';
   emails.forEach((email, index) => {
-    texte += `${index + 1}. ${email.denomination}\n`;
+    texte += `${index + 1}. ${email.denomination}\n\n`;
+    texte += `   📄 Pour retrouver le PAP, cliquer ici :\n`;
+    texte += `   ${email.lien_pap}\n\n`;
     texte += `   SIRET: ${email.siret}\n`;
     texte += `   Adresse: ${email.adresse} ${email.code_postal} ${email.commune}\n`;
     texte += `   IDCC: ${email.idcc} | FD: ${email.fd} | UD: ${email.ud}\n`;
     texte += `   Effectif: ${email.effectif} | Siège: ${email.est_siege}\n`;
-    texte += `   Lien PAP Scanner: ${email.lien_pap}\n`;
     texte += `   Date invitation: ${email.date_invit}\n\n`;
   });
 
@@ -2778,6 +2808,174 @@ async function executerMigrationPAP() {
   }
 }
 
+// ========== Gestion des contacts UD ==========
+
+async function chargerContactsUD() {
+  const container = document.getElementById('contacts-ud-container');
+
+  try {
+    container.innerHTML = `
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Chargement des contacts UD...</p>
+      </div>
+    `;
+
+    const response = await fetch('/api/ud/tableaux?active_only=false');
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Erreur lors du chargement');
+    }
+
+    if (data.data.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <i class="fas fa-inbox text-4xl mb-3"></i>
+          <p>Aucun tableau UD trouvé</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = data.data.map(ud => `
+      <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-3 mb-2">
+              <h3 class="font-bold text-gray-800 text-lg">${ud.nom_departement} (${ud.numero_departement})</h3>
+              <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${ud.code_ud}</span>
+            </div>
+            <div class="text-sm text-gray-600 space-y-1">
+              <p><i class="fas fa-envelope w-5 text-blue-500"></i> ${ud.email_ud || '<span class="text-gray-400">Non renseigné</span>'}</p>
+              <p><i class="fas fa-phone w-5 text-blue-500"></i> ${ud.telephone_ud || '<span class="text-gray-400">Non renseigné</span>'}</p>
+              <p><i class="fas fa-map-marker-alt w-5 text-blue-500"></i> ${ud.adresse_ud || '<span class="text-gray-400">Non renseigné</span>'}</p>
+            </div>
+          </div>
+          <button onclick="ouvrirModalEditContactUD('${ud.code_ud}', '${ud.nom_departement}', ${JSON.stringify(ud).replace(/"/g, '&quot;')})"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition flex items-center gap-2">
+            <i class="fas fa-edit"></i>
+            Modifier
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('Erreur:', error);
+    container.innerHTML = `
+      <div class="text-center py-8 text-red-500">
+        <i class="fas fa-exclamation-circle text-4xl mb-3"></i>
+        <p>❌ Erreur: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+function ouvrirModalEditContactUD(codeUD, nomDept, udData) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+  modal.id = 'modal-edit-contact-ud';
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+      <div class="p-6 border-b border-gray-200">
+        <h3 class="text-xl font-bold text-gray-800">
+          <i class="fas fa-edit text-blue-600 mr-2"></i>
+          Modifier les contacts - ${nomDept}
+        </h3>
+      </div>
+      <div class="p-6">
+        <form id="form-edit-contact-ud" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-envelope text-blue-500 mr-2"></i>
+              Email de l'UD
+            </label>
+            <input type="email" id="input-email-ud" value="${udData.email_ud || ''}"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   placeholder="exemple@cgt.fr">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-phone text-blue-500 mr-2"></i>
+              Téléphone de l'UD
+            </label>
+            <input type="tel" id="input-telephone-ud" value="${udData.telephone_ud || ''}"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   placeholder="01 23 45 67 89">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-map-marker-alt text-blue-500 mr-2"></i>
+              Adresse de l'UD
+            </label>
+            <textarea id="input-adresse-ud" rows="3"
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Adresse complète de l'Union Départementale">${udData.adresse_ud || ''}</textarea>
+          </div>
+        </form>
+      </div>
+      <div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+        <button onclick="document.getElementById('modal-edit-contact-ud').remove()"
+                class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+          Annuler
+        </button>
+        <button onclick="sauvegarderContactUD('${codeUD}')"
+                class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
+          <i class="fas fa-save mr-2"></i>
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Focus sur le premier champ
+  setTimeout(() => document.getElementById('input-email-ud').focus(), 100);
+}
+
+async function sauvegarderContactUD(codeUD) {
+  const emailUD = document.getElementById('input-email-ud').value.trim();
+  const telephoneUD = document.getElementById('input-telephone-ud').value.trim();
+  const adresseUD = document.getElementById('input-adresse-ud').value.trim();
+
+  try {
+    const response = await fetch(`/api/ud/tableaux/${codeUD}/contacts`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email_ud: emailUD || null,
+        telephone_ud: telephoneUD || null,
+        adresse_ud: adresseUD || null
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Erreur lors de la sauvegarde');
+    }
+
+    alert(`✅ ${data.message}\n\nContacts mis à jour pour ${data.data.nom_departement}`);
+
+    // Fermer le modal
+    document.getElementById('modal-edit-contact-ud').remove();
+
+    // Recharger la liste
+    chargerContactsUD();
+
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert(`❌ Erreur: ${error.message}`);
+  }
+}
+
 // ========== Import Excel et génération d'emails ==========
 
 function importExcelAdmin() {
@@ -2791,6 +2989,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (excelInput) {
     excelInput.addEventListener('change', handleExcelImportAdmin);
   }
+
+  // Charger les contacts UD au chargement de la page
+  chargerContactsUD();
 });
 
 async function handleExcelImportAdmin(event) {

@@ -58,6 +58,12 @@ class TableauUDCreate(BaseModel):
     adresse_ud: Optional[str] = None
 
 
+class TableauUDUpdateContacts(BaseModel):
+    email_ud: Optional[str] = None
+    telephone_ud: Optional[str] = None
+    adresse_ud: Optional[str] = None
+
+
 class EntrepriseUDCreate(BaseModel):
     siret: str
     nom_entreprise: str
@@ -109,6 +115,7 @@ async def get_tableaux_ud(
                 "nom_departement": t.nom_departement,
                 "email_ud": t.email_ud,
                 "telephone_ud": t.telephone_ud,
+                "adresse_ud": t.adresse_ud,
                 "nb_entreprises_cibles": t.nb_entreprises_cibles or 0,
                 "nb_entreprises_absentes": t.nb_entreprises_absentes or 0,
                 "nb_total_syndiques": t.nb_total_syndiques or 0,
@@ -210,6 +217,53 @@ async def create_tableau_ud(
     except Exception as e:
         session.rollback()
         logger.error(f"Erreur lors de la création du tableau UD: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/tableaux/{code_ud}/contacts")
+async def update_tableau_ud_contacts(
+    code_ud: str,
+    data: TableauUDUpdateContacts,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_or_none)
+):
+    """Met à jour les informations de contact d'un tableau UD"""
+    try:
+        # Récupérer le tableau
+        tableau = session.query(TableauBordUD).filter_by(code_ud=code_ud).first()
+        if not tableau:
+            raise HTTPException(status_code=404, detail="Tableau UD non trouvé")
+
+        # Mettre à jour les champs de contact
+        if data.email_ud is not None:
+            tableau.email_ud = data.email_ud
+        if data.telephone_ud is not None:
+            tableau.telephone_ud = data.telephone_ud
+        if data.adresse_ud is not None:
+            tableau.adresse_ud = data.adresse_ud
+
+        session.commit()
+        session.refresh(tableau)
+
+        logger.info(f"Contacts UD mis à jour: {code_ud}")
+
+        return {
+            "success": True,
+            "message": "Contacts UD mis à jour avec succès",
+            "data": {
+                "code_ud": tableau.code_ud,
+                "nom_departement": tableau.nom_departement,
+                "email_ud": tableau.email_ud,
+                "telephone_ud": tableau.telephone_ud,
+                "adresse_ud": tableau.adresse_ud
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Erreur lors de la mise à jour des contacts UD {code_ud}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
