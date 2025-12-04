@@ -679,19 +679,6 @@ async function recreateTables() {
     buttonText.textContent = 'Recréer les tables';
   }
 }
-
-// Import forms handlers
-document.getElementById('upload-papcse-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  // ... handler for papcse import
-});
-
-document.getElementById('upload-invitations-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  // ... handler for invitations import
-});
 </script>
 
 {% endblock %}
