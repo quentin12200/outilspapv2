@@ -804,6 +804,16 @@
           </button>
         </div>
 
+        <!-- Option force réimportation -->
+        <div class="mb-4">
+          <label class="inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="force-reimport-checkbox" class="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500">
+            <span class="ml-2 text-sm text-gray-700">
+              <strong>Forcer la ré-importation</strong> (pour les PAPs déjà importés - utile pour mettre à jour les anciens scans)
+            </span>
+          </label>
+        </div>
+
         <!-- Info import -->
         <div class="p-3 bg-purple-50 border-l-4 border-purple-500 rounded text-sm text-purple-800">
           <i class="fas fa-info-circle mr-2"></i>
@@ -1800,7 +1810,22 @@ async function cleanupOldPDFs(daysOld) {
 
 // Importer les PDFs existants dans la base de données
 async function importExistingPDFs() {
-  if (!confirm('Importer tous les PDFs existants dans les portails UD/FD ?\n\nCela va :\n- Scanner tous les PDFs dans le volume Railway\n- Extraire le SIRET de chaque fichier\n- Créer un enregistrement dans pap_documents\n- Les PAPs apparaîtront dans les portails\n\nContinuer ?')) {
+  // Lire l'option de ré-importation
+  const forceReimport = document.getElementById('force-reimport-checkbox').checked;
+
+  let confirmMessage = 'Importer tous les PDFs existants dans les portails UD/FD ?\n\n';
+  if (forceReimport) {
+    confirmMessage += '⚠️ MODE RÉ-IMPORTATION ACTIVÉ :\n';
+    confirmMessage += '- Tous les PDFs seront ré-importés (même déjà en base)\n';
+    confirmMessage += '- Les anciens enregistrements seront mis à jour\n\n';
+  } else {
+    confirmMessage += 'MODE STANDARD :\n';
+    confirmMessage += '- Seuls les nouveaux PDFs seront importés\n';
+    confirmMessage += '- Les PDFs déjà en base seront sautés\n\n';
+  }
+  confirmMessage += 'Continuer ?';
+
+  if (!confirm(confirmMessage)) {
     return;
   }
 
@@ -1810,7 +1835,7 @@ async function importExistingPDFs() {
   button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
 
   try {
-    const response = await fetch('/api/admin/pdfs/import-existing', {
+    const response = await fetch(`/api/admin/pdfs/import-existing?force_reimport=${forceReimport}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1823,6 +1848,9 @@ async function importExistingPDFs() {
       let message = `✓ Import terminé !\n\n`;
       message += `📊 Total PDFs : ${data.total_pdfs}\n`;
       message += `✅ Importés : ${data.imported}\n`;
+      if (data.updated > 0) {
+        message += `🔄 Ré-importés : ${data.updated}\n`;
+      }
       message += `⏭️  Déjà existants : ${data.skipped}\n`;
       message += `❌ Erreurs : ${data.errors.length}\n`;
 

@@ -273,6 +273,7 @@ async def get_pdf_stats(
 @router.post("/import-existing")
 async def import_existing_pdfs(
     request: Request,
+    force_reimport: bool = False,
     db: Session = Depends(get_session),
     current_user = Depends(require_admin_user)
 ):
@@ -290,16 +291,20 @@ async def import_existing_pdfs(
     - PDFs avec format SIRET_DATE.pdf (nouveaux)
     - PDFs avec UUID.pdf (anciens, retrouve SIRET via EmailLog)
     - Imports avec ou sans invitation (données minimales si pas d'invitation)
+
+    Args:
+        force_reimport: Si True, réimporte même les PDFs déjà en base (met à jour)
     """
     try:
         from ..models import PAPDocument, Invitation
         import re
 
         imported = 0
+        updated = 0
         skipped = 0
         errors = []
 
-        logger.info("🔄 Démarrage import en masse des PDFs existants...")
+        logger.info(f"🔄 Démarrage import en masse des PDFs existants (force_reimport={force_reimport})...")
 
         # Lister tous les PDFs
         pdf_files = list(PAP_UPLOADS_DIR.glob("*.pdf"))
@@ -317,10 +322,16 @@ async def import_existing_pdfs(
                     PAPDocument.filename == pdf_path.name
                 ).first()
 
-                if existing:
+                is_reimport = False
+                if existing and not force_reimport:
                     skipped += 1
                     logger.debug(f"⏭️  {pdf_path.name} déjà importé")
                     continue
+                elif existing and force_reimport:
+                    # Supprimer l'ancien pour le recréer
+                    db.delete(existing)
+                    is_reimport = True
+                    logger.info(f"🔄 {pdf_path.name} - suppression de l'ancien enregistrement pour ré-importation")
 
                 siret = None
 
@@ -399,8 +410,12 @@ async def import_existing_pdfs(
                     )
 
                     db.add(pap_doc)
-                    imported += 1
-                    logger.info(f"✅ {pdf_path.name} importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
+                    if is_reimport:
+                        updated += 1
+                        logger.info(f"🔄 {pdf_path.name} ré-importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
+                    else:
+                        imported += 1
+                        logger.info(f"✅ {pdf_path.name} importé (SIRET: {siret}, UD: {invitation.ud}, FD: {fd_value})")
 
                 else:
                     # Pas d'invitation, mais on importe quand même avec données minimales
@@ -445,8 +460,12 @@ async def import_existing_pdfs(
                     )
 
                     db.add(pap_doc)
-                    imported += 1
-                    logger.warning(f"⚠️  {pdf_path.name} importé sans invitation (SIRET: {siret}, données incomplètes)")
+                    if is_reimport:
+                        updated += 1
+                        logger.warning(f"🔄 {pdf_path.name} ré-importé sans invitation (SIRET: {siret}, données incomplètes)")
+                    else:
+                        imported += 1
+                        logger.warning(f"⚠️  {pdf_path.name} importé sans invitation (SIRET: {siret}, données incomplètes)")
 
             except Exception as e:
                 errors.append({
@@ -456,9 +475,9 @@ async def import_existing_pdfs(
                 logger.error(f"❌ Erreur import {pdf_path.name}: {e}")
 
         # Commit tous les imports d'un coup
-        if imported > 0:
+        if imported > 0 or updated > 0:
             db.commit()
-            logger.info(f"💾 {imported} PDF(s) importé(s) en base de données")
+            logger.info(f"💾 {imported} PDF(s) importé(s), {updated} PDF(s) ré-importé(s) en base de données")
 
         # Logger l'action
         log_admin_action(
@@ -473,6 +492,7 @@ async def import_existing_pdfs(
             },
             response_summary={
                 "imported": imported,
+                "updated": updated,
                 "skipped": skipped,
                 "errors_count": len(errors)
             }
@@ -482,9 +502,10 @@ async def import_existing_pdfs(
             "success": True,
             "total_pdfs": total_pdfs,
             "imported": imported,
+            "updated": updated,
             "skipped": skipped,
             "errors": errors,
-            "message": f"{imported} PDF(s) importé(s), {skipped} déjà existant(s), {len(errors)} erreur(s)"
+            "message": f"{imported} PDF(s) importé(s), {updated} ré-importé(s), {skipped} déjà existant(s), {len(errors)} erreur(s)"
         }
 
     except Exception as e:
