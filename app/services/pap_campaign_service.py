@@ -467,8 +467,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
                     elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
-
-            body = intro + pdf_block + f"""
+            else:
                 intro = f"""{salutation}
 
 Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
