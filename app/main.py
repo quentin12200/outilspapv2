@@ -690,6 +690,7 @@ from .routers import api_campaign  # noqa: E402
 from .routers import api_ud  # noqa: E402
 from .routers import api_admin_terminal  # noqa: E402
 from .routers import api_admin_pdfs  # noqa: E402
+from .routers import portail_ud_fd  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -763,6 +764,7 @@ app.include_router(api_campaign.router)
 app.include_router(api_ud.router)
 app.include_router(api_admin_terminal.router)
 app.include_router(api_admin_pdfs.router)
+app.include_router(portail_ud_fd.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -6384,7 +6386,7 @@ async def force_migration(request: Request):
     Utile quand Railway n'a pas encore redéployé avec les nouvelles migrations.
     """
     try:
-        from .migrations import add_invitation_metadata_columns_if_needed, create_tableaux_bord_ud_table_if_needed
+        from .migrations import add_invitation_metadata_columns_if_needed, create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed
 
         logger.info("🔧 Forçage manuel des migrations...")
 
@@ -6394,9 +6396,12 @@ async def force_migration(request: Request):
         # Migration tableaux_bord_ud
         create_tableaux_bord_ud_table_if_needed()
 
+        # Migration pap_documents
+        create_pap_documents_table_if_needed()
+
         return JSONResponse(content={
             "success": True,
-            "message": "Migrations exécutées avec succès. Les colonnes created_at/updated_at ont été ajoutées à la table invitations et la table tableaux_bord_ud a été créée."
+            "message": "Migrations exécutées avec succès. Les tables invitations, tableaux_bord_ud et pap_documents ont été créées/mises à jour."
         })
     except Exception as e:
         logger.error(f"❌ Erreur lors de la migration forcée: {e}")

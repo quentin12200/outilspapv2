@@ -24,14 +24,15 @@ def main():
 
         # Import des modules nécessaires
         from app.db import engine
-        from app.migrations import create_tableaux_bord_ud_table_if_needed
+        from app.migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed
 
-        # Exécuter la migration
+        # Exécuter les migrations
         create_tableaux_bord_ud_table_if_needed()
+        create_pap_documents_table_if_needed()
 
-        logger.info("✅ Migration terminée avec succès!")
-        logger.info("📝 La table tableaux_bord_ud a été créée ou vérifiée.")
-        logger.info("🔄 Vous pouvez maintenant réessayer l'import des contacts UD.")
+        logger.info("✅ Migrations terminées avec succès!")
+        logger.info("📝 Les tables tableaux_bord_ud et pap_documents ont été créées ou vérifiées.")
+        logger.info("🔄 Vous pouvez maintenant utiliser les fonctionnalités UD et portails PAP.")
 
         return 0
 

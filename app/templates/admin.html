@@ -813,6 +813,89 @@
       </div>
     </section>
 
+    <!-- Générateur de liens portails UD/FD -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-link text-purple-500 mr-2"></i>
+        Générateur de liens portails UD/FD
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-purple-50 border-l-4 border-purple-500 rounded-lg text-sm text-purple-800">
+          <i class="fas fa-info-circle mr-2"></i>
+          Générez des liens uniques pour que chaque UD ou FD puisse consulter tous ses PAPs.
+        </div>
+
+        <!-- Choix UD ou FD -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
+            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+              <i class="fas fa-building text-purple-500 mr-2"></i>
+              Générer lien Union Départementale
+            </h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de département</label>
+                <input type="text" id="udNumero" placeholder="Ex: 34"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+              </div>
+              <button onclick="generateUDLink()"
+                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
+                <i class="fas fa-magic mr-2"></i>
+                Générer lien UD
+              </button>
+            </div>
+          </div>
+
+          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
+            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+              <i class="fas fa-industry text-purple-500 mr-2"></i>
+              Générer lien Fédération
+            </h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Code FD</label>
+                <input type="text" id="fdCode" placeholder="Ex: metallurgie"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+              </div>
+              <button onclick="generateFDLink()"
+                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
+                <i class="fas fa-magic mr-2"></i>
+                Générer lien FD
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Résultat -->
+        <div id="linkResult" class="hidden">
+          <div class="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h5 class="font-semibold text-green-800">
+                <i class="fas fa-check-circle mr-2"></i>
+                Lien généré avec succès
+              </h5>
+              <button onclick="closeLink()" class="text-green-600 hover:text-green-800">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="bg-white rounded p-3 mb-3 font-mono text-sm break-all" id="generatedLink"></div>
+            <div class="flex gap-2">
+              <button onclick="copyLink()"
+                      class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center">
+                <i class="fas fa-copy mr-2"></i>
+                Copier le lien
+              </button>
+              <button onclick="openLink()"
+                      class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center">
+                <i class="fas fa-external-link-alt mr-2"></i>
+                Ouvrir le portail
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Enrichir IDCC -->
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
@@ -3497,6 +3580,82 @@ function openInOutlook(index) {
     alert('❌ Erreur lors de la copie dans le presse-papiers.\n\nVeuillez utiliser le bouton "Copier l\'email" à la place.');
   });
 }
+
+// ========================================
+// Générateur de liens portails UD/FD
+// ========================================
+
+let currentGeneratedLink = '';
+
+function generateUDLink() {
+  const udNumero = document.getElementById('udNumero').value.trim();
+
+  if (!udNumero) {
+    alert('⚠️ Veuillez entrer un numéro de département');
+    return;
+  }
+
+  // Générer le lien
+  const appUrl = window.location.origin;
+  currentGeneratedLink = `${appUrl}/ud/${udNumero}/paps`;
+
+  // Afficher le résultat
+  document.getElementById('generatedLink').textContent = currentGeneratedLink;
+  document.getElementById('linkResult').classList.remove('hidden');
+}
+
+function generateFDLink() {
+  const fdCode = document.getElementById('fdCode').value.trim();
+
+  if (!fdCode) {
+    alert('⚠️ Veuillez entrer un code FD');
+    return;
+  }
+
+  // Encoder le code FD pour l'URL
+  const fdCodeEncoded = encodeURIComponent(fdCode.toLowerCase().replace(/\s+/g, '-'));
+
+  // Générer le lien
+  const appUrl = window.location.origin;
+  currentGeneratedLink = `${appUrl}/fd/${fdCodeEncoded}/paps`;
+
+  // Afficher le résultat
+  document.getElementById('generatedLink').textContent = currentGeneratedLink;
+  document.getElementById('linkResult').classList.remove('hidden');
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(currentGeneratedLink).then(() => {
+    alert('✅ Lien copié dans le presse-papiers !');
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie. Veuillez copier manuellement le lien.');
+  });
+}
+
+function openLink() {
+  window.open(currentGeneratedLink, '_blank');
+}
+
+function closeLink() {
+  document.getElementById('linkResult').classList.add('hidden');
+  document.getElementById('udNumero').value = '';
+  document.getElementById('fdCode').value = '';
+  currentGeneratedLink = '';
+}
+
+// Permettre Entrée pour générer les liens
+document.getElementById('udNumero').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    generateUDLink();
+  }
+});
+
+document.getElementById('fdCode').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    generateFDLink();
+  }
+});
 </script>
 
 {% endblock %}

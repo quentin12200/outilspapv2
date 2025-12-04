@@ -24,7 +24,7 @@ from ..services.pappers_api import PappersAPI
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..audit import log_admin_action
 from ..user_auth import require_admin_user
-from ..models import User
+from ..models import User, PAPDocument
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,52 @@ async def analyze_pap_batch(
 
                     # Générer l'URL publique (nouvelle route pour servir depuis le volume)
                     pdf_url = f"/pap-pdfs/{pdf_filename}"
+
+                    # Calculer la taille du fichier
+                    file_size_kb = len(file_data) / 1024
+
                     logger.info(f"✅ PDF stocké : {pdf_filename}")
+
+                    # Créer l'enregistrement PAPDocument pour le portail UD/FD
+                    try:
+                        # Gérer le cas FD vide (placer dans "sans fd")
+                        fd_value = extracted_data.get('fd')
+                        if not fd_value or str(fd_value).strip() == '':
+                            fd_value = "sans fd"
+
+                        pap_doc = PAPDocument(
+                            filename=pdf_filename,
+                            pdf_url=pdf_url,
+                            file_size_kb=file_size_kb,
+                            siret=extracted_data.get('siret', ''),
+                            raison_sociale=extracted_data.get('raison_sociale'),
+                            ville=extracted_data.get('ville'),
+                            code_postal=extracted_data.get('code_postal'),
+                            effectif=extracted_data.get('effectif'),
+                            inscrits=extracted_data.get('inscrits'),
+                            date_invitation=extracted_data.get('date_invitation'),
+                            date_election=extracted_data.get('date_election'),
+                            numero_departement=extracted_data.get('numero_departement'),
+                            nom_departement=extracted_data.get('nom_departement'),
+                            ud=extracted_data.get('ud'),
+                            fd=fd_value,
+                            idcc=extracted_data.get('idcc'),
+                            is_priority=extracted_data.get('is_priority', False),
+                            priority_reasons=extracted_data.get('priority_reasons'),
+                            has_cgt_history=extracted_data.get('has_cgt_history', False),
+                            cgt_c3=extracted_data.get('cgt_c3', False),
+                            cgt_c4=extracted_data.get('cgt_c4', False),
+                            created_by=current_user.id if hasattr(current_user, 'id') else None,
+                            is_active=True
+                        )
+                        db.add(pap_doc)
+                        db.commit()
+                        logger.info(f"✅ PAPDocument créé pour {pdf_filename} (UD: {extracted_data.get('ud')}, FD: {fd_value})")
+                    except Exception as e:
+                        db.rollback()
+                        logger.error(f"⚠️ Erreur création PAPDocument pour {pdf_filename}: {str(e)}")
+                        # Ne pas bloquer le processus si l'enregistrement échoue
+
                 except Exception as e:
                     logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")
 

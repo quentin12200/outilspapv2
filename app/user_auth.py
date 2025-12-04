@@ -46,7 +46,11 @@ PUBLIC_ROUTES = {
     "/retroplanning",
 }
 
-PUBLIC_ROUTE_PREFIXES: tuple[str, ...] = ()
+PUBLIC_ROUTE_PREFIXES: tuple[str, ...] = (
+    "/ud/",         # Portails Union Départementale
+    "/fd/",         # Portails Fédération
+    "/pap-pdfs/",   # PDFs PAP stockés
+)
 
 
 def hash_password(password: str) -> str:

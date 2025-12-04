@@ -601,6 +601,68 @@ def create_tableaux_bord_ud_table_if_needed():
         logger.error(f"❌ Erreur lors de la création de la table tableaux_bord_ud: {e}")
 
 
+def create_pap_documents_table_if_needed():
+    """Crée la table pap_documents si elle n'existe pas."""
+    logger.info("🔍 Vérification de la table pap_documents...")
+
+    inspector = inspect(engine)
+    if "pap_documents" in inspector.get_table_names():
+        logger.info("✅ Table pap_documents existe déjà")
+        return
+
+    logger.info("📝 Création de la table pap_documents...")
+
+    sql = text("""
+        CREATE TABLE IF NOT EXISTS pap_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename VARCHAR(255) NOT NULL UNIQUE,
+            pdf_url VARCHAR(500) NOT NULL,
+            file_size_kb FLOAT,
+            siret VARCHAR(14) NOT NULL,
+            raison_sociale VARCHAR(255),
+            ville VARCHAR(100),
+            code_postal VARCHAR(5),
+            effectif INTEGER,
+            inscrits INTEGER,
+            date_invitation DATE,
+            date_election DATE,
+            uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            numero_departement VARCHAR(3),
+            nom_departement VARCHAR(100),
+            ud VARCHAR(80),
+            fd VARCHAR(80),
+            idcc VARCHAR(20),
+            is_priority BOOLEAN NOT NULL DEFAULT 0,
+            priority_reasons TEXT,
+            has_cgt_history BOOLEAN NOT NULL DEFAULT 0,
+            cgt_c3 BOOLEAN NOT NULL DEFAULT 0,
+            cgt_c4 BOOLEAN NOT NULL DEFAULT 0,
+            created_by INTEGER,
+            is_active BOOLEAN NOT NULL DEFAULT 1
+        )
+    """)
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(sql)
+            conn.commit()
+
+        # Créer les index pour optimiser les requêtes par UD/FD/SIRET/date
+        with engine.connect() as conn:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_filename ON pap_documents(filename)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_siret ON pap_documents(siret)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_uploaded_at ON pap_documents(uploaded_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_numero_dept ON pap_documents(numero_departement)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_ud ON pap_documents(ud)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_fd ON pap_documents(fd)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pap_is_priority ON pap_documents(is_priority)"))
+            conn.commit()
+
+        logger.info("✅ Table pap_documents créée avec succès")
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la création de la table pap_documents: {e}")
+
+
 def run_migrations():
     """Point d'entrée pour exécuter toutes les migrations."""
     try:
@@ -626,6 +688,9 @@ def run_migrations():
 
         # Migration table tableaux_bord_ud
         create_tableaux_bord_ud_table_if_needed()
+
+        # Migration table pap_documents
+        create_pap_documents_table_if_needed()
 
         logger.info("✅ Toutes les migrations ont été exécutées avec succès!")
     except Exception as e:
