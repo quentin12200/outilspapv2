@@ -513,14 +513,46 @@ async def import_existing_pdfs(
                             code_postal = metadata.get('code_postal')
                             ville = metadata.get('ville')
 
+                    # Si pas de code postal dans EmailLog, essayer l'API entreprise.data.gouv.fr (publique)
+                    if not code_postal:
+                        try:
+                            import httpx
+                            logger.info(f"🔍 Recherche infos pour SIRET {siret} via API entreprise.data.gouv.fr...")
+                            response = httpx.get(
+                                f"https://entreprise.data.gouv.fr/api/sirene/v3/etablissements/{siret}",
+                                timeout=5.0
+                            )
+                            if response.status_code == 200:
+                                data = response.json()
+                                etablissement = data.get('etablissement', {})
+                                code_postal = etablissement.get('code_postal')
+                                ville = etablissement.get('libelle_commune')
+                                if not raison_sociale:
+                                    raison_sociale = etablissement.get('nom_raison_sociale') or etablissement.get('denomination')
+                                if code_postal:
+                                    logger.info(f"✅ Code postal {code_postal} trouvé via API entreprise.data.gouv.fr")
+                            else:
+                                logger.warning(f"⚠️  API entreprise.data.gouv.fr a retourné {response.status_code}")
+                        except Exception as e:
+                            logger.warning(f"⚠️  Erreur API entreprise.data.gouv.fr: {e}")
+
                     # Extraire le numéro de département du code postal
                     numero_departement = None
                     nom_departement = None
+
                     if code_postal:
                         # Extraire les 2 premiers chiffres du code postal
                         numero_departement = code_postal[:2]
                         nom_departement = f"Département {numero_departement}"
                         logger.info(f"📍 {pdf_path.name} - Département {numero_departement} extrait du code postal {code_postal}")
+                    else:
+                        # Fallback : extraire département du SIRET (approximatif mais mieux que rien)
+                        # Les chiffres 10-11 du SIRET correspondent parfois au département
+                        logger.warning(f"⚠️  Pas de code postal trouvé, extraction approximative depuis SIRET")
+                        numero_departement = siret[9:11] if len(siret) >= 11 else None
+                        if numero_departement:
+                            nom_departement = f"Département {numero_departement}"
+                            logger.info(f"📍 {pdf_path.name} - Département {numero_departement} (approximatif depuis SIRET)")
 
                     pap_doc = PAPDocument(
                         filename=pdf_path.name,
