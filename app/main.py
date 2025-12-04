@@ -6502,6 +6502,80 @@ async def force_migration(request: Request):
         )
 
 
+@app.post("/api/admin/migrate-pap-columns")
+async def migrate_pap_columns(request: Request):
+    """
+    Ajoute les colonnes lien_pap_pdf et date_courrier à la table invitations.
+    Route API pour exécuter la migration sans accès terminal.
+    """
+    try:
+        import sqlite3
+
+        DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./papcse.db").replace("sqlite:///", "")
+
+        if not os.path.exists(DB_PATH):
+            raise Exception(f"Base de données introuvable: {DB_PATH}")
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Vérifier colonnes existantes
+        cursor.execute("PRAGMA table_info(invitations)")
+        existing_columns = [row[1] for row in cursor.fetchall()]
+
+        columns_to_add = []
+        if 'lien_pap_pdf' not in existing_columns:
+            columns_to_add.append(('lien_pap_pdf', 'TEXT'))
+        if 'date_courrier' not in existing_columns:
+            columns_to_add.append(('date_courrier', 'DATE'))
+
+        if not columns_to_add:
+            conn.close()
+            return JSONResponse(content={
+                "success": True,
+                "message": "✅ Les colonnes existent déjà",
+                "details": "lien_pap_pdf et date_courrier sont déjà présentes"
+            })
+
+        # Ajouter les colonnes
+        for col_name, col_type in columns_to_add:
+            logger.info(f"➕ Ajout colonne {col_name}...")
+            cursor.execute(f"ALTER TABLE invitations ADD COLUMN {col_name} {col_type}")
+
+        conn.commit()
+
+        # Vérifier
+        cursor.execute("PRAGMA table_info(invitations)")
+        final_columns = [row[1] for row in cursor.fetchall()]
+
+        added = [col for col, _ in columns_to_add if col in final_columns]
+
+        cursor.execute("SELECT COUNT(*) FROM invitations")
+        count = cursor.fetchone()[0]
+
+        conn.close()
+
+        logger.info(f"✅ Migration réussie: {added}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"✅ Migration réussie ! Colonnes ajoutées: {', '.join(added)}",
+            "details": f"{count} invitations dans la table"
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Erreur migration: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Erreur: {str(e)}"
+            }
+        )
+
+
 @app.get("/mentions-legales", response_class=HTMLResponse)
 def mentions_legales_page(request: Request):
     return templates.TemplateResponse("mentions-legales.html", {"request": request})
