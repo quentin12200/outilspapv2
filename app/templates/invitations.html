@@ -221,6 +221,7 @@
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ville</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase" data-sort-type="date">Date PV C5</th>
           <th class="px-4 py-3 text-left text-xs font-bold uppercase">Source</th>
+          <th class="px-4 py-3 text-center text-xs font-bold uppercase">PDF PAP</th>
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
@@ -299,6 +300,28 @@
             {% endif %}
           </td>
           <td class="px-4 py-3">{{ invit.source or '—' }}</td>
+          <td class="px-4 py-3 text-center whitespace-nowrap">
+            {% if invit.lien_pap_pdf %}
+              <div class="flex items-center justify-center gap-2">
+                <a href="{{ invit.lien_pap_pdf }}" target="_blank"
+                   class="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs font-medium transition">
+                  <i class="fas fa-file-pdf mr-1"></i>
+                  Voir
+                </a>
+                <button onclick="copierLienPAP('{{ invit.lien_pap_pdf }}', '{{ invit.siret }}')"
+                   class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-xs font-medium transition">
+                  <i class="fas fa-copy mr-1"></i>
+                  Copier
+                </button>
+              </div>
+            {% else %}
+              <button onclick="ouvrirUploadPDF('{{ invit.siret }}', '{{ invit.denomination|replace("'", "\\'") }}')"
+                 class="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded text-xs font-medium transition">
+                <i class="fas fa-upload mr-1"></i>
+                Upload
+              </button>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -496,6 +519,71 @@ async function updateFdFromIdcc() {
     btn.disabled = false;
     btn.innerHTML = originalText;
   }
+}
+
+// ========== Upload PDF PAP ==========
+
+function ouvrirUploadPDF(siret, denomination) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/pdf,.pdf';
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!confirm(`📤 Upload PDF PAP\n\nEntreprise: ${denomination}\nSIRET: ${siret}\nFichier: ${file.name}\n\n✅ Le système va vérifier:\n- Présence du SIRET dans le PDF\n- Cohérence des dates\n\nContinuer ?`)) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`/api/invitations/${siret}/upload-pap`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        let message = `✅ ${data.message}\n\n`;
+        message += `📎 Lien permanent:\n${data.lien_permanent}\n\n`;
+
+        if (data.siret_verified) {
+          message += `✅ SIRET vérifié dans le PDF\n`;
+        }
+
+        if (data.warnings && data.warnings.length > 0) {
+          message += `\n⚠️ Avertissements:\n`;
+          data.warnings.forEach(w => {
+            message += `${w.message}\n`;
+          });
+        }
+
+        alert(message);
+        location.reload();
+      } else {
+        alert(`❌ Erreur: ${data.error || 'Upload échoué'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('❌ Erreur lors de l\'upload: ' + error.message);
+    }
+  };
+
+  input.click();
+}
+
+function copierLienPAP(lien, siret) {
+  navigator.clipboard.writeText(lien).then(() => {
+    alert(`✅ Lien copié !\n\n${lien}\n\n📧 Vous pouvez maintenant le coller dans votre email Outlook.`);
+  }).catch(err => {
+    console.error('Erreur:', err);
+    // Fallback: afficher le lien pour copie manuelle
+    prompt('Copier ce lien:', lien);
+  });
 }
 </script>
 {% endblock %}
