@@ -151,6 +151,16 @@
         </div>
         <p class="text-sm text-gray-600">Préparer les emails de relance pour les invitations incomplètes ou en retard</p>
       </button>
+
+      <!-- Migration PAP PDF -->
+      <button onclick="executerMigrationPAP()" id="btn-migrate-pap"
+        class="p-6 bg-white rounded-lg shadow hover:shadow-md transition border-2 border-transparent hover:border-blue-400 text-left">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-database text-blue-600 text-2xl"></i>
+          <h3 class="font-bold text-gray-800">Migration PAP PDF</h3>
+        </div>
+        <p class="text-sm text-gray-600">🔧 Ajouter les colonnes lien_pap_pdf et date_courrier (à exécuter une seule fois)</p>
+      </button>
     </div>
 
     <!-- Import Excel complété -->
@@ -2728,6 +2738,44 @@ function copierEmailsTexte(emails) {
     console.error('Erreur:', err);
     alert('❌ Erreur lors de la copie');
   });
+}
+
+// ========== Migration PAP PDF ==========
+
+async function executerMigrationPAP() {
+  const btn = document.getElementById('btn-migrate-pap');
+  const originalHTML = btn.innerHTML;
+
+  if (!confirm('🔧 Exécuter la migration PAP PDF ?\n\nCela va ajouter les colonnes:\n- lien_pap_pdf (liens permanents vers PDFs)\n- date_courrier (distinction date courrier/invitation)\n\n⚠️ À exécuter une seule fois.\n\nContinuer ?')) {
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Migration en cours...';
+
+    const response = await fetch('/api/admin/migrate-pap-columns', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      alert(`✅ ${data.message}\n\n${data.details || ''}`);
+      btn.classList.add('bg-green-100', 'border-green-400');
+      btn.innerHTML = '<i class="fas fa-check-circle text-green-600 text-2xl"></i><div><h3 class="font-bold text-gray-800">Migration terminée</h3><p class="text-sm text-gray-600">Colonnes ajoutées avec succès</p></div>';
+    } else {
+      alert(`❌ Erreur: ${data.error || 'Migration échouée'}`);
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('❌ Erreur lors de la migration: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
 }
 
 // ========== Import Excel et génération d'emails ==========
