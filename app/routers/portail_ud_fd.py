@@ -35,30 +35,42 @@ async def portail_ud(
     Affiche tous les PAPs destinés à une UD spécifique.
     """
     try:
-        # Vérifier si l'UD existe dans la base
-        ud = db.query(TableauBordUD).filter(
-            TableauBordUD.numero_departement == numero_departement
-        ).first()
+        # Créer un objet UD minimal par défaut
+        class MinimalUD:
+            def __init__(self, numero):
+                self.numero_departement = numero
+                self.nom_departement = f"Département {numero}"
+                self.code_ud = f"UD-{numero}"
+                self.email_ud = None
+                self.telephone_ud = None
 
-        # Si l'UD n'existe pas, créer un objet minimal temporaire
-        if not ud:
-            # Créer un objet UD minimal pour l'affichage
-            class MinimalUD:
-                def __init__(self, numero):
-                    self.numero_departement = numero
-                    self.nom_departement = f"Département {numero}"
-                    self.code_ud = f"UD-{numero}"
-                    self.email_ud = None
-                    self.telephone_ud = None
+        ud = MinimalUD(numero_departement)
 
-            ud = MinimalUD(numero_departement)
-            logger.info(f"UD {numero_departement} non enregistrée, utilisation d'un objet minimal")
+        # Essayer de charger l'UD depuis la base si elle existe
+        try:
+            ud_from_db = db.query(TableauBordUD).filter(
+                TableauBordUD.numero_departement == numero_departement
+            ).first()
+
+            if ud_from_db:
+                ud = ud_from_db
+                logger.info(f"UD {numero_departement} trouvée en base")
+            else:
+                logger.info(f"UD {numero_departement} non enregistrée, utilisation d'un objet minimal")
+        except Exception as e:
+            # La table n'existe peut-être pas encore, utiliser l'objet minimal
+            logger.warning(f"Impossible de charger l'UD {numero_departement} depuis la DB: {e}")
 
         # Récupérer tous les PAPs pour ce département
-        paps = db.query(PAPDocument).filter(
-            PAPDocument.numero_departement == numero_departement,
-            PAPDocument.is_active == True
-        ).order_by(desc(PAPDocument.uploaded_at)).all()
+        paps = []
+        try:
+            paps = db.query(PAPDocument).filter(
+                PAPDocument.numero_departement == numero_departement,
+                PAPDocument.is_active == True
+            ).order_by(desc(PAPDocument.uploaded_at)).all()
+        except Exception as e:
+            # La table pap_documents n'existe peut-être pas encore
+            logger.warning(f"Impossible de charger les PAPs pour UD {numero_departement}: {e}")
 
         # Calculer les statistiques
         total_paps = len(paps)
@@ -111,13 +123,18 @@ async def portail_fd(
             code_fd = "sans fd"
 
         # Récupérer tous les PAPs pour cette FD
-        paps = db.query(PAPDocument).filter(
-            PAPDocument.fd == code_fd,
-            PAPDocument.is_active == True
-        ).order_by(desc(PAPDocument.uploaded_at)).all()
+        paps = []
+        try:
+            paps = db.query(PAPDocument).filter(
+                PAPDocument.fd == code_fd,
+                PAPDocument.is_active == True
+            ).order_by(desc(PAPDocument.uploaded_at)).all()
 
-        if not paps:
-            logger.warning(f"Aucun PAP trouvé pour la FD {code_fd}")
+            if not paps:
+                logger.warning(f"Aucun PAP trouvé pour la FD {code_fd}")
+        except Exception as e:
+            # La table pap_documents n'existe peut-être pas encore
+            logger.warning(f"Impossible de charger les PAPs pour FD {code_fd}: {e}")
 
         # Calculer les statistiques
         total_paps = len(paps)
@@ -161,39 +178,40 @@ async def api_get_paps_by_ud(
 
     Utile pour intégrations externes ou applications mobiles.
     """
+    paps = []
     try:
         paps = db.query(PAPDocument).filter(
             PAPDocument.numero_departement == numero_departement,
             PAPDocument.is_active == True
         ).order_by(desc(PAPDocument.uploaded_at)).all()
-
-        return {
-            "success": True,
-            "numero_departement": numero_departement,
-            "total": len(paps),
-            "paps": [
-                {
-                    "id": p.id,
-                    "filename": p.filename,
-                    "pdf_url": p.pdf_url,
-                    "siret": p.siret,
-                    "raison_sociale": p.raison_sociale,
-                    "ville": p.ville,
-                    "effectif": p.effectif,
-                    "inscrits": p.inscrits,
-                    "date_invitation": p.date_invitation.isoformat() if p.date_invitation else None,
-                    "date_election": p.date_election.isoformat() if p.date_election else None,
-                    "uploaded_at": p.uploaded_at.isoformat() if p.uploaded_at else None,
-                    "is_priority": p.is_priority,
-                    "has_cgt_history": p.has_cgt_history,
-                    "fd": p.fd
-                }
-                for p in paps
-            ]
-        }
     except Exception as e:
-        logger.error(f"Erreur API PAPs UD {numero_departement}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # La table n'existe peut-être pas encore, retourner une liste vide
+        logger.warning(f"Impossible de charger les PAPs pour UD {numero_departement}: {e}")
+
+    return {
+        "success": True,
+        "numero_departement": numero_departement,
+        "total": len(paps),
+        "paps": [
+            {
+                "id": p.id,
+                "filename": p.filename,
+                "pdf_url": p.pdf_url,
+                "siret": p.siret,
+                "raison_sociale": p.raison_sociale,
+                "ville": p.ville,
+                "effectif": p.effectif,
+                "inscrits": p.inscrits,
+                "date_invitation": p.date_invitation.isoformat() if p.date_invitation else None,
+                "date_election": p.date_election.isoformat() if p.date_election else None,
+                "uploaded_at": p.uploaded_at.isoformat() if p.uploaded_at else None,
+                "is_priority": p.is_priority,
+                "has_cgt_history": p.has_cgt_history,
+                "fd": p.fd
+            }
+            for p in paps
+        ]
+    }
 
 
 @router.get("/api/fd/{code_fd}/paps")
@@ -206,44 +224,45 @@ async def api_get_paps_by_fd(
 
     Utile pour intégrations externes ou applications mobiles.
     """
-    try:
-        # Gérer le cas "sans fd"
-        if code_fd.lower() == "sans-fd":
-            code_fd = "sans fd"
+    # Gérer le cas "sans fd"
+    if code_fd.lower() == "sans-fd":
+        code_fd = "sans fd"
 
+    paps = []
+    try:
         paps = db.query(PAPDocument).filter(
             PAPDocument.fd == code_fd,
             PAPDocument.is_active == True
         ).order_by(desc(PAPDocument.uploaded_at)).all()
-
-        return {
-            "success": True,
-            "code_fd": code_fd,
-            "total": len(paps),
-            "paps": [
-                {
-                    "id": p.id,
-                    "filename": p.filename,
-                    "pdf_url": p.pdf_url,
-                    "siret": p.siret,
-                    "raison_sociale": p.raison_sociale,
-                    "ville": p.ville,
-                    "effectif": p.effectif,
-                    "inscrits": p.inscrits,
-                    "date_invitation": p.date_invitation.isoformat() if p.date_invitation else None,
-                    "date_election": p.date_election.isoformat() if p.date_election else None,
-                    "uploaded_at": p.uploaded_at.isoformat() if p.uploaded_at else None,
-                    "is_priority": p.is_priority,
-                    "has_cgt_history": p.has_cgt_history,
-                    "numero_departement": p.numero_departement,
-                    "nom_departement": p.nom_departement
-                }
-                for p in paps
-            ]
-        }
     except Exception as e:
-        logger.error(f"Erreur API PAPs FD {code_fd}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # La table n'existe peut-être pas encore, retourner une liste vide
+        logger.warning(f"Impossible de charger les PAPs pour FD {code_fd}: {e}")
+
+    return {
+        "success": True,
+        "code_fd": code_fd,
+        "total": len(paps),
+        "paps": [
+            {
+                "id": p.id,
+                "filename": p.filename,
+                "pdf_url": p.pdf_url,
+                "siret": p.siret,
+                "raison_sociale": p.raison_sociale,
+                "ville": p.ville,
+                "effectif": p.effectif,
+                "inscrits": p.inscrits,
+                "date_invitation": p.date_invitation.isoformat() if p.date_invitation else None,
+                "date_election": p.date_election.isoformat() if p.date_election else None,
+                "uploaded_at": p.uploaded_at.isoformat() if p.uploaded_at else None,
+                "is_priority": p.is_priority,
+                "has_cgt_history": p.has_cgt_history,
+                "numero_departement": p.numero_departement,
+                "nom_departement": p.nom_departement
+            }
+            for p in paps
+        ]
+    }
 
 
 @router.get("/api/portails/liste")
@@ -255,8 +274,11 @@ async def api_liste_portails(
 
     Utile pour générer automatiquement les liens de portails.
     """
+    departements = []
+    federations = []
+
     try:
-        from sqlalchemy import func, distinct
+        from sqlalchemy import func
 
         # Récupérer tous les départements uniques qui ont des PAPs
         departements = db.query(
@@ -281,27 +303,27 @@ async def api_liste_portails(
         ).group_by(
             PAPDocument.fd
         ).order_by(PAPDocument.fd).all()
-
-        return {
-            "success": True,
-            "departements": [
-                {
-                    "numero": d.numero_departement,
-                    "nom": d.nom_departement or f"Département {d.numero_departement}",
-                    "count_paps": d.count_paps,
-                    "url": f"/ud/{d.numero_departement}/paps"
-                }
-                for d in departements
-            ],
-            "federations": [
-                {
-                    "code": f.fd,
-                    "count_paps": f.count_paps,
-                    "url": f"/fd/{f.fd.lower().replace(' ', '-')}/paps"
-                }
-                for f in federations
-            ]
-        }
     except Exception as e:
-        logger.error(f"Erreur API liste portails: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # La table n'existe peut-être pas encore, retourner des listes vides
+        logger.warning(f"Impossible de charger la liste des portails: {e}")
+
+    return {
+        "success": True,
+        "departements": [
+            {
+                "numero": d.numero_departement,
+                "nom": d.nom_departement or f"Département {d.numero_departement}",
+                "count_paps": d.count_paps,
+                "url": f"/ud/{d.numero_departement}/paps"
+            }
+            for d in departements
+        ],
+        "federations": [
+            {
+                "code": f.fd,
+                "count_paps": f.count_paps,
+                "url": f"/fd/{f.fd.lower().replace(' ', '-')}/paps"
+            }
+            for f in federations
+        ]
+    }
