@@ -30,7 +30,7 @@
         <i class="fas fa-building text-blue-600"></i>
       </div>
     </div>
-    <p class="text-3xl font-bold text-gray-800">{{ total_entreprises|default(0)|number_format }}</p>
+    <p class="text-3xl font-bold text-gray-800">{{ total_entreprises|default(0) }}</p>
     <p class="text-xs text-gray-500 mt-1">dans la base papcse.db</p>
   </div>
 
@@ -41,7 +41,7 @@
         <i class="fas fa-envelope text-green-600"></i>
       </div>
     </div>
-    <p class="text-3xl font-bold text-gray-800">{{ total_invitations|default(0)|number_format }}</p>
+    <p class="text-3xl font-bold text-gray-800">{{ total_invitations|default(0) }}</p>
     <p class="text-xs text-gray-500 mt-1">Cycle 5</p>
   </div>
 
@@ -298,11 +298,11 @@
       <div class="space-y-2 mt-4 text-sm">
         <div class="flex justify-between">
           <span class="text-gray-600">Entreprises :</span>
-          <span class="font-semibold">{{ total_entreprises|default(0)|number_format }}</span>
+          <span class="font-semibold">{{ total_entreprises|default(0) }}</span>
         </div>
         <div class="flex justify-between">
           <span class="text-gray-600">Invitations PAP :</span>
-          <span class="font-semibold">{{ total_invitations|default(0)|number_format }}</span>
+          <span class="font-semibold">{{ total_invitations|default(0) }}</span>
         </div>
         <div class="flex justify-between">
           <span class="text-gray-600">Utilisateurs :</span>
