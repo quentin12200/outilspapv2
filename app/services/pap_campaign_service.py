@@ -10,12 +10,67 @@ import json
 import os
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..models import SiretSummary
 
 logger = logging.getLogger(__name__)
+
+
+def format_date_french(date_value):
+    """
+    Formate une date en français avec le format: "le 22 décembre 2025 à 14h00"
+
+    Args:
+        date_value: Peut être un objet datetime, une chaîne de caractères ISO, ou autre
+
+    Returns:
+        Chaîne formatée en français
+    """
+    if not date_value or date_value == 'N/A':
+        return 'N/A'
+
+    try:
+        # Si c'est déjà un objet datetime
+        if isinstance(date_value, datetime):
+            dt = date_value
+        # Si c'est une chaîne
+        elif isinstance(date_value, str):
+            # Essayer différents formats
+            for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%d/%m/%Y %H:%M', '%d/%m/%Y']:
+                try:
+                    dt = datetime.strptime(date_value, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                # Si aucun format ne match, retourner la valeur telle quelle
+                return date_value
+        else:
+            return str(date_value)
+
+        # Mapping des mois en français
+        mois_fr = [
+            '', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+            'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+        ]
+
+        # Formater en français
+        jour = dt.day
+        mois = mois_fr[dt.month]
+        annee = dt.year
+        heure = dt.strftime('%Hh%M') if dt.hour != 0 or dt.minute != 0 else None
+
+        if heure:
+            return f"le {jour} {mois} {annee} à {heure}"
+        else:
+            return f"le {jour} {mois} {annee}"
+
+    except Exception as e:
+        logger.warning(f"Erreur lors du formatage de la date {date_value}: {e}")
+        return str(date_value)
 
 
 class PAPCampaignService:
@@ -323,7 +378,8 @@ class PAPCampaignService:
         effectif = pap_data.get('effectif', 'N/A')
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
-        date_invitation = pap_data.get('date_invitation', 'N/A')
+        date_invitation_raw = pap_data.get('date_invitation', 'N/A')
+        date_invitation = format_date_french(date_invitation_raw)  # Formater en français
         idcc = pap_data.get('idcc', 'N/A')
         fd = pap_data.get('fd', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
@@ -362,7 +418,10 @@ class PAPCampaignService:
 📎 DOCUMENT PAP EN LIGNE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-👉 Accès direct au PAP :
+👁️ Visualiser le PAP (dans le navigateur) :
+{full_pdf_url}
+
+💾 Télécharger le PAP :
 {full_pdf_url}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
