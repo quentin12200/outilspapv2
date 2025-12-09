@@ -3623,13 +3623,104 @@ async def import_pap_avec_scan(
             )
         ).count()
 
+        # ============================================
+        # NOUVEAU : Créer aussi des PAPDocument pour alimenter les portails UD/FD
+        # ============================================
+        from .models import PAPDocument
+        pap_created = 0
+        pap_errors = 0
+
+        logger.info("Création des PAPDocument pour les portails UD/FD...")
+
+        # Récupérer toutes les invitations qui viennent d'être importées
+        recent_invitations = db.query(Invitation).order_by(Invitation.id.desc()).limit(inserted).all()
+
+        for inv in recent_invitations:
+            try:
+                # Vérifier si un PAPDocument existe déjà pour ce SIRET
+                existing_pap = db.query(PAPDocument).filter(
+                    PAPDocument.siret == inv.siret
+                ).first()
+
+                if existing_pap:
+                    # Mettre à jour l'existant
+                    existing_pap.raison_sociale = inv.denomination or existing_pap.raison_sociale
+                    existing_pap.ville = inv.commune or existing_pap.ville
+                    existing_pap.code_postal = inv.code_postal or existing_pap.code_postal
+                    existing_pap.effectif = inv.effectif_connu or existing_pap.effectif
+                    existing_pap.date_invitation = inv.date_reception or inv.date_invit or existing_pap.date_invitation
+                    existing_pap.date_election = inv.date_election or existing_pap.date_election
+                    existing_pap.idcc = inv.idcc or existing_pap.idcc
+                    existing_pap.fd = inv.fd or existing_pap.fd
+                    existing_pap.ud = inv.ud or existing_pap.ud
+
+                    # Extraire le département du code postal
+                    if inv.code_postal and len(inv.code_postal) >= 2:
+                        dept = inv.code_postal[:2]
+                        if dept.isdigit() and (1 <= int(dept) <= 95 or 97 <= int(dept) <= 98):
+                            existing_pap.numero_departement = dept
+                            existing_pap.nom_departement = f"Département {dept}"
+
+                    logger.info(f"PAPDocument mis à jour pour SIRET {inv.siret}")
+                else:
+                    # Créer un nouveau PAPDocument
+                    numero_departement = None
+                    nom_departement = None
+
+                    # Extraire le département du code postal
+                    if inv.code_postal and len(inv.code_postal) >= 2:
+                        dept = inv.code_postal[:2]
+                        if dept.isdigit() and (1 <= int(dept) <= 95 or 97 <= int(dept) <= 98):
+                            numero_departement = dept
+                            nom_departement = f"Département {dept}"
+
+                    pap_doc = PAPDocument(
+                        filename=f"import_{inv.siret}.xlsx",  # Nom fictif
+                        pdf_url=None,  # Pas de PDF pour l'instant
+                        file_size_kb=0,
+                        siret=inv.siret,
+                        raison_sociale=inv.denomination or f"Entreprise {inv.siret}",
+                        ville=inv.commune,
+                        code_postal=inv.code_postal,
+                        effectif=inv.effectif_connu,
+                        inscrits=None,
+                        date_invitation=inv.date_reception or inv.date_invit,
+                        date_election=inv.date_election,
+                        numero_departement=numero_departement,
+                        nom_departement=nom_departement,
+                        ud=inv.ud or (f"UD-{numero_departement}" if numero_departement else None),
+                        fd=inv.fd,
+                        idcc=inv.idcc,
+                        is_priority=False,
+                        priority_reasons=None,
+                        has_cgt_history=False,
+                        cgt_c3=False,
+                        cgt_c4=False,
+                        created_by=current_user.id if hasattr(current_user, 'id') else None,
+                        is_active=True,
+                        uploaded_at=datetime.now()
+                    )
+
+                    db.add(pap_doc)
+                    pap_created += 1
+                    logger.info(f"PAPDocument créé pour SIRET {inv.siret} (UD: {inv.ud}, FD: {inv.fd})")
+
+            except Exception as e:
+                logger.error(f"Erreur création PAPDocument pour {inv.siret}: {e}")
+                pap_errors += 1
+
+        db.commit()
+        logger.info(f"✅ {pap_created} PAPDocument créés pour les portails UD/FD")
+
         return JSONResponse(content={
             "success": True,
             "inserted": inserted,
             "enrichies": enrichies,
             "erreurs": erreurs,
             "incomplets": incomplets,
-            "message": f"{inserted} invitations importées, {enrichies} enrichies. {incomplets} nécessitent une complétion manuelle."
+            "pap_created": pap_created,
+            "pap_errors": pap_errors,
+            "message": f"{inserted} invitations importées, {enrichies} enrichies, {pap_created} PAP ajoutés aux portails UD/FD. {incomplets} nécessitent une complétion manuelle."
         })
 
     except Exception as e:
