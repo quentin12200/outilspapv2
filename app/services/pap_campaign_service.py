@@ -411,7 +411,8 @@ class PAPCampaignService:
             # Nettoyer les URLs pour éviter les doubles slashes
             app_url = os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')
             pdf_url_clean = pdf_url if pdf_url.startswith('/') else f'/{pdf_url}'
-            full_pdf_url = f"{app_url}{pdf_url_clean}"
+            full_pdf_url_view = f"{app_url}{pdf_url_clean}"
+            full_pdf_url_download = f"{app_url}{pdf_url_clean}?download=true"
 
             pdf_block = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -419,10 +420,10 @@ class PAPCampaignService:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 👁️ Visualiser le PAP (dans le navigateur) :
-{full_pdf_url}
+{full_pdf_url_view}
 
 💾 Télécharger le PAP :
-{full_pdf_url}
+{full_pdf_url_download}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """

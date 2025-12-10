@@ -773,8 +773,18 @@ from fastapi.responses import FileResponse
 from pathlib import Path as PathLib
 
 @app.get("/pap-pdfs/{filename}")
-async def serve_pap_pdf(filename: str):
-    """Sert les PDFs PAP depuis le volume Railway persistant."""
+async def serve_pap_pdf(filename: str, download: bool = False):
+    """
+    Sert les PDFs PAP depuis le volume Railway persistant.
+
+    Args:
+        filename: Nom du fichier PDF
+        download: Si True, force le téléchargement. Si False (défaut), affiche dans le navigateur.
+
+    Usage:
+        - Visualiser : /pap-pdfs/fichier.pdf
+        - Télécharger : /pap-pdfs/fichier.pdf?download=true
+    """
     # Sécurité : vérifier que le filename ne contient pas de ../
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="Nom de fichier invalide")
@@ -784,11 +794,19 @@ async def serve_pap_pdf(filename: str):
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF non trouvé")
 
-    return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
-        filename=filename
-    )
+    if download:
+        # Mode téléchargement : envoie le nom du fichier pour forcer le download
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf",
+            filename=filename
+        )
+    else:
+        # Mode visualisation : pas de filename = le navigateur affiche le PDF
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf"
+        )
 
 templates = Jinja2Templates(directory="app/templates")
 
