@@ -10,8 +10,22 @@ from .models import PVEvent, Invitation, SiretSummary
 logger = logging.getLogger(__name__)
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
-    df.columns = [c.lower() for c in df.columns]
+    """Normalise les noms de colonnes : supprime accents, espaces, apostrophes, met en lowercase."""
+    def normalize_name(name: str) -> str:
+        # Convertir en string
+        name = str(name)
+        # Supprimer les accents
+        name = unicodedata.normalize("NFKD", name)
+        name = "".join(ch for ch in name if not unicodedata.combining(ch))
+        # Remplacer apostrophes et tirets par espaces
+        name = name.replace("'", " ").replace("'", " ").replace("-", " ").replace("_", " ")
+        # Remplacer espaces multiples par un seul espace
+        name = re.sub(r"\s+", " ", name).strip()
+        # Mettre en lowercase
+        name = name.lower()
+        return name
+
+    df = df.rename(columns={c: normalize_name(c) for c in df.columns})
     return df
 
 def _normalize_raw_key(key: str) -> str:
@@ -407,8 +421,12 @@ def ingest_invit_excel(session: Session, file_like, auto_enrich: bool = True) ->
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
     df = _normalize_cols(df)
 
-    c_siret = _col_detect(df, ["siret"], warn_if_missing=True)
-    c_date  = _col_detect(df, ["date pap","date_pap","date","date invitation"], warn_if_missing=True)
+    c_siret = _col_detect(df, ["siret", "n siret", "numero siret"], warn_if_missing=True)
+    c_date  = _col_detect(df, [
+        "date pap", "date_pap", "date", "date invitation",
+        "date d arrivee", "date arrivee", "date de reception",
+        "date reception", "date invit", "date d invitation"
+    ], warn_if_missing=True)
     inserted = 0
     skipped_no_siret = 0
     skipped_no_date = 0
