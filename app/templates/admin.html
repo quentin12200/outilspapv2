@@ -574,16 +574,58 @@
       </form>
     </section>
 
-    <!-- Import Invitations PAP -->
+    <!-- Import Invitations PAP (Excel) -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-file-excel text-green-500 mr-2"></i>
+        Importer PAP Excel (recommandé)
+      </h3>
+      <form method="post" action="/api/invitations/import-pap" enctype="multipart/form-data" id="form-import-pap-excel" class="space-y-4">
+        <div>
+          <label for="pap-excel-file" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier Excel PAP (complété avec SIRET, IDCC, FD)</label>
+          <input type="file" name="file" id="pap-excel-file" required accept=".xlsx,.xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border border-gray-300 rounded-lg cursor-pointer" />
+          <p class="text-xs text-gray-500 mt-1">Importez votre fichier Excel après avoir complété les SIRET, IDCC et FD manquants</p>
+        </div>
+
+        <!-- Options de scan -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-start space-x-3">
+            <input type="checkbox" id="auto-scan-excel" name="auto_scan" checked class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <div class="flex-1">
+              <label for="auto-scan-excel" class="block text-sm font-semibold text-gray-800 cursor-pointer">
+                <i class="fas fa-robot text-blue-600 mr-1"></i>
+                Enrichissement automatique SIRENE/Pappers
+              </label>
+              <p class="text-xs text-gray-600 mt-1">
+                Complète automatiquement les informations manquantes (raison sociale, adresse, etc.) via les APIs publiques
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fas fa-file-upload"></i>
+          <span>Importer Excel PAP</span>
+        </button>
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Les données importées alimenteront automatiquement la page Invitations ET les Portails UD/FD.</p>
+      </form>
+
+      <!-- Résultat import Excel -->
+      <div id="import-excel-result" class="mt-4 hidden">
+        <div class="p-4 rounded-lg border" id="import-excel-result-content"></div>
+      </div>
+    </section>
+
+    <!-- Import Invitations PAP (PDF) -->
     <section class="bg-white rounded-xl shadow-md p-6">
       <h3 class="text-xl font-semibold text-gray-800 mb-6">
         <i class="fas fa-file-pdf text-red-500 mr-2"></i>
-        Importer PAP (Protocole d'Accord Pré-électoral)
+        Importer PAP PDF (extraction auto)
       </h3>
       <form method="post" action="/api/invitations/import-pap-pdf" enctype="multipart/form-data" id="form-import-pap" class="space-y-4">
         <div>
           <label for="invitfile" class="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez le fichier PDF du PAP</label>
-          <input type="file" name="file" id="invitfile" required accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 border border-gray-300 rounded-lg cursor-pointer" />
+          <input type="file" name="file" id="invitfile" required accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 border border-gray-300 rounded-lg cursor-pointer" />
           <p class="text-xs text-gray-500 mt-1">Le système extraira automatiquement les informations (SIRET, dates, entreprises) du PDF</p>
         </div>
 
@@ -661,6 +703,296 @@
         </button>
 
         <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>Le recalcul nettoie les données, reconstruit <code>siret_summary</code> et alimente les graphiques du tableau de bord.</p>
+      </div>
+    </section>
+
+    <!-- Forcer les migrations -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-database text-teal-500 mr-2"></i>
+        Forcer les migrations
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-teal-50 border-l-4 border-teal-500 rounded-lg text-sm text-teal-800">
+          <i class="fas fa-info-circle mr-2"></i>
+          Crée la table <code>tableaux_bord_ud</code> et ajoute les colonnes manquantes sans redémarrer l'application.
+        </div>
+
+        <!-- Status display -->
+        <div id="migration-status" class="hidden">
+          <div class="p-4 rounded-lg border" id="migration-status-content">
+            <!-- Status will be inserted here -->
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button id="migration-button" onclick="forceMigrations()" class="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition shadow-md flex items-center justify-center space-x-2">
+            <i class="fas fa-magic" id="migration-icon"></i>
+            <span id="migration-text">Exécuter les migrations</span>
+          </button>
+
+          <button id="recreate-button" onclick="recreateTables()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center space-x-2">
+            <i class="fas fa-redo-alt" id="recreate-icon"></i>
+            <span id="recreate-text">Recréer les tables</span>
+          </button>
+        </div>
+
+        <div class="p-3 bg-red-50 border-l-4 border-red-500 rounded text-sm text-red-800">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          <strong>Recréer les tables :</strong> Supprime et recrée tableaux_bord_ud et pap_documents avec la bonne structure.
+          ⚠️ Les données de ces tables seront perdues !
+        </div>
+
+        <p class="text-xs text-gray-500 flex items-start"><i class="fas fa-info-circle mr-2 mt-0.5"></i>À utiliser en cas d'erreur "no such column" lors de l'import des UD.</p>
+      </div>
+    </section>
+
+    <!-- Terminal Admin -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-terminal text-gray-700 mr-2"></i>
+        Terminal Admin
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm" style="min-height: 400px; max-height: 600px; overflow-y: auto;" id="terminal-output">
+          <div class="mb-2">
+            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Bienvenue dans le terminal admin sécurisé</span>
+          </div>
+          <div class="mb-2 text-gray-400">
+            Tapez "help" pour voir les commandes disponibles
+          </div>
+          <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
+        </div>
+
+        <!-- Input -->
+        <div class="flex space-x-2">
+          <div class="flex-1 flex items-center bg-gray-900 text-green-400 rounded-lg px-4 py-2 font-mono text-sm">
+            <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$&nbsp;
+            <input
+              type="text"
+              id="terminal-input"
+              class="flex-1 bg-transparent border-none outline-none text-green-400"
+              placeholder="Entrez une commande..."
+              autocomplete="off"
+            />
+          </div>
+          <button
+            onclick="executeTerminalCommand()"
+            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md flex items-center space-x-2"
+          >
+            <i class="fas fa-play"></i>
+            <span>Exécuter</span>
+          </button>
+        </div>
+
+        <div class="flex items-center space-x-4 text-xs text-gray-500">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-info-circle"></i>
+            <span>Utilisez ↑ ↓ pour naviguer dans l'historique</span>
+          </div>
+          <button onclick="clearTerminal()" class="text-red-500 hover:text-red-700 flex items-center space-x-1">
+            <i class="fas fa-trash"></i>
+            <span>Effacer</span>
+          </button>
+          <button onclick="showTerminalHelp()" class="text-blue-500 hover:text-blue-700 flex items-center space-x-1">
+            <i class="fas fa-question-circle"></i>
+            <span>Aide</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gestion des PDFs stockés -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-file-pdf text-red-500 mr-2"></i>
+        Gestion des PDFs PAP stockés
+      </h3>
+      <div class="space-y-4">
+        <!-- Stats -->
+        <div id="pdf-stats" class="grid grid-cols-4 gap-4 mb-4">
+          <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600" id="pdf-total-count">-</div>
+            <div class="text-xs text-gray-600">Total PDFs</div>
+          </div>
+          <div class="bg-green-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-green-600" id="pdf-total-size">-</div>
+            <div class="text-xs text-gray-600">Espace utilisé</div>
+          </div>
+          <div class="bg-yellow-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-yellow-600" id="pdf-recent">-</div>
+            <div class="text-xs text-gray-600">Moins de 7 jours</div>
+          </div>
+          <div class="bg-red-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-red-600" id="pdf-old">-</div>
+            <div class="text-xs text-gray-600">Plus de 90 jours</div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="loadPDFList()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+            <i class="fas fa-sync-alt"></i>
+            <span>Actualiser</span>
+          </button>
+          <button onclick="importNewPDFs()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center space-x-2">
+            <i class="fas fa-plus"></i>
+            <span>Importer les nouveaux PDFs</span>
+          </button>
+          <button onclick="reimportAllPDFs()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2">
+            <i class="fas fa-redo"></i>
+            <span>🔄 Ré-importer TOUS les anciens PDFs</span>
+          </button>
+          <button onclick="debugPDFAnalysis()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center space-x-2">
+            <i class="fas fa-search"></i>
+            <span>🔍 Analyser</span>
+          </button>
+          <button onclick="showCleanupDialog()" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center space-x-2">
+            <i class="fas fa-trash-alt"></i>
+            <span>Nettoyage</span>
+          </button>
+        </div>
+
+        <!-- Info import -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div class="p-3 bg-green-50 border-l-4 border-green-500 rounded text-sm text-green-800">
+            <strong>✅ Importer les nouveaux :</strong> Ajoute seulement les PDFs pas encore en base.
+          </div>
+          <div class="p-3 bg-purple-50 border-l-4 border-purple-500 rounded text-sm text-purple-800">
+            <strong>🔄 Ré-importer TOUS :</strong> Récupère tous vos vieux PDFs scannés avant le système de portails.
+          </div>
+        </div>
+
+        <!-- Liste des PDFs -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200" id="pdf-table">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fichier</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SIRET</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date upload</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taille</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Âge</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="pdf-table-body">
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>Chargement...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Générateur de liens portails UD/FD -->
+    <section class="bg-white rounded-xl shadow-md p-6 col-span-2">
+      <h3 class="text-xl font-semibold text-gray-800 mb-6">
+        <i class="fas fa-link text-purple-500 mr-2"></i>
+        Générateur de liens portails UD/FD
+      </h3>
+      <div class="space-y-4">
+        <div class="p-4 bg-purple-50 border-l-4 border-purple-500 rounded-lg text-sm text-purple-800">
+          <i class="fas fa-info-circle mr-2"></i>
+          Générez des liens uniques pour que chaque UD ou FD puisse consulter tous ses PAPs.
+        </div>
+
+        <!-- Bouton pour charger les portails disponibles -->
+        <div class="text-center">
+          <button onclick="loadPortailsDisponibles()"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center">
+            <i class="fas fa-list mr-2"></i>
+            Voir les portails disponibles
+          </button>
+        </div>
+
+        <!-- Liste des portails disponibles -->
+        <div id="portailsDisponibles" class="hidden">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="border rounded-lg p-3">
+              <h5 class="font-semibold text-gray-700 mb-2">Départements avec PAPs</h5>
+              <div id="listeUDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
+            </div>
+            <div class="border rounded-lg p-3">
+              <h5 class="font-semibold text-gray-700 mb-2">Fédérations avec PAPs</h5>
+              <div id="listeFDs" class="space-y-1 max-h-60 overflow-y-auto text-sm"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Choix UD ou FD -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
+            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+              <i class="fas fa-building text-purple-500 mr-2"></i>
+              Générer lien Union Départementale
+            </h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de département</label>
+                <input type="text" id="udNumero" placeholder="Ex: 34"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+              </div>
+              <button onclick="generateUDLink()"
+                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
+                <i class="fas fa-magic mr-2"></i>
+                Générer lien UD
+              </button>
+            </div>
+          </div>
+
+          <div class="border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition">
+            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+              <i class="fas fa-industry text-purple-500 mr-2"></i>
+              Générer lien Fédération
+            </h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Code FD</label>
+                <input type="text" id="fdCode" placeholder="Ex: metallurgie"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+              </div>
+              <button onclick="generateFDLink()"
+                      class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
+                <i class="fas fa-magic mr-2"></i>
+                Générer lien FD
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Résultat -->
+        <div id="linkResult" class="hidden">
+          <div class="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h5 class="font-semibold text-green-800">
+                <i class="fas fa-check-circle mr-2"></i>
+                Lien généré avec succès
+              </h5>
+              <button onclick="closeLink()" class="text-green-600 hover:text-green-800">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="bg-white rounded p-3 mb-3 font-mono text-sm break-all" id="generatedLink"></div>
+            <div class="flex gap-2">
+              <button onclick="copyLink()"
+                      class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center">
+                <i class="fas fa-copy mr-2"></i>
+                Copier le lien
+              </button>
+              <button onclick="openLink()"
+                      class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center">
+                <i class="fas fa-external-link-alt mr-2"></i>
+                Ouvrir le portail
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1101,6 +1433,563 @@ function resetIDCCButton() {
   buttonIcon.classList.remove('fa-spin');
   buttonText.textContent = 'Enrichir les IDCC';
 }
+
+// ============================================
+// Terminal Admin Functions
+
+let terminalHistory = [];
+let historyIndex = -1;
+
+// Ajouter une ligne au terminal
+function addTerminalLine(content, type = 'output') {
+  const terminalOutput = document.getElementById('terminal-output');
+  const line = document.createElement('div');
+  line.className = 'mb-2';
+
+  if (type === 'command') {
+    line.innerHTML = `<span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-white">${content}</span>`;
+  } else if (type === 'error') {
+    line.innerHTML = `<span class="text-red-400">${content}</span>`;
+  } else if (type === 'success') {
+    line.innerHTML = `<span class="text-green-400">${content}</span>`;
+  } else {
+    line.innerHTML = `<span class="text-gray-300">${content}</span>`;
+  }
+
+  terminalOutput.appendChild(line);
+  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+}
+
+// Exécuter une commande
+async function executeTerminalCommand() {
+  const input = document.getElementById('terminal-input');
+  const command = input.value.trim();
+
+  if (!command) return;
+
+  // Ajouter à l'historique
+  terminalHistory.push(command);
+  historyIndex = terminalHistory.length;
+
+  // Afficher la commande
+  addTerminalLine(command, 'command');
+
+  // Vider l'input
+  input.value = '';
+
+  try {
+    const response = await fetch('/api/admin/terminal/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ command: command })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Afficher la sortie
+      const lines = data.output.split('\n');
+      lines.forEach(line => {
+        addTerminalLine(line, 'output');
+      });
+    } else {
+      // Afficher l'erreur
+      if (data.error) {
+        addTerminalLine(data.error, 'error');
+      }
+    }
+  } catch (error) {
+    addTerminalLine(`❌ Erreur réseau: ${error.message}`, 'error');
+  }
+}
+
+// Effacer le terminal
+function clearTerminal() {
+  const terminalOutput = document.getElementById('terminal-output');
+  terminalOutput.innerHTML = `
+    <div class="mb-2">
+      <span class="text-blue-400">admin@pap-cse</span>:<span class="text-purple-400">~</span>$ <span class="text-gray-400">Terminal effacé</span>
+    </div>
+    <div class="mb-2 text-gray-400">
+      Tapez "help" pour voir les commandes disponibles
+    </div>
+    <div class="mb-2 text-gray-500">─────────────────────────────────────────────</div>
+  `;
+}
+
+// Afficher l'aide
+function showTerminalHelp() {
+  document.getElementById('terminal-input').value = 'help';
+  executeTerminalCommand();
+}
+
+// Gestion de l'input avec Enter et historique
+document.addEventListener('DOMContentLoaded', function() {
+  const input = document.getElementById('terminal-input');
+
+  if (input) {
+    // Exécuter avec Enter
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        executeTerminalCommand();
+      }
+      // Historique avec flèches haut/bas
+      else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          input.value = terminalHistory[historyIndex];
+        }
+      }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex < terminalHistory.length - 1) {
+          historyIndex++;
+          input.value = terminalHistory[historyIndex];
+        } else {
+          historyIndex = terminalHistory.length;
+          input.value = '';
+        }
+      }
+    });
+
+    // Auto-focus
+    input.focus();
+  }
+});
+
+// ============================================
+// Force Migrations Function
+
+async function forceMigrations() {
+  const button = document.getElementById('migration-button');
+  const buttonText = document.getElementById('migration-text');
+  const buttonIcon = document.getElementById('migration-icon');
+  const statusDiv = document.getElementById('migration-status');
+  const statusContent = document.getElementById('migration-status-content');
+
+  // Disable button
+  button.disabled = true;
+  button.classList.add('opacity-50', 'cursor-not-allowed');
+  buttonIcon.classList.add('fa-spin');
+  buttonText.textContent = 'Exécution en cours...';
+
+  try {
+    const response = await fetch('/api/admin/force-migration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    // Show status
+    statusDiv.classList.remove('hidden');
+
+    if (data.success) {
+      statusContent.className = 'p-4 rounded-lg border bg-green-50 border-green-200 text-green-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-check-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✓ Migrations exécutées avec succès</div>
+            <div class="text-sm mt-1">${data.message}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-exclamation-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✗ Erreur</div>
+            <div class="text-sm mt-1">${data.error || 'Erreur inconnue'}</div>
+          </div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    statusDiv.classList.remove('hidden');
+    statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+    statusContent.innerHTML = `
+      <div class="flex items-center space-x-3">
+        <i class="fas fa-exclamation-circle text-lg"></i>
+        <div>
+          <div class="font-semibold">✗ Erreur réseau</div>
+          <div class="text-sm mt-1">${error.message}</div>
+        </div>
+      </div>
+    `;
+  } finally {
+    // Reset button
+    button.disabled = false;
+    button.classList.remove('opacity-50', 'cursor-not-allowed');
+    buttonIcon.classList.remove('fa-spin');
+    buttonText.textContent = 'Exécuter les migrations';
+  }
+}
+
+// ============================================
+// Recreate Tables Function
+
+async function recreateTables() {
+  // Confirmation avec avertissement
+  if (!confirm('⚠️ ATTENTION : Cette action va SUPPRIMER toutes les données des tables tableaux_bord_ud et pap_documents.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+    return;
+  }
+
+  // Double confirmation
+  if (!confirm('Dernière confirmation : Toutes les données seront perdues. Continuer ?')) {
+    return;
+  }
+
+  const button = document.getElementById('recreate-button');
+  const buttonText = document.getElementById('recreate-text');
+  const buttonIcon = document.getElementById('recreate-icon');
+  const statusDiv = document.getElementById('migration-status');
+  const statusContent = document.getElementById('migration-status-content');
+
+  // Disable button
+  button.disabled = true;
+  button.classList.add('opacity-50', 'cursor-not-allowed');
+  buttonIcon.classList.add('fa-spin');
+  buttonText.textContent = 'Recréation en cours...';
+
+  try {
+    const response = await fetch('/api/admin/recreate-tables', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    // Show status
+    statusDiv.classList.remove('hidden');
+
+    if (data.success) {
+      statusContent.className = 'p-4 rounded-lg border bg-green-50 border-green-200 text-green-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-check-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✓ Tables recréées avec succès</div>
+            <div class="text-sm mt-1">${data.message}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+      statusContent.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-exclamation-circle text-lg"></i>
+          <div>
+            <div class="font-semibold">✗ Erreur</div>
+            <div class="text-sm mt-1">${data.error || 'Erreur inconnue'}</div>
+          </div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    statusDiv.classList.remove('hidden');
+    statusContent.className = 'p-4 rounded-lg border bg-red-50 border-red-200 text-red-800';
+    statusContent.innerHTML = `
+      <div class="flex items-center space-x-3">
+        <i class="fas fa-exclamation-circle text-lg"></i>
+        <div>
+          <div class="font-semibold">✗ Erreur réseau</div>
+          <div class="text-sm mt-1">${error.message}</div>
+        </div>
+      </div>
+    `;
+  } finally {
+    // Reset button
+    button.disabled = false;
+    button.classList.remove('opacity-50', 'cursor-not-allowed');
+    buttonIcon.classList.remove('fa-spin');
+    buttonText.textContent = 'Recréer les tables';
+  }
+}
+
+// ============================================
+// PDF Management Functions
+
+// Charger les stats des PDFs
+async function loadPDFStats() {
+  try {
+    const response = await fetch('/api/admin/pdfs/stats');
+    const data = await response.json();
+
+    if (data.success) {
+      document.getElementById('pdf-total-count').textContent = data.total_count;
+      document.getElementById('pdf-total-size').textContent = data.total_size_mb + ' MB';
+      document.getElementById('pdf-recent').textContent = data.by_age.moins_7_jours;
+      document.getElementById('pdf-old').textContent = data.by_age.plus_90_jours;
+    }
+  } catch (error) {
+    console.error('Erreur chargement stats PDFs:', error);
+  }
+}
+
+// Charger la liste des PDFs
+async function loadPDFList() {
+  const tbody = document.getElementById('pdf-table-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Chargement...</p></td></tr>';
+
+  try {
+    const response = await fetch('/api/admin/pdfs/list');
+    const data = await response.json();
+
+    if (data.success && data.pdfs.length > 0) {
+      tbody.innerHTML = '';
+      data.pdfs.forEach(pdf => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+
+        const ageClass = pdf.age_days > 90 ? 'text-red-600' : (pdf.age_days > 30 ? 'text-orange-600' : 'text-green-600');
+
+        row.innerHTML = `
+          <td class="px-4 py-3 text-sm">
+            <a href="${pdf.url}" target="_blank" class="text-blue-600 hover:underline flex items-center space-x-2">
+              <i class="fas fa-file-pdf text-red-500"></i>
+              <span class="truncate max-w-xs" title="${pdf.filename}">${pdf.filename}</span>
+            </a>
+          </td>
+          <td class="px-4 py-3 text-sm font-mono">${pdf.siret || '-'}</td>
+          <td class="px-4 py-3 text-sm">${pdf.date_upload}</td>
+          <td class="px-4 py-3 text-sm">${pdf.size_kb} KB</td>
+          <td class="px-4 py-3 text-sm ${ageClass} font-semibold">${pdf.age_days} jours</td>
+          <td class="px-4 py-3 text-sm">
+            <button onclick="deletePDF('${pdf.filename}')" class="text-red-600 hover:text-red-800">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucun PDF stocké</td></tr>';
+    }
+
+    // Rafraîchir les stats
+    loadPDFStats();
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Erreur de chargement</td></tr>';
+    console.error('Erreur chargement PDFs:', error);
+  }
+}
+
+// Supprimer un PDF
+async function deletePDF(filename) {
+  if (!confirm(`Supprimer le PDF "${filename}" ?\nCette action est irréversible.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/pdfs/delete/${filename}`, {
+      method: 'DELETE'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✓ ${data.message}\nEspace libéré: ${data.freed_space_mb} MB`);
+      loadPDFList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de la suppression'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  }
+}
+
+// Afficher le dialogue de nettoyage
+function showCleanupDialog() {
+  const days = prompt('Supprimer les PDFs plus vieux que combien de jours ?\n(Entrez un nombre, ex: 90)', '90');
+
+  if (days === null) return;
+
+  const daysNum = parseInt(days);
+  if (isNaN(daysNum) || daysNum < 1) {
+    alert('Veuillez entrer un nombre valide de jours (minimum 1)');
+    return;
+  }
+
+  if (!confirm(`Confirmer la suppression de tous les PDFs plus vieux que ${daysNum} jours ?`)) {
+    return;
+  }
+
+  cleanupOldPDFs(daysNum);
+}
+
+// Nettoyer les vieux PDFs
+async function cleanupOldPDFs(daysOld) {
+  try {
+    const response = await fetch('/api/admin/pdfs/cleanup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ days_old: daysOld })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✓ Nettoyage terminé !\n\n${data.message}`);
+      loadPDFList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec du nettoyage'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  }
+}
+
+// Importer les nouveaux PDFs uniquement
+async function importNewPDFs() {
+  if (!confirm('Importer les nouveaux PDFs ?\n\nCela va ajouter seulement les PDFs pas encore en base.\nLes PDFs déjà importés seront ignorés.')) {
+    return;
+  }
+
+  await runImport(false);
+}
+
+// Ré-importer TOUS les anciens PDFs
+async function reimportAllPDFs() {
+  if (!confirm('🔄 RÉ-IMPORTER TOUS LES ANCIENS PDFs ?\n\n✓ Cette action va récupérer TOUS vos vieux PAPs scannés,\n  y compris ceux d\'AVANT le système de portails.\n\n⚠️ Les enregistrements existants seront mis à jour.\n\nContinuer ?')) {
+    return;
+  }
+
+  await runImport(true);
+}
+
+// Fonction commune pour l'import
+async function runImport(forceReimport) {
+  const button = event.target.closest('button');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...';
+
+  try {
+    const response = await fetch(`/api/admin/pdfs/import-existing?force_reimport=${forceReimport}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      let message = `✓ Import terminé !\n\n`;
+      message += `📊 Total PDFs dans le dossier : ${data.total_pdfs}\n`;
+      message += `✅ Importés : ${data.imported}\n`;
+      if (data.updated > 0) {
+        message += `🔄 Ré-importés : ${data.updated}\n`;
+      }
+      message += `⏭️  Déjà existants (ignorés) : ${data.skipped}\n`;
+      message += `❌ Erreurs : ${data.errors.length}\n`;
+
+      if (data.errors.length > 0) {
+        message += `\n⚠️ Détails des erreurs :\n`;
+        data.errors.slice(0, 5).forEach(err => {
+          message += `\n• ${err.filename}: ${err.error}`;
+        });
+        if (data.errors.length > 5) {
+          message += `\n... et ${data.errors.length - 5} autre(s) erreur(s)`;
+        }
+      }
+
+      alert(message);
+      loadPDFList();
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de l\'import'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
+  }
+}
+
+// Analyser les PDFs (debug)
+async function debugPDFAnalysis() {
+  const button = event.target.closest('button');
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyse en cours...';
+
+  try {
+    const response = await fetch('/api/admin/pdfs/debug-list');
+    const data = await response.json();
+
+    if (data.success) {
+      let report = `📁 ANALYSE DES PDFs DANS LE DOSSIER\n`;
+      report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      report += `📂 Dossier : ${data.upload_dir}\n`;
+      report += `📊 Total PDFs : ${data.total_pdfs}\n\n`;
+
+      const notImported = data.pdfs.filter(p => !p.already_imported);
+      const noSiret = data.pdfs.filter(p => !p.siret_found);
+      const noInvitation = data.pdfs.filter(p => p.siret_found && !p.has_invitation);
+
+      report += `✅ Déjà importés : ${data.pdfs.length - notImported.length}\n`;
+      report += `⏭️  Pas encore importés : ${notImported.length}\n`;
+      report += `❌ Sans SIRET trouvé : ${noSiret.length}\n`;
+      report += `⚠️  SIRET trouvé mais pas d'invitation : ${noInvitation.length}\n\n`;
+
+      if (noSiret.length > 0) {
+        report += `\n❌ PDFs SANS SIRET (ne peuvent PAS être importés) :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noSiret.slice(0, 10).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   Taille: ${pdf.size_kb} KB\n`;
+          report += `   ❌ SIRET introuvable (pas dans nom, pas dans EmailLog)\n`;
+        });
+        if (noSiret.length > 10) {
+          report += `\n... et ${noSiret.length - 10} autre(s) PDF(s) sans SIRET\n`;
+        }
+      }
+
+      if (noInvitation.length > 0) {
+        report += `\n\n⚠️  PDFs AVEC SIRET MAIS SANS INVITATION :\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        noInvitation.slice(0, 5).forEach(pdf => {
+          report += `\n📄 ${pdf.filename}\n`;
+          report += `   SIRET: ${pdf.siret_found} (${pdf.siret_method})\n`;
+          report += `   ⚠️  Pas d'invitation en base\n`;
+          report += `   💡 Sera importé avec données minimales\n`;
+        });
+        if (noInvitation.length > 5) {
+          report += `\n... et ${noInvitation.length - 5} autre(s)\n`;
+        }
+      }
+
+      alert(report);
+    } else {
+      alert(`✗ Erreur: ${data.detail || 'Échec de l\'analyse'}`);
+    }
+  } catch (error) {
+    alert(`✗ Erreur réseau: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
+  }
+}
+
+// Charger au démarrage
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('pdf-table')) {
+    loadPDFList();
+  }
+});
 
 // ============================================
 // Chatbot IA Functions
@@ -3007,6 +3896,152 @@ function openInOutlook(index) {
     alert('❌ Erreur lors de la copie dans le presse-papiers.\n\nVeuillez utiliser le bouton "Copier l\'email" à la place.');
   });
 }
+
+// ========================================
+// Générateur de liens portails UD/FD
+// ========================================
+
+let currentGeneratedLink = '';
+
+async function loadPortailsDisponibles() {
+  try {
+    const response = await fetch('/api/portails/liste');
+    const data = await response.json();
+
+    if (!data.success) {
+      alert('Erreur lors du chargement des portails disponibles');
+      return;
+    }
+
+    // Afficher la section
+    document.getElementById('portailsDisponibles').classList.remove('hidden');
+
+    // Remplir la liste des UDs
+    const listeUDs = document.getElementById('listeUDs');
+    listeUDs.innerHTML = '';
+
+    if (data.departements.length === 0) {
+      listeUDs.innerHTML = '<p class="text-gray-500 italic">Aucun département avec PAPs</p>';
+    } else {
+      data.departements.forEach(dept => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
+        div.innerHTML = `
+          <span class="text-gray-700">${dept.numero} - ${dept.nom} (${dept.count_paps} PAP${dept.count_paps > 1 ? 's' : ''})</span>
+          <button onclick="quickGenerateUDLink('${dept.numero}')"
+                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
+            <i class="fas fa-link mr-1"></i>Générer
+          </button>
+        `;
+        listeUDs.appendChild(div);
+      });
+    }
+
+    // Remplir la liste des FDs
+    const listeFDs = document.getElementById('listeFDs');
+    listeFDs.innerHTML = '';
+
+    if (data.federations.length === 0) {
+      listeFDs.innerHTML = '<p class="text-gray-500 italic">Aucune fédération avec PAPs</p>';
+    } else {
+      data.federations.forEach(fd => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer';
+        div.innerHTML = `
+          <span class="text-gray-700">${fd.code} (${fd.count_paps} PAP${fd.count_paps > 1 ? 's' : ''})</span>
+          <button onclick="quickGenerateFDLink('${fd.code}')"
+                  class="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600">
+            <i class="fas fa-link mr-1"></i>Générer
+          </button>
+        `;
+        listeFDs.appendChild(div);
+      });
+    }
+  } catch (err) {
+    console.error('Erreur lors du chargement des portails:', err);
+    alert('Erreur lors du chargement des portails disponibles');
+  }
+}
+
+function quickGenerateUDLink(numero) {
+  document.getElementById('udNumero').value = numero;
+  generateUDLink();
+}
+
+function quickGenerateFDLink(code) {
+  document.getElementById('fdCode').value = code;
+  generateFDLink();
+}
+
+function generateUDLink() {
+  const udNumero = document.getElementById('udNumero').value.trim();
+
+  if (!udNumero) {
+    alert('⚠️ Veuillez entrer un numéro de département');
+    return;
+  }
+
+  // Générer le lien
+  const appUrl = window.location.origin;
+  currentGeneratedLink = `${appUrl}/ud/${udNumero}/paps`;
+
+  // Afficher le résultat
+  document.getElementById('generatedLink').textContent = currentGeneratedLink;
+  document.getElementById('linkResult').classList.remove('hidden');
+}
+
+function generateFDLink() {
+  const fdCode = document.getElementById('fdCode').value.trim();
+
+  if (!fdCode) {
+    alert('⚠️ Veuillez entrer un code FD');
+    return;
+  }
+
+  // Encoder le code FD pour l'URL
+  const fdCodeEncoded = encodeURIComponent(fdCode.toLowerCase().replace(/\s+/g, '-'));
+
+  // Générer le lien
+  const appUrl = window.location.origin;
+  currentGeneratedLink = `${appUrl}/fd/${fdCodeEncoded}/paps`;
+
+  // Afficher le résultat
+  document.getElementById('generatedLink').textContent = currentGeneratedLink;
+  document.getElementById('linkResult').classList.remove('hidden');
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(currentGeneratedLink).then(() => {
+    alert('✅ Lien copié dans le presse-papiers !');
+  }).catch(err => {
+    console.error('Erreur lors de la copie:', err);
+    alert('❌ Erreur lors de la copie. Veuillez copier manuellement le lien.');
+  });
+}
+
+function openLink() {
+  window.open(currentGeneratedLink, '_blank');
+}
+
+function closeLink() {
+  document.getElementById('linkResult').classList.add('hidden');
+  document.getElementById('udNumero').value = '';
+  document.getElementById('fdCode').value = '';
+  currentGeneratedLink = '';
+}
+
+// Permettre Entrée pour générer les liens
+document.getElementById('udNumero').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    generateUDLink();
+  }
+});
+
+document.getElementById('fdCode').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    generateFDLink();
+  }
+});
 </script>
 
 {% endblock %}

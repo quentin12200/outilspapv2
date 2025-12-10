@@ -307,7 +307,7 @@ function removeFile(index) {
   document.getElementById('analyze-btn').disabled = selectedFiles.length === 0;
 }
 
-// Analyse des PAP
+// Analyse des PAP avec progression en temps réel via SSE
 document.getElementById('analyze-btn').addEventListener('click', async () => {
   if (selectedFiles.length === 0) return;
 
@@ -318,13 +318,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
 
   progressZone.classList.remove('hidden');
   resultsZone.classList.add('hidden');
-
-  // Simuler la progression
-  let progress = 0;
-  const progressInterval = setInterval(() => {
-    progress = Math.min(progress + 2, 90);
-    progressBar.style.width = `${progress}%`;
-  }, 200);
+  progressBar.style.width = '0%';
 
   try {
     const formData = new FormData();
@@ -332,29 +326,61 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
       formData.append('files', file);
     });
 
-    progressText.textContent = `Analyse de ${selectedFiles.length} PAP en cours...`;
+    progressText.textContent = `Préparation de l'analyse de ${selectedFiles.length} PAP...`;
 
     const response = await fetch('/api/campaign/analyze-batch', {
       method: 'POST',
       body: formData
     });
 
-    clearInterval(progressInterval);
-    progressBar.style.width = '100%';
-
     if (!response.ok) {
       throw new Error(`Erreur HTTP: ${response.status}`);
     }
 
-    analysisResults = await response.json();
+    // Lire le flux Server-Sent Events (SSE)
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    setTimeout(() => {
-      progressZone.classList.add('hidden');
-      displayResults();
-    }, 500);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Garder la dernière ligne incomplète dans le buffer
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const eventData = JSON.parse(line.substring(6));
+
+          if (eventData.status === 'started') {
+            progressText.textContent = `🚀 Démarrage de l'analyse de ${eventData.total} PAP...`;
+            progressBar.style.width = '5%';
+          }
+          else if (eventData.status === 'progress') {
+            const percentage = Math.floor((eventData.current / eventData.total) * 100);
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = `📄 Extraction ${eventData.current}/${eventData.total} - ${eventData.filename}`;
+          }
+          else if (eventData.status === 'completed') {
+            progressBar.style.width = '100%';
+            progressText.textContent = '✅ Analyse terminée avec succès !';
+            analysisResults = eventData.result;
+
+            setTimeout(() => {
+              progressZone.classList.add('hidden');
+              displayResults();
+            }, 800);
+          }
+          else if (eventData.status === 'error') {
+            throw new Error(eventData.message || 'Erreur inconnue');
+          }
+        }
+      }
+    }
 
   } catch (error) {
-    clearInterval(progressInterval);
     progressZone.classList.add('hidden');
     alert('Erreur lors de l\'analyse : ' + error.message);
     console.error('Erreur:', error);

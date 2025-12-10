@@ -687,6 +687,10 @@ from .routers import api_document_extraction  # noqa: E402
 from .routers import api_chatbot  # noqa: E402
 from .routers import api_email  # noqa: E402
 from .routers import api_campaign  # noqa: E402
+from .routers import api_ud  # noqa: E402
+from .routers import api_admin_terminal  # noqa: E402
+from .routers import api_admin_pdfs  # noqa: E402
+from .routers import portail_ud_fd  # noqa: E402
 
 app = FastAPI(title="PAP/CSE · Tableau de bord")
 
@@ -757,8 +761,53 @@ app.include_router(api_document_extraction.router)
 app.include_router(api_chatbot.router)
 app.include_router(api_email.router)
 app.include_router(api_campaign.router)
+app.include_router(api_ud.router)
+app.include_router(api_admin_terminal.router)
+app.include_router(api_admin_pdfs.router)
+app.include_router(portail_ud_fd.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Route pour servir les PDFs depuis le volume Railway persistant
+from fastapi.responses import FileResponse
+from pathlib import Path as PathLib
+
+@app.get("/pap-pdfs/{filename}")
+async def serve_pap_pdf(filename: str, download: bool = False):
+    """
+    Sert les PDFs PAP depuis le volume Railway persistant.
+
+    Args:
+        filename: Nom du fichier PDF
+        download: Si True, force le téléchargement. Si False (défaut), affiche dans le navigateur.
+
+    Usage:
+        - Visualiser : /pap-pdfs/fichier.pdf
+        - Télécharger : /pap-pdfs/fichier.pdf?download=true
+    """
+    # Sécurité : vérifier que le filename ne contient pas de ../
+    if ".." in filename or "/" in filename:
+        raise HTTPException(status_code=400, detail="Nom de fichier invalide")
+
+    pdf_path = PathLib("/app/data/pap_uploads") / filename
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF non trouvé")
+
+    if download:
+        # Mode téléchargement : envoie le nom du fichier pour forcer le download
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf",
+            filename=filename
+        )
+    else:
+        # Mode visualisation : pas de filename = le navigateur affiche le PDF
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf"
+        )
+
 templates = Jinja2Templates(directory="app/templates")
 
 # Ajouter un filtre Jinja2 personnalisé pour nettoyer les valeurs "nan"
@@ -3592,13 +3641,104 @@ async def import_pap_avec_scan(
             )
         ).count()
 
+        # ============================================
+        # NOUVEAU : Créer aussi des PAPDocument pour alimenter les portails UD/FD
+        # ============================================
+        from .models import PAPDocument
+        pap_created = 0
+        pap_errors = 0
+
+        logger.info("Création des PAPDocument pour les portails UD/FD...")
+
+        # Récupérer toutes les invitations qui viennent d'être importées
+        recent_invitations = db.query(Invitation).order_by(Invitation.id.desc()).limit(inserted).all()
+
+        for inv in recent_invitations:
+            try:
+                # Vérifier si un PAPDocument existe déjà pour ce SIRET
+                existing_pap = db.query(PAPDocument).filter(
+                    PAPDocument.siret == inv.siret
+                ).first()
+
+                if existing_pap:
+                    # Mettre à jour l'existant
+                    existing_pap.raison_sociale = inv.denomination or existing_pap.raison_sociale
+                    existing_pap.ville = inv.commune or existing_pap.ville
+                    existing_pap.code_postal = inv.code_postal or existing_pap.code_postal
+                    existing_pap.effectif = inv.effectif_connu or existing_pap.effectif
+                    existing_pap.date_invitation = inv.date_reception or inv.date_invit or existing_pap.date_invitation
+                    existing_pap.date_election = inv.date_election or existing_pap.date_election
+                    existing_pap.idcc = inv.idcc or existing_pap.idcc
+                    existing_pap.fd = inv.fd or existing_pap.fd
+                    existing_pap.ud = inv.ud or existing_pap.ud
+
+                    # Extraire le département du code postal
+                    if inv.code_postal and len(inv.code_postal) >= 2:
+                        dept = inv.code_postal[:2]
+                        if dept.isdigit() and (1 <= int(dept) <= 95 or 97 <= int(dept) <= 98):
+                            existing_pap.numero_departement = dept
+                            existing_pap.nom_departement = f"Département {dept}"
+
+                    logger.info(f"PAPDocument mis à jour pour SIRET {inv.siret}")
+                else:
+                    # Créer un nouveau PAPDocument
+                    numero_departement = None
+                    nom_departement = None
+
+                    # Extraire le département du code postal
+                    if inv.code_postal and len(inv.code_postal) >= 2:
+                        dept = inv.code_postal[:2]
+                        if dept.isdigit() and (1 <= int(dept) <= 95 or 97 <= int(dept) <= 98):
+                            numero_departement = dept
+                            nom_departement = f"Département {dept}"
+
+                    pap_doc = PAPDocument(
+                        filename=f"import_{inv.siret}.xlsx",  # Nom fictif
+                        pdf_url=None,  # Pas de PDF pour l'instant
+                        file_size_kb=0,
+                        siret=inv.siret,
+                        raison_sociale=inv.denomination or f"Entreprise {inv.siret}",
+                        ville=inv.commune,
+                        code_postal=inv.code_postal,
+                        effectif=inv.effectif_connu,
+                        inscrits=None,
+                        date_invitation=inv.date_reception or inv.date_invit,
+                        date_election=inv.date_election,
+                        numero_departement=numero_departement,
+                        nom_departement=nom_departement,
+                        ud=inv.ud or (f"UD-{numero_departement}" if numero_departement else None),
+                        fd=inv.fd,
+                        idcc=inv.idcc,
+                        is_priority=False,
+                        priority_reasons=None,
+                        has_cgt_history=False,
+                        cgt_c3=False,
+                        cgt_c4=False,
+                        created_by=current_user.id if hasattr(current_user, 'id') else None,
+                        is_active=True,
+                        uploaded_at=datetime.now()
+                    )
+
+                    db.add(pap_doc)
+                    pap_created += 1
+                    logger.info(f"PAPDocument créé pour SIRET {inv.siret} (UD: {inv.ud}, FD: {inv.fd})")
+
+            except Exception as e:
+                logger.error(f"Erreur création PAPDocument pour {inv.siret}: {e}")
+                pap_errors += 1
+
+        db.commit()
+        logger.info(f"✅ {pap_created} PAPDocument créés pour les portails UD/FD")
+
         return JSONResponse(content={
             "success": True,
             "inserted": inserted,
             "enrichies": enrichies,
             "erreurs": erreurs,
             "incomplets": incomplets,
-            "message": f"{inserted} invitations importées, {enrichies} enrichies. {incomplets} nécessitent une complétion manuelle."
+            "pap_created": pap_created,
+            "pap_errors": pap_errors,
+            "message": f"{inserted} invitations importées, {enrichies} enrichies, {pap_created} PAP ajoutés aux portails UD/FD. {incomplets} nécessitent une complétion manuelle."
         })
 
     except Exception as e:
@@ -6355,17 +6495,68 @@ async def force_migration(request: Request):
     Utile quand Railway n'a pas encore redéployé avec les nouvelles migrations.
     """
     try:
-        from .migrations import add_invitation_metadata_columns_if_needed
+        from .migrations import add_invitation_metadata_columns_if_needed, create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed
 
-        logger.info("🔧 Forçage manuel de la migration created_at/updated_at...")
+        logger.info("🔧 Forçage manuel des migrations...")
+
+        # Migration invitations
         add_invitation_metadata_columns_if_needed()
+
+        # Migration tableaux_bord_ud
+        create_tableaux_bord_ud_table_if_needed()
+
+        # Migration pap_documents
+        create_pap_documents_table_if_needed()
 
         return JSONResponse(content={
             "success": True,
-            "message": "Migration exécutée avec succès. Les colonnes created_at et updated_at ont été ajoutées à la table invitations."
+            "message": "Migrations exécutées avec succès. Les tables invitations, tableaux_bord_ud et pap_documents ont été créées/mises à jour."
         })
     except Exception as e:
         logger.error(f"❌ Erreur lors de la migration forcée: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
+@app.post("/api/admin/recreate-tables")
+async def recreate_tables(request: Request):
+    """
+    Supprime et recrée les tables tableaux_bord_ud et pap_documents.
+
+    ⚠️ ATTENTION : Cela supprime toutes les données de ces tables !
+    Utilisez seulement si les tables ont une structure incorrecte.
+    """
+    try:
+        from sqlalchemy import text
+        from .migrations import create_tableaux_bord_ud_table_if_needed, create_pap_documents_table_if_needed
+
+        logger.info("🔧 Recréation des tables tableaux_bord_ud et pap_documents...")
+
+        # DROP les tables existantes
+        with engine.connect() as conn:
+            logger.info("🗑️  Suppression de la table tableaux_bord_ud...")
+            conn.execute(text('DROP TABLE IF EXISTS tableaux_bord_ud'))
+
+            logger.info("🗑️  Suppression de la table pap_documents...")
+            conn.execute(text('DROP TABLE IF EXISTS pap_documents'))
+
+            conn.commit()
+
+        logger.info("✅ Tables supprimées")
+
+        # Recréer les tables avec la nouvelle structure
+        logger.info("📝 Recréation des tables...")
+        create_tableaux_bord_ud_table_if_needed()
+        create_pap_documents_table_if_needed()
+
+        logger.info("✅ Tables recréées avec succès !")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "✅ Tables tableaux_bord_ud et pap_documents recréées avec succès !\n\nVous pouvez maintenant importer les PDFs existants."
+        })
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la recréation des tables: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return JSONResponse(

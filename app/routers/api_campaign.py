@@ -8,11 +8,12 @@ et de générer les contenus d'emails pour les UD.
 import logging
 import os
 import uuid
+import json
 from typing import List, Dict, Any
 from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -24,12 +25,12 @@ from ..services.pappers_api import PappersAPI
 from ..services.idcc_enrichment import get_idcc_enrichment_service
 from ..audit import log_admin_action
 from ..user_auth import require_admin_user
-from ..models import User
+from ..models import User, PAPDocument
 
 logger = logging.getLogger(__name__)
 
-# Répertoire de stockage des PDFs
-PAP_UPLOADS_DIR = Path("app/static/pap_uploads")
+# Répertoire de stockage des PDFs - Utilise le volume Railway persistant
+PAP_UPLOADS_DIR = Path("/app/data/pap_uploads")
 PAP_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(prefix="/api/campaign", tags=["Campagnes PAP"])
@@ -59,152 +60,233 @@ async def analyze_pap_batch(
     """
     Analyse un lot de PAP et les classe par priorité (enjeux vs standard).
 
+    Retourne un flux Server-Sent Events (SSE) pour afficher la progression en temps réel.
+
     **Fonctionnalités:**
     - Extraction automatique des données de chaque PAP (GPT-4 Vision)
     - Enrichissement avec APIs Pappers/Sirene si données manquantes
     - Classification automatique (PAP à enjeux ou standard)
     - Identification de l'UD responsable
+    - Progression en temps réel via SSE
 
     **Critères PAP à enjeux:**
     - Effectif ≥ 1000 salariés
     - OU inscrits importants par rapport à la moyenne du département
 
-    **Exemple:**
-    ```bash
-    curl -X POST "http://localhost:8000/api/campaign/analyze-batch" \\
-      -F "files=@pap1.pdf" \\
-      -F "files=@pap2.pdf" \\
-      -F "files=@pap3.pdf"
+    **Format SSE:**
+    ```
+    data: {"status": "progress", "current": 1, "total": 10, "filename": "pap1.pdf"}
+    data: {"status": "completed", "result": {...}}
     ```
     """
     if not files:
         raise HTTPException(status_code=400, detail="Aucun fichier fourni")
 
-    extracted_paps = []
-    extraction_errors = []
+    # IMPORTANT: Lire tous les fichiers AVANT de créer le générateur
+    # Car FastAPI ferme les fichiers uploadés après le retour de la fonction
+    files_data = []
+    for file in files:
+        file_content = await file.read()
+        files_data.append({
+            'filename': file.filename,
+            'content': file_content,
+            'content_type': file.content_type
+        })
 
-    enrichment_service = PAPEnrichmentService(db)
+    async def event_generator():
+        """Générateur d'événements SSE pour la progression."""
+        extracted_paps = []
+        extraction_errors = []
 
-    logger.info(f"🚀 Début d'analyse de campagne PAP - {len(files)} fichier(s)")
+        enrichment_service = PAPEnrichmentService(db)
 
-    # Étape 1 : Extraction et enrichissement complet de chaque PAP
-    for i, file in enumerate(files, 1):
-        logger.info(f"📄 Traitement du fichier {i}/{len(files)}: {file.filename}")
+        logger.info(f"🚀 Début d'analyse de campagne PAP - {len(files_data)} fichier(s)")
 
-        try:
-            # Vérifier le type de fichier
-            if file.content_type not in [
-                "image/jpeg", "image/jpg", "image/png", "image/webp",
-                "application/pdf"
-            ]:
+        # Envoyer l'événement de démarrage
+        yield f"data: {json.dumps({'status': 'started', 'total': len(files_data)})}\n\n"
+
+        # Étape 1 : Extraction et enrichissement complet de chaque PAP
+        for i, file_info in enumerate(files_data, 1):
+            logger.info(f"📄 Traitement du fichier {i}/{len(files_data)}: {file_info['filename']}")
+
+            # Envoyer la progression
+            progress_event = {
+                'status': 'progress',
+                'current': i,
+                'total': len(files_data),
+                'filename': file_info['filename']
+            }
+            yield f"data: {json.dumps(progress_event)}\n\n"
+
+            try:
+                # Vérifier le type de fichier
+                if file_info['content_type'] not in [
+                    "image/jpeg", "image/jpg", "image/png", "image/webp",
+                    "application/pdf"
+                ]:
+                    extraction_errors.append({
+                        'filename': file_info['filename'],
+                        'error': f"Type de fichier non supporté: {file_info['content_type']}"
+                    })
+                    continue
+
+                # Utiliser le contenu déjà lu
+                file_data = file_info['content']
+                is_pdf = file_info['content_type'] == "application/pdf"
+
+                # Extraire et enrichir les informations (GPT-4 + Pappers + Base PV)
+                extracted_data = await enrichment_service.enrich_pap_from_pdf(
+                    file_data,
+                    file_info['filename'],
+                    is_pdf=is_pdf
+                )
+
+                # Stocker le PDF avec nom basé sur SIRET
+                pdf_url = None
+                pdf_filename = None
+                if is_pdf:
+                    try:
+                        # Utiliser le SIRET pour nommer le fichier si disponible
+                        siret = extracted_data.get('siret')
+                        if siret and siret.replace(' ', '').isdigit():
+                            # Format: SIRET_DATE.pdf (ex: 12345678901234_20250130.pdf)
+                            date_str = datetime.now().strftime("%Y%m%d")
+                            pdf_filename = f"{siret.replace(' ', '')}_{date_str}.pdf"
+                        else:
+                            # Fallback sur UUID si pas de SIRET valide
+                            pdf_filename = f"{uuid.uuid4()}.pdf"
+
+                        pdf_path = PAP_UPLOADS_DIR / pdf_filename
+
+                        # Sauvegarder le PDF
+                        with open(pdf_path, 'wb') as f:
+                            f.write(file_data)
+
+                        # Générer l'URL publique (nouvelle route pour servir depuis le volume)
+                        pdf_url = f"/pap-pdfs/{pdf_filename}"
+
+                        # Calculer la taille du fichier
+                        file_size_kb = len(file_data) / 1024
+
+                        logger.info(f"✅ PDF stocké : {pdf_filename}")
+
+                        # Créer l'enregistrement PAPDocument pour le portail UD/FD
+                        try:
+                            # Gérer le cas FD vide (placer dans "sans fd")
+                            fd_value = extracted_data.get('fd')
+                            if not fd_value or str(fd_value).strip() == '':
+                                fd_value = "sans fd"
+
+                            pap_doc = PAPDocument(
+                                filename=pdf_filename,
+                                pdf_url=pdf_url,
+                                file_size_kb=file_size_kb,
+                                siret=extracted_data.get('siret', ''),
+                                raison_sociale=extracted_data.get('raison_sociale'),
+                                ville=extracted_data.get('ville'),
+                                code_postal=extracted_data.get('code_postal'),
+                                effectif=extracted_data.get('effectif'),
+                                inscrits=extracted_data.get('inscrits'),
+                                date_invitation=extracted_data.get('date_invitation'),
+                                date_election=extracted_data.get('date_election'),
+                                numero_departement=extracted_data.get('numero_departement'),
+                                nom_departement=extracted_data.get('nom_departement'),
+                                ud=extracted_data.get('ud'),
+                                fd=fd_value,
+                                idcc=extracted_data.get('idcc'),
+                                is_priority=extracted_data.get('is_priority', False),
+                                priority_reasons=extracted_data.get('priority_reasons'),
+                                has_cgt_history=extracted_data.get('has_cgt_history', False),
+                                cgt_c3=extracted_data.get('cgt_c3', False),
+                                cgt_c4=extracted_data.get('cgt_c4', False),
+                                created_by=current_user.id if hasattr(current_user, 'id') else None,
+                                is_active=True
+                            )
+                            db.add(pap_doc)
+                            db.commit()
+                            logger.info(f"✅ PAPDocument créé pour {pdf_filename} (UD: {extracted_data.get('ud')}, FD: {fd_value})")
+                        except Exception as e:
+                            db.rollback()
+                            logger.error(f"⚠️ Erreur création PAPDocument pour {pdf_filename}: {str(e)}")
+                            # Ne pas bloquer le processus si l'enregistrement échoue
+
+                    except Exception as e:
+                        logger.error(f"⚠️ Erreur stockage PDF {file_info['filename']}: {str(e)}")
+
+                # Ajouter les métadonnées du PDF
+                extracted_data['pdf_url'] = pdf_url
+                extracted_data['pdf_filename'] = pdf_filename
+                extracted_data['original_filename'] = file_info['filename']
+
+                extracted_paps.append(extracted_data)
+                logger.info(f"✅ Enrichissement complet - SIRET: {extracted_data.get('siret', 'N/A')}")
+
+            except DocumentExtractorError as e:
+                logger.error(f"❌ Erreur extraction {file_info['filename']}: {str(e)}")
                 extraction_errors.append({
-                    'filename': file.filename,
-                    'error': f"Type de fichier non supporté: {file.content_type}"
+                    'filename': file_info['filename'],
+                    'error': str(e)
                 })
-                continue
+            except Exception as e:
+                logger.error(f"❌ Erreur inattendue {file_info['filename']}: {str(e)}")
+                extraction_errors.append({
+                    'filename': file_info['filename'],
+                    'error': f"Erreur inattendue: {str(e)}"
+                })
 
-            # Lire le fichier
-            file_data = await file.read()
-            is_pdf = file.content_type == "application/pdf"
+        if not extracted_paps:
+            error_event = {
+                'status': 'error',
+                'message': f"Aucun PAP n'a pu être extrait",
+                'errors': extraction_errors
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
+            return
 
-            # Extraire et enrichir les informations (GPT-4 + Pappers + Base PV)
-            extracted_data = await enrichment_service.enrich_pap_from_pdf(
-                file_data,
-                file.filename,
-                is_pdf=is_pdf
-            )
+        # Étape 2 : Analyse et classification des PAP (déjà fait dans enrichment_service)
+        logger.info(f"🔍 Classification finale de {len(extracted_paps)} PAP(s)")
+        campaign_service = PAPCampaignService(db)
+        analysis_result = campaign_service.analyze_batch(extracted_paps)
 
-            # Stocker le PDF avec nom basé sur SIRET
-            pdf_url = None
-            pdf_filename = None
-            if is_pdf:
-                try:
-                    # Utiliser le SIRET pour nommer le fichier si disponible
-                    siret = extracted_data.get('siret')
-                    if siret and siret.replace(' ', '').isdigit():
-                        # Format: SIRET_DATE.pdf (ex: 12345678901234_20250130.pdf)
-                        date_str = datetime.now().strftime("%Y%m%d")
-                        pdf_filename = f"{siret.replace(' ', '')}_{date_str}.pdf"
-                    else:
-                        # Fallback sur UUID si pas de SIRET valide
-                        pdf_filename = f"{uuid.uuid4()}.pdf"
-
-                    pdf_path = PAP_UPLOADS_DIR / pdf_filename
-
-                    # Sauvegarder le PDF
-                    with open(pdf_path, 'wb') as f:
-                        f.write(file_data)
-
-                    # Générer l'URL publique
-                    pdf_url = f"/static/pap_uploads/{pdf_filename}"
-                    logger.info(f"✅ PDF stocké : {pdf_filename}")
-                except Exception as e:
-                    logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")
-
-            # Ajouter les métadonnées du PDF
-            extracted_data['pdf_url'] = pdf_url
-            extracted_data['pdf_filename'] = pdf_filename
-            extracted_data['original_filename'] = file.filename
-
-            extracted_paps.append(extracted_data)
-            logger.info(f"✅ Enrichissement complet - SIRET: {extracted_data.get('siret', 'N/A')}")
-
-        except DocumentExtractorError as e:
-            logger.error(f"❌ Erreur extraction {file.filename}: {str(e)}")
-            extraction_errors.append({
-                'filename': file.filename,
-                'error': str(e)
-            })
-        except Exception as e:
-            logger.error(f"❌ Erreur inattendue {file.filename}: {str(e)}")
-            extraction_errors.append({
-                'filename': file.filename,
-                'error': f"Erreur inattendue: {str(e)}"
-            })
-
-    if not extracted_paps:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Aucun PAP n'a pu être extrait. Erreurs: {extraction_errors}"
+        # Ajouter les erreurs d'extraction dans les stats
+        analysis_result['extraction_errors'] = extraction_errors
+        analysis_result['extraction_success_rate'] = (
+            len(extracted_paps) / len(files_data) * 100 if files_data else 0
         )
 
-    # Étape 2 : Analyse et classification des PAP (déjà fait dans enrichment_service)
-    logger.info(f"🔍 Classification finale de {len(extracted_paps)} PAP(s)")
-    campaign_service = PAPCampaignService(db)
-    analysis_result = campaign_service.analyze_batch(extracted_paps)
+        # Log de l'action
+        log_admin_action(
+            request=request,
+            api_key=None,
+            action="analyze_pap_campaign",
+            resource_type="campaign",
+            success=True,
+            resource_id=f"batch_{len(files_data)}",
+            request_params={
+                'total_files': len(files_data),
+                'successful_extractions': len(extracted_paps),
+                'failed_extractions': len(extraction_errors)
+            },
+            response_summary={
+                'enjeux': analysis_result['stats']['count_enjeux'],
+                'standard': analysis_result['stats']['count_standard']
+            }
+        )
 
-    # Ajouter les erreurs d'extraction dans les stats
-    analysis_result['extraction_errors'] = extraction_errors
-    analysis_result['extraction_success_rate'] = (
-        len(extracted_paps) / len(files) * 100 if files else 0
-    )
+        logger.info(
+            f"✅ Analyse terminée - "
+            f"{analysis_result['stats']['count_enjeux']} enjeux, "
+            f"{analysis_result['stats']['count_standard']} standard"
+        )
 
-    # Log de l'action
-    log_admin_action(
-        request=request,
-        api_key=None,
-        action="analyze_pap_campaign",
-        resource_type="campaign",
-        success=True,
-        resource_id=f"batch_{len(files)}",
-        request_params={
-            'total_files': len(files),
-            'successful_extractions': len(extracted_paps),
-            'failed_extractions': len(extraction_errors)
-        },
-        response_summary={
-            'enjeux': analysis_result['stats']['count_enjeux'],
-            'standard': analysis_result['stats']['count_standard']
+        # Envoyer le résultat final
+        completion_event = {
+            'status': 'completed',
+            'result': analysis_result
         }
-    )
+        yield f"data: {json.dumps(completion_event)}\n\n"
 
-    logger.info(
-        f"✅ Analyse terminée - "
-        f"{analysis_result['stats']['count_enjeux']} enjeux, "
-        f"{analysis_result['stats']['count_standard']} standard"
-    )
-
-    return analysis_result
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.post("/generate-email")

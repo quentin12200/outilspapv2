@@ -10,12 +10,67 @@ import json
 import os
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..models import SiretSummary
 
 logger = logging.getLogger(__name__)
+
+
+def format_date_french(date_value):
+    """
+    Formate une date en français avec le format: "le 22 décembre 2025 à 14h00"
+
+    Args:
+        date_value: Peut être un objet datetime, une chaîne de caractères ISO, ou autre
+
+    Returns:
+        Chaîne formatée en français
+    """
+    if not date_value or date_value == 'N/A':
+        return 'N/A'
+
+    try:
+        # Si c'est déjà un objet datetime
+        if isinstance(date_value, datetime):
+            dt = date_value
+        # Si c'est une chaîne
+        elif isinstance(date_value, str):
+            # Essayer différents formats
+            for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%d/%m/%Y %H:%M', '%d/%m/%Y']:
+                try:
+                    dt = datetime.strptime(date_value, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                # Si aucun format ne match, retourner la valeur telle quelle
+                return date_value
+        else:
+            return str(date_value)
+
+        # Mapping des mois en français
+        mois_fr = [
+            '', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+            'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+        ]
+
+        # Formater en français
+        jour = dt.day
+        mois = mois_fr[dt.month]
+        annee = dt.year
+        heure = dt.strftime('%Hh%M') if dt.hour != 0 or dt.minute != 0 else None
+
+        if heure:
+            return f"le {jour} {mois} {annee} à {heure}"
+        else:
+            return f"le {jour} {mois} {annee}"
+
+    except Exception as e:
+        logger.warning(f"Erreur lors du formatage de la date {date_value}: {e}")
+        return str(date_value)
 
 
 class PAPCampaignService:
@@ -323,7 +378,8 @@ class PAPCampaignService:
         effectif = pap_data.get('effectif', 'N/A')
         inscrits = pap_data.get('inscrits', 'N/A')
         date_election = pap_data.get('date_election', 'N/A')
-        date_invitation = pap_data.get('date_invitation', 'N/A')
+        date_invitation_raw = pap_data.get('date_invitation', 'N/A')
+        date_invitation = format_date_french(date_invitation_raw)  # Formater en français
         idcc = pap_data.get('idcc', 'N/A')
         fd = pap_data.get('fd', 'N/A')
         ud = pap_data.get('ud', 'UD XX')
@@ -349,6 +405,29 @@ class PAPCampaignService:
         # Salutation personnalisée si le responsable est connu
         salutation = f"Bonjour {responsable_nom}," if responsable_nom else "Bonjour,"
 
+        # Construire le bloc du lien PDF en avant si disponible
+        pdf_block = ""
+        if pdf_url:
+            # Nettoyer les URLs pour éviter les doubles slashes
+            app_url = os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')
+            pdf_url_clean = pdf_url if pdf_url.startswith('/') else f'/{pdf_url}'
+            full_pdf_url_view = f"{app_url}{pdf_url_clean}"
+            full_pdf_url_download = f"{app_url}{pdf_url_clean}?download=true"
+
+            pdf_block = f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📎 DOCUMENT PAP EN LIGNE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👁️ Visualiser le PAP (dans le navigateur) :
+{full_pdf_url_view}
+
+💾 Télécharger le PAP :
+{full_pdf_url_download}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
         if is_priority:
             # Email pour PAP à enjeux
             subject = f"🔥 PAP À ENJEUX - {raison_sociale} ({ville})"
@@ -370,7 +449,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
                     elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
-                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE\n"
+                intro += "\n\n⚡ OBJECTIF : RENFORCER NOTRE PRÉSENCE"
             else:
                 intro = f"""{salutation}
 
@@ -381,7 +460,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
 🎯 OPPORTUNITÉ : Entreprise sans historique CGT connu - Potentiel de nouvelle implantation !
 """
 
-            body = intro + f"""
+            body = intro + pdf_block + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -406,24 +485,8 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
             for reason in priority_reasons:
                 body += f"✓ {reason}\n"
 
-            # Ajouter le lien PDF si disponible
-            if pdf_url:
-                # Construire l'URL complète avec la variable d'environnement APP_URL
-                app_url = os.getenv('APP_URL', 'http://localhost:8000')
-                full_pdf_url = f"{app_url}{pdf_url}"
-                body += f"""
+            body += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📎 Document PAP disponible en ligne :
-{full_pdf_url}
-
-Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
-"""
-            else:
-                body += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Le document PAP complet est joint à cet email.
 
 Merci de traiter cette invitation en priorité et de mobiliser les moyens nécessaires.
 """
@@ -467,7 +530,6 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral pour une
                     voix_cgt_c4 = historique_pv.get('voix_cgt_c4', 'N/A')
                     elus_cgt_c4 = historique_pv.get('elus_cgt_c4', 'N/A')
                     intro += f"\n• CGT présente au C4 (dernier cycle) - {voix_cgt_c4} voix - {elus_cgt_c4} élu(s)"
-                intro += "\n"
             else:
                 intro = f"""{salutation}
 
@@ -476,7 +538,7 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 💡 Entreprise sans historique CGT connu - Opportunité de nouvelle implantation.
 """
 
-            body = intro + f"""
+            body = intro + pdf_block + f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 INFORMATIONS ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -495,21 +557,6 @@ Nous avons reçu une invitation à un Protocole d'Accord Préélectoral.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-"""
-            # Ajouter le lien PDF si disponible
-            if pdf_url:
-                # Construire l'URL complète avec la variable d'environnement APP_URL
-                app_url = os.getenv('APP_URL', 'http://localhost:8000')
-                full_pdf_url = f"{app_url}{pdf_url}"
-                body += f"""📎 Document PAP disponible en ligne :
-{full_pdf_url}
-"""
-            else:
-                body += f"""Le document PAP complet est joint à cet email.
-"""
-
-            # PAS de référent régional pour les emails standard
-            body += """
 Cordialement,
 Confédération CGT"""
 

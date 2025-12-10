@@ -10,8 +10,22 @@ from .models import PVEvent, Invitation, SiretSummary
 logger = logging.getLogger(__name__)
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.rename(columns={c: re.sub(r"\s+", " ", str(c)).strip() for c in df.columns})
-    df.columns = [c.lower() for c in df.columns]
+    """Normalise les noms de colonnes : supprime accents, espaces, apostrophes, met en lowercase."""
+    def normalize_name(name: str) -> str:
+        # Convertir en string
+        name = str(name)
+        # Supprimer les accents
+        name = unicodedata.normalize("NFKD", name)
+        name = "".join(ch for ch in name if not unicodedata.combining(ch))
+        # Remplacer apostrophes et tirets par espaces
+        name = name.replace("'", " ").replace("'", " ").replace("-", " ").replace("_", " ")
+        # Remplacer espaces multiples par un seul espace
+        name = re.sub(r"\s+", " ", name).strip()
+        # Mettre en lowercase
+        name = name.lower()
+        return name
+
+    df = df.rename(columns={c: normalize_name(c) for c in df.columns})
     return df
 
 def _normalize_raw_key(key: str) -> str:
@@ -51,6 +65,8 @@ def _to14(x):
     """
     Normalise une valeur de SIRET en ne conservant que les chiffres.
 
+    Gère la notation scientifique Excel (ex: 4.37811E+13).
+
     Args:
         x: Value to convert (can be str, int, float, None, or NaN)
 
@@ -61,14 +77,39 @@ def _to14(x):
         return None
     if pd.isna(x):
         return None
+
     # Handle empty strings
     if isinstance(x, str) and not x.strip():
         return None
+
+    # Détecter la notation scientifique (dans string ou float)
+    # Ex: "4.37811E+13" ou "4.37811e+13" ou 4.37811e+13
+    str_value = str(x).upper()
+    if 'E+' in str_value or 'E-' in str_value:
+        try:
+            # Convertir la notation scientifique en nombre puis en int
+            x = float(x)
+            x = int(x)
+        except (ValueError, OverflowError):
+            pass
+
+    # Si c'est un float (notation scientifique dans Excel), convertir en int d'abord
+    # pour éviter la perte de précision
+    elif isinstance(x, float):
+        try:
+            # Convertir le float en int pour avoir tous les chiffres
+            x = int(x)
+        except (ValueError, OverflowError):
+            pass
+
+    # Convertir en string et garder uniquement les chiffres
     s = re.sub(r"\D", "", str(x))
     if not s:
         return None
-    s = s.lstrip("0")
-    return s or None
+
+    # Retourner le SIRET (même s'il fait moins de 14 chiffres, on le garde)
+    # Ne plus supprimer les zéros de gauche pour préserver les SIRET commençant par 0
+    return s if len(s) >= 9 else None  # Minimum 9 chiffres pour être considéré comme valide
 
 
 def _normalize_siret_series(series: pd.Series | None) -> pd.Series | None:
@@ -407,8 +448,12 @@ def ingest_invit_excel(session: Session, file_like, auto_enrich: bool = True) ->
     df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
     df = _normalize_cols(df)
 
-    c_siret = _col_detect(df, ["siret"], warn_if_missing=True)
-    c_date  = _col_detect(df, ["date pap","date_pap","date","date invitation"], warn_if_missing=True)
+    c_siret = _col_detect(df, ["siret", "n siret", "numero siret"], warn_if_missing=True)
+    c_date  = _col_detect(df, [
+        "date pap", "date_pap", "date", "date invitation",
+        "date d arrivee", "date arrivee", "date de reception",
+        "date reception", "date invit", "date d invitation"
+    ], warn_if_missing=True)
     inserted = 0
     skipped_no_siret = 0
     skipped_no_date = 0
