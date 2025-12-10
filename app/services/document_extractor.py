@@ -186,23 +186,32 @@ class DocumentExtractor:
                 # Enrichir les données manquantes
                 enriched_fields = []
 
-                if not extracted_data.get('effectif') and pappers_data.get('effectifs_label'):
-                    try:
-                        # Pappers retourne parfois un label "10 à 19 salariés"
-                        effectif_label = str(pappers_data['effectifs_label'])
-                        # Si c'est un nombre, l'utiliser directement
-                        if effectif_label.isdigit():
-                            extracted_data['effectif'] = int(effectif_label)
-                            enriched_fields.append('effectif')
-                        else:
-                            # Sinon garder le label en note
-                            note = f"Effectif (Pappers): {effectif_label}"
-                            if extracted_data.get('notes'):
-                                extracted_data['notes'] = f"{extracted_data['notes']} | {note}"
+                # PRIORITÉ 1: Utiliser l'effectif numérique direct de Pappers
+                if not extracted_data.get('effectif'):
+                    effectif_num = pappers_data.get('effectif')
+                    if effectif_num and isinstance(effectif_num, (int, float)) and effectif_num > 0:
+                        extracted_data['effectif'] = int(effectif_num)
+                        enriched_fields.append('effectif')
+                        logger.info(f"✅ Effectif numérique récupéré: {effectif_num}")
+                    # PRIORITÉ 2: Essayer de parser effectifs_label si c'est un nombre
+                    elif pappers_data.get('effectifs_label'):
+                        try:
+                            effectif_label = str(pappers_data['effectifs_label'])
+                            # Si c'est un nombre, l'utiliser directement
+                            if effectif_label.isdigit():
+                                extracted_data['effectif'] = int(effectif_label)
+                                enriched_fields.append('effectif')
+                                logger.info(f"✅ Effectif extrait du label: {effectif_label}")
                             else:
-                                extracted_data['notes'] = note
-                    except (ValueError, TypeError):
-                        pass
+                                # Sinon garder le label en note
+                                note = f"Effectif (Pappers): {effectif_label}"
+                                if extracted_data.get('notes'):
+                                    extracted_data['notes'] = f"{extracted_data['notes']} | {note}"
+                                else:
+                                    extracted_data['notes'] = note
+                                logger.info(f"ℹ️ Effectif label (non numérique): {effectif_label}")
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"⚠️ Erreur parsing effectif: {e}")
 
                 if not extracted_data.get('ville') and pappers_data.get('commune'):
                     extracted_data['ville'] = pappers_data['commune']

@@ -259,6 +259,7 @@ class PappersAPI:
             "activite_principale": etab.get("code_naf"),
             "libelle_activite": etab.get("libelle_code_naf"),
             "tranche_effectifs": entreprise.get("tranche_effectif"), # Pappers donne ça au niveau entreprise souvent
+            "effectif": entreprise.get("effectif"),  # AJOUT: Effectif numérique direct
             "effectifs_label": entreprise.get("effectif_libelle"), # Ou à calculer
             "forme_juridique": entreprise.get("forme_juridique"),
             "est_siege": etab.get("siege", False),
@@ -273,21 +274,41 @@ class PappersAPI:
 
     @staticmethod
     def _extract_idcc(entreprise: Dict[str, Any]) -> Optional[str]:
-        """Extrait l'IDCC depuis la réponse Pappers (dict ou liste)."""
+        """
+        Extrait l'IDCC depuis la réponse Pappers avec plusieurs fallbacks.
 
-        cc_list = entreprise.get("convention_collective_principale", {})
-        if cc_list and isinstance(cc_list, dict):
-            idcc = str(cc_list.get("idcc", "")).strip()
-            if idcc:
+        Pappers peut retourner l'IDCC dans différents endroits :
+        1. entreprise["idcc"] (direct)
+        2. entreprise["convention_collective_principale"]["idcc"]
+        3. entreprise["conventions_collectives"][0]["idcc"]
+        """
+
+        # Fallback 1: IDCC direct au niveau entreprise (le plus courant)
+        idcc_direct = entreprise.get("idcc")
+        if idcc_direct:
+            idcc_str = str(idcc_direct).strip()
+            if idcc_str and idcc_str != "0":
+                logger.info(f"✅ IDCC trouvé (direct): {idcc_str}")
+                return idcc_str
+
+        # Fallback 2: Convention collective principale (structure dict)
+        cc_principale = entreprise.get("convention_collective_principale", {})
+        if cc_principale and isinstance(cc_principale, dict):
+            idcc = str(cc_principale.get("idcc", "")).strip()
+            if idcc and idcc != "0":
+                logger.info(f"✅ IDCC trouvé (convention_collective_principale): {idcc}")
                 return idcc
 
+        # Fallback 3: Liste des conventions collectives (prendre la première)
         conventions = entreprise.get("conventions_collectives") or []
         if isinstance(conventions, list) and conventions:
             first_cc = conventions[0] or {}
             idcc = str(first_cc.get("idcc", "")).strip()
-            if idcc:
+            if idcc and idcc != "0":
+                logger.info(f"✅ IDCC trouvé (conventions_collectives[0]): {idcc}")
                 return idcc
 
+        logger.warning(f"⚠️ IDCC non trouvé pour entreprise SIREN: {entreprise.get('siren', 'N/A')}")
         return None
 
     @staticmethod
