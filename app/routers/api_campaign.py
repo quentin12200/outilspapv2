@@ -82,6 +82,17 @@ async def analyze_pap_batch(
     if not files:
         raise HTTPException(status_code=400, detail="Aucun fichier fourni")
 
+    # IMPORTANT: Lire tous les fichiers AVANT de créer le générateur
+    # Car FastAPI ferme les fichiers uploadés après le retour de la fonction
+    files_data = []
+    for file in files:
+        file_content = await file.read()
+        files_data.append({
+            'filename': file.filename,
+            'content': file_content,
+            'content_type': file.content_type
+        })
+
     async def event_generator():
         """Générateur d'événements SSE pour la progression."""
         extracted_paps = []
@@ -89,44 +100,44 @@ async def analyze_pap_batch(
 
         enrichment_service = PAPEnrichmentService(db)
 
-        logger.info(f"🚀 Début d'analyse de campagne PAP - {len(files)} fichier(s)")
+        logger.info(f"🚀 Début d'analyse de campagne PAP - {len(files_data)} fichier(s)")
 
         # Envoyer l'événement de démarrage
-        yield f"data: {json.dumps({'status': 'started', 'total': len(files)})}\n\n"
+        yield f"data: {json.dumps({'status': 'started', 'total': len(files_data)})}\n\n"
 
         # Étape 1 : Extraction et enrichissement complet de chaque PAP
-        for i, file in enumerate(files, 1):
-            logger.info(f"📄 Traitement du fichier {i}/{len(files)}: {file.filename}")
+        for i, file_info in enumerate(files_data, 1):
+            logger.info(f"📄 Traitement du fichier {i}/{len(files_data)}: {file_info['filename']}")
 
             # Envoyer la progression
             progress_event = {
                 'status': 'progress',
                 'current': i,
-                'total': len(files),
-                'filename': file.filename
+                'total': len(files_data),
+                'filename': file_info['filename']
             }
             yield f"data: {json.dumps(progress_event)}\n\n"
 
             try:
                 # Vérifier le type de fichier
-                if file.content_type not in [
+                if file_info['content_type'] not in [
                     "image/jpeg", "image/jpg", "image/png", "image/webp",
                     "application/pdf"
                 ]:
                     extraction_errors.append({
-                        'filename': file.filename,
-                        'error': f"Type de fichier non supporté: {file.content_type}"
+                        'filename': file_info['filename'],
+                        'error': f"Type de fichier non supporté: {file_info['content_type']}"
                     })
                     continue
 
-                # Lire le fichier
-                file_data = await file.read()
-                is_pdf = file.content_type == "application/pdf"
+                # Utiliser le contenu déjà lu
+                file_data = file_info['content']
+                is_pdf = file_info['content_type'] == "application/pdf"
 
                 # Extraire et enrichir les informations (GPT-4 + Pappers + Base PV)
                 extracted_data = await enrichment_service.enrich_pap_from_pdf(
                     file_data,
-                    file.filename,
+                    file_info['filename'],
                     is_pdf=is_pdf
                 )
 
@@ -200,26 +211,26 @@ async def analyze_pap_batch(
                             # Ne pas bloquer le processus si l'enregistrement échoue
 
                     except Exception as e:
-                        logger.error(f"⚠️ Erreur stockage PDF {file.filename}: {str(e)}")
+                        logger.error(f"⚠️ Erreur stockage PDF {file_info['filename']}: {str(e)}")
 
                 # Ajouter les métadonnées du PDF
                 extracted_data['pdf_url'] = pdf_url
                 extracted_data['pdf_filename'] = pdf_filename
-                extracted_data['original_filename'] = file.filename
+                extracted_data['original_filename'] = file_info['filename']
 
                 extracted_paps.append(extracted_data)
                 logger.info(f"✅ Enrichissement complet - SIRET: {extracted_data.get('siret', 'N/A')}")
 
             except DocumentExtractorError as e:
-                logger.error(f"❌ Erreur extraction {file.filename}: {str(e)}")
+                logger.error(f"❌ Erreur extraction {file_info['filename']}: {str(e)}")
                 extraction_errors.append({
-                    'filename': file.filename,
+                    'filename': file_info['filename'],
                     'error': str(e)
                 })
             except Exception as e:
-                logger.error(f"❌ Erreur inattendue {file.filename}: {str(e)}")
+                logger.error(f"❌ Erreur inattendue {file_info['filename']}: {str(e)}")
                 extraction_errors.append({
-                    'filename': file.filename,
+                    'filename': file_info['filename'],
                     'error': f"Erreur inattendue: {str(e)}"
                 })
 
@@ -240,7 +251,7 @@ async def analyze_pap_batch(
         # Ajouter les erreurs d'extraction dans les stats
         analysis_result['extraction_errors'] = extraction_errors
         analysis_result['extraction_success_rate'] = (
-            len(extracted_paps) / len(files) * 100 if files else 0
+            len(extracted_paps) / len(files_data) * 100 if files_data else 0
         )
 
         # Log de l'action
@@ -250,9 +261,9 @@ async def analyze_pap_batch(
             action="analyze_pap_campaign",
             resource_type="campaign",
             success=True,
-            resource_id=f"batch_{len(files)}",
+            resource_id=f"batch_{len(files_data)}",
             request_params={
-                'total_files': len(files),
+                'total_files': len(files_data),
                 'successful_extractions': len(extracted_paps),
                 'failed_extractions': len(extraction_errors)
             },
