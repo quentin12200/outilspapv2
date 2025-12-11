@@ -5,7 +5,6 @@ Documentation: https://www.pappers.fr/api/documentation
 
 import os
 import httpx
-import asyncio
 import logging
 from typing import Optional, Dict, Any, List
 
@@ -269,9 +268,9 @@ class PappersAPI:
             "libelle_activite": etab.get("libelle_code_naf"),
             "tranche_effectifs": entreprise.get("tranche_effectif"),
             "effectif": effectif_num,  # Moyenne calculée depuis min/max
-            "effectif_min": effectif_min,  # AJOUT: Borne min
-            "effectif_max": effectif_max,  # AJOUT: Borne max
-            "effectifs_label": entreprise.get("effectif"),  # Label texte "Entre 10 et 19 salariés"
+            "effectif_min": effectif_min,
+            "effectif_max": effectif_max,
+            "effectifs_label": entreprise.get("effectif"),  # Label texte ex: "Entre 10 et 19 salariés"
             "forme_juridique": entreprise.get("forme_juridique"),
             "est_siege": etab.get("siege", False),
             "est_actif": not (etab.get("etablissement_cesse", False) or entreprise.get("entreprise_cessee", False)),

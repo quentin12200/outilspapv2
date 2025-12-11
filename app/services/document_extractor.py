@@ -14,18 +14,20 @@ import json
 
 from openai import OpenAI
 from PIL import Image
-try:
-    from pdf2image import convert_from_bytes
-    PDF_SUPPORT = True
-except ImportError:
-    PDF_SUPPORT = False
-    logger.warning("pdf2image non installé - support PDF désactivé")
 
 from ..config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_FALLBACK
 from .pappers_api import PappersAPI
 from .sirene_api import SireneAPI
 
 logger = logging.getLogger(__name__)
+
+# Vérifier le support PDF après l'initialisation du logger
+try:
+    from pdf2image import convert_from_bytes
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
+    logger.warning("pdf2image non installé - support PDF désactivé")
 
 
 class DocumentExtractorError(Exception):
