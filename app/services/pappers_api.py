@@ -248,6 +248,15 @@ class PappersAPI:
 
         idcc = self._extract_idcc(entreprise)
 
+        # Calculer l'effectif numérique depuis effectif_min/effectif_max
+        effectif_num = None
+        effectif_min = entreprise.get("effectif_min")
+        effectif_max = entreprise.get("effectif_max")
+        if effectif_min is not None and effectif_max is not None:
+            # Prendre la moyenne pour avoir un nombre représentatif
+            # Ex: min=10, max=19 -> effectif=14
+            effectif_num = int((effectif_min + effectif_max) / 2)
+
         return {
             "siret": etab.get("siret"),
             "siren": entreprise.get("siren"),
@@ -258,9 +267,11 @@ class PappersAPI:
             "commune": etab.get("ville"),
             "activite_principale": etab.get("code_naf"),
             "libelle_activite": etab.get("libelle_code_naf"),
-            "tranche_effectifs": entreprise.get("tranche_effectif"), # Pappers donne ça au niveau entreprise souvent
-            "effectif": entreprise.get("effectif"),  # AJOUT: Effectif numérique direct
-            "effectifs_label": entreprise.get("effectif_libelle"), # Ou à calculer
+            "tranche_effectifs": entreprise.get("tranche_effectif"),
+            "effectif": effectif_num,  # Moyenne calculée depuis min/max
+            "effectif_min": effectif_min,  # AJOUT: Borne min
+            "effectif_max": effectif_max,  # AJOUT: Borne max
+            "effectifs_label": entreprise.get("effectif"),  # Label texte "Entre 10 et 19 salariés"
             "forme_juridique": entreprise.get("forme_juridique"),
             "est_siege": etab.get("siege", False),
             "est_actif": not (etab.get("etablissement_cesse", False) or entreprise.get("entreprise_cessee", False)),
